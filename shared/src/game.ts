@@ -326,6 +326,14 @@ export class Game {
       const eliminated = this._checkElimination(capOwner);
       if (eliminated) {
         this.events.push({ type: 'eliminated', playerId: capOwner, by: attackerId });
+        // If the human was just eliminated, end the game RIGHT NOW with
+        // the attacker as the named winner. This is the player who
+        // actually took your last capital, not whoever happens to be
+        // largest at the moment (which was usually some unrelated AI).
+        if (capOwner === this.human().id && !this.outcome) {
+          this.outcome = 'defeat';
+          this.events.push({ type: 'gameover', outcome: 'defeat', winner: attackerId });
+        }
       } else {
         this.events.push({ type: 'capital', playerId: capOwner, by: attackerId });
       }
@@ -363,28 +371,34 @@ export class Game {
         }
       }
     }
-    // Capitals must sit on tiles we ACTUALLY own. Collect every owned tile
-    // within the blob, then pick CAPITALS_PER_PLAYER positions spaced by
-    // distance from the center (so they don't all land on one spot).
-    const owned: Point[] = [];
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        const x = cx + dx, y = cy + dy;
-        if (this.territory.getOwner(x, y) === id) owned.push({ x, y });
-      }
-    }
-    if (owned.length === 0) return;
-    owned.sort((a, b) =>
-      (Math.hypot(a.x - cx, a.y - cy)) - (Math.hypot(b.x - cx, b.y - cy)),
-    );
+    // Capitals at fixed mid-blob offsets so they are NOT on the spawn
+    // perimeter (where they'd fall the moment an enemy frontier touches
+    // your blob). For tight spawn radii where the desired offset doesn't
+    // land on owned land, snap to the nearest owned tile.
+    const desired: Point[] = [
+      { x: 0,  y: 0  },
+      { x: 2,  y: 1  },
+      { x: -2, y: -1 },
+    ];
     const N = this.config.CAPITALS_PER_PLAYER;
     for (let i = 0; i < N; i++) {
-      // i=0 → idx 0 (closest to center), i=1 → mid, i=2 → far edge, etc.
-      const frac = N === 1 ? 0 : i / (N - 1) * 0.7; // cap at 70% out so capitals stay inside, not on the very edge
-      const idx = Math.min(owned.length - 1, Math.floor(frac * owned.length));
-      const pt = owned[idx];
-      if (pt && this._capitalIndexAt(pt.x, pt.y) < 0) {
-        this.capitals.push({ x: pt.x, y: pt.y, owner: id });
+      const want = desired[i] ?? desired[0]!;
+      let tx = cx + want.x, ty = cy + want.y;
+      if (this.territory.getOwner(tx, ty) !== id) {
+        let bestD = Infinity, bestX = tx, bestY = ty;
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            const x = cx + dx, y = cy + dy;
+            if (this.territory.getOwner(x, y) !== id) continue;
+            const d = (x - tx) * (x - tx) + (y - ty) * (y - ty);
+            if (d < bestD) { bestD = d; bestX = x; bestY = y; }
+          }
+        }
+        if (bestD === Infinity) continue;
+        tx = bestX; ty = bestY;
+      }
+      if (this._capitalIndexAt(tx, ty) < 0) {
+        this.capitals.push({ x: tx, y: ty, owner: id });
       }
     }
   }
@@ -592,32 +606,16 @@ export class Game {
       const p = this.players[id];
       if (p && p.alive) { aliveCount++; lastAlive = id; }
     }
-    const human = this.human();
     if (aliveCount === 1) {
-      const outcome: 'victory' | 'defeat' = (lastAlive === human.id) ? 'victory' : 'defeat';
+      const outcome: 'victory' | 'defeat' = (lastAlive === this.human().id) ? 'victory' : 'defeat';
       this.outcome = outcome;
       this.events.push({ type: 'gameover', outcome, winner: lastAlive });
     } else if (aliveCount === 0) {
-      // Should be vanishingly rare (every capital was destroyed at the same
-      // tick). Pick whichever player held the most tiles as the named winner.
+      // Vanishingly rare — every capital was destroyed in the same tick.
       this.outcome = 'defeat';
-      this.events.push({ type: 'gameover', outcome: 'defeat', winner: this._strongestPlayerId() });
-    } else if (!human.alive) {
-      // Human is dead but AIs are still fighting. Game is over for the human;
-      // name the strongest current AI as the de facto winner.
-      this.outcome = 'defeat';
-      this.events.push({ type: 'gameover', outcome: 'defeat', winner: this._strongestPlayerId(true) });
+      this.events.push({ type: 'gameover', outcome: 'defeat', winner: -1 });
     }
-  }
-
-  private _strongestPlayerId(excludeHuman = false): PlayerId {
-    let bestId = -1, bestCount = -1;
-    for (let id = excludeHuman ? 2 : 1; id < this.players.length; id++) {
-      const p = this.players[id];
-      if (!p) continue;
-      const c = this.territory.counts[id]!;
-      if (c > bestCount) { bestCount = c; bestId = id; }
-    }
-    return bestId;
+    // The "human dead but AIs alive" case is handled in tryCapture, where
+    // we know the actual attacker who took the last capital.
   }
 }
