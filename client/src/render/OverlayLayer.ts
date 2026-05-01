@@ -1,5 +1,5 @@
-import { Container, Graphics } from 'pixi.js';
-import type { Game } from '@territorygame/shared';
+import { Container, Graphics, Text } from 'pixi.js';
+import type { Game, PlayerId } from '@territorygame/shared';
 import type { Renderer } from './Renderer.js';
 
 // Things drawn on top of the world in screen space (or world space with a
@@ -11,6 +11,8 @@ export class OverlayLayer {
   private readonly buildings: Graphics;
   private readonly target: Graphics;
   private readonly tapFlash: Graphics;
+  private readonly labelLayer: Container;
+  private readonly labels = new Map<PlayerId, Text>();
   private readonly game: Game;
   private readonly renderer: Renderer;
 
@@ -33,7 +35,8 @@ export class OverlayLayer {
     this.buildings = new Graphics();
     this.target = new Graphics();
     this.tapFlash = new Graphics();
-    this.container.addChild(this.capitals, this.buildings, this.target, this.tapFlash);
+    this.labelLayer = new Container();
+    this.container.addChild(this.capitals, this.buildings, this.target, this.tapFlash, this.labelLayer);
   }
 
   flashTap(sx: number, sy: number): void {
@@ -50,10 +53,56 @@ export class OverlayLayer {
   update(now: number): void {
     this._drawCapitals(now);
     this._drawBuildings(now);
+    this._drawTroopLabels();
     this._drawTarget(now);
-    // _drawExplosions composes both explosions and the tap flash on the
-    // same Graphics, so we don't need a separate _drawTapFlash call.
     this._drawExplosions(now);
+  }
+
+  private _drawTroopLabels(): void {
+    // Pool Text objects per-player; reposition + retext per frame. Players
+    // with very small territories are hidden to avoid clutter at high N.
+    const counts = this.game.territory.counts;
+    const palette = this.game.config.PLAYER_COLORS;
+    const minTilesToShow = 6;
+    const seen = new Set<PlayerId>();
+    for (let id = 1; id < this.game.players.length; id++) {
+      const p = this.game.players[id];
+      if (!p || !p.alive) continue;
+      const owned = counts[id]!;
+      if (owned < minTilesToShow) continue;
+      const c = this.game.territory.centroid(id);
+      const s = this.renderer.worldToScreen(c.x, c.y);
+      let label = this.labels.get(id);
+      if (!label) {
+        const palc = palette[id];
+        const tint = palc ? (palc[0] << 16) | (palc[1] << 8) | palc[2] : 0xffffff;
+        label = new Text({
+          text: '',
+          style: {
+            fill: 0xffffff,
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+            fontWeight: '800',
+            fontSize: 13,
+            stroke: { color: 0x000000, width: 3, alpha: 0.7 },
+          },
+        });
+        label.tint = tint;
+        label.anchor.set(0.5, 0.5);
+        this.labels.set(id, label);
+        this.labelLayer.addChild(label);
+      }
+      label.text = formatTroops(p.troops);
+      label.position.set(s.x, s.y);
+      seen.add(id);
+    }
+    // Drop labels for dead/missing players.
+    for (const [id, label] of this.labels) {
+      if (!seen.has(id)) {
+        this.labelLayer.removeChild(label);
+        label.destroy();
+        this.labels.delete(id);
+      }
+    }
   }
 
   private _drawExplosions(now: number): void {
@@ -178,5 +227,13 @@ export class OverlayLayer {
     g.moveTo(s.x, s.y + gap).lineTo(s.x, s.y + r);
     g.stroke({ color: 0xffffff, alpha: 0.5 + 0.4 * pulse, width: 2 });
   }
+}
 
+// Compact troop number for HUD + labels: 1234 → 1.2k, 1234567 → 1.2M.
+export function formatTroops(n: number): string {
+  if (n < 1000) return Math.floor(n).toString();
+  if (n < 10000) return (n / 1000).toFixed(1) + 'k';
+  if (n < 1_000_000) return Math.floor(n / 1000) + 'k';
+  if (n < 10_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  return Math.floor(n / 1_000_000) + 'M';
 }

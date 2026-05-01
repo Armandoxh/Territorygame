@@ -21,6 +21,8 @@ export interface Player {
   name: string;
   isHuman: boolean;
   gold: number;
+  /** Army strength. Grows passively from owned land, consumed on attacks. */
+  troops: number;
   alive: boolean;
   target: Point | null;
   expanding: boolean;

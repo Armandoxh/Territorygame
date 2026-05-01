@@ -168,6 +168,7 @@ export class Game {
     if (this.outcome) return;
     this.tickCount++;
     this._earnGoldAll();
+    this._growTroops();
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
       if (!p || !p.alive) continue;
@@ -347,6 +348,7 @@ export class Game {
     return {
       id, name, isHuman,
       gold: this.config.STARTING_GOLD,
+      troops: this.config.STARTING_TROOPS,
       alive: true,
       target: null,
       expanding: !isHuman,
@@ -400,6 +402,19 @@ export class Game {
       if (this._capitalIndexAt(tx, ty) < 0) {
         this.capitals.push({ x: tx, y: ty, owner: id });
       }
+    }
+  }
+
+  private _growTroops(): void {
+    const growth = this.config.TROOP_GROWTH_PER_TILE_PER_TICK;
+    const cap = this.config.TROOP_CAP_PER_TILE;
+    for (let id = 1; id < this.players.length; id++) {
+      const p = this.players[id];
+      if (!p || !p.alive) continue;
+      const owned = this.territory.counts[id]!;
+      const max = owned * cap;
+      const next = p.troops + owned * growth;
+      p.troops = next > max ? max : next;
     }
   }
 
@@ -502,11 +517,28 @@ export class Game {
       } else {
         const def = this._defenseAt(chosen.x, chosen.y, targetOwner);
         const cost = this.config.ATTACK_COST_PER_CLAIM * (1 + def);
-        const rate = chance * this.config.ATTACK_RATE_MULT / (1 + def);
+
+        // Troop-ratio modulation: bigger army = faster attacks AND tougher to attack.
+        const defender = this.players[targetOwner];
+        const defTroops = Math.max(1, defender?.troops ?? 1);
+        const ratio = p.troops / defTroops;
+        const ratioFactor = Math.max(
+          this.config.ATTACK_RATIO_MIN,
+          Math.min(
+            this.config.ATTACK_RATIO_MAX,
+            Math.pow(ratio, this.config.ATTACK_RATIO_EXP),
+          ),
+        );
+        const rate = chance * this.config.ATTACK_RATE_MULT * ratioFactor / (1 + def);
         if (Math.random() > rate) continue;
         if (p.gold < cost) continue;
+        if (p.troops < this.config.TROOP_COST_PER_ATTACK) continue;
         if (this.tryCapture(chosen.x, chosen.y, p.id)) {
           p.gold -= cost;
+          p.troops = Math.max(0, p.troops - this.config.TROOP_COST_PER_ATTACK);
+          if (defender) {
+            defender.troops = Math.max(0, defender.troops - this.config.TROOP_DAMAGE_PER_ATTACK);
+          }
         }
       }
     }

@@ -1,4 +1,5 @@
 import type { Game, BuildingType, BuildError, BombType, BombError, Player } from '@territorygame/shared';
+import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'wonder'];
 const BOMB_TYPES: BombType[] = ['small', 'large'];
@@ -7,6 +8,7 @@ export class HUD {
   private readonly game: Game;
   private readonly el = {
     tiles:        this._byId('my-tiles'),
+    troops:       this._byId('my-troops'),
     gold:         this._byId('my-gold'),
     dot:          this._byId('my-dot'),
     enemies:      this._byId('enemies'),
@@ -207,8 +209,9 @@ export class HUD {
   update(): void {
     const me = this.game.human();
     const owned = this.game.territory.counts[me.id]!;
-    if (this.el.tiles) this.el.tiles.textContent = String(owned);
-    if (this.el.gold)  this.el.gold.textContent  = String(Math.floor(me.gold));
+    if (this.el.tiles)  this.el.tiles.textContent  = String(owned);
+    if (this.el.troops) this.el.troops.textContent = formatTroops(me.troops);
+    if (this.el.gold)   this.el.gold.textContent   = String(Math.floor(me.gold));
     if (this.el.stop) {
       const showStop = me.alive && me.expanding && !this.game.outcome;
       this.el.stop.classList.toggle('hidden', !showStop);

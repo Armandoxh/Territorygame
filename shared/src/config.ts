@@ -23,6 +23,17 @@ export interface GameConfig {
   ATTACK_COST_PER_CLAIM: number;
   ATTACK_RATE_MULT: number;
 
+  // Troops (per-player army strength, displayed per territory)
+  STARTING_TROOPS: number;
+  TROOP_GROWTH_PER_TILE_PER_TICK: number;
+  TROOP_CAP_PER_TILE: number;          // troops cap = owned * this
+  TROOP_COST_PER_ATTACK: number;       // attacker troops consumed per claim
+  TROOP_DAMAGE_PER_ATTACK: number;     // defender troops consumed per claim
+  /** Attack rate multiplier = clamp((A.troops / B.troops)^EXP, MIN, MAX). */
+  ATTACK_RATIO_EXP: number;
+  ATTACK_RATIO_MIN: number;
+  ATTACK_RATIO_MAX: number;
+
   // Buildings
   BUILDING_COSTS: Record<BuildingType, number>;
   SETTLEMENT_RADIUS: number;
@@ -75,6 +86,15 @@ export const DEFAULT_CONFIG: GameConfig = {
 
   ATTACK_COST_PER_CLAIM: 4,
   ATTACK_RATE_MULT: 0.55,
+
+  STARTING_TROOPS: 100,
+  TROOP_GROWTH_PER_TILE_PER_TICK: 0.5, // 5/sec per tile until cap
+  TROOP_CAP_PER_TILE: 100,
+  TROOP_COST_PER_ATTACK: 5,
+  TROOP_DAMAGE_PER_ATTACK: 3,
+  ATTACK_RATIO_EXP: 0.5,
+  ATTACK_RATIO_MIN: 0.1,
+  ATTACK_RATIO_MAX: 10,
 
   BUILDING_COSTS: {
     settlement: 50,
