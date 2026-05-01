@@ -508,11 +508,10 @@ export class Game {
       if (targetOwner === 0) {
         if (Math.random() > chance) continue;
         if (p.gold < this.config.EXPANSION_COST_PER_CLAIM) continue;
-        // Unclaimed expansion still goes through tryCapture so a capital
-        // sitting on an unclaimed tile (rare edge case) is still removed
-        // and triggers elimination correctly.
+        if (p.troops < this.config.EXPANSION_TROOP_COST) continue;
         if (this.tryCapture(chosen.x, chosen.y, p.id)) {
           p.gold -= this.config.EXPANSION_COST_PER_CLAIM;
+          p.troops = Math.max(0, p.troops - this.config.EXPANSION_TROOP_COST);
         }
       } else {
         const def = this._defenseAt(chosen.x, chosen.y, targetOwner);

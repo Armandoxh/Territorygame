@@ -15,6 +15,7 @@ export interface GameConfig {
   STARTING_GOLD: number;
   GOLD_PER_TILE_PER_TICK: number;
   EXPANSION_COST_PER_CLAIM: number;
+  EXPANSION_TROOP_COST: number;
   EXPANSION_CHANCE_PER_FRONTIER_TILE: number;
   EXPANSION_TARGET_BIAS: number;
   EXPANSION_DIRECTIONAL_EXP: number;
@@ -83,6 +84,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   STARTING_GOLD: 120,
   GOLD_PER_TILE_PER_TICK: 0.05,
   EXPANSION_COST_PER_CLAIM: 1,
+  EXPANSION_TROOP_COST: 3, // troops drained per unclaimed claim — settling new land needs people
   EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.22,
   EXPANSION_TARGET_BIAS: 0.95,
   EXPANSION_DIRECTIONAL_EXP: 1.5,
