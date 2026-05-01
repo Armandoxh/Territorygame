@@ -1,7 +1,7 @@
 import { Application } from 'pixi.js';
 import {
   DEFAULT_CONFIG, generatePalette, Game,
-  type GameConfig, type BuildingType,
+  type GameConfig, type BuildingType, type BombType,
 } from '@territorygame/shared';
 import { Renderer } from './render/Renderer.js';
 import { PointerInput } from './input/PointerInput.js';
@@ -12,6 +12,11 @@ const BUILD_KEYS: Record<string, BuildingType> = {
   t: 'turret',
   a: 'airstrip',
   w: 'wonder',
+};
+
+const BOMB_KEYS: Record<string, BombType> = {
+  b: 'small',
+  l: 'large',
 };
 
 async function boot(): Promise<void> {
@@ -60,6 +65,7 @@ async function boot(): Promise<void> {
 
   const hud = new HUD(game);
   hud.onHaltRequested = () => game.haltHuman();
+  hud.onBombEvent = (x, y, radius) => renderer.overlay.pushExplosion(x, y, radius);
 
   let firstTap = true;
   const input = new PointerInput(app.canvas as HTMLCanvasElement, renderer, {
@@ -67,6 +73,7 @@ async function boot(): Promise<void> {
       renderer.overlay.flashTap(sx, sy);
       if (game.outcome) return;
       if (!game.territory.inBounds(wx, wy)) { hud.toast('off-map'); return; }
+      if (hud.tryBombAt(wx, wy)) return;
       if (hud.tryPlaceAt(wx, wy)) return;
       game.setHumanTarget(wx, wy);
       if (firstTap) { hud.hideHint(); firstTap = false; }
@@ -80,18 +87,23 @@ async function boot(): Promise<void> {
   });
   void input;
 
-  // Keyboard build shortcuts (S/T/A/W/Esc).
+  // Keyboard shortcuts: S/T/A/W = build, B = small bomb, L = large bomb, Esc = cancel.
   window.addEventListener('keydown', (e) => {
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    const type = BUILD_KEYS[k];
-    if (type) {
-      hud.togglePlaceMode(type);
+    const buildType = BUILD_KEYS[k];
+    const bombType  = BOMB_KEYS[k];
+    if (buildType) {
+      hud.togglePlaceMode(buildType);
+      e.preventDefault();
+    } else if (bombType) {
+      hud.toggleBombMode(bombType);
       e.preventDefault();
     } else if (k === 'escape') {
       hud.clearPlaceMode();
+      hud.clearBombMode();
       e.preventDefault();
     }
   });

@@ -20,6 +20,11 @@ export class OverlayLayer {
   private flashStart = -1;
   private static FLASH_MS = 600;
 
+  // Bomb explosions: world-space circles that expand and fade. A short queue
+  // so multiple explosions can play simultaneously.
+  private explosions: Array<{ wx: number; wy: number; worldR: number; start: number }> = [];
+  private static EXPLOSION_MS = 900;
+
   constructor(game: Game, renderer: Renderer) {
     this.game = game;
     this.renderer = renderer;
@@ -37,11 +42,52 @@ export class OverlayLayer {
     this.flashStart = performance.now();
   }
 
+  pushExplosion(wx: number, wy: number, worldR: number): void {
+    this.explosions.push({ wx, wy, worldR, start: performance.now() });
+    if (this.explosions.length > 16) this.explosions.shift();
+  }
+
   update(now: number): void {
     this._drawCapitals(now);
     this._drawBuildings(now);
     this._drawTarget(now);
-    this._drawTapFlash(now);
+    // _drawExplosions composes both explosions and the tap flash on the
+    // same Graphics, so we don't need a separate _drawTapFlash call.
+    this._drawExplosions(now);
+  }
+
+  private _drawExplosions(now: number): void {
+    // Single Graphics handles both bomb explosions and the tap flash.
+    const g = this.tapFlash;
+    g.clear();
+    for (let i = this.explosions.length - 1; i >= 0; i--) {
+      const e = this.explosions[i]!;
+      const elapsed = now - e.start;
+      if (elapsed > OverlayLayer.EXPLOSION_MS) {
+        this.explosions.splice(i, 1);
+        continue;
+      }
+      const t = elapsed / OverlayLayer.EXPLOSION_MS;
+      const s = this._toScreen(e.wx + 0.5, e.wy + 0.5);
+      const targetR = e.worldR * this.renderer.zoom;
+      const r = targetR * (0.4 + 0.7 * t);
+      const alpha = 1 - t;
+      g.circle(s.x, s.y, r).stroke({ color: 0xe84a4a, alpha: alpha * 0.85, width: 3 });
+      g.circle(s.x, s.y, r * 0.7).fill({ color: 0xe8c04a, alpha: alpha * 0.18 });
+    }
+    // Tap flash overlay
+    if (this.flashStart >= 0) {
+      const fe = now - this.flashStart;
+      if (fe <= OverlayLayer.FLASH_MS) {
+        const tt = fe / OverlayLayer.FLASH_MS;
+        const r = 14 + 32 * tt;
+        g.circle(this.flashSx, this.flashSy, r).stroke({
+          color: 0xffffff,
+          alpha: 0.85 * (1 - tt),
+          width: 2.5,
+        });
+      }
+    }
   }
 
   private _toScreen(wx: number, wy: number): { x: number; y: number } {
@@ -133,18 +179,4 @@ export class OverlayLayer {
     g.stroke({ color: 0xffffff, alpha: 0.5 + 0.4 * pulse, width: 2 });
   }
 
-  private _drawTapFlash(now: number): void {
-    const g = this.tapFlash;
-    g.clear();
-    if (this.flashStart < 0) return;
-    const elapsed = now - this.flashStart;
-    if (elapsed > OverlayLayer.FLASH_MS) return;
-    const t = elapsed / OverlayLayer.FLASH_MS;
-    const r = 14 + 32 * t;
-    g.circle(this.flashSx, this.flashSy, r).stroke({
-      color: 0xffffff,
-      alpha: 0.85 * (1 - t),
-      width: 2.5,
-    });
-  }
 }

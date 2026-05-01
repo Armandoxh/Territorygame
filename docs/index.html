@@ -7,8 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-  <script type="module" crossorigin src="/Territorygame/assets/index-CEY2AkrN.js"></script>
-  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-DEggEnO5.css">
+  <script type="module" crossorigin src="/Territorygame/assets/index-ky6qQ0cv.js"></script>
+  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-BLjkvr_y.css">
 </head>
 <body>
   <div id="app"></div>
@@ -44,6 +44,10 @@
     <div id="toast"></div>
     <div id="hint">tap to expand &middot; long-press to build &middot; S/T/A/W keys or hotbar</div>
     <button id="stop-btn" class="fab hidden" type="button">STOP</button>
+    <button id="bomb-btn" class="fab fab-bomb hidden" type="button" aria-label="Bombs">
+      <span class="fab-glyph">◎</span>
+      <span class="fab-cd" id="bomb-cd"></span>
+    </button>
     <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu">≡</button>
     <div id="buildsheet">
       <div class="bs-handle"></div>
@@ -72,6 +76,25 @@
           <span class="bs-name">Wonder <em>(W)</em></span>
           <span class="bs-desc">Win when complete (90s)</span>
           <span class="bs-cost">500</span>
+        </button>
+      </div>
+      <button class="bs-cancel" type="button">Cancel</button>
+    </div>
+    <div id="bombsheet">
+      <div class="bs-handle"></div>
+      <div class="bs-header">Drop bomb</div>
+      <div class="bs-grid">
+        <button class="bb-btn" data-bomb="small" type="button">
+          <span class="bb-icon" data-icon="bomb-small"></span>
+          <span class="bs-name">Small <em>(B)</em></span>
+          <span class="bs-desc">r4 · 8s cooldown</span>
+          <span class="bs-cost">60</span>
+        </button>
+        <button class="bb-btn" data-bomb="large" type="button">
+          <span class="bb-icon" data-icon="bomb-large"></span>
+          <span class="bs-name">Large <em>(L)</em></span>
+          <span class="bs-desc">r12 · 25s cooldown</span>
+          <span class="bs-cost">240</span>
         </button>
       </div>
       <button class="bs-cancel" type="button">Cancel</button>

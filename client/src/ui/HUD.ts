@@ -1,6 +1,7 @@
-import type { Game, BuildingType, BuildError, Player } from '@territorygame/shared';
+import type { Game, BuildingType, BuildError, BombType, BombError, Player } from '@territorygame/shared';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'wonder'];
+const BOMB_TYPES: BombType[] = ['small', 'large'];
 
 export class HUD {
   private readonly game: Game;
@@ -21,6 +22,9 @@ export class HUD {
     menu:         this._byId('menu'),
     menuBtn:      this._byId('menu-btn'),
     oppCount:     this._byId<HTMLInputElement>('opp-count'),
+    bombBtn:      this._byId('bomb-btn'),
+    bombCd:       this._byId('bomb-cd'),
+    bombSheet:    this._byId('bombsheet'),
     gameover:     this._byId('gameover'),
     gameoverTitle:this._byId('gameover-title'),
     gameoverSub:  this._byId('gameover-sub'),
@@ -29,6 +33,7 @@ export class HUD {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private debugVisible = false;
   private placeMode: BuildingType | null = null;
+  private bombMode: BombType | null = null;
   private buildSheetCoord: { x: number; y: number } | null = null;
   private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement }>();
 
@@ -48,6 +53,7 @@ export class HUD {
     this._wireStop();
     this._wireHotbar();
     this._wireSheet();
+    this._wireBomb();
     this._wireMenu();
     this._wireGameOver();
   }
@@ -55,6 +61,7 @@ export class HUD {
   // --- callbacks set from main.ts ---
 
   onHaltRequested?: () => void;
+  onBombEvent?: (x: number, y: number, radius: number) => void;
 
   // --- public ---
 
@@ -108,6 +115,58 @@ export class HUD {
     return true;
   }
 
+  // Bomb aim mode
+
+  toggleBombMode(type: BombType): void {
+    if (this.game.outcome) { this.bombMode = null; }
+    else if (this.bombMode === type) this.bombMode = null;
+    else this.bombMode = type;
+    this.placeMode = null;
+    this.hideBuildSheet();
+    this.hideBombSheet();
+    this._refreshHotbar();
+    this._refreshPlaceBanner();
+    this._refreshBombFab();
+  }
+
+  clearBombMode(): void {
+    if (!this.bombMode) return;
+    this.bombMode = null;
+    this._refreshPlaceBanner();
+    this._refreshBombFab();
+  }
+
+  /** Returns true if the tap was consumed by bomb-aim mode. */
+  tryBombAt(x: number, y: number): boolean {
+    if (!this.bombMode) return false;
+    const type = this.bombMode;
+    const err = this.game.dropBomb(type, x, y, 1);
+    if (err === null) {
+      this.toast(`${type[0]!.toUpperCase()}${type.slice(1)} bomb dropped`);
+      this.bombMode = null;
+      this._refreshPlaceBanner();
+      this._refreshBombFab();
+    } else {
+      this.toast(this._bombErrorMsg(err));
+    }
+    return true;
+  }
+
+  showBombSheet(): void {
+    if (!this.el.bombSheet) return;
+    if (!this.game.hasAirstrip(1)) { this.toast('Build an airstrip first'); return; }
+    this.clearPlaceMode();
+    this.bombMode = null;
+    this._refreshHotbar();
+    this._refreshPlaceBanner();
+    this.el.bombSheet.classList.add('show');
+    this._refreshBombSheetButtons();
+  }
+
+  hideBombSheet(): void {
+    this.el.bombSheet?.classList.remove('show');
+  }
+
   // Long-press build sheet
 
   showBuildSheet(x: number, y: number): void {
@@ -156,6 +215,8 @@ export class HUD {
     }
     if (this.buildSheetCoord) this._refreshSheetButtons();
     this._refreshHotbar();
+    this._refreshBombFab();
+    if (this.el.bombSheet?.classList.contains('show')) this._refreshBombSheetButtons();
     for (const [id, ref] of this.enemyEls) {
       const p = this.game.players[id];
       if (!p) continue;
@@ -230,6 +291,63 @@ export class HUD {
       ?.addEventListener('click', () => this.hideBuildSheet());
   }
 
+  private _wireBomb(): void {
+    this.el.bombBtn?.addEventListener('click', () => {
+      if (this.bombMode) { this.clearBombMode(); return; }
+      if (this.el.bombSheet?.classList.contains('show')) { this.hideBombSheet(); return; }
+      this.showBombSheet();
+    });
+    if (this.el.bombSheet) {
+      this.el.bombSheet.querySelectorAll<HTMLButtonElement>('.bb-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const type = btn.dataset['bomb'] as BombType | undefined;
+          if (!type || !BOMB_TYPES.includes(type)) return;
+          this.hideBombSheet();
+          this.toggleBombMode(type);
+        });
+      });
+      this.el.bombSheet.querySelector<HTMLButtonElement>('.bs-cancel')
+        ?.addEventListener('click', () => this.hideBombSheet());
+    }
+  }
+
+  private _refreshBombFab(): void {
+    if (!this.el.bombBtn) return;
+    const has = this.game.hasAirstrip(1);
+    this.el.bombBtn.classList.toggle('hidden', !has || !!this.game.outcome);
+    if (!has) return;
+    const ready = this.game.airstripReadyAt(1);
+    const cooling = ready > this.game.tickCount;
+    this.el.bombBtn.classList.toggle('cooling', cooling && !this.bombMode);
+    this.el.bombBtn.classList.toggle('armed',   !cooling && !this.bombMode);
+    this.el.bombBtn.classList.toggle('aiming',  !!this.bombMode);
+    if (this.el.bombCd) {
+      if (this.bombMode) {
+        this.el.bombCd.textContent = this.bombMode.toUpperCase();
+      } else if (cooling) {
+        const secs = Math.max(0, Math.ceil((ready - this.game.tickCount) / this.game.config.SIM_HZ));
+        this.el.bombCd.textContent = `${secs}s`;
+      } else {
+        this.el.bombCd.textContent = 'BOMB';
+      }
+    }
+  }
+
+  private _refreshBombSheetButtons(): void {
+    if (!this.el.bombSheet) return;
+    const me = this.game.human();
+    const ready = this.game.airstripReadyAt(1);
+    const cooling = ready > this.game.tickCount;
+    this.el.bombSheet.querySelectorAll<HTMLButtonElement>('.bb-btn').forEach((btn) => {
+      const type = btn.dataset['bomb'] as BombType | undefined;
+      if (!type) return;
+      const cost = this.game.config.BOMB_COSTS[type];
+      const costEl = btn.querySelector('.bs-cost');
+      if (costEl) costEl.textContent = String(cost);
+      btn.classList.toggle('disabled', cooling || me.gold < cost);
+    });
+  }
+
   private _wireMenu(): void {
     if (!this.el.menu) return;
     if (this.el.oppCount) this.el.oppCount.value = String(this._initialOppCount());
@@ -292,11 +410,15 @@ export class HUD {
 
   private _refreshPlaceBanner(): void {
     if (!this.el.placeBanner) return;
-    if (this.placeMode) {
+    if (this.bombMode) {
+      if (this.el.placeBannerType) this.el.placeBannerType.textContent = `${this.bombMode.toUpperCase()} BOMB`;
+      this.el.placeBanner.classList.add('show', 'bomb');
+    } else if (this.placeMode) {
       if (this.el.placeBannerType) this.el.placeBannerType.textContent = this.placeMode.toUpperCase();
+      this.el.placeBanner.classList.remove('bomb');
       this.el.placeBanner.classList.add('show');
     } else {
-      this.el.placeBanner.classList.remove('show');
+      this.el.placeBanner.classList.remove('show', 'bomb');
     }
   }
 
@@ -312,6 +434,8 @@ export class HUD {
         this._showGameOver(e.outcome, e.winner);
       } else if (e.type === 'destroyed' && e.ownerId === 1) {
         this.toast(`Your ${e.buildingType} destroyed`);
+      } else if (e.type === 'bomb') {
+        this.onBombEvent?.(e.x, e.y, e.radius);
       }
     }
   }
@@ -385,6 +509,18 @@ export class HUD {
       'oob':          'Out of bounds',
       'dead':         'You are eliminated',
       'bad-type':     'Unknown building',
+    };
+    return msgs[err];
+  }
+
+  private _bombErrorMsg(err: BombError): string {
+    const msgs: Record<BombError, string> = {
+      'no-airstrip': 'Need an airstrip',
+      'cooldown':    'All airstrips on cooldown',
+      'gold':        'Not enough gold',
+      'oob':         'Out of bounds',
+      'dead':        'You are eliminated',
+      'bad-type':    'Unknown bomb',
     };
     return msgs[err];
   }

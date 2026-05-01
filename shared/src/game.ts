@@ -1,7 +1,7 @@
 import type { GameConfig } from './config.js';
 import type {
-  Player, PlayerId, Capital, Building, BuildingType, GameEvent,
-  GameOutcome, BuildError, Point,
+  Player, PlayerId, Capital, Building, BuildingType, BombType, GameEvent,
+  GameOutcome, BuildError, BombError, Point,
 } from './types.js';
 import { TERRAIN_LAND } from './types.js';
 import { Territory } from './territory.js';
@@ -206,6 +206,22 @@ export class Game {
     return this.countBuildings(ownerId, 'airstrip') > 0;
   }
 
+  /**
+   * Returns the soonest tick at which an airstrip belonging to ownerId
+   * will be ready, or -1 if the player has no airstrips at all.
+   */
+  airstripReadyAt(ownerId: PlayerId): number {
+    let best = Infinity;
+    let any = false;
+    for (const b of this.buildings) {
+      if (b.type !== 'airstrip' || b.owner !== ownerId) continue;
+      any = true;
+      const ready = b.cooldownUntil ?? 0;
+      if (ready < best) best = ready;
+    }
+    return any ? best : -1;
+  }
+
   /** null on success, error code otherwise. */
   tryBuild(type: BuildingType, x: number, y: number, ownerId: PlayerId): BuildError | null {
     const cost = this.config.BUILDING_COSTS[type];
@@ -229,22 +245,89 @@ export class Game {
     return null;
   }
 
+  // --- Bombs ---
+
+  /**
+   * Drop a bomb of the given type at (x, y). Requires an airstrip off
+   * cooldown and enough gold. Wipes claims and destroys buildings on every
+   * tile in radius — including the bomber's own. Capitals are immune.
+   */
+  dropBomb(type: BombType, x: number, y: number, ownerId: PlayerId): BombError | null {
+    if (!this.territory.inBounds(x, y)) return 'oob';
+    const owner = this.players[ownerId];
+    if (!owner || !owner.alive) return 'dead';
+    const cost = this.config.BOMB_COSTS[type];
+    if (cost == null) return 'bad-type';
+
+    // Find the soonest-ready airstrip belonging to ownerId.
+    let chosen: Building | null = null;
+    let chosenReady = Infinity;
+    let any = false;
+    for (const b of this.buildings) {
+      if (b.type !== 'airstrip' || b.owner !== ownerId) continue;
+      any = true;
+      const ready = b.cooldownUntil ?? 0;
+      if (ready <= this.tickCount && ready < chosenReady) {
+        chosen = b;
+        chosenReady = ready;
+      }
+    }
+    if (!any) return 'no-airstrip';
+    if (!chosen) return 'cooldown';
+    if (owner.gold < cost) return 'gold';
+
+    owner.gold -= cost;
+    chosen.cooldownUntil = this.tickCount + this.config.BOMB_COOLDOWN_TICKS[type];
+
+    const radius = this.config.BOMB_RADII[type];
+    const r2 = radius * radius;
+    const W = this.territory.width;
+    const H = this.territory.height;
+    for (let dy = -radius; dy <= radius; dy++) {
+      const ty = y + dy;
+      if (ty < 0 || ty >= H) continue;
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx * dx + dy * dy > r2) continue;
+        const tx = x + dx;
+        if (tx < 0 || tx >= W) continue;
+        // Capitals are immune — bombs cannot remove a capital.
+        if (this._capitalIndexAt(tx, ty) >= 0) continue;
+        // Only land tiles can be hit (water already has nothing to lose).
+        if (!this.territory.isPassable(tx, ty)) continue;
+        if (this.territory.getOwner(tx, ty) !== 0) {
+          if (this.territory.claim(tx, ty, 0)) {
+            this._destroyBuildingsAt(tx, ty);
+          }
+        } else {
+          // Edge case: a stray building on unclaimed land — destroy it.
+          if (this.buildingAt(tx, ty)) this._destroyBuildingsAt(tx, ty);
+        }
+      }
+    }
+    this.events.push({ type: 'bomb', bombType: type, x, y, radius, ownerId });
+    return null;
+  }
+
   // --- Capture (combat) ---
 
-  /** Attempt to flip (x, y) to attackerId. */
+  /** Attempt to flip (x, y) to attackerId. Returns true on success. */
   tryCapture(x: number, y: number, attackerId: PlayerId): boolean {
     const defender = this.territory.getOwner(x, y);
     if (defender < 0 || defender === attackerId) return false;
     const capIdx = this._capitalIndexAt(x, y);
+    // Capture the capital's recorded owner BEFORE we splice it out, since
+    // that owner may differ from the tile's defender (unclaimed-on-capital
+    // edge case for tight spawn radii).
+    const capOwner = capIdx >= 0 ? this.capitals[capIdx]!.owner : -1;
     if (!this.territory.claim(x, y, attackerId)) return false;
     this._destroyBuildingsAt(x, y);
-    if (capIdx >= 0) {
+    if (capIdx >= 0 && capOwner > 0) {
       this.capitals.splice(capIdx, 1);
-      const eliminated = this._checkElimination(defender);
+      const eliminated = this._checkElimination(capOwner);
       if (eliminated) {
-        this.events.push({ type: 'eliminated', playerId: defender, by: attackerId });
+        this.events.push({ type: 'eliminated', playerId: capOwner, by: attackerId });
       } else {
-        this.events.push({ type: 'capital', playerId: defender, by: attackerId });
+        this.events.push({ type: 'capital', playerId: capOwner, by: attackerId });
       }
     }
     return true;
@@ -280,14 +363,29 @@ export class Game {
         }
       }
     }
-    const offsets: Point[] = [
-      { x: 0,  y: 0  },
-      { x: 3,  y: 1  },
-      { x: -2, y: -2 },
-    ];
-    for (let i = 0; i < this.config.CAPITALS_PER_PLAYER; i++) {
-      const o = offsets[i] ?? offsets[0]!;
-      this.capitals.push({ x: cx + o.x, y: cy + o.y, owner: id });
+    // Capitals must sit on tiles we ACTUALLY own. Collect every owned tile
+    // within the blob, then pick CAPITALS_PER_PLAYER positions spaced by
+    // distance from the center (so they don't all land on one spot).
+    const owned: Point[] = [];
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const x = cx + dx, y = cy + dy;
+        if (this.territory.getOwner(x, y) === id) owned.push({ x, y });
+      }
+    }
+    if (owned.length === 0) return;
+    owned.sort((a, b) =>
+      (Math.hypot(a.x - cx, a.y - cy)) - (Math.hypot(b.x - cx, b.y - cy)),
+    );
+    const N = this.config.CAPITALS_PER_PLAYER;
+    for (let i = 0; i < N; i++) {
+      // i=0 → idx 0 (closest to center), i=1 → mid, i=2 → far edge, etc.
+      const frac = N === 1 ? 0 : i / (N - 1) * 0.7; // cap at 70% out so capitals stay inside, not on the very edge
+      const idx = Math.min(owned.length - 1, Math.floor(frac * owned.length));
+      const pt = owned[idx];
+      if (pt && this._capitalIndexAt(pt.x, pt.y) < 0) {
+        this.capitals.push({ x: pt.x, y: pt.y, owner: id });
+      }
     }
   }
 
@@ -381,7 +479,10 @@ export class Game {
       if (targetOwner === 0) {
         if (Math.random() > chance) continue;
         if (p.gold < this.config.EXPANSION_COST_PER_CLAIM) continue;
-        if (this.territory.claim(chosen.x, chosen.y, p.id)) {
+        // Unclaimed expansion still goes through tryCapture so a capital
+        // sitting on an unclaimed tile (rare edge case) is still removed
+        // and triggers elimination correctly.
+        if (this.tryCapture(chosen.x, chosen.y, p.id)) {
           p.gold -= this.config.EXPANSION_COST_PER_CLAIM;
         }
       } else {
@@ -491,14 +592,32 @@ export class Game {
       const p = this.players[id];
       if (p && p.alive) { aliveCount++; lastAlive = id; }
     }
-    if (aliveCount <= 1) {
-      const human = this.human();
-      const outcome: 'victory' | 'defeat' = (aliveCount === 1 && lastAlive === human.id) ? 'victory' : 'defeat';
+    const human = this.human();
+    if (aliveCount === 1) {
+      const outcome: 'victory' | 'defeat' = (lastAlive === human.id) ? 'victory' : 'defeat';
       this.outcome = outcome;
       this.events.push({ type: 'gameover', outcome, winner: lastAlive });
-    } else if (!this.human().alive) {
+    } else if (aliveCount === 0) {
+      // Should be vanishingly rare (every capital was destroyed at the same
+      // tick). Pick whichever player held the most tiles as the named winner.
       this.outcome = 'defeat';
-      this.events.push({ type: 'gameover', outcome: 'defeat', winner: -1 });
+      this.events.push({ type: 'gameover', outcome: 'defeat', winner: this._strongestPlayerId() });
+    } else if (!human.alive) {
+      // Human is dead but AIs are still fighting. Game is over for the human;
+      // name the strongest current AI as the de facto winner.
+      this.outcome = 'defeat';
+      this.events.push({ type: 'gameover', outcome: 'defeat', winner: this._strongestPlayerId(true) });
     }
+  }
+
+  private _strongestPlayerId(excludeHuman = false): PlayerId {
+    let bestId = -1, bestCount = -1;
+    for (let id = excludeHuman ? 2 : 1; id < this.players.length; id++) {
+      const p = this.players[id];
+      if (!p) continue;
+      const c = this.territory.counts[id]!;
+      if (c > bestCount) { bestCount = c; bestId = id; }
+    }
+    return bestId;
   }
 }

@@ -9,6 +9,8 @@ export const TERRAIN_DEEP = 2;
 
 export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'wonder';
 
+export type BombType = 'small' | 'large';
+
 export interface Point {
   x: number;
   y: number;
@@ -31,6 +33,8 @@ export interface Building {
   type: BuildingType;
   /** Wonders only. Ticks toward CONFIG.WONDER_BUILD_TIME_TICKS. */
   progress?: number;
+  /** Airstrips only. Tick count after which this airstrip can fire again. */
+  cooldownUntil?: number;
 }
 
 export interface Capital {
@@ -46,10 +50,14 @@ export type GameEvent =
   | { type: 'capital';    playerId: PlayerId; by: PlayerId }
   | { type: 'gameover';   outcome: 'victory' | 'defeat'; winner: PlayerId }
   | { type: 'built';      buildingType: BuildingType; ownerId: PlayerId }
-  | { type: 'destroyed';  buildingType: BuildingType; ownerId: PlayerId };
+  | { type: 'destroyed';  buildingType: BuildingType; ownerId: PlayerId }
+  | { type: 'bomb';       bombType: BombType; x: number; y: number; radius: number; ownerId: PlayerId };
 
 export type RGBA = readonly [number, number, number, number];
 
 export type BuildError =
   | 'gold' | 'not-yours' | 'occupied' | 'on-capital'
   | 'wonder-limit' | 'oob' | 'dead' | 'bad-type';
+
+export type BombError =
+  | 'no-airstrip' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type';

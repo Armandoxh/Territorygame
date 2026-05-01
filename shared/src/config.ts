@@ -1,4 +1,4 @@
-import type { BuildingType, RGBA } from './types.js';
+import type { BuildingType, BombType, RGBA } from './types.js';
 
 export interface GameConfig {
   GRID_WIDTH: number;
@@ -31,6 +31,13 @@ export interface GameConfig {
   TURRET_DEFENSE_BONUS: number;
   WONDER_BUILD_TIME_TICKS: number;
   WONDER_MAX_PER_PLAYER: number;
+
+  // Bombs (require an airstrip; fired by player, hit ANY claimed tile in
+  // radius — own or enemy — and destroy buildings on those tiles. Capitals
+  // are immune.)
+  BOMB_COSTS: Record<BombType, number>;
+  BOMB_RADII: Record<BombType, number>;
+  BOMB_COOLDOWN_TICKS: Record<BombType, number>;
 
   // AI behavior
   AI_RETARGET_TICKS: number;
@@ -81,6 +88,10 @@ export const DEFAULT_CONFIG: GameConfig = {
   TURRET_DEFENSE_BONUS: 2,
   WONDER_BUILD_TIME_TICKS: 900,
   WONDER_MAX_PER_PLAYER: 1,
+
+  BOMB_COSTS:          { small: 60,  large: 240 },
+  BOMB_RADII:          { small: 4,   large: 12  },
+  BOMB_COOLDOWN_TICKS: { small: 80,  large: 250 }, // 8s / 25s @ 10Hz
 
   AI_RETARGET_TICKS: 80,
 
