@@ -74,6 +74,26 @@ class Game {
     const W = this.territory.width;
     const baseChance = CONFIG.EXPANSION_CHANCE_PER_FRONTIER_TILE;
     const target = p.target;
+
+    // Compute the unit vector from territory CENTROID to target. A frontier
+    // tile's expansion chance is then weighted by how aligned its position
+    // (relative to the centroid) is with that vector. Tiles on the
+    // away-side of the centroid get suppressed regardless of which
+    // neighbors they have.
+    let useTarget = false, tNx = 0, tNy = 0, cx = 0, cy = 0;
+    if (target) {
+      const c = this.territory.centroid(p.id);
+      cx = c.x; cy = c.y;
+      const tdx = target.x - cx;
+      const tdy = target.y - cy;
+      const tDist = Math.hypot(tdx, tdy);
+      if (tDist > 0.5) { // ignore taps that land basically on top of the centroid
+        useTarget = true;
+        tNx = tdx / tDist;
+        tNy = tdy / tDist;
+      }
+    }
+
     const tiles = Array.from(frontier);
     for (let k = 0; k < tiles.length; k++) {
       if (p.gold < CONFIG.EXPANSION_COST_PER_CLAIM) break;
@@ -84,28 +104,29 @@ class Game {
       const cands = this._unclaimedNeighbors(x, y);
       if (cands.length === 0) continue;
 
-      // Modulate per-tile chance by alignment with target so frontier tiles
-      // facing AWAY from the target almost never fire. This is what makes
-      // tap-to-expand feel directional.
       let chance = baseChance;
       let chosen;
-      if (target) {
-        const tdx = target.x - x;
-        const tdy = target.y - y;
-        const dist = Math.hypot(tdx, tdy) || 1;
-        const ntx = tdx / dist, nty = tdy / dist;
-        let bestAlign = -2;
-        let bestCand = cands[0];
-        for (const c of cands) {
-          const align = c.dx * ntx + c.dy * nty;
-          if (align > bestAlign) { bestAlign = align; bestCand = c; }
-        }
-        // (align+1) is in [0,2]; raise to power for sharper falloff.
-        const mult = Math.pow(Math.max(0, bestAlign + 1), CONFIG.EXPANSION_DIRECTIONAL_EXP);
+      if (useTarget) {
+        // Position-of-tile relative to centroid → unit vector
+        const fx = x - cx, fy = y - cy;
+        const fDist = Math.hypot(fx, fy) || 1;
+        const fNx = fx / fDist, fNy = fy / fDist;
+        const align = fNx * tNx + fNy * tNy; // [-1, 1]
+        const mult = Math.pow(Math.max(0, align + 1), CONFIG.EXPANSION_DIRECTIONAL_EXP);
         chance *= mult;
-        chosen = (Math.random() < CONFIG.EXPANSION_TARGET_BIAS)
-          ? bestCand
-          : cands[(Math.random() * cands.length) | 0];
+
+        // Pick the candidate whose neighbor-direction is most aligned with target.
+        if (Math.random() < CONFIG.EXPANSION_TARGET_BIAS) {
+          let bestCand = cands[0];
+          let bestScore = -Infinity;
+          for (const c of cands) {
+            const s = c.dx * tNx + c.dy * tNy;
+            if (s > bestScore) { bestScore = s; bestCand = c; }
+          }
+          chosen = bestCand;
+        } else {
+          chosen = cands[(Math.random() * cands.length) | 0];
+        }
       } else {
         chosen = cands[(Math.random() * cands.length) | 0];
       }
