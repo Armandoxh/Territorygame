@@ -1,6 +1,7 @@
 (function () {
   const territory = new Territory(CONFIG.GRID_WIDTH, CONFIG.GRID_HEIGHT);
   const game = new Game(territory);
+  game.generateTerrain(CONFIG.TERRAIN_SEED);
   game.spawnAll();
 
   const canvas = document.getElementById('game');

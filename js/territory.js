@@ -9,6 +9,9 @@ class Territory {
     this.width = width;
     this.height = height;
     this.owners = new Uint8Array(width * height);
+    // Terrain (parallel array): 0 = land, 1 = water, 2 = deep water.
+    // Initially all land; main.js calls setTerrain() with a generated map.
+    this.terrain = new Uint8Array(width * height);
     this.dirty = new Set();
     this.counts = new Uint32Array(256);
     this.counts[0] = width * height;
@@ -32,6 +35,18 @@ class Territory {
     const c = this.counts[owner];
     if (c === 0) return { x: 0, y: 0 };
     return { x: this.sumX[owner] / c, y: this.sumY[owner] / c };
+  }
+
+  setTerrain(arr) {
+    if (arr.length !== this.terrain.length) return;
+    this.terrain.set(arr);
+    // Mark every tile dirty so the renderer paints terrain colors on next flush.
+    for (let i = 0; i < this.terrain.length; i++) this.dirty.add(i);
+  }
+
+  isPassable(x, y) {
+    if (!this.inBounds(x, y)) return false;
+    return this.terrain[this.idx(x, y)] === 0; // 0 = land
   }
 
   idx(x, y) { return y * this.width + x; }
@@ -62,6 +77,8 @@ class Territory {
 
   claim(x, y, owner) {
     if (!this.inBounds(x, y)) return false;
+    // Water tiles can never be claimed by a player (owner != 0).
+    if (owner !== 0 && this.terrain[this.idx(x, y)] !== 0) return false;
     const i = this.idx(x, y);
     const old = this.owners[i];
     if (old === owner) return false;

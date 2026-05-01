@@ -32,17 +32,35 @@ class Game {
 
   // --- Setup ---
 
+  generateTerrain(seed) {
+    const W = this.territory.width, H = this.territory.height;
+    const t = Terrain.generate(W, H, seed);
+    // Carve land at each spawn so blobs always fit. Used preferred ideal
+    // positions; if they happen to land in deep water, the carve guarantees
+    // a viable spawn region.
+    const spots = this._spawnSpots();
+    for (const s of spots) {
+      Terrain.carveLand(t, W, H, s.x, s.y, CONFIG.SPAWN_RADIUS + 3);
+    }
+    this.territory.setTerrain(t);
+  }
+
+  _spawnSpots() {
+    const W = this.territory.width, H = this.territory.height;
+    return [
+      { id: 1, x: Math.floor(W * CONFIG.HUMAN_SPAWN_X_FRAC), y: Math.floor(H * CONFIG.HUMAN_SPAWN_Y_FRAC) },
+      { id: 2, x: Math.floor(W * 0.85), y: Math.floor(H * 0.18) },
+      { id: 3, x: Math.floor(W * 0.85), y: Math.floor(H * 0.82) },
+      { id: 4, x: Math.floor(W * 0.5),  y: Math.floor(H * 0.10) },
+    ];
+  }
+
   spawnAll() {
     const W = this.territory.width, H = this.territory.height;
-    const corners = [
-      { id: 1, x: W * CONFIG.HUMAN_SPAWN_X_FRAC, y: H * CONFIG.HUMAN_SPAWN_Y_FRAC },
-      { id: 2, x: W * 0.85, y: H * 0.18 },
-      { id: 3, x: W * 0.85, y: H * 0.82 },
-      { id: 4, x: W * 0.5,  y: H * 0.10 },
-    ];
+    const spots = this._spawnSpots();
     for (let i = 0; i < this.players.length - 1; i++) {
-      const c = corners[i];
-      this._spawnPlayerAt(c.id, Math.floor(c.x), Math.floor(c.y));
+      const c = spots[i];
+      this._spawnPlayerAt(c.id, c.x, c.y);
     }
     // AI defaults to targeting the map center; will retarget periodically
     for (let id = 2; id < this.players.length; id++) {
@@ -251,6 +269,7 @@ class Game {
       const o = this.territory.getOwner(nx, ny);
       if (o === -1) continue;     // out of bounds
       if (o === owner) continue;  // own tile
+      if (!this.territory.isPassable(nx, ny)) continue; // skip water
       cands.push({ x: nx, y: ny, dx, dy, owner: o });
     }
     return cands;

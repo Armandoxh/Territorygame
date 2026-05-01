@@ -42,11 +42,20 @@ class Renderer {
     this.viewportH = h;
   }
 
+  _colorFor(i) {
+    const owner = this.territory.owners[i];
+    if (owner !== 0) return CONFIG.PLAYER_COLORS[owner];
+    const t = this.territory.terrain[i];
+    if (t === 1) return CONFIG.WATER_COLOR;
+    if (t === 2) return CONFIG.WATER_COLOR_DEEP;
+    return CONFIG.PLAYER_COLORS[0]; // unclaimed land
+  }
+
   _fillImageDataFromGrid() {
     const data = this.imageData.data;
-    const owners = this.territory.owners;
-    for (let i = 0; i < owners.length; i++) {
-      const c = CONFIG.PLAYER_COLORS[owners[i]] || CONFIG.PLAYER_COLORS[0];
+    const N = this.territory.owners.length;
+    for (let i = 0; i < N; i++) {
+      const c = this._colorFor(i);
       const di = i * 4;
       data[di]     = c[0];
       data[di + 1] = c[1];
@@ -59,9 +68,8 @@ class Renderer {
     const dirty = this.territory.dirty;
     if (dirty.size === 0) return;
     const data = this.imageData.data;
-    const owners = this.territory.owners;
     for (const i of dirty) {
-      const c = CONFIG.PLAYER_COLORS[owners[i]] || CONFIG.PLAYER_COLORS[0];
+      const c = this._colorFor(i);
       const di = i * 4;
       data[di]     = c[0];
       data[di + 1] = c[1];

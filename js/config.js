@@ -17,12 +17,22 @@ const CONFIG = {
   LONGPRESS_MS: 500,        // hold-time to open the build sheet
 
   PLAYER_COLORS: [
-    [0x1a, 0x20, 0x26, 0xff], // 0: unclaimed (dark slate, distinct from page bg)
+    [0x3d, 0x33, 0x24, 0xff], // 0: unclaimed land (warm khaki — feels like dirt)
     [0xe8, 0x4a, 0x4a, 0xff], // 1: human (red)
     [0x4a, 0x9b, 0xe8, 0xff], // 2: AI 1 (blue)
     [0x55, 0xc8, 0x6e, 0xff], // 3: AI 2 (green)
     [0xe8, 0xc0, 0x4a, 0xff], // 4: AI 3 (yellow)
   ],
+
+  // Terrain
+  WATER_COLOR:        [0x16, 0x2a, 0x42, 0xff],
+  WATER_COLOR_DEEP:   [0x10, 0x1f, 0x33, 0xff],
+  TERRAIN_NOISE_SCALE: 0.025,    // smaller = bigger landmasses
+  TERRAIN_OCTAVES: 4,
+  TERRAIN_PERSISTENCE: 0.55,
+  TERRAIN_WATER_THRESHOLD: 0.42, // values BELOW are water (~25-35% of map)
+  TERRAIN_DEEP_THRESHOLD: 0.25,
+  TERRAIN_SEED: 0,               // 0 → randomize each game
 
   BG_COLOR: '#0c0f12',
   GRIDLINE_COLOR: 'rgba(255,255,255,0.04)',
