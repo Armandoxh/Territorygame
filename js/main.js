@@ -26,6 +26,11 @@
     if (firstTap) { ui.hideHint(); firstTap = false; }
   });
   input.on('tripletap-debug', () => ui.toggleDebug());
+  input.on('longpress', (x, y) => {
+    if (game.outcome) return;
+    if (!territory.inBounds(x, y)) return;
+    ui.showBuildSheet(x, y);
+  });
 
   // Sim tick at SIM_HZ — economy, expansion, AI, combat.
   setInterval(() => {
@@ -35,6 +40,7 @@
 
   function loop() {
     renderer.draw();
+    drawBuildings();
     drawCapitals();
     drawTargetMarker();
     drawTapFlash();
@@ -42,6 +48,84 @@
     requestAnimationFrame(loop);
   }
   loop();
+
+  function drawBuildings() {
+    const ctx = renderer.ctx;
+    const dpr = renderer.dpr;
+    for (const b of game.buildings) {
+      const s = renderer.worldToScreen(b.x + 0.5, b.y + 0.5);
+      const c = CONFIG.PLAYER_COLORS[b.owner];
+      const cx = s.x * dpr, cy = s.y * dpr;
+      const r = Math.max(6, Math.min(18, renderer.zoom * 1.1)) * dpr;
+      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.lineWidth = Math.max(1.2, dpr * 1.1);
+
+      if (b.type === 'settlement') {
+        // House: pentagon-ish roof shape
+        ctx.beginPath();
+        ctx.moveTo(cx - r,        cy + r);
+        ctx.lineTo(cx - r,        cy - r * 0.25);
+        ctx.lineTo(cx,            cy - r);
+        ctx.lineTo(cx + r,        cy - r * 0.25);
+        ctx.lineTo(cx + r,        cy + r);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (b.type === 'turret') {
+        // Triangle
+        ctx.beginPath();
+        ctx.moveTo(cx,        cy - r);
+        ctx.lineTo(cx + r,    cy + r * 0.7);
+        ctx.lineTo(cx - r,    cy + r * 0.7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (b.type === 'airstrip') {
+        // Plus sign
+        const t = r * 0.4;
+        ctx.beginPath();
+        ctx.moveTo(cx - r,  cy - t);
+        ctx.lineTo(cx - t,  cy - t);
+        ctx.lineTo(cx - t,  cy - r);
+        ctx.lineTo(cx + t,  cy - r);
+        ctx.lineTo(cx + t,  cy - t);
+        ctx.lineTo(cx + r,  cy - t);
+        ctx.lineTo(cx + r,  cy + t);
+        ctx.lineTo(cx + t,  cy + t);
+        ctx.lineTo(cx + t,  cy + r);
+        ctx.lineTo(cx - t,  cy + r);
+        ctx.lineTo(cx - t,  cy + t);
+        ctx.lineTo(cx - r,  cy + t);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (b.type === 'wonder') {
+        // Big diamond + progress arc
+        const wr = r * 1.4;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - wr);
+        ctx.lineTo(cx + wr, cy);
+        ctx.lineTo(cx, cy + wr);
+        ctx.lineTo(cx - wr, cy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Progress ring
+        const prog = (b.progress || 0) / CONFIG.WONDER_BUILD_TIME_TICKS;
+        const ringR = wr * 1.65;
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = Math.max(2, dpr * 1.6);
+        ctx.beginPath();
+        ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(cx, cy, ringR, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
 
   function drawCapitals() {
     const ctx = renderer.ctx;

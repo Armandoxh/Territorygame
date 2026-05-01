@@ -154,6 +154,151 @@ html, body {
   text-decoration: line-through;
 }
 
+#buildsheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #161b21;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px 18px 0 0;
+  padding: 8px 16px calc(20px + env(safe-area-inset-bottom, 0));
+  pointer-events: auto;
+  z-index: 15;
+  transform: translateY(120%);
+  transition: transform 0.22s ease;
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+}
+#buildsheet.show { transform: translateY(0); }
+.bs-handle {
+  width: 40px;
+  height: 4px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 2px;
+  margin: 4px auto 12px;
+}
+.bs-header {
+  text-align: center;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  opacity: 0.55;
+  margin-bottom: 14px;
+}
+.bs-header span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 1;
+  margin-left: 4px;
+}
+.bs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.bs-btn {
+  background: #20262e;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 14px 12px 12px;
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.06s ease, background 0.15s ease;
+}
+.bs-btn:active { transform: scale(0.97); background: #283036; }
+.bs-btn.disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.bs-icon {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  width: 36px;
+  height: 36px;
+  background: #2c343d;
+  border-radius: 8px;
+  display: inline-block;
+  position: relative;
+}
+.bs-icon::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  background-color: #d6dee8;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+          mask-size: contain;
+}
+.bs-icon[data-icon="settlement"]::before {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='2,22 2,11 12,3 22,11 22,22' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='2,22 2,11 12,3 22,11 22,22' fill='black'/></svg>");
+}
+.bs-icon[data-icon="turret"]::before {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='12,2 22,20 2,20' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='12,2 22,20 2,20' fill='black'/></svg>");
+}
+.bs-icon[data-icon="airstrip"]::before {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='10,2 14,2 14,10 22,10 22,14 14,14 14,22 10,22 10,14 2,14 2,10 10,10' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='10,2 14,2 14,10 22,10 22,14 14,14 14,22 10,22 10,14 2,14 2,10 10,10' fill='black'/></svg>");
+}
+.bs-icon[data-icon="wonder"]::before {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='12,2 22,12 12,22 2,12' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='12,2 22,12 12,22 2,12' fill='black'/></svg>");
+}
+.bs-name {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 14px;
+  font-weight: 700;
+}
+.bs-desc {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 11px;
+  opacity: 0.55;
+}
+.bs-cost {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8c04a;
+  font-variant-numeric: tabular-nums;
+}
+.bs-cost::after {
+  content: " gold";
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-left: 4px;
+}
+.bs-cancel {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: #9aa3ad;
+  padding: 12px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+}
+
 #gameover {
   position: absolute;
   inset: 0;

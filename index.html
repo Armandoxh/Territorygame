@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-<link rel="stylesheet" href="css/styles.css?v=4">
+<link rel="stylesheet" href="css/styles.css?v=5">
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -20,8 +20,39 @@
     <div id="enemies"></div>
     <div id="debug"></div>
     <div id="toast"></div>
-    <div id="hint">tap a tile to expand toward it &middot; pinch to zoom &middot; triple-tap top-right for debug</div>
+    <div id="hint">tap to expand &middot; long-press your land to build &middot; pinch to zoom</div>
     <button id="stop-btn" class="fab hidden" type="button">STOP</button>
+    <div id="buildsheet">
+      <div class="bs-handle"></div>
+      <div class="bs-header">Build at <span id="bs-coords">—</span></div>
+      <div class="bs-grid">
+        <button class="bs-btn" data-type="settlement" type="button">
+          <span class="bs-icon" data-icon="settlement"></span>
+          <span class="bs-name">Settlement</span>
+          <span class="bs-desc">+50% gold (r5)</span>
+          <span class="bs-cost">50</span>
+        </button>
+        <button class="bs-btn" data-type="turret" type="button">
+          <span class="bs-icon" data-icon="turret"></span>
+          <span class="bs-name">Turret</span>
+          <span class="bs-desc">3× harder to take (r3)</span>
+          <span class="bs-cost">80</span>
+        </button>
+        <button class="bs-btn" data-type="airstrip" type="button">
+          <span class="bs-icon" data-icon="airstrip"></span>
+          <span class="bs-name">Airstrip</span>
+          <span class="bs-desc">Unlocks bombs</span>
+          <span class="bs-cost">150</span>
+        </button>
+        <button class="bs-btn" data-type="wonder" type="button">
+          <span class="bs-icon" data-icon="wonder"></span>
+          <span class="bs-name">Wonder</span>
+          <span class="bs-desc">Win when complete (90s)</span>
+          <span class="bs-cost">500</span>
+        </button>
+      </div>
+      <button class="bs-cancel" type="button">Cancel</button>
+    </div>
     <div id="gameover">
       <div class="card">
         <h1 id="gameover-title">VICTORY</h1>
@@ -30,12 +61,12 @@
       </div>
     </div>
   </div>
-  <script src="js/config.js?v=4"></script>
-  <script src="js/territory.js?v=4"></script>
-  <script src="js/render.js?v=4"></script>
-  <script src="js/input.js?v=4"></script>
-  <script src="js/game.js?v=4"></script>
-  <script src="js/ui.js?v=4"></script>
-  <script src="js/main.js?v=4"></script>
+  <script src="js/config.js?v=5"></script>
+  <script src="js/territory.js?v=5"></script>
+  <script src="js/render.js?v=5"></script>
+  <script src="js/input.js?v=5"></script>
+  <script src="js/game.js?v=5"></script>
+  <script src="js/ui.js?v=5"></script>
+  <script src="js/main.js?v=5"></script>
 </body>
 </html>

@@ -10,6 +10,9 @@ class Game {
       this.players.push(this._mkPlayer(id, 'AI ' + (i + 1), false));
     }
     this.capitals = []; // [{x, y, owner}]
+    this.buildings = []; // [{x, y, owner, type, progress?}]
+    // Per-tile gold multiplier from settlements (sum of overlapping bonuses).
+    this.goldMultiplier = new Float32Array(territory.width * territory.height);
     this.tickCount = 0;
     this.outcome = null;       // 'victory' | 'defeat' | null
     this.events = [];          // queued game events for UI to consume (toasts)
@@ -89,18 +92,43 @@ class Game {
   tick() {
     if (this.outcome) return;
     this.tickCount++;
+    this._earnGoldAll();
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
       if (!p || !p.alive) continue;
-      this._earnGold(p);
       if (!p.isHuman) this._aiThink(p);
       if (p.expanding) this._expand(p);
     }
+    this._tickWonders();
     this._checkVictory();
   }
 
-  _earnGold(p) {
-    p.gold += this.territory.counts[p.id] * CONFIG.GOLD_PER_TILE_PER_TICK;
+  _tickWonders() {
+    for (const b of this.buildings) {
+      if (b.type !== 'wonder') continue;
+      const owner = this.players[b.owner];
+      if (!owner || !owner.alive) continue;
+      if (b.progress < CONFIG.WONDER_BUILD_TIME_TICKS) {
+        b.progress++;
+      }
+    }
+  }
+
+  _earnGoldAll() {
+    // One pass over the whole grid each tick: each tile contributes its base
+    // rate times (1 + settlement multiplier) to its current owner.
+    const owners = this.territory.owners;
+    const mult = this.goldMultiplier;
+    const base = CONFIG.GOLD_PER_TILE_PER_TICK;
+    const N = owners.length;
+    const players = this.players;
+    for (let i = 0; i < N; i++) {
+      const id = owners[i];
+      if (id === 0) continue;
+      const p = players[id];
+      if (!p || !p.alive) continue;
+      p.gold += base * (1 + mult[i]);
+    }
   }
 
   _aiThink(p) {
@@ -189,14 +217,30 @@ class Game {
           p.gold -= CONFIG.EXPANSION_COST_PER_CLAIM;
         }
       } else {
-        // Combat: attack an enemy tile
-        if (Math.random() > chance * CONFIG.ATTACK_RATE_MULT) continue;
-        if (p.gold < CONFIG.ATTACK_COST_PER_CLAIM) continue;
+        // Combat. Turret defense scales attack cost UP and rate DOWN.
+        const def = this._defenseAt(chosen.x, chosen.y, targetOwner);
+        const cost = CONFIG.ATTACK_COST_PER_CLAIM * (1 + def);
+        const rate = chance * CONFIG.ATTACK_RATE_MULT / (1 + def);
+        if (Math.random() > rate) continue;
+        if (p.gold < cost) continue;
         if (this.tryCapture(chosen.x, chosen.y, p.id)) {
-          p.gold -= CONFIG.ATTACK_COST_PER_CLAIM;
+          p.gold -= cost;
         }
       }
     }
+  }
+
+  _defenseAt(x, y, defenderId) {
+    let bonus = 0;
+    const r2 = CONFIG.TURRET_RADIUS * CONFIG.TURRET_RADIUS;
+    for (let i = 0; i < this.buildings.length; i++) {
+      const b = this.buildings[i];
+      if (b.type !== 'turret') continue;
+      if (b.owner !== defenderId) continue;
+      const dx = b.x - x, dy = b.y - y;
+      if (dx * dx + dy * dy <= r2) bonus += CONFIG.TURRET_DEFENSE_BONUS;
+    }
+    return bonus;
   }
 
   _validTargets(x, y, owner) {
@@ -224,6 +268,8 @@ class Game {
     // Note: M6 will add general entities and block them here.
 
     if (!this.territory.claim(x, y, attackerId)) return false;
+    // Buildings on the captured tile are destroyed (not transferred).
+    this._destroyBuildingsAt(x, y);
     if (capIdx >= 0) {
       // Capital is destroyed (not transferred). Defender loses one capital.
       this.capitals.splice(capIdx, 1);
@@ -235,6 +281,78 @@ class Game {
       }
     }
     return true;
+  }
+
+  // --- Buildings ---
+
+  buildingAt(x, y) {
+    for (let i = 0; i < this.buildings.length; i++) {
+      const b = this.buildings[i];
+      if (b.x === x && b.y === y) return b;
+    }
+    return null;
+  }
+
+  countBuildings(ownerId, type) {
+    let n = 0;
+    for (const b of this.buildings) {
+      if (b.owner === ownerId && b.type === type) n++;
+    }
+    return n;
+  }
+
+  hasAirstrip(ownerId) {
+    return this.countBuildings(ownerId, 'airstrip') > 0;
+  }
+
+  // Returns null on success, or a string error code on failure.
+  tryBuild(type, x, y, ownerId) {
+    const cost = CONFIG.BUILDING_COSTS[type];
+    if (cost == null) return 'bad-type';
+    if (!this.territory.inBounds(x, y)) return 'oob';
+    const owner = this.players[ownerId];
+    if (!owner || !owner.alive) return 'dead';
+    if (this.territory.getOwner(x, y) !== ownerId) return 'not-yours';
+    if (this.buildingAt(x, y)) return 'occupied';
+    if (this._capitalIndexAt(x, y) >= 0) return 'on-capital';
+    if (owner.gold < cost) return 'gold';
+    if (type === 'wonder' && this.countBuildings(ownerId, 'wonder') >= CONFIG.WONDER_MAX_PER_PLAYER) {
+      return 'wonder-limit';
+    }
+    owner.gold -= cost;
+    const b = { x, y, owner: ownerId, type };
+    if (type === 'wonder') b.progress = 0;
+    this.buildings.push(b);
+    if (type === 'settlement') this._applySettlement(x, y, +1);
+    this.events.push({ type: 'built', buildingType: type, ownerId });
+    return null;
+  }
+
+  _destroyBuildingsAt(x, y) {
+    for (let i = this.buildings.length - 1; i >= 0; i--) {
+      const b = this.buildings[i];
+      if (b.x === x && b.y === y) {
+        if (b.type === 'settlement') this._applySettlement(b.x, b.y, -1);
+        this.buildings.splice(i, 1);
+        this.events.push({ type: 'destroyed', buildingType: b.type, ownerId: b.owner });
+      }
+    }
+  }
+
+  _applySettlement(cx, cy, sign) {
+    const r = CONFIG.SETTLEMENT_RADIUS;
+    const r2 = r * r;
+    const W = this.territory.width, H = this.territory.height;
+    for (let dy = -r; dy <= r; dy++) {
+      const y = cy + dy;
+      if (y < 0 || y >= H) continue;
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r2) continue;
+        const x = cx + dx;
+        if (x < 0 || x >= W) continue;
+        this.goldMultiplier[y * W + x] += sign * CONFIG.SETTLEMENT_BONUS;
+      }
+    }
   }
 
   _capitalIndexAt(x, y) {

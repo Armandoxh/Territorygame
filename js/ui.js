@@ -1,5 +1,5 @@
 // HUD: top bar (you + enemy badges), debug overlay (triple-tap top-right),
-// transient toast, STOP button, game-over overlay.
+// transient toast, STOP button, build sheet (long-press), game-over overlay.
 class UI {
   constructor(territory, renderer, game) {
     this.territory = territory;
@@ -20,6 +20,9 @@ class UI {
     this.gameOverTitleEl = document.getElementById('gameover-title');
     this.gameOverSubEl   = document.getElementById('gameover-sub');
     this.playAgainBtn    = document.getElementById('play-again');
+    this.buildSheetEl    = document.getElementById('buildsheet');
+    this.buildCoordsEl   = document.getElementById('bs-coords');
+    this.buildSheetCoord = null;
 
     if (this.dotEl) {
       const c = CONFIG.PLAYER_COLORS[1];
@@ -33,6 +36,13 @@ class UI {
     }
     if (this.playAgainBtn) {
       this.playAgainBtn.addEventListener('click', () => location.reload());
+    }
+    if (this.buildSheetEl) {
+      this.buildSheetEl.querySelectorAll('.bs-btn').forEach(btn => {
+        btn.addEventListener('click', () => this._onBuildClick(btn.dataset.type));
+      });
+      const cancel = this.buildSheetEl.querySelector('.bs-cancel');
+      if (cancel) cancel.addEventListener('click', () => this.hideBuildSheet());
     }
     this._buildEnemyBadges();
 
@@ -97,6 +107,65 @@ class UI {
     if (this.hintEl) this.hintEl.style.display = 'none';
   }
 
+  showBuildSheet(x, y) {
+    const me = this.game.human();
+    if (!me.alive || this.game.outcome) return;
+    if (this.territory.getOwner(x, y) !== me.id) {
+      this.toast('Build on your own land');
+      return;
+    }
+    if (this.game.buildingAt(x, y)) {
+      this.toast('Tile already built on');
+      return;
+    }
+    this.buildSheetCoord = { x, y };
+    if (this.buildCoordsEl) this.buildCoordsEl.textContent = `${x}, ${y}`;
+    this.buildSheetEl.classList.add('show');
+    this._refreshBuildButtons();
+  }
+
+  hideBuildSheet() {
+    this.buildSheetCoord = null;
+    if (this.buildSheetEl) this.buildSheetEl.classList.remove('show');
+  }
+
+  _refreshBuildButtons() {
+    if (!this.buildSheetEl) return;
+    const me = this.game.human();
+    this.buildSheetEl.querySelectorAll('.bs-btn').forEach(btn => {
+      const type = btn.dataset.type;
+      const cost = CONFIG.BUILDING_COSTS[type];
+      const costEl = btn.querySelector('.bs-cost');
+      if (costEl) costEl.textContent = cost;
+      btn.classList.toggle('disabled', me.gold < cost);
+    });
+  }
+
+  _onBuildClick(type) {
+    if (!this.buildSheetCoord) return;
+    const { x, y } = this.buildSheetCoord;
+    const err = this.game.tryBuild(type, x, y, 1);
+    if (err === null) {
+      this.toast(`Built ${type}`);
+      this.hideBuildSheet();
+    } else {
+      this.toast(this._buildErrorMsg(err));
+    }
+  }
+
+  _buildErrorMsg(err) {
+    return ({
+      'gold': 'Not enough gold',
+      'not-yours': 'Build on your own land',
+      'occupied': 'Tile already built on',
+      'on-capital': 'Cannot build on capital',
+      'wonder-limit': 'Wonder limit reached',
+      'oob': 'Out of bounds',
+      'dead': 'You are eliminated',
+      'bad-type': 'Unknown building',
+    })[err] || 'Cannot build';
+  }
+
   consumeEvents() {
     const events = this.game.drainEvents();
     for (const e of events) {
@@ -108,6 +177,8 @@ class UI {
         this.toast(`${name} lost a capital`);
       } else if (e.type === 'gameover') {
         this.showGameOver(e.outcome, e.winner);
+      } else if (e.type === 'destroyed' && e.ownerId === 1) {
+        this.toast(`Your ${e.buildingType} destroyed`);
       }
     }
   }
@@ -136,8 +207,8 @@ class UI {
       const showStop = me.alive && me.expanding && !this.game.outcome;
       this.stopBtn.classList.toggle('hidden', !showStop);
     }
+    if (this.buildSheetCoord) this._refreshBuildButtons();
 
-    // Enemy badges
     if (this.enemyEls) {
       for (const id of Object.keys(this.enemyEls)) {
         const ref = this.enemyEls[id];
@@ -163,6 +234,7 @@ class UI {
       `<b>Owned</b> ${totalOwned} / ${total}`,
       `<b>Gold</b> ${me.gold.toFixed(1)}`,
       `<b>Caps</b> ${this.game.capitals.length}`,
+      `<b>Builds</b> ${this.game.buildings.length}`,
       me.target ? `<b>Target</b> ${me.target.x}, ${me.target.y}` : '<b>Target</b> none',
     ].filter(Boolean).join('<br>');
   }

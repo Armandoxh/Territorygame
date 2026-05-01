@@ -14,6 +14,7 @@ const CONFIG = {
   TAP_FLASH_MS: 600,        // visual ping at every tap so we can see it landed
   TRIPLE_TAP_MS: 700,
   TRIPLE_TAP_CORNER_PX: 100,
+  LONGPRESS_MS: 500,        // hold-time to open the build sheet
 
   PLAYER_COLORS: [
     [0x1a, 0x20, 0x26, 0xff], // 0: unclaimed (dark slate, distinct from page bg)
@@ -53,4 +54,18 @@ const CONFIG = {
   // Combat
   ATTACK_COST_PER_CLAIM: 4,      // vs 1 gold for unclaimed
   ATTACK_RATE_MULT: 0.55,        // enemy tiles fire at slower per-tick rate
+
+  // Buildings
+  BUILDING_COSTS: {
+    settlement: 50,
+    turret:     80,
+    airstrip:   150,
+    wonder:     500,
+  },
+  SETTLEMENT_RADIUS: 5,
+  SETTLEMENT_BONUS: 0.5,         // +50% gold per overlapping settlement
+  TURRET_RADIUS: 3,
+  TURRET_DEFENSE_BONUS: 2,       // attack cost & rate scale by (1 + sum)
+  WONDER_BUILD_TIME_TICKS: 900,  // 90s @ 10Hz
+  WONDER_MAX_PER_PLAYER: 1,
 };

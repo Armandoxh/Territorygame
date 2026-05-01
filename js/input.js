@@ -27,15 +27,31 @@ class InputController {
   _onDown(e) {
     e.preventDefault();
     try { this.target.setPointerCapture(e.pointerId); } catch (_) {}
-    this.pointers.set(e.pointerId, {
+    const p = {
+      id: e.pointerId,
       startX: e.clientX, startY: e.clientY,
       x: e.clientX, y: e.clientY,
       startTime: performance.now(),
       moved: false,
-    });
+      consumed: false,
+      longPressTimer: null,
+    };
+    this.pointers.set(e.pointerId, p);
     if (this.pointers.size === 2) {
       const [a, b] = [...this.pointers.values()];
       this.pinchStart = Math.hypot(a.x - b.x, a.y - b.y);
+      // Two-finger gestures cancel any pending long-press
+      for (const q of this.pointers.values()) {
+        if (q.longPressTimer) { clearTimeout(q.longPressTimer); q.longPressTimer = null; }
+      }
+    } else {
+      p.longPressTimer = setTimeout(() => {
+        p.longPressTimer = null;
+        if (p.moved) return;
+        if (this.pointers.size !== 1) return;
+        p.consumed = true;
+        this._handleLongPress(p.startX, p.startY);
+      }, CONFIG.LONGPRESS_MS);
     }
   }
 
@@ -49,6 +65,7 @@ class InputController {
     if (Math.abs(e.clientX - p.startX) > CONFIG.TAP_MAX_MOVE ||
         Math.abs(e.clientY - p.startY) > CONFIG.TAP_MAX_MOVE) {
       p.moved = true;
+      if (p.longPressTimer) { clearTimeout(p.longPressTimer); p.longPressTimer = null; }
     }
 
     if (this.pointers.size === 1) {
@@ -69,8 +86,9 @@ class InputController {
   _onUp(e) {
     const p = this.pointers.get(e.pointerId);
     if (!p) return;
+    if (p.longPressTimer) { clearTimeout(p.longPressTimer); p.longPressTimer = null; }
     const duration = performance.now() - p.startTime;
-    const wasTap = !p.moved && duration < CONFIG.TAP_MAX_DURATION;
+    const wasTap = !p.moved && !p.consumed && duration < CONFIG.TAP_MAX_DURATION;
     this.pointers.delete(e.pointerId);
     if (this.pointers.size < 2) this.pinchStart = 0;
     if (wasTap) this._handleTap(p.startX, p.startY);
@@ -97,5 +115,11 @@ class InputController {
 
     const w = this.renderer.screenToWorld(sx, sy);
     this._emit('tap', w.x, w.y, sx, sy);
+  }
+
+  _handleLongPress(sx, sy) {
+    if (navigator.vibrate) try { navigator.vibrate(25); } catch (_) {}
+    const w = this.renderer.screenToWorld(sx, sy);
+    this._emit('longpress', w.x, w.y, sx, sy);
   }
 }
