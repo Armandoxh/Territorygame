@@ -7,55 +7,103 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-<style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    width: 100%;
-    background: #0c0f12;
-    color: #e6e6e6;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    overflow: hidden;
-    overscroll-behavior: none;
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-  #app {
-    position: fixed;
-    inset: 0;
-    width: 100vw;
-    height: 100vh;
-  }
-  #boot {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: #9aa3ad;
-    font-size: 13px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    pointer-events: none;
-  }
-  #boot.hidden { display: none; }
-  #boot small {
-    margin-top: 6px;
-    opacity: 0.55;
-    font-size: 11px;
-    letter-spacing: 1px;
-  }
-</style>
+<link rel="stylesheet" href="/src/styles.css">
 </head>
 <body>
   <div id="app"></div>
-  <div id="boot">
-    Territory
-    <small>booting…</small>
+  <div id="hud">
+    <div id="topbar">
+      <span class="dot" id="my-dot"></span>
+      <span class="stat"><b id="my-tiles">0</b><i>tiles</i></span>
+      <span class="stat"><b id="my-gold">0</b><i>gold</i></span>
+    </div>
+    <div id="enemies"></div>
+    <div id="hotbar">
+      <button class="hb-btn" data-type="settlement" type="button" title="Settlement (S)">
+        <span class="hb-key">S</span>
+        <span class="hb-cost">50</span>
+      </button>
+      <button class="hb-btn" data-type="turret" type="button" title="Turret (T)">
+        <span class="hb-key">T</span>
+        <span class="hb-cost">80</span>
+      </button>
+      <button class="hb-btn" data-type="airstrip" type="button" title="Airstrip (A)">
+        <span class="hb-key">A</span>
+        <span class="hb-cost">150</span>
+      </button>
+      <button class="hb-btn" data-type="wonder" type="button" title="Wonder (W)">
+        <span class="hb-key">W</span>
+        <span class="hb-cost">500</span>
+      </button>
+    </div>
+    <div id="place-banner">
+      Placing <b id="pb-type">TURRET</b><span class="hint"> · tap a tile · esc to cancel</span>
+    </div>
+    <div id="debug"></div>
+    <div id="toast"></div>
+    <div id="hint">tap to expand &middot; long-press to build &middot; S/T/A/W keys or hotbar</div>
+    <button id="stop-btn" class="fab hidden" type="button">STOP</button>
+    <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu">≡</button>
+    <div id="buildsheet">
+      <div class="bs-handle"></div>
+      <div class="bs-header">Build at <span id="bs-coords">—</span></div>
+      <div class="bs-grid">
+        <button class="bs-btn" data-type="settlement" type="button">
+          <span class="bs-icon" data-icon="settlement"></span>
+          <span class="bs-name">Settlement <em>(S)</em></span>
+          <span class="bs-desc">+50% gold (r5)</span>
+          <span class="bs-cost">50</span>
+        </button>
+        <button class="bs-btn" data-type="turret" type="button">
+          <span class="bs-icon" data-icon="turret"></span>
+          <span class="bs-name">Turret <em>(T)</em></span>
+          <span class="bs-desc">3× harder to take (r3)</span>
+          <span class="bs-cost">80</span>
+        </button>
+        <button class="bs-btn" data-type="airstrip" type="button">
+          <span class="bs-icon" data-icon="airstrip"></span>
+          <span class="bs-name">Airstrip <em>(A)</em></span>
+          <span class="bs-desc">Unlocks bombs</span>
+          <span class="bs-cost">150</span>
+        </button>
+        <button class="bs-btn" data-type="wonder" type="button">
+          <span class="bs-icon" data-icon="wonder"></span>
+          <span class="bs-name">Wonder <em>(W)</em></span>
+          <span class="bs-desc">Win when complete (90s)</span>
+          <span class="bs-cost">500</span>
+        </button>
+      </div>
+      <button class="bs-cancel" type="button">Cancel</button>
+    </div>
+    <div id="menu">
+      <div class="card">
+        <h2>NEW GAME</h2>
+        <label class="menu-row">
+          <span class="lbl">Opponents</span>
+          <div class="num-input">
+            <button class="num-btn" data-delta="-1" type="button">−</button>
+            <input id="opp-count" type="number" min="1" max="254" value="3" inputmode="numeric">
+            <button class="num-btn" data-delta="1" type="button">+</button>
+          </div>
+        </label>
+        <div class="quick-row">
+          <button class="quick-btn" data-count="3"   type="button">3</button>
+          <button class="quick-btn" data-count="10"  type="button">10</button>
+          <button class="quick-btn" data-count="50"  type="button">50</button>
+          <button class="quick-btn" data-count="254" type="button">254</button>
+        </div>
+        <p class="menu-note">Max 254 (1 byte per tile)</p>
+        <button id="restart-btn" class="primary" type="button">RESTART</button>
+        <button id="menu-cancel" class="secondary" type="button">CANCEL</button>
+      </div>
+    </div>
+    <div id="gameover">
+      <div class="card">
+        <h1 id="gameover-title">VICTORY</h1>
+        <p id="gameover-sub"></p>
+        <button id="play-again" type="button">PLAY AGAIN</button>
+      </div>
+    </div>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>

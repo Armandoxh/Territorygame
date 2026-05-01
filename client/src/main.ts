@@ -1,82 +1,135 @@
-import { Application, Graphics, Text, Container } from 'pixi.js';
-import { VERSION } from '@territorygame/shared';
+import { Application } from 'pixi.js';
+import {
+  DEFAULT_CONFIG, generatePalette, Game,
+  type GameConfig, type BuildingType,
+} from '@territorygame/shared';
+import { Renderer } from './render/Renderer.js';
+import { PointerInput } from './input/PointerInput.js';
+import { HUD } from './ui/HUD.js';
 
-// Skeleton commit: prove that PixiJS is wired up end-to-end.
-// We mount a single full-viewport canvas, draw a placeholder pulsing dot
-// + the shared package version, and listen for resize.
-//
-// Next session ports the actual game (Territory grid, Terrain, Game.tick,
-// expansion, combat, capitals, buildings) into shared/ and renders via
-// Pixi sprites + a tile mesh.
-async function boot() {
+const BUILD_KEYS: Record<string, BuildingType> = {
+  s: 'settlement',
+  t: 'turret',
+  a: 'airstrip',
+  w: 'wonder',
+};
+
+async function boot(): Promise<void> {
   const host = document.getElementById('app');
   if (!host) throw new Error('#app missing');
 
+  // --- Config from URL + localStorage ---
+  const config: GameConfig = { ...DEFAULT_CONFIG };
+  const params = new URLSearchParams(location.search);
+  const ai = parseInt(params.get('ai') ?? '', 10);
+  if (Number.isFinite(ai)) {
+    config.AI_PLAYER_COUNT = Math.max(0, Math.min(254, ai));
+  } else {
+    const saved = parseInt(localStorage.getItem('territory:ai') ?? '', 10);
+    if (Number.isFinite(saved)) config.AI_PLAYER_COUNT = Math.max(0, Math.min(254, saved));
+  }
+  const seed = parseInt(params.get('seed') ?? '', 10);
+  if (Number.isFinite(seed)) config.TERRAIN_SEED = seed;
+  const w = parseInt(params.get('w') ?? '', 10);
+  const h = parseInt(params.get('h') ?? '', 10);
+  if (Number.isFinite(w) && w > 64) config.GRID_WIDTH = w;
+  if (Number.isFinite(h) && h > 64) config.GRID_HEIGHT = h;
+  config.PLAYER_COLORS = generatePalette(config.AI_PLAYER_COUNT + 1);
+
+  // --- Game ---
+  const game = new Game(config);
+  game.generateTerrain();
+  game.spawnAll();
+
+  // --- Pixi ---
   const app = new Application();
   await app.init({
     background: '#0c0f12',
     resizeTo: window,
-    antialias: true,
+    antialias: false,
     autoDensity: true,
     resolution: window.devicePixelRatio || 1,
   });
   host.appendChild(app.canvas);
 
-  const stage = new Container();
-  app.stage.addChild(stage);
+  const renderer = new Renderer(app, game);
 
-  const dot = new Graphics();
-  stage.addChild(dot);
+  // Center on the human spawn for the initial view.
+  const human = game.spawnSpots()[0];
+  if (human) renderer.centerOn(human.x, human.y);
 
-  const label = new Text({
-    text: `Territory · pixi v8 · shared v${VERSION}`,
-    style: {
-      fill: 0x9aa3ad,
-      fontSize: 14,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-      letterSpacing: 1.5,
+  const hud = new HUD(game);
+  hud.onHaltRequested = () => game.haltHuman();
+
+  let firstTap = true;
+  const input = new PointerInput(app.canvas as HTMLCanvasElement, renderer, {
+    onTap: (wx, wy, sx, sy) => {
+      renderer.overlay.flashTap(sx, sy);
+      if (game.outcome) return;
+      if (!game.territory.inBounds(wx, wy)) { hud.toast('off-map'); return; }
+      if (hud.tryPlaceAt(wx, wy)) return;
+      game.setHumanTarget(wx, wy);
+      if (firstTap) { hud.hideHint(); firstTap = false; }
     },
-  });
-  label.anchor.set(0.5);
-  stage.addChild(label);
-
-  const sublabel = new Text({
-    text: 'singleplayer port in progress',
-    style: {
-      fill: 0x4a5563,
-      fontSize: 11,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-      letterSpacing: 1,
+    onLongPress: (wx, wy) => {
+      if (game.outcome) return;
+      if (!game.territory.inBounds(wx, wy)) return;
+      hud.showBuildSheet(wx, wy);
     },
+    onTripleTapCorner: () => hud.toggleDebug(),
   });
-  sublabel.anchor.set(0.5);
-  stage.addChild(sublabel);
+  void input;
 
-  const layout = () => {
-    const cx = app.screen.width / 2;
-    const cy = app.screen.height / 2;
-    label.position.set(cx, cy);
-    sublabel.position.set(cx, cy + 22);
-    dot.position.set(cx, cy - 60);
-  };
-  layout();
-  window.addEventListener('resize', layout);
-
-  app.ticker.add((ticker) => {
-    const t = (performance.now() / 700) % 1;
-    const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
-    const r = 8 + pulse * 6;
-    dot.clear();
-    dot.circle(0, 0, r).fill({ color: 0xe84a4a, alpha: 0.85 });
-    dot.circle(0, 0, r + 6).stroke({ color: 0xffffff, alpha: 0.15 + pulse * 0.2, width: 2 });
-    void ticker;
+  // Keyboard build shortcuts (S/T/A/W/Esc).
+  window.addEventListener('keydown', (e) => {
+    const tag = (e.target as HTMLElement | null)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    const type = BUILD_KEYS[k];
+    if (type) {
+      hud.togglePlaceMode(type);
+      e.preventDefault();
+    } else if (k === 'escape') {
+      hud.clearPlaceMode();
+      e.preventDefault();
+    }
   });
 
-  document.getElementById('boot')?.classList.add('hidden');
+  // --- Sim tick (10 Hz) ---
+  let tickCount = 0;
+  let lastTickStamp = performance.now();
+  const tickIntervalMs = 1000 / config.SIM_HZ;
+  setInterval(() => {
+    game.tick();
+    tickCount++;
+    const now = performance.now();
+    const dt = now - lastTickStamp;
+    if (dt >= 1000) {
+      hud.tickRate = (tickCount * 1000) / dt;
+      tickCount = 0;
+      lastTickStamp = now;
+    }
+  }, tickIntervalMs);
+
+  // --- Render loop ---
+  let frameCount = 0;
+  let lastFpsStamp = performance.now();
+  app.ticker.add(() => {
+    const now = performance.now();
+    renderer.draw(now);
+    hud.update();
+    frameCount++;
+    const dt = now - lastFpsStamp;
+    if (dt >= 500) {
+      hud.fps = Math.round((frameCount * 1000) / dt);
+      frameCount = 0;
+      lastFpsStamp = now;
+    }
+  });
 }
 
 boot().catch((err) => {
   console.error(err);
-  const boot = document.getElementById('boot');
-  if (boot) boot.textContent = `boot failed: ${(err as Error).message}`;
+  document.body.innerHTML = `<pre style="color:#e84a4a;padding:20px;font:13px monospace">boot failed: ${(err as Error).message}\n${(err as Error).stack ?? ''}</pre>`;
 });
