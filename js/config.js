@@ -34,8 +34,11 @@ const CONFIG = {
   STARTING_GOLD: 120,
   GOLD_PER_TILE_PER_TICK: 0.05,        // 0.5 gold/sec per owned tile
   EXPANSION_COST_PER_CLAIM: 1,         // gold per tile claimed
-  EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.18, // per tick (10Hz)
-  EXPANSION_TARGET_BIAS: 0.75,         // chance to pick target-aligned neighbor
+  EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.22, // per tick (10Hz), base rate
+  EXPANSION_TARGET_BIAS: 0.95,         // chance to pick target-aligned neighbor
+  // Per-tile chance is multiplied by (alignment+1)^1.5 / 1 — tiles whose best
+  // outward direction faces the target expand ~3x faster, perp ~1x, away ~0.
+  EXPANSION_DIRECTIONAL_EXP: 1.5,
 
   // Spawn (M2: human only; M3 will add AI corners)
   HUMAN_SPAWN_X_FRAC: 0.2,

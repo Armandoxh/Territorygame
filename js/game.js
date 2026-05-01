@@ -72,47 +72,61 @@ class Game {
     const frontier = this.territory.getFrontier(p.id);
     if (frontier.size === 0 || p.gold < CONFIG.EXPANSION_COST_PER_CLAIM) return;
     const W = this.territory.width;
-    const chance = CONFIG.EXPANSION_CHANCE_PER_FRONTIER_TILE;
+    const baseChance = CONFIG.EXPANSION_CHANCE_PER_FRONTIER_TILE;
     const target = p.target;
-    // Snapshot the frontier so we don't mutate-while-iterating
     const tiles = Array.from(frontier);
     for (let k = 0; k < tiles.length; k++) {
       if (p.gold < CONFIG.EXPANSION_COST_PER_CLAIM) break;
-      if (Math.random() > chance) continue;
       const i = tiles[k];
       const x = i % W;
       const y = (i - x) / W;
-      const n = this._pickExpansionNeighbor(x, y, p.id, target);
-      if (!n) continue;
-      // M2: only claim unclaimed tiles. Combat (overwrite enemy) lands in M3.
-      if (this.territory.getOwner(n.x, n.y) !== 0) continue;
-      if (this.territory.claim(n.x, n.y, p.id)) {
+
+      const cands = this._unclaimedNeighbors(x, y);
+      if (cands.length === 0) continue;
+
+      // Modulate per-tile chance by alignment with target so frontier tiles
+      // facing AWAY from the target almost never fire. This is what makes
+      // tap-to-expand feel directional.
+      let chance = baseChance;
+      let chosen;
+      if (target) {
+        const tdx = target.x - x;
+        const tdy = target.y - y;
+        const dist = Math.hypot(tdx, tdy) || 1;
+        const ntx = tdx / dist, nty = tdy / dist;
+        let bestAlign = -2;
+        let bestCand = cands[0];
+        for (const c of cands) {
+          const align = c.dx * ntx + c.dy * nty;
+          if (align > bestAlign) { bestAlign = align; bestCand = c; }
+        }
+        // (align+1) is in [0,2]; raise to power for sharper falloff.
+        const mult = Math.pow(Math.max(0, bestAlign + 1), CONFIG.EXPANSION_DIRECTIONAL_EXP);
+        chance *= mult;
+        chosen = (Math.random() < CONFIG.EXPANSION_TARGET_BIAS)
+          ? bestCand
+          : cands[(Math.random() * cands.length) | 0];
+      } else {
+        chosen = cands[(Math.random() * cands.length) | 0];
+      }
+
+      if (Math.random() > chance) continue;
+      // M2: only claim unclaimed tiles. Combat lands in M3.
+      if (this.territory.getOwner(chosen.x, chosen.y) !== 0) continue;
+      if (this.territory.claim(chosen.x, chosen.y, p.id)) {
         p.gold -= CONFIG.EXPANSION_COST_PER_CLAIM;
       }
     }
   }
 
-  _pickExpansionNeighbor(x, y, owner, target) {
+  _unclaimedNeighbors(x, y) {
     const cands = [];
     const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     for (const [dx, dy] of dirs) {
-      const nx = x + dx, ny = y + dy;
-      if (this.territory.getOwner(nx, ny) === 0) {
-        cands.push({ x: nx, y: ny, dx, dy });
+      if (this.territory.getOwner(x + dx, y + dy) === 0) {
+        cands.push({ x: x + dx, y: y + dy, dx, dy });
       }
     }
-    if (cands.length === 0) return null;
-    if (target && Math.random() < CONFIG.EXPANSION_TARGET_BIAS) {
-      const tdx = target.x - x;
-      const tdy = target.y - y;
-      let best = cands[0];
-      let bestScore = -Infinity;
-      for (const c of cands) {
-        const score = c.dx * tdx + c.dy * tdy;
-        if (score > bestScore) { bestScore = score; best = c; }
-      }
-      return best;
-    }
-    return cands[(Math.random() * cands.length) | 0];
+    return cands;
   }
 }
