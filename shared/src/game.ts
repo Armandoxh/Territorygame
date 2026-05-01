@@ -188,7 +188,6 @@ export class Game {
       if (!p.isHuman) this._aiThink(p);
       if (p.expanding) this._expand(p);
     }
-    this._tickWonders();
     this._checkVictory();
   }
 
@@ -247,12 +246,8 @@ export class Game {
     if (this.buildingAt(x, y)) return 'occupied';
     if (this._capitalIndexAt(x, y) >= 0) return 'on-capital';
     if (owner.gold < cost) return 'gold';
-    if (type === 'wonder' && this.countBuildings(ownerId, 'wonder') >= this.config.WONDER_MAX_PER_PLAYER) {
-      return 'wonder-limit';
-    }
     owner.gold -= cost;
     const b: Building = { x, y, owner: ownerId, type };
-    if (type === 'wonder') b.progress = 0;
     this.buildings.push(b);
     if (type === 'settlement') this._applySettlement(x, y, +1);
     this.events.push({ type: 'built', buildingType: type, ownerId });
@@ -408,12 +403,18 @@ export class Game {
   private _growTroops(): void {
     const growth = this.config.TROOP_GROWTH_PER_TILE_PER_TICK;
     const cap = this.config.TROOP_CAP_PER_TILE;
+    const settlementBonus = this.config.SETTLEMENT_TROOP_BONUS;
+    // Pre-count settlements per owner so we don't iterate buildings inside the loop.
+    const settlementCount = new Int32Array(256);
+    for (const b of this.buildings) {
+      if (b.type === 'settlement') settlementCount[b.owner]!++;
+    }
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
       if (!p || !p.alive) continue;
       const owned = this.territory.counts[id]!;
       const max = owned * cap;
-      const next = p.troops + owned * growth;
+      const next = p.troops + owned * growth + settlementCount[id]! * settlementBonus;
       p.troops = next > max ? max : next;
     }
   }
@@ -603,16 +604,6 @@ export class Game {
     }
   }
 
-  private _tickWonders(): void {
-    for (const b of this.buildings) {
-      if (b.type !== 'wonder') continue;
-      const owner = this.players[b.owner];
-      if (!owner || !owner.alive) continue;
-      if ((b.progress ?? 0) < this.config.WONDER_BUILD_TIME_TICKS) {
-        b.progress = (b.progress ?? 0) + 1;
-      }
-    }
-  }
 
   private _checkVictory(): void {
     if (this.outcome) return;

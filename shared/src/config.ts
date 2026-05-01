@@ -42,10 +42,10 @@ export interface GameConfig {
   BUILDING_COSTS: Record<BuildingType, number>;
   SETTLEMENT_RADIUS: number;
   SETTLEMENT_BONUS: number;
+  /** Flat troops/tick added per owned settlement (independent of radius). */
+  SETTLEMENT_TROOP_BONUS: number;
   TURRET_RADIUS: number;
   TURRET_DEFENSE_BONUS: number;
-  WONDER_BUILD_TIME_TICKS: number;
-  WONDER_MAX_PER_PLAYER: number;
 
   // Bombs (require an airstrip; fired by player, hit ANY claimed tile in
   // radius — own or enemy — and destroy buildings on those tiles. Capitals
@@ -97,24 +97,22 @@ export const DEFAULT_CONFIG: GameConfig = {
   TROOP_CAP_PER_TILE: 100,
   TROOP_COST_PER_ATTACK: 5,
   TROOP_DAMAGE_PER_ATTACK: 3,
-  ATTACK_RATIO_EXP: 0.5,
-  ATTACK_RATIO_MIN: 0.1,
-  ATTACK_RATIO_MAX: 10,
+  ATTACK_RATIO_EXP: 0.3,        // gentler scaling (was 0.5)
+  ATTACK_RATIO_MIN: 0.3,        // smaller players still inflict some damage (was 0.1)
+  ATTACK_RATIO_MAX: 3,          // cap the snowball — bigger doesn't mean unstoppable (was 10)
 
   WIN_TERRITORY_FRACTION: 0.95,
 
   BUILDING_COSTS: {
-    settlement: 50,
-    turret:     80,
+    settlement: 60,
+    turret:     90,
     airstrip:   150,
-    wonder:     500,
   },
-  SETTLEMENT_RADIUS: 5,
-  SETTLEMENT_BONUS: 0.5,
-  TURRET_RADIUS: 3,
-  TURRET_DEFENSE_BONUS: 2,
-  WONDER_BUILD_TIME_TICKS: 900,
-  WONDER_MAX_PER_PLAYER: 1,
+  SETTLEMENT_RADIUS: 6,
+  SETTLEMENT_BONUS: 1.0,        // +100% gold in radius (was +50%)
+  SETTLEMENT_TROOP_BONUS: 8,    // +80 troops/sec per settlement (flat)
+  TURRET_RADIUS: 5,             // covers ~78 tiles (was 28)
+  TURRET_DEFENSE_BONUS: 4,      // (1 + 4) = 5x cost / 1/5 rate per stacked turret
 
   BOMB_COSTS:          { small: 60,  large: 240 },
   BOMB_RADII:          { small: 4,   large: 12  },

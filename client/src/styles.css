@@ -316,10 +316,6 @@ html, body {
   -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='10,2 14,2 14,10 22,10 22,14 14,14 14,22 10,22 10,14 2,14 2,10 10,10' fill='black'/></svg>");
           mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='10,2 14,2 14,10 22,10 22,14 14,14 14,22 10,22 10,14 2,14 2,10 10,10' fill='black'/></svg>");
 }
-.bs-icon[data-icon="wonder"]::before {
-  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='12,2 22,12 12,22 2,12' fill='black'/></svg>");
-          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='12,2 22,12 12,22 2,12' fill='black'/></svg>");
-}
 .bs-name { grid-column: 2; grid-row: 1; font-size: 14px; font-weight: 700; }
 .bs-name em { font-style: normal; opacity: 0.55; font-size: 11px; margin-left: 4px; font-weight: 500; }
 .bs-desc { grid-column: 2; grid-row: 2; font-size: 11px; opacity: 0.55; }

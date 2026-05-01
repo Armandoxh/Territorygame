@@ -167,7 +167,28 @@ export class OverlayLayer {
     const g = this.buildings;
     g.clear();
     const palette = this.game.config.PLAYER_COLORS;
-    const wonderTime = this.game.config.WONDER_BUILD_TIME_TICKS;
+    const settleR = this.game.config.SETTLEMENT_RADIUS;
+    const turretR = this.game.config.TURRET_RADIUS;
+
+    // Pass 1: faint coverage rings under the icons so players see what
+    // their settlements / turrets actually affect.
+    for (const b of this.game.buildings) {
+      const s = this._toScreen(b.x + 0.5, b.y + 0.5);
+      const c = palette[b.owner];
+      if (!c) continue;
+      const color = (c[0] << 16) | (c[1] << 8) | c[2];
+      if (b.type === 'settlement') {
+        g.circle(s.x, s.y, settleR * this.renderer.zoom)
+         .fill({ color, alpha: 0.06 })
+         .stroke({ color, alpha: 0.28, width: 1 });
+      } else if (b.type === 'turret') {
+        g.circle(s.x, s.y, turretR * this.renderer.zoom)
+         .fill({ color, alpha: 0.05 })
+         .stroke({ color, alpha: 0.32, width: 1 });
+      }
+    }
+
+    // Pass 2: the icons themselves.
     for (const b of this.game.buildings) {
       const s = this._toScreen(b.x + 0.5, b.y + 0.5);
       const c = palette[b.owner];
@@ -195,15 +216,6 @@ export class OverlayLayer {
           cx - t, cy + r, cx - t, cy + t, cx - r, cy + t,
         ]);
         fillStroke();
-      } else if (b.type === 'wonder') {
-        const wr = r * 1.4;
-        g.poly([cx, cy - wr, cx + wr, cy, cx, cy + wr, cx - wr, cy]);
-        fillStroke();
-        const prog = (b.progress ?? 0) / wonderTime;
-        const ringR = wr * 1.65;
-        g.circle(cx, cy, ringR).stroke({ color: 0xffffff, alpha: 0.25, width: 1.6 });
-        g.arc(cx, cy, ringR, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
-        g.stroke({ color: 0xffffff, alpha: 0.95, width: 2 });
       }
     }
   }

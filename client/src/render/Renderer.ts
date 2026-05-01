@@ -1,5 +1,6 @@
-import { Application, Container, Graphics } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Game, GameConfig } from '@territorygame/shared';
+import { generateRegions, computeBorderRGBA } from '@territorygame/shared';
 import { TerritoryLayer } from './TerritoryLayer.js';
 import { OverlayLayer } from './OverlayLayer.js';
 
@@ -50,8 +51,30 @@ export class Renderer {
     this.territoryLayer = new TerritoryLayer(game.territory, game.config);
     this.world.addChild(this.territoryLayer.sprite);
 
+    // Region overlay: pre-partition the land into ~50 districts and draw a
+    // dark line along each district border so the map reads as a set of
+    // concrete territories rather than amorphous tile soup.
+    const W = game.territory.width;
+    const H = game.territory.height;
+    const seedCount = Math.max(20, Math.min(120, Math.floor(Math.sqrt(game.totalLand) / 3)));
+    const regions = generateRegions(game.territory.terrain, W, H, seedCount);
+    const borderRGBA = computeBorderRGBA(regions, W, H);
+    const borderCanvas = document.createElement('canvas');
+    borderCanvas.width = W;
+    borderCanvas.height = H;
+    const bctx = borderCanvas.getContext('2d');
+    if (bctx) {
+      const data = bctx.createImageData(W, H);
+      data.data.set(borderRGBA);
+      bctx.putImageData(data, 0, 0);
+    }
+    const borderTexture = Texture.from(borderCanvas);
+    borderTexture.source.scaleMode = 'nearest';
+    const borderSprite = new Sprite(borderTexture);
+    this.world.addChild(borderSprite);
+
     this.border = new Graphics();
-    this.border.rect(0, 0, game.territory.width, game.territory.height);
+    this.border.rect(0, 0, W, H);
     this.border.stroke({ color: 0xffffff, alpha: 0.18, width: 1 });
     this.world.addChild(this.border);
 

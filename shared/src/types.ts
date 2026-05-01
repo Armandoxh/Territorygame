@@ -7,7 +7,7 @@ export const TERRAIN_LAND = 0;
 export const TERRAIN_WATER = 1;
 export const TERRAIN_DEEP = 2;
 
-export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'wonder';
+export type BuildingType = 'settlement' | 'turret' | 'airstrip';
 
 export type BombType = 'small' | 'large';
 
@@ -33,8 +33,6 @@ export interface Building {
   y: number;
   owner: PlayerId;
   type: BuildingType;
-  /** Wonders only. Ticks toward CONFIG.WONDER_BUILD_TIME_TICKS. */
-  progress?: number;
   /** Airstrips only. Tick count after which this airstrip can fire again. */
   cooldownUntil?: number;
 }
@@ -59,7 +57,7 @@ export type RGBA = readonly [number, number, number, number];
 
 export type BuildError =
   | 'gold' | 'not-yours' | 'occupied' | 'on-capital'
-  | 'wonder-limit' | 'oob' | 'dead' | 'bad-type';
+  | 'oob' | 'dead' | 'bad-type';
 
 export type BombError =
   | 'no-airstrip' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type';

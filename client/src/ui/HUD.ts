@@ -1,7 +1,7 @@
 import type { Game, BuildingType, BuildError, BombType, BombError, Player } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
-const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'wonder'];
+const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip'];
 const BOMB_TYPES: BombType[] = ['small', 'large'];
 
 export class HUD {
@@ -526,7 +526,6 @@ export class HUD {
       'not-yours':    'Build on your own land',
       'occupied':     'Tile already built on',
       'on-capital':   'Cannot build on capital',
-      'wonder-limit': 'Wonder limit reached',
       'oob':          'Out of bounds',
       'dead':         'You are eliminated',
       'bad-type':     'Unknown building',
