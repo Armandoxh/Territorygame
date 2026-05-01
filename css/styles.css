@@ -154,6 +154,93 @@ html, body {
   text-decoration: line-through;
 }
 
+#hotbar {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+  z-index: 12;
+}
+.hb-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(22, 27, 33, 0.85);
+  color: #e6e6e6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  gap: 1px;
+  transition: transform 0.06s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.hb-btn:active { transform: scale(0.94); }
+.hb-btn .hb-key {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+.hb-btn .hb-cost {
+  font-size: 10px;
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.hb-btn.active {
+  background: rgba(232, 192, 74, 0.92);
+  color: #1a1206;
+  border-color: rgba(255,255,255,0.55);
+  box-shadow: 0 4px 14px rgba(232, 192, 74, 0.35);
+}
+.hb-btn.active .hb-cost { opacity: 0.7; }
+.hb-btn.cant-afford {
+  opacity: 0.45;
+}
+.hb-btn.cant-afford.active {
+  opacity: 1;
+  background: rgba(140, 90, 30, 0.92);
+}
+
+#place-banner {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  background: rgba(232, 192, 74, 0.95);
+  color: #1a1206;
+  padding: 8px 14px;
+  border-radius: 18px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  white-space: nowrap;
+  z-index: 14;
+}
+#place-banner.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+#place-banner b { font-weight: 800; }
+#place-banner .hint {
+  font-weight: 500;
+  opacity: 0.7;
+  letter-spacing: 0.5px;
+  text-transform: none;
+}
+
 #buildsheet {
   position: absolute;
   left: 0;

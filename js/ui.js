@@ -23,6 +23,10 @@ class UI {
     this.buildSheetEl    = document.getElementById('buildsheet');
     this.buildCoordsEl   = document.getElementById('bs-coords');
     this.buildSheetCoord = null;
+    this.hotbarEl        = document.getElementById('hotbar');
+    this.placeBannerEl   = document.getElementById('place-banner');
+    this.placeBannerType = document.getElementById('pb-type');
+    this.placeMode       = null;
 
     if (this.dotEl) {
       const c = CONFIG.PLAYER_COLORS[1];
@@ -43,6 +47,11 @@ class UI {
       });
       const cancel = this.buildSheetEl.querySelector('.bs-cancel');
       if (cancel) cancel.addEventListener('click', () => this.hideBuildSheet());
+    }
+    if (this.hotbarEl) {
+      this.hotbarEl.querySelectorAll('.hb-btn').forEach(btn => {
+        btn.addEventListener('click', () => this.togglePlaceMode(btn.dataset.type));
+      });
     }
     this._buildEnemyBadges();
 
@@ -118,6 +127,7 @@ class UI {
       this.toast('Tile already built on');
       return;
     }
+    this.clearPlaceMode();
     this.buildSheetCoord = { x, y };
     if (this.buildCoordsEl) this.buildCoordsEl.textContent = `${x}, ${y}`;
     this.buildSheetEl.classList.add('show');
@@ -150,6 +160,66 @@ class UI {
       this.hideBuildSheet();
     } else {
       this.toast(this._buildErrorMsg(err));
+    }
+  }
+
+  // --- Place mode (hotbar / keyboard) ---
+
+  togglePlaceMode(type) {
+    if (this.game.outcome) { this.placeMode = null; }
+    else if (this.placeMode === type) this.placeMode = null;
+    else this.placeMode = type;
+    this.hideBuildSheet();
+    this._refreshHotbar();
+    this._refreshPlaceBanner();
+  }
+
+  clearPlaceMode() {
+    if (this.placeMode) {
+      this.placeMode = null;
+      this._refreshHotbar();
+      this._refreshPlaceBanner();
+    }
+  }
+
+  // Returns true if a place was attempted (consumed the tap), false otherwise.
+  tryPlaceAt(x, y) {
+    if (!this.placeMode) return false;
+    const type = this.placeMode;
+    const err = this.game.tryBuild(type, x, y, 1);
+    if (err === null) {
+      this.toast(`Built ${type}`);
+      this.placeMode = null;
+      this._refreshHotbar();
+      this._refreshPlaceBanner();
+    } else {
+      this.toast(this._buildErrorMsg(err));
+    }
+    return true;
+  }
+
+  _refreshHotbar() {
+    if (!this.hotbarEl) return;
+    const me = this.game.human();
+    this.hotbarEl.querySelectorAll('.hb-btn').forEach(btn => {
+      const type = btn.dataset.type;
+      const cost = CONFIG.BUILDING_COSTS[type];
+      btn.classList.toggle('active', this.placeMode === type);
+      btn.classList.toggle('cant-afford', me.gold < cost);
+      const costEl = btn.querySelector('.hb-cost');
+      if (costEl) costEl.textContent = cost;
+    });
+  }
+
+  _refreshPlaceBanner() {
+    if (!this.placeBannerEl) return;
+    if (this.placeMode) {
+      if (this.placeBannerType) {
+        this.placeBannerType.textContent = this.placeMode.toUpperCase();
+      }
+      this.placeBannerEl.classList.add('show');
+    } else {
+      this.placeBannerEl.classList.remove('show');
     }
   }
 
@@ -208,6 +278,7 @@ class UI {
       this.stopBtn.classList.toggle('hidden', !showStop);
     }
     if (this.buildSheetCoord) this._refreshBuildButtons();
+    this._refreshHotbar();
 
     if (this.enemyEls) {
       for (const id of Object.keys(this.enemyEls)) {

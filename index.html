@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-<link rel="stylesheet" href="css/styles.css?v=6">
+<link rel="stylesheet" href="css/styles.css?v=7">
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -18,9 +18,30 @@
       <span class="stat"><b id="my-gold">0</b><i>gold</i></span>
     </div>
     <div id="enemies"></div>
+    <div id="hotbar">
+      <button class="hb-btn" data-type="settlement" type="button" title="Settlement (S)">
+        <span class="hb-key">S</span>
+        <span class="hb-cost">50</span>
+      </button>
+      <button class="hb-btn" data-type="turret" type="button" title="Turret (T)">
+        <span class="hb-key">T</span>
+        <span class="hb-cost">80</span>
+      </button>
+      <button class="hb-btn" data-type="airstrip" type="button" title="Airstrip (A)">
+        <span class="hb-key">A</span>
+        <span class="hb-cost">150</span>
+      </button>
+      <button class="hb-btn" data-type="wonder" type="button" title="Wonder (W)">
+        <span class="hb-key">W</span>
+        <span class="hb-cost">500</span>
+      </button>
+    </div>
+    <div id="place-banner">
+      Placing <b id="pb-type">TURRET</b><span class="hint"> · tap a tile · esc to cancel</span>
+    </div>
     <div id="debug"></div>
     <div id="toast"></div>
-    <div id="hint">tap to expand &middot; long-press your land to build &middot; pinch to zoom</div>
+    <div id="hint">tap to expand &middot; long-press to build &middot; S/T/A/W keys or hotbar</div>
     <button id="stop-btn" class="fab hidden" type="button">STOP</button>
     <div id="buildsheet">
       <div class="bs-handle"></div>
@@ -28,25 +49,25 @@
       <div class="bs-grid">
         <button class="bs-btn" data-type="settlement" type="button">
           <span class="bs-icon" data-icon="settlement"></span>
-          <span class="bs-name">Settlement</span>
+          <span class="bs-name">Settlement <em>(S)</em></span>
           <span class="bs-desc">+50% gold (r5)</span>
           <span class="bs-cost">50</span>
         </button>
         <button class="bs-btn" data-type="turret" type="button">
           <span class="bs-icon" data-icon="turret"></span>
-          <span class="bs-name">Turret</span>
+          <span class="bs-name">Turret <em>(T)</em></span>
           <span class="bs-desc">3× harder to take (r3)</span>
           <span class="bs-cost">80</span>
         </button>
         <button class="bs-btn" data-type="airstrip" type="button">
           <span class="bs-icon" data-icon="airstrip"></span>
-          <span class="bs-name">Airstrip</span>
+          <span class="bs-name">Airstrip <em>(A)</em></span>
           <span class="bs-desc">Unlocks bombs</span>
           <span class="bs-cost">150</span>
         </button>
         <button class="bs-btn" data-type="wonder" type="button">
           <span class="bs-icon" data-icon="wonder"></span>
-          <span class="bs-name">Wonder</span>
+          <span class="bs-name">Wonder <em>(W)</em></span>
           <span class="bs-desc">Win when complete (90s)</span>
           <span class="bs-cost">500</span>
         </button>
@@ -61,13 +82,14 @@
       </div>
     </div>
   </div>
-  <script src="js/config.js?v=6"></script>
-  <script src="js/terrain.js?v=6"></script>
-  <script src="js/territory.js?v=6"></script>
-  <script src="js/render.js?v=6"></script>
-  <script src="js/input.js?v=6"></script>
-  <script src="js/game.js?v=6"></script>
-  <script src="js/ui.js?v=6"></script>
-  <script src="js/main.js?v=6"></script>
+  <script src="js/config.js?v=7"></script>
+  <script src="js/palette.js?v=7"></script>
+  <script src="js/terrain.js?v=7"></script>
+  <script src="js/territory.js?v=7"></script>
+  <script src="js/render.js?v=7"></script>
+  <script src="js/input.js?v=7"></script>
+  <script src="js/game.js?v=7"></script>
+  <script src="js/ui.js?v=7"></script>
+  <script src="js/main.js?v=7"></script>
 </body>
 </html>

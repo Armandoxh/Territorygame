@@ -17,7 +17,6 @@ class Game {
     this.outcome = null;       // 'victory' | 'defeat' | null
     this.events = [];          // queued game events for UI to consume (toasts)
   }
-
   _mkPlayer(id, name, isHuman) {
     return {
       id, name, isHuman,
@@ -35,24 +34,42 @@ class Game {
   generateTerrain(seed) {
     const W = this.territory.width, H = this.territory.height;
     const t = Terrain.generate(W, H, seed);
-    // Carve land at each spawn so blobs always fit. Used preferred ideal
-    // positions; if they happen to land in deep water, the carve guarantees
-    // a viable spawn region.
     const spots = this._spawnSpots();
+    const carveR = this._spawnRadius() + 3;
     for (const s of spots) {
-      Terrain.carveLand(t, W, H, s.x, s.y, CONFIG.SPAWN_RADIUS + 3);
+      Terrain.carveLand(t, W, H, s.x, s.y, carveR);
     }
     this.territory.setTerrain(t);
   }
 
   _spawnSpots() {
     const W = this.territory.width, H = this.territory.height;
-    return [
-      { id: 1, x: Math.floor(W * CONFIG.HUMAN_SPAWN_X_FRAC), y: Math.floor(H * CONFIG.HUMAN_SPAWN_Y_FRAC) },
-      { id: 2, x: Math.floor(W * 0.85), y: Math.floor(H * 0.18) },
-      { id: 3, x: Math.floor(W * 0.85), y: Math.floor(H * 0.82) },
-      { id: 4, x: Math.floor(W * 0.5),  y: Math.floor(H * 0.10) },
-    ];
+    const N = this.players.length - 1;
+    if (N <= 0) return [];
+    const cx = W / 2, cy = H / 2;
+    const r = Math.min(W, H) * 0.4;
+    const start = Math.PI; // player 1 (human) starts at the west edge
+    const spots = [];
+    for (let i = 0; i < N; i++) {
+      const id = i + 1;
+      const a = start + (i / N) * Math.PI * 2;
+      spots.push({
+        id,
+        x: Math.floor(cx + Math.cos(a) * r),
+        y: Math.floor(cy + Math.sin(a) * r),
+      });
+    }
+    return spots;
+  }
+
+  _spawnRadius() {
+    const N = this.players.length - 1;
+    if (N <= 4) return CONFIG.SPAWN_RADIUS;
+    // At high counts, shrink blobs so neighbors don't overlap on the spawn circle.
+    const W = this.territory.width, H = this.territory.height;
+    const circ = 2 * Math.PI * Math.min(W, H) * 0.4;
+    const spacing = circ / N;
+    return Math.max(2, Math.min(CONFIG.SPAWN_RADIUS, Math.floor(spacing / 3)));
   }
 
   spawnAll() {
@@ -69,7 +86,7 @@ class Game {
   }
 
   _spawnPlayerAt(id, cx, cy) {
-    const r = CONFIG.SPAWN_RADIUS;
+    const r = this._spawnRadius();
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (dx * dx + dy * dy <= r * r) {
