@@ -74,7 +74,8 @@ async function boot(): Promise<void> {
       if (!game.territory.inBounds(wx, wy)) { hud.toast('off-map'); return; }
       if (hud.tryBombAt(wx, wy)) return;
       if (hud.tryPlaceAt(wx, wy)) return;
-      game.setHumanTarget(wx, wy);
+      const region = game.setHumanTargetRegion(wx, wy);
+      if (region <= 0) { hud.toast('No region here'); return; }
       if (firstTap) { hud.hideHint(); firstTap = false; }
     },
     onLongPress: (wx, wy) => {

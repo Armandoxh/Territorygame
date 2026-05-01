@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Game, PlayerId } from '@territorygame/shared';
 import type { Renderer } from './Renderer.js';
 
@@ -6,15 +6,26 @@ import type { Renderer } from './Renderer.js';
 // known scale strategy): capitals, buildings, target marker, tap flash.
 // All rgb tuples come from the shared palette so player colors stay consistent.
 export class OverlayLayer {
+  /** Screen-space overlays (capitals, buildings, labels, tap flash). */
   readonly container: Container;
+  /** World-space overlays (target-region highlight). Attached inside renderer.world by the Renderer. */
+  readonly worldContainer: Container;
   private readonly capitals: Graphics;
   private readonly buildings: Graphics;
-  private readonly target: Graphics;
+  private readonly target: Graphics; // unused screen-space target (kept for legacy)
   private readonly tapFlash: Graphics;
   private readonly labelLayer: Container;
   private readonly labels = new Map<PlayerId, Text>();
   private readonly game: Game;
   private readonly renderer: Renderer;
+  // Target-region highlight: a canvas-backed sprite at the grid's native
+  // resolution. White tiles for the target region, transparent elsewhere.
+  // Lives inside renderer.world so it pans/zooms with the camera.
+  private readonly targetSprite: Sprite;
+  private readonly targetCanvas: HTMLCanvasElement;
+  private readonly targetCtx: CanvasRenderingContext2D | null;
+  private readonly targetTexture: Texture;
+  private targetDrawnRegion: number = -1;
 
   // Tap flash: a fading expanding ring at the most-recent tap (screen coords).
   private flashSx = 0;
@@ -31,12 +42,26 @@ export class OverlayLayer {
     this.game = game;
     this.renderer = renderer;
     this.container = new Container();
+    this.worldContainer = new Container();
     this.capitals = new Graphics();
     this.buildings = new Graphics();
     this.target = new Graphics();
     this.tapFlash = new Graphics();
     this.labelLayer = new Container();
     this.container.addChild(this.capitals, this.buildings, this.target, this.tapFlash, this.labelLayer);
+
+    // Target-region highlight: native-resolution canvas, sprite scales with world.
+    const W = game.territory.width;
+    const H = game.territory.height;
+    this.targetCanvas = document.createElement('canvas');
+    this.targetCanvas.width = W;
+    this.targetCanvas.height = H;
+    this.targetCtx = this.targetCanvas.getContext('2d');
+    this.targetTexture = Texture.from(this.targetCanvas);
+    this.targetTexture.source.scaleMode = 'linear';
+    this.targetSprite = new Sprite(this.targetTexture);
+    this.targetSprite.alpha = 0;
+    this.worldContainer.addChild(this.targetSprite);
   }
 
   flashTap(sx: number, sy: number): void {
@@ -59,17 +84,35 @@ export class OverlayLayer {
   }
 
   private _drawTroopLabels(): void {
-    // Pool Text objects per-player; reposition + retext per frame. Players
-    // with very small territories are hidden to avoid clutter at high N.
+    // Show labels only for the top-N players by tile count + always the human.
+    // Without this, a 254-AI game becomes a wall of floating numbers.
+    const MAX_LABELS = 12;
+    const MIN_TILES = 8;
     const counts = this.game.territory.counts;
     const palette = this.game.config.PLAYER_COLORS;
-    const minTilesToShow = 6;
-    const seen = new Set<PlayerId>();
+
+    // Rank alive players by owned tile count, descending.
+    const ranked: { id: PlayerId; owned: number }[] = [];
     for (let id = 1; id < this.game.players.length; id++) {
       const p = this.game.players[id];
       if (!p || !p.alive) continue;
       const owned = counts[id]!;
-      if (owned < minTilesToShow) continue;
+      if (owned < MIN_TILES) continue;
+      ranked.push({ id, owned });
+    }
+    ranked.sort((a, b) => b.owned - a.owned);
+
+    // Always show the human if they're alive (even if not top-N).
+    const visible = new Set<PlayerId>();
+    const human = this.game.human();
+    if (human.alive && counts[human.id]! >= MIN_TILES) visible.add(human.id);
+    for (let i = 0; i < ranked.length && visible.size < MAX_LABELS; i++) {
+      visible.add(ranked[i]!.id);
+    }
+
+    for (const id of visible) {
+      const p = this.game.players[id];
+      if (!p) continue;
       const c = this.game.territory.centroid(id);
       const s = this.renderer.worldToScreen(c.x, c.y);
       let label = this.labels.get(id);
@@ -82,8 +125,8 @@ export class OverlayLayer {
             fill: 0xffffff,
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
             fontWeight: '800',
-            fontSize: 13,
-            stroke: { color: 0x000000, width: 3, alpha: 0.7 },
+            fontSize: 14,
+            stroke: { color: 0x000000, width: 4, alpha: 0.85 },
           },
         });
         label.tint = tint;
@@ -93,11 +136,10 @@ export class OverlayLayer {
       }
       label.text = formatTroops(p.troops);
       label.position.set(s.x, s.y);
-      seen.add(id);
     }
-    // Drop labels for dead/missing players.
+    // Drop labels for players that fell out of the visible set.
     for (const [id, label] of this.labels) {
-      if (!seen.has(id)) {
+      if (!visible.has(id)) {
         this.labelLayer.removeChild(label);
         label.destroy();
         this.labels.delete(id);
@@ -220,24 +262,45 @@ export class OverlayLayer {
     }
   }
 
+  // Highlight the human's currently-targeted region by tinting its tiles on a
+  // native-resolution canvas-backed sprite that lives inside renderer.world.
+  // The sprite pans/zooms with the camera. We only repaint when the targeted
+  // region changes; per-frame work is just a sin-wave alpha pulse.
   private _drawTarget(now: number): void {
-    const g = this.target;
-    g.clear();
     const me = this.game.human();
-    if (!me.target || !me.expanding) return;
-    const s = this._toScreen(me.target.x + 0.5, me.target.y + 0.5);
-    const t = (now / 700) % 1;
+    const tr = me.targetRegion;
+    if (tr == null) {
+      this.targetSprite.alpha = 0;
+      this.targetDrawnRegion = -1;
+      return;
+    }
+    if (this.targetDrawnRegion !== tr) {
+      this._repaintTargetRegion(tr);
+      this.targetDrawnRegion = tr;
+    }
+    const t = (now / 900) % 1;
     const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
-    const baseR = Math.max(10, this.renderer.zoom * 2.5);
-    const r = baseR + pulse * 6;
-    g.circle(s.x, s.y, r).stroke({ color: 0xffffff, alpha: 0.5 + 0.4 * pulse, width: 2 });
-    // Crosshair gap arms
-    const gap = r * 0.35;
-    g.moveTo(s.x - r,    s.y).lineTo(s.x - gap, s.y);
-    g.moveTo(s.x + gap,  s.y).lineTo(s.x + r,   s.y);
-    g.moveTo(s.x, s.y - r).lineTo(s.x, s.y - gap);
-    g.moveTo(s.x, s.y + gap).lineTo(s.x, s.y + r);
-    g.stroke({ color: 0xffffff, alpha: 0.5 + 0.4 * pulse, width: 2 });
+    this.targetSprite.alpha = 0.22 + 0.18 * pulse;
+  }
+
+  private _repaintTargetRegion(regionId: number): void {
+    if (!this.targetCtx) return;
+    const W = this.game.territory.width;
+    const H = this.game.territory.height;
+    const regions = this.game.regions;
+    const data = this.targetCtx.createImageData(W, H);
+    const buf = data.data;
+    for (let i = 0; i < regions.length; i++) {
+      if (regions[i] === regionId) {
+        const o = i * 4;
+        buf[o]     = 255;
+        buf[o + 1] = 255;
+        buf[o + 2] = 255;
+        buf[o + 3] = 255;
+      }
+    }
+    this.targetCtx.putImageData(data, 0, 0);
+    this.targetTexture.source.update();
   }
 }
 

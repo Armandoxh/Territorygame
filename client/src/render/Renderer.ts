@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Game, GameConfig } from '@territorygame/shared';
-import { generateRegions, computeBorderRGBA } from '@territorygame/shared';
+import { computeBorderRGBA } from '@territorygame/shared';
 import { TerritoryLayer } from './TerritoryLayer.js';
 import { OverlayLayer } from './OverlayLayer.js';
 
@@ -51,14 +51,13 @@ export class Renderer {
     this.territoryLayer = new TerritoryLayer(game.territory, game.config);
     this.world.addChild(this.territoryLayer.sprite);
 
-    // Region overlay: pre-partition the land into ~50 districts and draw a
-    // dark line along each district border so the map reads as a set of
-    // concrete territories rather than amorphous tile soup.
+    // Region overlay sprite: dark outline along every region border. Regions
+    // themselves are computed inside Game.spawnAll so the simulation can
+    // consult them (region-bounded expansion). We just consume game.regions
+    // here to produce the visual layer.
     const W = game.territory.width;
     const H = game.territory.height;
-    const seedCount = Math.max(20, Math.min(120, Math.floor(Math.sqrt(game.totalLand) / 3)));
-    const regions = generateRegions(game.territory.terrain, W, H, seedCount);
-    const borderRGBA = computeBorderRGBA(regions, W, H);
+    const borderRGBA = computeBorderRGBA(game.regions, W, H);
     const borderCanvas = document.createElement('canvas');
     borderCanvas.width = W;
     borderCanvas.height = H;
@@ -69,7 +68,9 @@ export class Renderer {
       bctx.putImageData(data, 0, 0);
     }
     const borderTexture = Texture.from(borderCanvas);
-    borderTexture.source.scaleMode = 'nearest';
+    // Linear filtering smooths the border edges as the world is scaled up,
+    // turning chunky 1-pixel jaggies into a softer hairline.
+    borderTexture.source.scaleMode = 'linear';
     const borderSprite = new Sprite(borderTexture);
     this.world.addChild(borderSprite);
 
@@ -83,6 +84,9 @@ export class Renderer {
     this.zoom = this.opts.defaultZoom;
 
     this.overlay = new OverlayLayer(game, this);
+    // World-space layers (target-region highlight) pan + zoom with the camera.
+    this.world.addChild(this.overlay.worldContainer);
+    // Screen-space layers (capitals, buildings, labels, tap flash).
     this.app.stage.addChild(this.overlay.container);
 
     this.applyViewport();

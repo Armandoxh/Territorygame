@@ -6,6 +6,7 @@ import type {
 import { TERRAIN_LAND } from './types.js';
 import { Territory } from './territory.js';
 import { generateTerrain } from './terrain.js';
+import { generateRegions } from './regions.js';
 
 interface ExpansionCandidate {
   x: number; y: number;
@@ -43,10 +44,16 @@ export class Game {
     this.events = [];
     this._spawnSpotsCache = null;
     this.totalLand = 0;
+    this.regions = new Uint8Array(config.GRID_WIDTH * config.GRID_HEIGHT);
+    this.regionCount = 0;
   }
 
   /** Number of passable (LAND) tiles on the map. Set during generateTerrain. */
   totalLand: number;
+
+  /** Region ID per tile (1..regionCount); 0 = water. Set during generateTerrain. */
+  regions: Uint8Array;
+  regionCount: number;
 
   // --- Setup ---
 
@@ -71,15 +78,33 @@ export class Game {
     const carveR = this._spawnRadius() + 1;
     for (const s of spots) this.territory.carveLand(s.x, s.y, carveR);
     for (const s of spots) this._spawnPlayerAt(s.id, s.x, s.y);
-    for (let id = 2; id < this.players.length; id++) {
-      const p = this.players[id];
-      if (p) p.target = { x: Math.floor(W / 2), y: Math.floor(H / 2) };
-    }
     // Carving may have added a few land tiles — recount after spawn.
     let land = 0;
     const t = this.territory.terrain;
     for (let i = 0; i < t.length; i++) if (t[i] === TERRAIN_LAND) land++;
     this.totalLand = land;
+
+    // Partition the (now final) land into districts. The renderer reads this
+    // for the border overlay and the gameplay reads it to bound expansion.
+    const seedCount = Math.max(20, Math.min(120, Math.floor(Math.sqrt(this.totalLand) / 3)));
+    this.regions = generateRegions(this.territory.terrain, W, H, seedCount);
+    let maxR = 0;
+    for (let i = 0; i < this.regions.length; i++) {
+      if (this.regions[i]! > maxR) maxR = this.regions[i]!;
+    }
+    this.regionCount = maxR;
+
+    // Each AI gets an initial target region — one they don't yet own
+    // adjacent to their spawn (or any random region as fallback).
+    for (let id = 2; id < this.players.length; id++) {
+      const p = this.players[id];
+      if (p) p.targetRegion = this._pickAiTargetRegion(p.id);
+    }
+  }
+
+  regionAt(x: number, y: number): number {
+    if (!this.territory.inBounds(x, y)) return 0;
+    return this.regions[y * this.territory.width + x] ?? 0;
   }
 
   spawnSpots(): Array<{ id: PlayerId; x: number; y: number }> {
@@ -161,16 +186,25 @@ export class Game {
 
   // --- Player actions ---
 
-  setHumanTarget(x: number, y: number): void {
-    if (!this.territory.inBounds(x, y)) return;
+  /**
+   * Tap-to-claim: target the region containing (x, y). Frontier tiles bordering
+   * that region will push into it and only into it. Returns the region ID
+   * targeted, or 0 if the tap was on water/oob.
+   */
+  setHumanTargetRegion(x: number, y: number): number {
     const p = this.human();
-    if (!p.alive) return;
+    if (!p.alive) return 0;
+    const r = this.regionAt(x, y);
+    if (r <= 0) return 0;
+    p.targetRegion = r;
     p.target = { x, y };
     p.expanding = true;
+    return r;
   }
 
   haltHuman(): void {
     const p = this.human();
+    p.targetRegion = null;
     p.target = null;
     p.expanding = false;
   }
@@ -345,6 +379,7 @@ export class Game {
       gold: this.config.STARTING_GOLD,
       troops: this.config.STARTING_TROOPS,
       alive: true,
+      targetRegion: null,
       target: null,
       expanding: !isHuman,
     };
@@ -435,44 +470,55 @@ export class Game {
   }
 
   private _aiThink(p: Player): void {
-    if (this.tickCount % this.config.AI_RETARGET_TICKS !== 0 && p.target) return;
-    const W = this.territory.width, H = this.territory.height;
-    let bestId = -1, bestCount = -1;
-    for (let id = 1; id < this.players.length; id++) {
-      if (id === p.id) continue;
-      const op = this.players[id];
-      if (!op || !op.alive) continue;
-      const c = this.territory.counts[id]!;
-      if (c > bestCount) { bestCount = c; bestId = id; }
-    }
-    let tx = W / 2, ty = H / 2;
-    if (bestId > 0 && Math.random() < 0.65) {
-      const c = this.territory.centroid(bestId);
-      tx = c.x; ty = c.y;
-    }
-    p.target = { x: Math.floor(tx), y: Math.floor(ty) };
+    if (this.tickCount % this.config.AI_RETARGET_TICKS !== 0 && p.targetRegion != null) return;
+    p.targetRegion = this._pickAiTargetRegion(p.id);
   }
 
+  // Pick a region for an AI to push into: prefer regions adjacent to its
+  // current territory that aren't already fully owned. Falls back to a random
+  // region if none are adjacent.
+  private _pickAiTargetRegion(playerId: PlayerId): number | null {
+    if (this.regionCount <= 0) return null;
+    const adjacent = this._adjacentRegions(playerId);
+    if (adjacent.size > 0) {
+      const arr = Array.from(adjacent);
+      return arr[(Math.random() * arr.length) | 0]!;
+    }
+    return 1 + ((Math.random() * this.regionCount) | 0);
+  }
+
+  // Region IDs touching the player's frontier (incl. tiles currently owned by
+  // someone else) — i.e. regions the player can push into right now.
+  private _adjacentRegions(playerId: PlayerId): Set<number> {
+    const out = new Set<number>();
+    const W = this.territory.width;
+    const frontier = this.territory.getFrontier(playerId);
+    const dirs: ReadonlyArray<readonly [number, number]> = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    for (const i of frontier) {
+      const x = i % W;
+      const y = (i - x) / W;
+      for (const [dx, dy] of dirs) {
+        const nx = x + dx, ny = y + dy;
+        if (!this.territory.inBounds(nx, ny)) continue;
+        const own = this.territory.getOwner(nx, ny);
+        if (own === playerId) continue;
+        const r = this.regions[ny * W + nx]!;
+        if (r > 0) out.add(r);
+      }
+    }
+    return out;
+  }
+
+  // Region-bounded expansion: a player only pushes into tiles inside their
+  // current targetRegion. If they have no target (idle), they don't grow at
+  // all. Combat math (troop ratio, turret defense) is unchanged.
   private _expand(p: Player): void {
+    if (p.targetRegion == null) return;
     const frontier = this.territory.getFrontier(p.id);
     if (frontier.size === 0) return;
     const W = this.territory.width;
     const baseChance = this.config.EXPANSION_CHANCE_PER_FRONTIER_TILE;
-    const target = p.target;
-
-    let useTarget = false, tNx = 0, tNy = 0, cx = 0, cy = 0;
-    if (target) {
-      const c = this.territory.centroid(p.id);
-      cx = c.x; cy = c.y;
-      const tdx = target.x - cx;
-      const tdy = target.y - cy;
-      const tDist = Math.hypot(tdx, tdy);
-      if (tDist > 0.5) {
-        useTarget = true;
-        tNx = tdx / tDist;
-        tNy = tdy / tDist;
-      }
-    }
+    const targetRegion = p.targetRegion;
 
     const tiles = Array.from(frontier);
     for (let k = 0; k < tiles.length; k++) {
@@ -484,30 +530,17 @@ export class Game {
       const cands = this._validTargets(x, y, p.id);
       if (cands.length === 0) continue;
 
-      let chance = baseChance;
-      let chosen: ExpansionCandidate;
-      if (useTarget) {
-        const fx = x - cx, fy = y - cy;
-        const fDist = Math.hypot(fx, fy) || 1;
-        const align = (fx / fDist) * tNx + (fy / fDist) * tNy;
-        chance *= Math.pow(Math.max(0, align + 1), this.config.EXPANSION_DIRECTIONAL_EXP);
-        if (Math.random() < this.config.EXPANSION_TARGET_BIAS) {
-          let bestS = -Infinity;
-          chosen = cands[0]!;
-          for (const c of cands) {
-            const s = c.dx * tNx + c.dy * tNy;
-            if (s > bestS) { bestS = s; chosen = c; }
-          }
-        } else {
-          chosen = cands[(Math.random() * cands.length) | 0]!;
-        }
-      } else {
-        chosen = cands[(Math.random() * cands.length) | 0]!;
+      // Filter to neighbors inside the target region.
+      const inRegion: ExpansionCandidate[] = [];
+      for (const c of cands) {
+        if (this.regions[c.y * W + c.x] === targetRegion) inRegion.push(c);
       }
+      if (inRegion.length === 0) continue;
+      const chosen = inRegion[(Math.random() * inRegion.length) | 0]!;
 
       const targetOwner = this.territory.getOwner(chosen.x, chosen.y);
       if (targetOwner === 0) {
-        if (Math.random() > chance) continue;
+        if (Math.random() > baseChance) continue;
         if (p.gold < this.config.EXPANSION_COST_PER_CLAIM) continue;
         if (p.troops < this.config.EXPANSION_TROOP_COST) continue;
         if (this.tryCapture(chosen.x, chosen.y, p.id)) {
@@ -517,8 +550,6 @@ export class Game {
       } else {
         const def = this._defenseAt(chosen.x, chosen.y, targetOwner);
         const cost = this.config.ATTACK_COST_PER_CLAIM * (1 + def);
-
-        // Troop-ratio modulation: bigger army = faster attacks AND tougher to attack.
         const defender = this.players[targetOwner];
         const defTroops = Math.max(1, defender?.troops ?? 1);
         const ratio = p.troops / defTroops;
@@ -529,7 +560,7 @@ export class Game {
             Math.pow(ratio, this.config.ATTACK_RATIO_EXP),
           ),
         );
-        const rate = chance * this.config.ATTACK_RATE_MULT * ratioFactor / (1 + def);
+        const rate = baseChance * this.config.ATTACK_RATE_MULT * ratioFactor / (1 + def);
         if (Math.random() > rate) continue;
         if (p.gold < cost) continue;
         if (p.troops < this.config.TROOP_COST_PER_ATTACK) continue;

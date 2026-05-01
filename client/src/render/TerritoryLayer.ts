@@ -31,8 +31,11 @@ export class TerritoryLayer {
     this.ctx.putImageData(this.imageData, 0, 0);
 
     this.texture = Texture.from(this.canvas);
-    // Pixel-perfect — no smoothing when scaled up
-    this.texture.source.scaleMode = 'nearest';
+    // Linear filtering blurs the tile-edge jaggies into a smooth gradient when
+    // scaled up. Borders between owners read as soft transitions rather than
+    // staircase steps. Region outlines (drawn on a separate sprite) keep the
+    // structure visible.
+    this.texture.source.scaleMode = 'linear';
     this.sprite = new Sprite(this.texture);
   }
 
