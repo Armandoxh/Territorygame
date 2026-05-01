@@ -1,7 +1,7 @@
 (function () {
   const territory = new Territory(CONFIG.GRID_WIDTH, CONFIG.GRID_HEIGHT);
   const game = new Game(territory);
-  game.spawnHuman();
+  game.spawnAll();
 
   const canvas = document.getElementById('game');
   const renderer = new Renderer(canvas, territory);
@@ -17,6 +17,7 @@
   input.on('tap', (x, y, sx, sy) => {
     lastTapFlash = { sx, sy, time: performance.now() };
     ui.setLastTap(x, y);
+    if (game.outcome) return;
     if (!territory.inBounds(x, y)) {
       ui.toast('off-map');
       return;
@@ -26,7 +27,7 @@
   });
   input.on('tripletap-debug', () => ui.toggleDebug());
 
-  // Sim tick at SIM_HZ — advances economy and expansion.
+  // Sim tick at SIM_HZ — economy, expansion, AI, combat.
   setInterval(() => {
     game.tick();
     ui.noteTick();
@@ -34,12 +35,68 @@
 
   function loop() {
     renderer.draw();
+    drawCapitals();
     drawTargetMarker();
     drawTapFlash();
     ui.update();
     requestAnimationFrame(loop);
   }
   loop();
+
+  function drawCapitals() {
+    const ctx = renderer.ctx;
+    const dpr = renderer.dpr;
+    const t  = (performance.now() / 900) % 1;
+    const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
+    for (const cap of game.capitals) {
+      const s = renderer.worldToScreen(cap.x + 0.5, cap.y + 0.5);
+      const c = CONFIG.PLAYER_COLORS[cap.owner];
+      const r = Math.max(7, Math.min(22, renderer.zoom * 1.6)) * dpr;
+      const cx = s.x * dpr, cy = s.y * dpr;
+      // outer pulse ring
+      ctx.strokeStyle = `rgba(255,255,255,${0.35 + 0.4 * pulse})`;
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 1.55, 0, Math.PI * 2);
+      ctx.stroke();
+      // diamond body
+      ctx.fillStyle = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.lineWidth = Math.max(1.5, dpr * 1.2);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  function drawTargetMarker() {
+    const me = game.human();
+    if (!me.target || !me.expanding) return;
+    const ctx = renderer.ctx;
+    const dpr = renderer.dpr;
+    const s = renderer.worldToScreen(me.target.x + 0.5, me.target.y + 0.5);
+    const t = (performance.now() / 700) % 1;
+    const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
+    const baseR = Math.max(10, renderer.zoom * 2.5) * dpr;
+    const r = baseR + pulse * 6 * dpr;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + 0.4 * pulse})`;
+    ctx.lineWidth = 2 * dpr;
+    ctx.beginPath();
+    ctx.arc(s.x * dpr, s.y * dpr, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    const cx = s.x * dpr, cy = s.y * dpr;
+    ctx.moveTo(cx - r,        cy); ctx.lineTo(cx - r * 0.35, cy);
+    ctx.moveTo(cx + r * 0.35, cy); ctx.lineTo(cx + r,        cy);
+    ctx.moveTo(cx, cy - r);        ctx.lineTo(cx, cy - r * 0.35);
+    ctx.moveTo(cx, cy + r * 0.35); ctx.lineTo(cx, cy + r);
+    ctx.stroke();
+  }
 
   function drawTapFlash() {
     if (!lastTapFlash) return;
@@ -53,31 +110,6 @@
     ctx.lineWidth = 2.5 * dpr;
     ctx.beginPath();
     ctx.arc(lastTapFlash.sx * dpr, lastTapFlash.sy * dpr, r, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  function drawTargetMarker() {
-    const me = game.human();
-    if (!me.target) return;
-    const ctx = renderer.ctx;
-    const dpr = renderer.dpr;
-    const s = renderer.worldToScreen(me.target.x + 0.5, me.target.y + 0.5);
-    const t = (performance.now() / 700) % 1;
-    const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
-    const baseR = Math.max(10, renderer.zoom * 2.5) * dpr;
-    const r = baseR + pulse * 6 * dpr;
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + 0.4 * pulse})`;
-    ctx.lineWidth = 2 * dpr;
-    ctx.beginPath();
-    ctx.arc(s.x * dpr, s.y * dpr, r, 0, Math.PI * 2);
-    ctx.stroke();
-    // crosshair gap arms
-    ctx.beginPath();
-    const cx = s.x * dpr, cy = s.y * dpr;
-    ctx.moveTo(cx - r,        cy); ctx.lineTo(cx - r * 0.35, cy);
-    ctx.moveTo(cx + r * 0.35, cy); ctx.lineTo(cx + r,        cy);
-    ctx.moveTo(cx, cy - r);        ctx.lineTo(cx, cy - r * 0.35);
-    ctx.moveTo(cx, cy + r * 0.35); ctx.lineTo(cx, cy + r);
     ctx.stroke();
   }
 })();

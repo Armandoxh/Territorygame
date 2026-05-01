@@ -40,8 +40,17 @@ const CONFIG = {
   // outward direction faces the target expand ~3x faster, perp ~1x, away ~0.
   EXPANSION_DIRECTIONAL_EXP: 1.5,
 
-  // Spawn (M2: human only; M3 will add AI corners)
-  HUMAN_SPAWN_X_FRAC: 0.2,
+  // Spawn (M3: human + 3 AI in four spread positions)
+  HUMAN_SPAWN_X_FRAC: 0.15,
   HUMAN_SPAWN_Y_FRAC: 0.5,
   SPAWN_RADIUS: 5,
+
+  // Opponents
+  AI_PLAYER_COUNT: 3,
+  AI_RETARGET_TICKS: 80,        // AI picks a fresh target every ~8s
+  CAPITALS_PER_PLAYER: 2,
+
+  // Combat
+  ATTACK_COST_PER_CLAIM: 4,      // vs 1 gold for unclaimed
+  ATTACK_RATE_MULT: 0.55,        // enemy tiles fire at slower per-tick rate
 };

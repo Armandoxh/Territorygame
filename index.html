@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/styles.css?v=4">
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -17,17 +17,25 @@
       <span class="stat"><b id="my-tiles">0</b><i>tiles</i></span>
       <span class="stat"><b id="my-gold">0</b><i>gold</i></span>
     </div>
+    <div id="enemies"></div>
     <div id="debug"></div>
     <div id="toast"></div>
     <div id="hint">tap a tile to expand toward it &middot; pinch to zoom &middot; triple-tap top-right for debug</div>
     <button id="stop-btn" class="fab hidden" type="button">STOP</button>
+    <div id="gameover">
+      <div class="card">
+        <h1 id="gameover-title">VICTORY</h1>
+        <p id="gameover-sub"></p>
+        <button id="play-again" type="button">PLAY AGAIN</button>
+      </div>
+    </div>
   </div>
-  <script src="js/config.js?v=3"></script>
-  <script src="js/territory.js?v=3"></script>
-  <script src="js/render.js?v=3"></script>
-  <script src="js/input.js?v=3"></script>
-  <script src="js/game.js?v=3"></script>
-  <script src="js/ui.js?v=3"></script>
-  <script src="js/main.js?v=3"></script>
+  <script src="js/config.js?v=4"></script>
+  <script src="js/territory.js?v=4"></script>
+  <script src="js/render.js?v=4"></script>
+  <script src="js/input.js?v=4"></script>
+  <script src="js/game.js?v=4"></script>
+  <script src="js/ui.js?v=4"></script>
+  <script src="js/main.js?v=4"></script>
 </body>
 </html>
