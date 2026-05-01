@@ -34,6 +34,9 @@ export interface GameConfig {
   ATTACK_RATIO_MIN: number;
   ATTACK_RATIO_MAX: number;
 
+  /** Win threshold: any player owning this fraction of LAND tiles wins. */
+  WIN_TERRITORY_FRACTION: number;
+
   // Buildings
   BUILDING_COSTS: Record<BuildingType, number>;
   SETTLEMENT_RADIUS: number;
@@ -95,6 +98,8 @@ export const DEFAULT_CONFIG: GameConfig = {
   ATTACK_RATIO_EXP: 0.5,
   ATTACK_RATIO_MIN: 0.1,
   ATTACK_RATIO_MAX: 10,
+
+  WIN_TERRITORY_FRACTION: 0.95,
 
   BUILDING_COSTS: {
     settlement: 50,

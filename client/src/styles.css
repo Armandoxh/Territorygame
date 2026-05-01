@@ -50,6 +50,8 @@ html, body {
 #topbar .stat { display: flex; align-items: baseline; gap: 5px; }
 #topbar .stat b { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
 #topbar .stat i { font-style: normal; opacity: 0.55; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+#topbar .stat.compact b { font-size: 12px; opacity: 0.65; }
+#topbar .stat.compact i { font-size: 10px; }
 
 #enemies {
   position: absolute;

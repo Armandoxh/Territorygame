@@ -42,7 +42,11 @@ export class Game {
     this.outcome = null;
     this.events = [];
     this._spawnSpotsCache = null;
+    this.totalLand = 0;
   }
+
+  /** Number of passable (LAND) tiles on the map. Set during generateTerrain. */
+  totalLand: number;
 
   // --- Setup ---
 
@@ -50,6 +54,10 @@ export class Game {
     const W = this.territory.width, H = this.territory.height;
     const t = generateTerrain(W, H, this.config, seed);
     this.territory.setTerrain(t);
+    // Count land tiles for the win-threshold denominator.
+    let land = 0;
+    for (let i = 0; i < t.length; i++) if (t[i] === TERRAIN_LAND) land++;
+    this.totalLand = land;
     // Spawn spots will be chosen on the already-generated land in spawnAll().
     this._spawnSpotsCache = null;
   }
@@ -67,6 +75,11 @@ export class Game {
       const p = this.players[id];
       if (p) p.target = { x: Math.floor(W / 2), y: Math.floor(H / 2) };
     }
+    // Carving may have added a few land tiles — recount after spawn.
+    let land = 0;
+    const t = this.territory.terrain;
+    for (let i = 0; i < t.length; i++) if (t[i] === TERRAIN_LAND) land++;
+    this.totalLand = land;
   }
 
   spawnSpots(): Array<{ id: PlayerId; x: number; y: number }> {
@@ -316,28 +329,15 @@ export class Game {
     const defender = this.territory.getOwner(x, y);
     if (defender < 0 || defender === attackerId) return false;
     const capIdx = this._capitalIndexAt(x, y);
-    // Capture the capital's recorded owner BEFORE we splice it out, since
-    // that owner may differ from the tile's defender (unclaimed-on-capital
-    // edge case for tight spawn radii).
     const capOwner = capIdx >= 0 ? this.capitals[capIdx]!.owner : -1;
     if (!this.territory.claim(x, y, attackerId)) return false;
     this._destroyBuildingsAt(x, y);
+    // Capitals are still destroyed when their tile is captured, but losing
+    // them no longer eliminates a player — victory is decided by territory
+    // share. We just emit a 'capital' toast for player feedback.
     if (capIdx >= 0 && capOwner > 0) {
       this.capitals.splice(capIdx, 1);
-      const eliminated = this._checkElimination(capOwner);
-      if (eliminated) {
-        this.events.push({ type: 'eliminated', playerId: capOwner, by: attackerId });
-        // If the human was just eliminated, end the game RIGHT NOW with
-        // the attacker as the named winner. This is the player who
-        // actually took your last capital, not whoever happens to be
-        // largest at the moment (which was usually some unrelated AI).
-        if (capOwner === this.human().id && !this.outcome) {
-          this.outcome = 'defeat';
-          this.events.push({ type: 'gameover', outcome: 'defeat', winner: attackerId });
-        }
-      } else {
-        this.events.push({ type: 'capital', playerId: capOwner, by: attackerId });
-      }
+      this.events.push({ type: 'capital', playerId: capOwner, by: attackerId });
     }
     return true;
   }
@@ -615,39 +615,30 @@ export class Game {
     }
   }
 
-  private _checkElimination(playerId: PlayerId): boolean {
-    if (playerId <= 0) return false;
-    let n = 0;
-    for (const c of this.capitals) if (c.owner === playerId) n++;
-    if (n === 0) {
-      const p = this.players[playerId];
-      if (p && p.alive) {
-        p.alive = false;
-        p.expanding = false;
-        return true;
-      }
-    }
-    return false;
-  }
-
   private _checkVictory(): void {
     if (this.outcome) return;
-    let aliveCount = 0;
-    let lastAlive = -1;
+    if (this.totalLand <= 0) return;
+    const threshold = Math.ceil(this.totalLand * this.config.WIN_TERRITORY_FRACTION);
+
+    // Find the player with the most land. If they're past the threshold, the
+    // game is over.
+    let bestId = -1, bestCount = -1;
     for (let id = 1; id < this.players.length; id++) {
-      const p = this.players[id];
-      if (p && p.alive) { aliveCount++; lastAlive = id; }
+      const c = this.territory.counts[id]!;
+      if (c > bestCount) { bestCount = c; bestId = id; }
     }
-    if (aliveCount === 1) {
-      const outcome: 'victory' | 'defeat' = (lastAlive === this.human().id) ? 'victory' : 'defeat';
+    if (bestId > 0 && bestCount >= threshold) {
+      const outcome: 'victory' | 'defeat' = (bestId === this.human().id) ? 'victory' : 'defeat';
       this.outcome = outcome;
-      this.events.push({ type: 'gameover', outcome, winner: lastAlive });
-    } else if (aliveCount === 0) {
-      // Vanishingly rare — every capital was destroyed in the same tick.
-      this.outcome = 'defeat';
-      this.events.push({ type: 'gameover', outcome: 'defeat', winner: -1 });
+      this.events.push({ type: 'gameover', outcome, winner: bestId });
+      return;
     }
-    // The "human dead but AIs alive" case is handled in tryCapture, where
-    // we know the actual attacker who took the last capital.
+    // Soft-end: if the human has been wiped out (and a few seconds have
+    // passed so it's not a startup glitch), they have no way back in. Show
+    // defeat with the current strongest player credited.
+    if (this.tickCount > 30 && this.territory.counts[this.human().id] === 0 && bestId > 0) {
+      this.outcome = 'defeat';
+      this.events.push({ type: 'gameover', outcome: 'defeat', winner: bestId });
+    }
   }
 }

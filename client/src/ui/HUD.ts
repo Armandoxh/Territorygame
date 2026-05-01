@@ -8,6 +8,7 @@ export class HUD {
   private readonly game: Game;
   private readonly el = {
     tiles:        this._byId('my-tiles'),
+    pct:          this._byId('my-pct'),
     troops:       this._byId('my-troops'),
     gold:         this._byId('my-gold'),
     dot:          this._byId('my-dot'),
@@ -212,6 +213,12 @@ export class HUD {
     if (this.el.tiles)  this.el.tiles.textContent  = String(owned);
     if (this.el.troops) this.el.troops.textContent = formatTroops(me.troops);
     if (this.el.gold)   this.el.gold.textContent   = String(Math.floor(me.gold));
+    if (this.el.pct) {
+      const pct = this.game.totalLand > 0 ? owned / this.game.totalLand : 0;
+      // 1 decimal until close to the win threshold, then 2 for tension.
+      const display = pct >= 0.85 ? (pct * 100).toFixed(1) : Math.floor(pct * 100).toString();
+      this.el.pct.textContent = display + '%';
+    }
     if (this.el.stop) {
       const showStop = me.alive && me.expanding && !this.game.outcome;
       this.el.stop.classList.toggle('hidden', !showStop);
@@ -223,8 +230,9 @@ export class HUD {
     for (const [id, ref] of this.enemyEls) {
       const p = this.game.players[id];
       if (!p) continue;
-      ref.num.textContent = String(this.game.territory.counts[id]!);
-      ref.wrap.classList.toggle('dead', !p.alive);
+      const cnt = this.game.territory.counts[id]!;
+      ref.num.textContent = String(cnt);
+      ref.wrap.classList.toggle('dead', cnt === 0);
     }
     this._consumeEvents();
 
@@ -445,19 +453,26 @@ export class HUD {
 
   private _showGameOver(outcome: 'victory' | 'defeat', winnerId: number): void {
     if (!this.el.gameover) return;
+    const land = this.game.totalLand;
+    const winnerOwned = winnerId > 0 ? (this.game.territory.counts[winnerId] ?? 0) : 0;
+    const winnerPct = land > 0 ? (winnerOwned / land * 100).toFixed(1) : '0';
     if (outcome === 'victory') {
       if (this.el.gameoverTitle) {
         this.el.gameoverTitle.textContent = 'VICTORY';
         this.el.gameoverTitle.style.color = '#55c86e';
       }
-      if (this.el.gameoverSub) this.el.gameoverSub.textContent = 'You eliminated all opponents.';
+      if (this.el.gameoverSub) {
+        this.el.gameoverSub.textContent = `You control ${winnerPct}% of the map.`;
+      }
     } else {
       if (this.el.gameoverTitle) {
         this.el.gameoverTitle.textContent = 'DEFEAT';
         this.el.gameoverTitle.style.color = '#e84a4a';
       }
-      const winner = winnerId > 0 ? this.game.players[winnerId]?.name ?? '—' : 'No one';
-      if (this.el.gameoverSub) this.el.gameoverSub.textContent = `${winner} won.`;
+      const name = winnerId > 0 ? this.game.players[winnerId]?.name ?? '—' : 'No one';
+      if (this.el.gameoverSub) {
+        this.el.gameoverSub.textContent = `${name} controls ${winnerPct}% of the map.`;
+      }
     }
     this.el.gameover.classList.add('show');
   }
@@ -467,11 +482,14 @@ export class HUD {
     const total = this.game.territory.width * this.game.territory.height;
     const totalOwned = total - this.game.territory.counts[0]!;
     const frontier = this.game.territory.getFrontier(me.id).size;
+    const winNeed = Math.ceil(this.game.totalLand * this.game.config.WIN_TERRITORY_FRACTION);
     const lines = [
       `<b>FPS</b> ${this.fps}`,
       `<b>Tick/s</b> ${this.tickRate.toFixed(1)}`,
       `<b>Mine</b> ${this.game.territory.counts[me.id]!} (frontier ${frontier})`,
+      `<b>Land</b> ${this.game.totalLand} (need ${winNeed} to win)`,
       `<b>Owned</b> ${totalOwned} / ${total}`,
+      `<b>Troops</b> ${formatTroops(me.troops)}`,
       `<b>Gold</b> ${me.gold.toFixed(1)}`,
       `<b>Caps</b> ${this.game.capitals.length}`,
       `<b>Builds</b> ${this.game.buildings.length}`,
