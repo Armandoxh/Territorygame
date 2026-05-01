@@ -4,3 +4,8 @@ Thumbs.db
 .vscode/
 .idea/
 node_modules/
+
+# TS build artifacts; /docs is intentionally NOT ignored — it's the Pages output.
+**/*.tsbuildinfo
+shared/dist/
+client/dist/

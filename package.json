@@ -1,0 +1,20 @@
+{
+  "name": "territorygame",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Real-time territorial expansion game — Pixi + Colyseus monorepo.",
+  "workspaces": [
+    "shared",
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm -w client run dev",
+    "build": "npm -w client run build",
+    "preview": "npm -w client run preview",
+    "typecheck": "tsc -b"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
