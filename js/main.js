@@ -5,7 +5,15 @@
   //   ?w=512&h=512           → bigger map (eats more memory)
   const params = new URLSearchParams(location.search);
   const ai = parseInt(params.get('ai'), 10);
-  if (Number.isFinite(ai)) CONFIG.AI_PLAYER_COUNT = Math.max(0, Math.min(254, ai));
+  if (Number.isFinite(ai)) {
+    CONFIG.AI_PLAYER_COUNT = Math.max(0, Math.min(254, ai));
+  } else {
+    // Fall back to the menu's last-chosen count, so the base URL respects it.
+    const saved = parseInt(localStorage.getItem('territory:ai'), 10);
+    if (Number.isFinite(saved)) {
+      CONFIG.AI_PLAYER_COUNT = Math.max(0, Math.min(254, saved));
+    }
+  }
   const seed = parseInt(params.get('seed'), 10);
   if (Number.isFinite(seed)) CONFIG.TERRAIN_SEED = seed;
   const w = parseInt(params.get('w'), 10);

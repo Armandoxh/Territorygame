@@ -27,6 +27,9 @@ class UI {
     this.placeBannerEl   = document.getElementById('place-banner');
     this.placeBannerType = document.getElementById('pb-type');
     this.placeMode       = null;
+    this.menuEl          = document.getElementById('menu');
+    this.menuBtnEl       = document.getElementById('menu-btn');
+    this.oppInputEl      = document.getElementById('opp-count');
 
     if (this.dotEl) {
       const c = CONFIG.PLAYER_COLORS[1];
@@ -39,8 +42,12 @@ class UI {
       });
     }
     if (this.playAgainBtn) {
-      this.playAgainBtn.addEventListener('click', () => location.reload());
+      this.playAgainBtn.addEventListener('click', () => {
+        this.gameOverEl.classList.remove('show');
+        this.showMenu();
+      });
     }
+    this._wireMenu();
     if (this.buildSheetEl) {
       this.buildSheetEl.querySelectorAll('.bs-btn').forEach(btn => {
         btn.addEventListener('click', () => this._onBuildClick(btn.dataset.type));
@@ -161,6 +168,72 @@ class UI {
     } else {
       this.toast(this._buildErrorMsg(err));
     }
+  }
+
+  // --- New-game menu ---
+
+  _wireMenu() {
+    if (!this.menuEl) return;
+    if (this.oppInputEl) {
+      this.oppInputEl.value = this._initialOppCount();
+      this.oppInputEl.addEventListener('change', () => this._clampOppInput());
+      this.oppInputEl.addEventListener('blur',   () => this._clampOppInput());
+    }
+    if (this.menuBtnEl) {
+      this.menuBtnEl.addEventListener('click', () => this.showMenu());
+    }
+    const cancel = this.menuEl.querySelector('#menu-cancel');
+    if (cancel) cancel.addEventListener('click', () => this.hideMenu());
+    const restart = this.menuEl.querySelector('#restart-btn');
+    if (restart) restart.addEventListener('click', () => this._restartGame());
+    this.menuEl.querySelectorAll('.num-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = parseInt(btn.dataset.delta, 10) || 0;
+        const v = (parseInt(this.oppInputEl.value, 10) || 0) + d;
+        this.oppInputEl.value = Math.max(1, Math.min(254, v));
+      });
+    });
+    this.menuEl.querySelectorAll('.quick-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.oppInputEl.value = btn.dataset.count;
+      });
+    });
+    // Tap on the dim background closes the menu.
+    this.menuEl.addEventListener('click', (e) => {
+      if (e.target === this.menuEl) this.hideMenu();
+    });
+  }
+
+  _initialOppCount() {
+    const fromUrl = parseInt(new URLSearchParams(location.search).get('ai'), 10);
+    if (Number.isFinite(fromUrl)) return Math.max(1, Math.min(254, fromUrl));
+    const fromStorage = parseInt(localStorage.getItem('territory:ai'), 10);
+    if (Number.isFinite(fromStorage)) return Math.max(1, Math.min(254, fromStorage));
+    return CONFIG.AI_PLAYER_COUNT;
+  }
+
+  _clampOppInput() {
+    const v = parseInt(this.oppInputEl.value, 10);
+    if (!Number.isFinite(v)) { this.oppInputEl.value = 3; return; }
+    this.oppInputEl.value = Math.max(1, Math.min(254, v));
+  }
+
+  showMenu() {
+    if (!this.menuEl) return;
+    this._clampOppInput();
+    this.menuEl.classList.add('show');
+  }
+
+  hideMenu() {
+    if (!this.menuEl) return;
+    this.menuEl.classList.remove('show');
+  }
+
+  _restartGame() {
+    this._clampOppInput();
+    const v = parseInt(this.oppInputEl.value, 10) || 3;
+    try { localStorage.setItem('territory:ai', String(v)); } catch (_) {}
+    location.search = '?ai=' + v;
   }
 
   // --- Place mode (hotbar / keyboard) ---

@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-<link rel="stylesheet" href="css/styles.css?v=7">
+<link rel="stylesheet" href="css/styles.css?v=8">
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -43,6 +43,29 @@
     <div id="toast"></div>
     <div id="hint">tap to expand &middot; long-press to build &middot; S/T/A/W keys or hotbar</div>
     <button id="stop-btn" class="fab hidden" type="button">STOP</button>
+    <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu">≡</button>
+    <div id="menu">
+      <div class="card">
+        <h2>NEW GAME</h2>
+        <label class="menu-row">
+          <span class="lbl">Opponents</span>
+          <div class="num-input">
+            <button class="num-btn" data-delta="-1" type="button">−</button>
+            <input id="opp-count" type="number" min="1" max="254" value="3" inputmode="numeric">
+            <button class="num-btn" data-delta="1" type="button">+</button>
+          </div>
+        </label>
+        <div class="quick-row">
+          <button class="quick-btn" data-count="3"   type="button">3</button>
+          <button class="quick-btn" data-count="10"  type="button">10</button>
+          <button class="quick-btn" data-count="50"  type="button">50</button>
+          <button class="quick-btn" data-count="254" type="button">254</button>
+        </div>
+        <p class="menu-note">Max 254 (1 byte per tile)</p>
+        <button id="restart-btn" class="primary" type="button">RESTART</button>
+        <button id="menu-cancel" class="secondary" type="button">CANCEL</button>
+      </div>
+    </div>
     <div id="buildsheet">
       <div class="bs-handle"></div>
       <div class="bs-header">Build at <span id="bs-coords">—</span></div>
@@ -82,14 +105,14 @@
       </div>
     </div>
   </div>
-  <script src="js/config.js?v=7"></script>
-  <script src="js/palette.js?v=7"></script>
-  <script src="js/terrain.js?v=7"></script>
-  <script src="js/territory.js?v=7"></script>
-  <script src="js/render.js?v=7"></script>
-  <script src="js/input.js?v=7"></script>
-  <script src="js/game.js?v=7"></script>
-  <script src="js/ui.js?v=7"></script>
-  <script src="js/main.js?v=7"></script>
+  <script src="js/config.js?v=8"></script>
+  <script src="js/palette.js?v=8"></script>
+  <script src="js/terrain.js?v=8"></script>
+  <script src="js/territory.js?v=8"></script>
+  <script src="js/render.js?v=8"></script>
+  <script src="js/input.js?v=8"></script>
+  <script src="js/game.js?v=8"></script>
+  <script src="js/ui.js?v=8"></script>
+  <script src="js/main.js?v=8"></script>
 </body>
 </html>
