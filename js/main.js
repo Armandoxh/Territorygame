@@ -13,9 +13,14 @@
   renderer.cameraY = territory.height * CONFIG.HUMAN_SPAWN_Y_FRAC;
 
   let firstTap = true;
-  input.on('tap', (x, y) => {
+  let lastTapFlash = null;
+  input.on('tap', (x, y, sx, sy) => {
+    lastTapFlash = { sx, sy, time: performance.now() };
     ui.setLastTap(x, y);
-    if (!territory.inBounds(x, y)) return;
+    if (!territory.inBounds(x, y)) {
+      ui.toast('off-map');
+      return;
+    }
     game.setHumanTarget(x, y);
     if (firstTap) { ui.hideHint(); firstTap = false; }
   });
@@ -30,10 +35,26 @@
   function loop() {
     renderer.draw();
     drawTargetMarker();
+    drawTapFlash();
     ui.update();
     requestAnimationFrame(loop);
   }
   loop();
+
+  function drawTapFlash() {
+    if (!lastTapFlash) return;
+    const elapsed = performance.now() - lastTapFlash.time;
+    if (elapsed > CONFIG.TAP_FLASH_MS) return;
+    const t = elapsed / CONFIG.TAP_FLASH_MS;
+    const dpr = renderer.dpr;
+    const ctx = renderer.ctx;
+    const r = (14 + 32 * t) * dpr;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.85 * (1 - t)})`;
+    ctx.lineWidth = 2.5 * dpr;
+    ctx.beginPath();
+    ctx.arc(lastTapFlash.sx * dpr, lastTapFlash.sy * dpr, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   function drawTargetMarker() {
     const me = game.human();

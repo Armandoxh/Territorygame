@@ -96,6 +96,6 @@ class InputController {
     }
 
     const w = this.renderer.screenToWorld(sx, sy);
-    this._emit('tap', w.x, w.y);
+    this._emit('tap', w.x, w.y, sx, sy);
   }
 }

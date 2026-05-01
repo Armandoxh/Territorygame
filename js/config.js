@@ -9,8 +9,9 @@ const CONFIG = {
   MAX_ZOOM: 24,
   DEFAULT_ZOOM: 1.6,
 
-  TAP_MAX_MOVE: 10,
-  TAP_MAX_DURATION: 250,
+  TAP_MAX_MOVE: 18,         // CSS px; finger jitter on phones easily exceeds 10
+  TAP_MAX_DURATION: 450,    // ms; iOS finger-down taps frequently take 200-350ms
+  TAP_FLASH_MS: 600,        // visual ping at every tap so we can see it landed
   TRIPLE_TAP_MS: 700,
   TRIPLE_TAP_CORNER_PX: 100,
 
