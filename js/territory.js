@@ -1,16 +1,21 @@
 // Territory grid: Uint8Array where each byte is the owner ID of that tile.
-// 0 = unclaimed; 1..N = players. Dirty tiles are tracked for incremental render.
+// 0 = unclaimed; 1..N = players. Maintains:
+//  - dirty: indices changed since last render flush
+//  - counts: tile count per owner (cached, updated on each claim)
+//  - frontiers: per-owner Set of tile indices that have at least one
+//    non-same-owner neighbor (the candidates for expansion)
 class Territory {
   constructor(width, height) {
     this.width = width;
     this.height = height;
     this.owners = new Uint8Array(width * height);
     this.dirty = new Set();
+    this.counts = new Uint32Array(256);
+    this.counts[0] = width * height;
+    this.frontiers = new Map();
   }
 
-  idx(x, y) {
-    return y * this.width + x;
-  }
+  idx(x, y) { return y * this.width + x; }
 
   inBounds(x, y) {
     return x >= 0 && x < this.width && y >= 0 && y < this.height;
@@ -21,19 +26,52 @@ class Territory {
     return this.owners[this.idx(x, y)];
   }
 
+  getFrontier(owner) {
+    let s = this.frontiers.get(owner);
+    if (!s) { s = new Set(); this.frontiers.set(owner, s); }
+    return s;
+  }
+
+  _isFrontierFor(x, y, owner) {
+    if (owner === 0) return false;
+    if (this.getOwner(x - 1, y) !== owner) return true;
+    if (this.getOwner(x + 1, y) !== owner) return true;
+    if (this.getOwner(x, y - 1) !== owner) return true;
+    if (this.getOwner(x, y + 1) !== owner) return true;
+    return false;
+  }
+
   claim(x, y, owner) {
     if (!this.inBounds(x, y)) return false;
     const i = this.idx(x, y);
-    if (this.owners[i] === owner) return false;
+    const old = this.owners[i];
+    if (old === owner) return false;
+
     this.owners[i] = owner;
+    this.counts[old]--;
+    this.counts[owner]++;
     this.dirty.add(i);
+
+    if (old !== 0) this.getFrontier(old).delete(i);
+    if (owner !== 0 && this._isFrontierFor(x, y, owner)) {
+      this.getFrontier(owner).add(i);
+    }
+
+    // Re-evaluate the 4 neighbors' frontier membership for THEIR owner.
+    const ns = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]];
+    for (const [nx, ny] of ns) {
+      if (!this.inBounds(nx, ny)) continue;
+      const ni = this.idx(nx, ny);
+      const no = this.owners[ni];
+      if (no === 0) continue;
+      const set = this.getFrontier(no);
+      if (this._isFrontierFor(nx, ny, no)) set.add(ni);
+      else set.delete(ni);
+    }
     return true;
   }
 
   countByOwner() {
-    const counts = new Array(CONFIG.PLAYER_COLORS.length).fill(0);
-    const o = this.owners;
-    for (let i = 0; i < o.length; i++) counts[o[i]]++;
-    return counts;
+    return Array.from(this.counts);
   }
 }

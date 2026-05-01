@@ -79,6 +79,15 @@ class Renderer {
     return { x: Math.floor(wx), y: Math.floor(wy) };
   }
 
+  // Returns CSS-pixel screen coords for a world (tile) coordinate, where
+  // wx/wy may be fractional (e.g. tile center at x+0.5).
+  worldToScreen(wx, wy) {
+    return {
+      x: (wx - this.cameraX) * this.zoom + this.viewportW / 2,
+      y: (wy - this.cameraY) * this.zoom + this.viewportH / 2,
+    };
+  }
+
   pan(dxScreen, dyScreen) {
     this.cameraX -= dxScreen / this.zoom;
     this.cameraY -= dyScreen / this.zoom;

@@ -28,4 +28,16 @@ const CONFIG = {
   GRIDLINE_MIN_ZOOM: 1.5,
 
   MAP_BORDER_COLOR: 'rgba(255,255,255,0.18)',
+
+  // Player economy
+  STARTING_GOLD: 120,
+  GOLD_PER_TILE_PER_TICK: 0.05,        // 0.5 gold/sec per owned tile
+  EXPANSION_COST_PER_CLAIM: 1,         // gold per tile claimed
+  EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.18, // per tick (10Hz)
+  EXPANSION_TARGET_BIAS: 0.75,         // chance to pick target-aligned neighbor
+
+  // Spawn (M2: human only; M3 will add AI corners)
+  HUMAN_SPAWN_X_FRAC: 0.2,
+  HUMAN_SPAWN_Y_FRAC: 0.5,
+  SPAWN_RADIUS: 5,
 };

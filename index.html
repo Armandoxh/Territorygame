@@ -12,15 +12,21 @@
 <body>
   <canvas id="game"></canvas>
   <div id="hud">
-    <div id="topbar">Territory</div>
+    <div id="topbar">
+      <span class="dot" id="my-dot"></span>
+      <span class="stat"><b id="my-tiles">0</b><i>tiles</i></span>
+      <span class="stat"><b id="my-gold">0</b><i>gold</i></span>
+    </div>
     <div id="debug"></div>
     <div id="toast"></div>
-    <div id="hint">drag to pan &middot; pinch to zoom &middot; triple-tap top-right for debug</div>
+    <div id="hint">tap a tile to expand toward it &middot; pinch to zoom &middot; triple-tap top-right for debug</div>
+    <button id="stop-btn" class="fab hidden" type="button">STOP</button>
   </div>
   <script src="js/config.js"></script>
   <script src="js/territory.js"></script>
   <script src="js/render.js"></script>
   <script src="js/input.js"></script>
+  <script src="js/game.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
 </body>
