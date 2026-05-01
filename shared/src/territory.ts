@@ -75,6 +75,25 @@ export class Territory {
     for (let i = 0; i < this.terrain.length; i++) this.dirty.add(i);
   }
 
+  /** Force a circular region to LAND. Marks affected tiles dirty. */
+  carveLand(cx: number, cy: number, radius: number): void {
+    const r2 = radius * radius;
+    for (let dy = -radius; dy <= radius; dy++) {
+      const y = cy + dy;
+      if (y < 0 || y >= this.height) continue;
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx * dx + dy * dy > r2) continue;
+        const x = cx + dx;
+        if (x < 0 || x >= this.width) continue;
+        const i = this.idx(x, y);
+        if (this.terrain[i] !== TERRAIN_LAND) {
+          this.terrain[i] = TERRAIN_LAND;
+          this.dirty.add(i);
+        }
+      }
+    }
+  }
+
   /** Returns true if the tile flipped to a new owner. */
   claim(x: number, y: number, owner: PlayerId): boolean {
     if (!this.inBounds(x, y)) return false;

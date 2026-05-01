@@ -3,8 +3,9 @@ import type {
   Player, PlayerId, Capital, Building, BuildingType, GameEvent,
   GameOutcome, BuildError, Point,
 } from './types.js';
+import { TERRAIN_LAND } from './types.js';
 import { Territory } from './territory.js';
-import { generateTerrain, carveLand } from './terrain.js';
+import { generateTerrain } from './terrain.js';
 
 interface ExpansionCandidate {
   x: number; y: number;
@@ -40,6 +41,7 @@ export class Game {
     this.tickCount = 0;
     this.outcome = null;
     this.events = [];
+    this._spawnSpotsCache = null;
   }
 
   // --- Setup ---
@@ -47,19 +49,20 @@ export class Game {
   generateTerrain(seed?: number): void {
     const W = this.territory.width, H = this.territory.height;
     const t = generateTerrain(W, H, this.config, seed);
-    const carveR = this._spawnRadius() + 3;
-    for (const s of this.spawnSpots()) {
-      carveLand(t, W, H, s.x, s.y, carveR);
-    }
     this.territory.setTerrain(t);
+    // Spawn spots will be chosen on the already-generated land in spawnAll().
+    this._spawnSpotsCache = null;
   }
 
   spawnAll(): void {
     const W = this.territory.width, H = this.territory.height;
-    for (const s of this.spawnSpots()) {
-      this._spawnPlayerAt(s.id, s.x, s.y);
-    }
-    // AI defaults to targeting the map center; they'll retarget periodically.
+    const spots = this._chooseSpawnSpotsOnLand();
+    this._spawnSpotsCache = spots;
+    // Carve a tiny safety patch at each spawn so the blob always fits even
+    // when the chosen tile sits on a coastline.
+    const carveR = this._spawnRadius() + 1;
+    for (const s of spots) this.territory.carveLand(s.x, s.y, carveR);
+    for (const s of spots) this._spawnPlayerAt(s.id, s.x, s.y);
     for (let id = 2; id < this.players.length; id++) {
       const p = this.players[id];
       if (p) p.target = { x: Math.floor(W / 2), y: Math.floor(H / 2) };
@@ -67,22 +70,74 @@ export class Game {
   }
 
   spawnSpots(): Array<{ id: PlayerId; x: number; y: number }> {
-    const W = this.territory.width, H = this.territory.height;
+    return this._spawnSpotsCache ?? [];
+  }
+
+  private _spawnSpotsCache: Array<{ id: PlayerId; x: number; y: number }> | null;
+
+  // Even sampling on passable terrain, Poisson-disk style: random rejection
+  // sampling at decreasing minimum spacing until N spawns are found. Falls
+  // back to a circle layout if the map is too fragmented to fit them all.
+  private _chooseSpawnSpotsOnLand(): Array<{ id: PlayerId; x: number; y: number }> {
     const N = this.players.length - 1;
     if (N <= 0) return [];
+    const W = this.territory.width, H = this.territory.height;
+    const margin = this._spawnRadius() + 2;
+    const terrain = this.territory.terrain;
+
+    const candidates: number[] = [];
+    for (let y = margin; y < H - margin; y++) {
+      const row = y * W;
+      for (let x = margin; x < W - margin; x++) {
+        if (terrain[row + x] === TERRAIN_LAND) candidates.push(row + x);
+      }
+    }
+    if (candidates.length === 0) return this._fallbackCircleSpots();
+
+    const idealR = Math.sqrt(candidates.length / N) * 1.2;
+    const maxFails = Math.max(2000, Math.min(50000, N * 200));
+
+    for (let factor = 1.0; factor >= 0.3; factor *= 0.7) {
+      const r = idealR * factor;
+      const r2 = r * r;
+      const picked: Array<{ id: PlayerId; x: number; y: number }> = [];
+      let fails = 0;
+      while (picked.length < N && fails < maxFails) {
+        const i = candidates[(Math.random() * candidates.length) | 0]!;
+        const x = i % W;
+        const y = (i - x) / W;
+        let ok = true;
+        for (let k = 0; k < picked.length; k++) {
+          const p = picked[k]!;
+          const dx = p.x - x, dy = p.y - y;
+          if (dx * dx + dy * dy < r2) { ok = false; break; }
+        }
+        if (ok) picked.push({ id: picked.length + 1, x, y });
+        else fails++;
+      }
+      if (picked.length === N) return picked;
+    }
+    return this._fallbackCircleSpots();
+  }
+
+  // Backstop: circle layout (will rely on Territory.carveLand to make these
+  // positions usable even if they happen to sit on water).
+  private _fallbackCircleSpots(): Array<{ id: PlayerId; x: number; y: number }> {
+    const N = this.players.length - 1;
+    const W = this.territory.width, H = this.territory.height;
     const cx = W / 2, cy = H / 2;
     const r = Math.min(W, H) * 0.4;
-    const start = Math.PI; // player 1 (human) anchors at the west edge
-    const spots: Array<{ id: PlayerId; x: number; y: number }> = [];
+    const start = Math.PI;
+    const out: Array<{ id: PlayerId; x: number; y: number }> = [];
     for (let i = 0; i < N; i++) {
       const a = start + (i / N) * Math.PI * 2;
-      spots.push({
+      out.push({
         id: i + 1,
         x: Math.floor(cx + Math.cos(a) * r),
         y: Math.floor(cy + Math.sin(a) * r),
       });
     }
-    return spots;
+    return out;
   }
 
   human(): Player {
