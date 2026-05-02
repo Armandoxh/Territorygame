@@ -58,8 +58,10 @@ export class OverlayLayer {
     this.targetCanvas.height = H;
     this.targetCtx = this.targetCanvas.getContext('2d');
     this.targetTexture = Texture.from(this.targetCanvas);
-    this.targetTexture.source.scaleMode = 'linear';
+    // Match the territory layer: crisp pixel rendering, no blur on upscale.
+    this.targetTexture.source.scaleMode = 'nearest';
     this.targetSprite = new Sprite(this.targetTexture);
+    this.targetSprite.roundPixels = true;
     this.targetSprite.alpha = 0;
     this.worldContainer.addChild(this.targetSprite);
   }

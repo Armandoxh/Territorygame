@@ -50,9 +50,15 @@ async function boot(): Promise<void> {
   await app.init({
     background: '#0c0f12',
     resizeTo: window,
-    antialias: false,
+    // antialias: true smooths the vector overlay graphics (region borders,
+    // capital outlines). The territory sprite stays crisp because its texture
+    // uses nearest-neighbour sampling.
+    antialias: true,
     autoDensity: true,
     resolution: window.devicePixelRatio || 1,
+    // Snap renderable positions to integer pixels so adjacent tiles never
+    // smear into each other from sub-pixel offsets while panning.
+    roundPixels: true,
   });
   host.appendChild(app.canvas);
 
