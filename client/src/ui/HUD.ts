@@ -28,6 +28,9 @@ export class HUD {
     bombBtn:      this._byId('bomb-btn'),
     bombCd:       this._byId('bomb-cd'),
     bombSheet:    this._byId('bombsheet'),
+    tutorial:     this._byId('tutorial'),
+    helpBtn:      this._byId('help-btn'),
+    tutorialBtn:  this._byId('tutorial-start'),
     gameover:     this._byId('gameover'),
     gameoverTitle:this._byId('gameover-title'),
     gameoverSub:  this._byId('gameover-sub'),
@@ -59,6 +62,11 @@ export class HUD {
     this._wireBomb();
     this._wireMenu();
     this._wireGameOver();
+    this._wireTutorial();
+    // Show the welcome tutorial automatically on first launch.
+    try {
+      if (!localStorage.getItem('territory:tutorial-seen')) this.showTutorial();
+    } catch { /* ignore */ }
   }
 
   // --- callbacks set from main.ts ---
@@ -76,7 +84,9 @@ export class HUD {
     this.toastTimer = setTimeout(() => this.el.toast?.classList.remove('show'), 1600);
   }
 
-  hideHint(): void { this.el.hint?.style.setProperty('display', 'none'); }
+  /** No-op kept for legacy call sites. Hint visibility is now toggled by
+   *  update() based on whether the human has an active target region. */
+  hideHint(): void { /* intentionally empty */ }
 
   toggleDebug(): void {
     this.debugVisible = !this.debugVisible;
@@ -222,6 +232,14 @@ export class HUD {
     if (this.el.stop) {
       const showStop = me.alive && me.expanding && !this.game.outcome;
       this.el.stop.classList.toggle('hidden', !showStop);
+    }
+    if (this.el.hint) {
+      // Hint stays visible (and pulses) any time the player has nothing
+      // targeted — gives them a clear "tap a region" cue without nagging
+      // toasts. Hidden on game over so it doesn't fight the overlay.
+      const idle = !this.game.outcome && me.alive && me.targetRegion == null;
+      this.el.hint.style.display = idle ? '' : 'none';
+      this.el.hint.classList.toggle('idle', idle);
     }
     if (this.buildSheetCoord) this._refreshSheetButtons();
     this._refreshHotbar();
@@ -390,6 +408,24 @@ export class HUD {
       this.el.gameover?.classList.remove('show');
       this.showMenu();
     });
+  }
+
+  private _wireTutorial(): void {
+    this.el.helpBtn?.addEventListener('click', () => this.showTutorial());
+    this.el.tutorialBtn?.addEventListener('click', () => this.hideTutorial());
+    // Tap on the dim background also dismisses.
+    this.el.tutorial?.addEventListener('click', (e) => {
+      if (e.target === this.el.tutorial) this.hideTutorial();
+    });
+  }
+
+  showTutorial(): void {
+    this.el.tutorial?.classList.add('show');
+  }
+
+  hideTutorial(): void {
+    this.el.tutorial?.classList.remove('show');
+    try { localStorage.setItem('territory:tutorial-seen', '1'); } catch { /* ignore */ }
   }
 
   private _refreshHotbar(): void {

@@ -257,6 +257,110 @@ html, body {
   display: flex; align-items: center; justify-content: center; padding: 0;
 }
 .icon-btn:active { transform: scale(0.94); }
+.icon-btn-help {
+  /* Sit just above the menu (≡) button. */
+  bottom: calc(72px + env(safe-area-inset-bottom, 0));
+  background: rgba(74, 155, 232, 0.85);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+#tutorial {
+  position: absolute; inset: 0;
+  background: rgba(8, 10, 12, 0.85);
+  display: none; align-items: center; justify-content: center;
+  pointer-events: auto;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 30;
+}
+#tutorial.show { display: flex; }
+#tutorial .card {
+  background: #181c22;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+  padding: 26px 22px 18px;
+  width: min(360px, 92vw);
+  max-height: 88vh;
+  overflow: auto;
+  text-align: left;
+}
+#tutorial h2 {
+  margin: 0 0 18px;
+  font-size: 20px;
+  letter-spacing: 4px;
+  font-weight: 800;
+  color: #4a9be8;
+  text-align: center;
+}
+.tut-list { list-style: none; padding: 0; margin: 0 0 18px; }
+.tut-list li {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.tut-list li:last-child { border-bottom: 0; }
+.tut-list b { display: block; font-size: 14px; margin-bottom: 4px; color: #e6e6e6; }
+.tut-list p { margin: 0; font-size: 12px; opacity: 0.65; line-height: 1.4; }
+.tut-list em { font-style: normal; font-weight: 700; opacity: 0.85; padding: 0 3px; background: rgba(255,255,255,0.06); border-radius: 3px; }
+.t-icon {
+  width: 36px; height: 36px;
+  background: #2c343d;
+  border-radius: 8px;
+  position: relative;
+  margin-top: 2px;
+}
+.t-icon::before {
+  content: ""; position: absolute; inset: 6px;
+  background-color: #d6dee8;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-size: contain; mask-size: contain;
+}
+.t-icon[data-icon="tap"]::before {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='3' fill='black'/><path d='M12 2 a10 10 0 1 0 0.001 0' fill='none' stroke='black' stroke-width='2.4' stroke-dasharray='3 3'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='3' fill='black'/><path d='M12 2 a10 10 0 1 0 0.001 0' fill='none' stroke='black' stroke-width='2.4' stroke-dasharray='3 3'/></svg>");
+}
+.t-icon[data-icon="settlement"]::before {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='2,22 2,11 12,3 22,11 22,22' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='2,22 2,11 12,3 22,11 22,22' fill='black'/></svg>");
+}
+.t-icon[data-icon="troops"]::before {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='8' cy='7' r='3' fill='black'/><circle cx='16' cy='7' r='3' fill='black'/><path d='M2 22 h12 v-4 a6 6 0 0 0 -12 0 z' fill='black'/><path d='M10 22 h12 v-4 a6 6 0 0 0 -10.5 -3.5' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='8' cy='7' r='3' fill='black'/><circle cx='16' cy='7' r='3' fill='black'/><path d='M2 22 h12 v-4 a6 6 0 0 0 -12 0 z' fill='black'/><path d='M10 22 h12 v-4 a6 6 0 0 0 -10.5 -3.5' fill='black'/></svg>");
+}
+.t-icon[data-icon="trophy"]::before {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 3 h12 v6 a6 6 0 0 1 -12 0 z M2 5 h4 v3 a3 3 0 0 1 -4 0 z M22 5 h-4 v3 a3 3 0 0 0 4 0 z M10 14 h4 v3 h-4 z M8 18 h8 v2 h-8 z' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 3 h12 v6 a6 6 0 0 1 -12 0 z M2 5 h4 v3 a3 3 0 0 1 -4 0 z M22 5 h-4 v3 a3 3 0 0 0 4 0 z M10 14 h4 v3 h-4 z M8 18 h8 v2 h-8 z' fill='black'/></svg>");
+}
+#tutorial .primary {
+  display: block;
+  width: 100%;
+  background: #4a9be8;
+  color: white;
+  border: 0;
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  font-family: inherit;
+}
+#tutorial .primary:active { transform: scale(0.98); }
+
+/* Make the in-game hint pulse when the player has nothing targeted, so it's
+   clear what to do next without nagging via toasts. */
+#hint.idle {
+  opacity: 0.85;
+  animation: hintPulse 1.6s ease-in-out infinite;
+}
+@keyframes hintPulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.45; }
+}
 
 #buildsheet {
   position: absolute;

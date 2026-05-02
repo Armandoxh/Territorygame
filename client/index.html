@@ -46,6 +46,7 @@
       <span class="fab-cd" id="bomb-cd"></span>
     </button>
     <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu">≡</button>
+    <button id="help-btn" class="icon-btn icon-btn-help" type="button" aria-label="How to play">?</button>
     <div id="buildsheet">
       <div class="bs-handle"></div>
       <div class="bs-header">Build at <span id="bs-coords">—</span></div>
@@ -110,6 +111,42 @@
         <p class="menu-note">Max 254 (1 byte per tile)</p>
         <button id="restart-btn" class="primary" type="button">RESTART</button>
         <button id="menu-cancel" class="secondary" type="button">CANCEL</button>
+      </div>
+    </div>
+    <div id="tutorial">
+      <div class="card">
+        <h2>HOW TO PLAY</h2>
+        <ul class="tut-list">
+          <li>
+            <span class="t-icon" data-icon="tap"></span>
+            <div>
+              <b>Tap a region</b>
+              <p>Your units fill the region you tap. The pulsing white outline shows your active target.</p>
+            </div>
+          </li>
+          <li>
+            <span class="t-icon" data-icon="settlement"></span>
+            <div>
+              <b>Build to grow stronger</b>
+              <p>Long-press your land or use the <em>S</em> / <em>T</em> / <em>A</em> hotbar.<br>Settlement = +gold +troops &middot; Turret = harder to take &middot; Airstrip = unlocks bombs.</p>
+            </div>
+          </li>
+          <li>
+            <span class="t-icon" data-icon="troops"></span>
+            <div>
+              <b>Manage your army</b>
+              <p>Each tile you take costs gold and troops. Big armies attack faster and defend tougher — but expanding too quickly leaves you weak.</p>
+            </div>
+          </li>
+          <li>
+            <span class="t-icon" data-icon="trophy"></span>
+            <div>
+              <b>Win at 95%</b>
+              <p>Control 95% of the map's land tiles to win. Your % shows in the top bar.</p>
+            </div>
+          </li>
+        </ul>
+        <button id="tutorial-start" class="primary" type="button">START PLAYING</button>
       </div>
     </div>
     <div id="gameover">
