@@ -34,6 +34,11 @@ export class Renderer {
 
   // Visual map border so the play area is identifiable at any zoom.
   private readonly border: Graphics;
+  // Crisp vector outline around every player's owned region. Rebuilt
+  // incrementally each tick so we get clean borders without rendering
+  // thousands of individual rectangles per frame.
+  private territoryOutlines!: Graphics;
+  private _outlinesDirtyAtTick = -1;
 
   private readonly _config: GameConfig;
   private readonly game: Game;
@@ -79,6 +84,15 @@ export class Renderer {
     }
     regionLines.stroke({ color: 0x0a0d10, alpha: 0.7, width: 0.25 });
     this.world.addChild(regionLines);
+
+    // Player-territory outlines: a crisp dark vector line drawn along every
+    // edge between an owned tile and a non-same-owned (or out-of-bounds /
+    // water) tile. Sits above the pixel territory so each empire reads as
+    // a defined continent on a map. Rebuilt on demand from the territory
+    // grid; we re-stroke once per tick from the render loop.
+    this.territoryOutlines = new Graphics();
+    this.world.addChild(this.territoryOutlines);
+    this._outlinesDirtyAtTick = -1;
 
     this.border = new Graphics();
     this.border.rect(0, 0, W, H);
@@ -150,7 +164,48 @@ export class Renderer {
   // Called every frame from the host loop. Pixi's auto-render after this draws.
   draw(now: number): void {
     this.territoryLayer.flushDirty();
+    this._maybeRebuildOutlines();
     this.overlay.update(now);
+  }
+
+  // Rebuild the territory-outline graphics if the simulation has advanced
+  // since the last build. Cheap enough to do every tick (~150K tile reads).
+  private _maybeRebuildOutlines(): void {
+    if (this._outlinesDirtyAtTick === this.game.tickCount) return;
+    this._outlinesDirtyAtTick = this.game.tickCount;
+    const g = this.territoryOutlines;
+    g.clear();
+    const territory = this.game.territory;
+    const owners = territory.owners;
+    const W = territory.width;
+    const H = territory.height;
+    // For each owned tile, emit a line segment for each side that borders a
+    // tile of a different owner (or the map edge). Pixi batches everything
+    // into one stroke call at the end.
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const o = owners[row + x]!;
+        if (o === 0) continue;
+        // Left edge (x | y) -- (x | y+1)
+        if (x === 0 || owners[row + x - 1] !== o) {
+          g.moveTo(x, y).lineTo(x, y + 1);
+        }
+        // Right edge (x+1 | y) -- (x+1 | y+1)
+        if (x === W - 1 || owners[row + x + 1] !== o) {
+          g.moveTo(x + 1, y).lineTo(x + 1, y + 1);
+        }
+        // Top edge (x | y) -- (x+1 | y)
+        if (y === 0 || owners[row - W + x] !== o) {
+          g.moveTo(x, y).lineTo(x + 1, y);
+        }
+        // Bottom edge (x | y+1) -- (x+1 | y+1)
+        if (y === H - 1 || owners[row + W + x] !== o) {
+          g.moveTo(x, y + 1).lineTo(x + 1, y + 1);
+        }
+      }
+    }
+    g.stroke({ color: 0x05080b, alpha: 0.85, width: 0.18 });
   }
 
   // --- private ---
