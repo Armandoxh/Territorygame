@@ -50,6 +50,8 @@ export interface GameConfig {
   VASSAL_GOLD_RESERVE: number;
   /** Min leader fraction-of-map for human vassals to remain loyal. */
   VASSAL_LOYALTY_THRESHOLD: number;
+  /** Multiplier on per-tile chance for vassal-driven expansion. */
+  VASSAL_EXPANSION_BOOST: number;
 
   // Buildings
   BUILDING_COSTS: Record<BuildingType, number>;
@@ -126,6 +128,9 @@ export const DEFAULT_CONFIG: GameConfig = {
   VASSAL_GOLD_RESERVE: 200,
   /** Min leader-fraction-of-map for human vassals to stay loyal/active. */
   VASSAL_LOYALTY_THRESHOLD: 0.5,
+  /** Multiplier on per-tile expansion chance when expansion is driven by a
+   *  vassal target (no manual override). > 1.0 makes vassals push faster. */
+  VASSAL_EXPANSION_BOOST: 1.4,
 
   BUILDING_COSTS: {
     settlement: 60,

@@ -7,6 +7,7 @@ import { TERRAIN_LAND } from './types.js';
 import { Territory } from './territory.js';
 import { generateTerrain } from './terrain.js';
 import { generateRegions } from './regions.js';
+import { generateRegionNames } from './names.js';
 
 interface ExpansionCandidate {
   x: number; y: number;
@@ -62,6 +63,12 @@ export class Game {
   private _regionOwnedTiles!: Int32Array;
   /** Player ID currently fully owning each region (0 if contested or empty). */
   private _regionOwner!: Uint8Array;
+  /** Player ID with strict majority (>50% of tiles) in each region. Drives
+   *  vassal autonomy — a vassal stays in charge while it holds the majority
+   *  even if the region isn't 100% cleared. */
+  private _regionDominant!: Uint8Array;
+  /** Random country-style name per region ("Kingdom of …"). Set at boot. */
+  regionNames: string[] = [];
   /** Vassal target region for each region (0 = idle). Used as the
    *  autonomous expansion target for tiles inside that vassal region when
    *  the leader hasn't issued a manual override. */
@@ -74,6 +81,28 @@ export class Game {
   /** Returns the player ID who fully owns this region, or 0. */
   regionOwnerOf(regionId: number): PlayerId {
     return this._regionOwner?.[regionId] ?? 0;
+  }
+
+  /** Returns the player ID with strict majority (>50% tiles) in this region,
+   *  or 0 if no one has a majority. This is the "vassal lord" — they keep
+   *  agency even when the region isn't fully cleared. */
+  regionDominantOwnerOf(regionId: number): PlayerId {
+    return this._regionDominant?.[regionId] ?? 0;
+  }
+
+  /** Random country-style name for this region (e.g. "Kingdom of Bhutan"). */
+  regionNameOf(regionId: number): string {
+    return this.regionNames[regionId] ?? '';
+  }
+
+  /** Centroid (in tile coordinates) of a region's tiles, or null if empty. */
+  regionCentroidOf(regionId: number): { x: number; y: number } | null {
+    const tiles = this._tilesByRegion?.[regionId];
+    if (!tiles || tiles.length === 0) return null;
+    const W = this.territory.width;
+    let cx = 0, cy = 0;
+    for (const i of tiles) { cx += i % W; cy += (i - (i % W)) / W; }
+    return { x: cx / tiles.length, y: cy / tiles.length };
   }
 
   /** Returns the autonomous expansion target for a region's vassal, or 0. */
@@ -146,7 +175,9 @@ export class Game {
     this._regionTotal = new Uint32Array(this.regionCount + 1);
     this._regionOwnedTiles = new Int32Array((this.regionCount + 1) * 256);
     this._regionOwner = new Uint8Array(this.regionCount + 1);
+    this._regionDominant = new Uint8Array(this.regionCount + 1);
     this._vassalTarget = new Uint16Array(this.regionCount + 1);
+    this.regionNames = generateRegionNames(this.regionCount);
     this._tilesByRegion = [];
     for (let r = 0; r <= this.regionCount; r++) this._tilesByRegion.push([]);
     for (let i = 0; i < this.regions.length; i++) {
@@ -223,6 +254,10 @@ export class Game {
             if (player && player.isHuman) this._vassalTickFor(r, player);
           }
         }
+        // Recompute who has the strict-majority foothold in this region. The
+        // dominant owner drives vassal autonomy (they keep agency even
+        // through invasion and partial loss).
+        this._recomputeDominant(r);
       }
     }
     return true;
@@ -625,7 +660,11 @@ export class Game {
       // vassals work from the moment a region is fully owned.
       if (!player.isHuman) continue;
       for (let r = 1; r <= this.regionCount; r++) {
-        if (this._regionOwner[r] !== player.id) continue;
+        // Use DOMINANT owner (>50%), not strict full ownership. This way
+        // vassals keep agency through invasions — they can target their own
+        // region in reclaim mode rather than going dormant the moment one
+        // tile is lost.
+        if (this._regionDominant[r] !== player.id) continue;
         // Stagger so all vassals don't act on the same tick.
         if (((this.tickCount + r * 7) % interval) !== 0) continue;
         this._vassalTickFor(r, player);
@@ -639,9 +678,27 @@ export class Game {
     this._vassalMaybeBomb(regionId, leader);
   }
 
-  // Smart target selection: prioritise neutral land (cheap wins), then weak
-  // enemies (winnable fights), then strong enemies (last resort).
+  // Smart target selection: priority order is
+  //   1. Reclaim — if our own region has any non-leader tile, push BACK
+  //      into our own territory before chasing new land.
+  //   2. Neutral adjacent — easy wins.
+  //   3. Weak enemy adjacent — winnable fights.
+  //   4. Strong enemy adjacent — last resort.
   private _vassalRetarget(regionId: number, leader: Player): void {
+    // Reclaim check first.
+    const ownTiles = this._tilesByRegion[regionId];
+    if (ownTiles && ownTiles.length > 0) {
+      let invaded = 0;
+      for (const i of ownTiles) {
+        if (this.territory.owners[i] !== leader.id) { invaded++; break; }
+      }
+      if (invaded > 0) {
+        // Self-target: vassal pushes back into its own region's lost tiles.
+        this._vassalTarget[regionId] = regionId;
+        return;
+      }
+    }
+
     const adj = this._regionAdjacency[regionId];
     if (!adj || adj.size === 0) {
       this._vassalTarget[regionId] = 0;
@@ -901,6 +958,22 @@ export class Game {
     return best;
   }
 
+  // Re-scans tile counts in a region to set _regionDominant — the player
+  // (if any) holding strict majority. Called from _claim on every flip;
+  // 256 ops per call is trivial.
+  private _recomputeDominant(regionId: number): void {
+    const total = this._regionTotal[regionId]!;
+    if (total === 0) { this._regionDominant[regionId] = 0; return; }
+    let bestOwner = 0, bestCount = 0;
+    const base = regionId * 256;
+    for (let o = 1; o < 256; o++) {
+      const c = this._regionOwnedTiles[base + o]!;
+      if (c > bestCount) { bestCount = c; bestOwner = o; }
+    }
+    // Strict majority: > 50% of the region's tiles.
+    this._regionDominant[regionId] = (bestCount * 2 > total) ? bestOwner : 0;
+  }
+
   private _hasEnemyNeighbor(x: number, y: number, ownerId: PlayerId): boolean {
     const dirs: ReadonlyArray<readonly [number, number]> = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     for (const [dx, dy] of dirs) {
@@ -976,14 +1049,24 @@ export class Game {
       // Resolve the target region for THIS tile:
       //   override > vassal target (if tile is in a vassal of p) > skip
       let effectiveTarget = overrideTarget;
+      let isVassalDriven = false;
       if (effectiveTarget == null) {
         const tileRegion = this.regions[i]!;
-        if (tileRegion > 0 && this._regionOwner[tileRegion] === p.id) {
+        // Use DOMINANT ownership for vassal targeting so the vassal still
+        // pushes during partial losses.
+        if (tileRegion > 0 && this._regionDominant[tileRegion] === p.id) {
           const vt = this._vassalTarget[tileRegion];
-          if (vt && vt > 0) effectiveTarget = vt;
+          if (vt && vt > 0) {
+            effectiveTarget = vt;
+            isVassalDriven = true;
+          }
         }
       }
       if (effectiveTarget == null) continue;
+      // Vassals push more eagerly than the player's manual orders.
+      const tileChance = isVassalDriven
+        ? baseChance * this.config.VASSAL_EXPANSION_BOOST
+        : baseChance;
 
       const cands = this._validTargets(x, y, p.id);
       if (cands.length === 0) continue;
@@ -997,7 +1080,7 @@ export class Game {
 
       const targetOwner = this.territory.getOwner(chosen.x, chosen.y);
       if (targetOwner === 0) {
-        if (Math.random() > baseChance) continue;
+        if (Math.random() > tileChance) continue;
         if (p.gold < this.config.EXPANSION_COST_PER_CLAIM) continue;
         if (p.troops < this.config.EXPANSION_TROOP_COST) continue;
         if (this.tryCapture(chosen.x, chosen.y, p.id)) {
@@ -1017,7 +1100,7 @@ export class Game {
             Math.pow(ratio, this.config.ATTACK_RATIO_EXP),
           ),
         );
-        const rate = baseChance * this.config.ATTACK_RATE_MULT * ratioFactor / (1 + def);
+        const rate = tileChance * this.config.ATTACK_RATE_MULT * ratioFactor / (1 + def);
         if (Math.random() > rate) continue;
         if (p.gold < cost) continue;
         if (p.troops < this.config.TROOP_COST_PER_ATTACK) continue;

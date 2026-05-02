@@ -64,7 +64,25 @@ export class OverlayLayer {
     this.targetSprite.roundPixels = true;
     this.targetSprite.alpha = 0;
     this.worldContainer.addChild(this.targetSprite);
+
+    // Region-name labels: one Pixi Text per region, anchored at the region's
+    // centroid. Color tracks the dominant owner so each "country" reads as
+    // a small flag on the map.
+    this._regionLabelLayer = new Container();
+    this.container.addChild(this._regionLabelLayer);
+    this._regionLabels = new Map();
+    this._regionCentroids = new Float32Array((game.regionCount + 1) * 2);
+    for (let r = 1; r <= game.regionCount; r++) {
+      const c = game.regionCentroidOf(r);
+      if (!c) continue;
+      this._regionCentroids[r * 2]     = c.x;
+      this._regionCentroids[r * 2 + 1] = c.y;
+    }
   }
+
+  private readonly _regionLabelLayer: Container;
+  private readonly _regionLabels: Map<number, Text>;
+  private readonly _regionCentroids: Float32Array;
 
   flashTap(sx: number, sy: number): void {
     this.flashSx = sx;
@@ -81,8 +99,55 @@ export class OverlayLayer {
     this._drawCapitals(now);
     this._drawBuildings(now);
     this._drawTroopLabels();
+    this._drawRegionNames();
     this._drawTarget(now);
     this._drawExplosions(now);
+  }
+
+  // One italic country-name label per region, anchored at the precomputed
+  // centroid and tinted by the region's CURRENT dominant owner (so the name
+  // fades back to a neutral grey when no one holds majority).
+  private _drawRegionNames(): void {
+    if (this.renderer.zoom < 0.9) {
+      // At very low zoom labels become noise; hide them.
+      for (const t of this._regionLabels.values()) t.visible = false;
+      return;
+    }
+    const palette = this.game.config.PLAYER_COLORS;
+    for (let r = 1; r <= this.game.regionCount; r++) {
+      const cx = this._regionCentroids[r * 2]!;
+      const cy = this._regionCentroids[r * 2 + 1]!;
+      let label = this._regionLabels.get(r);
+      if (!label) {
+        const name = this.game.regionNameOf(r);
+        if (!name) continue;
+        label = new Text({
+          text: name,
+          style: {
+            fill: 0xffffff,
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontStyle: 'italic',
+            fontSize: 11,
+            stroke: { color: 0x000000, width: 3, alpha: 0.85 },
+          },
+        });
+        label.anchor.set(0.5, 0.5);
+        this._regionLabels.set(r, label);
+        this._regionLabelLayer.addChild(label);
+      }
+      const dominant = this.game.regionDominantOwnerOf(r);
+      if (dominant > 0 && palette[dominant]) {
+        const c = palette[dominant]!;
+        label.tint = (c[0] << 16) | (c[1] << 8) | c[2];
+        label.alpha = 0.95;
+      } else {
+        label.tint = 0xb0b8c0;
+        label.alpha = 0.65;
+      }
+      const s = this.renderer.worldToScreen(cx, cy);
+      label.position.set(s.x, s.y);
+      label.visible = true;
+    }
   }
 
   private _drawTroopLabels(): void {

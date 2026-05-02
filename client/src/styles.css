@@ -168,6 +168,46 @@ html, body {
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+#vassal-log {
+  position: absolute;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0));
+  left: 12px;
+  width: min(240px, 50vw);
+  max-height: 40vh;
+  overflow: hidden;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 11;
+}
+#vassal-log .log-entry {
+  background: rgba(0, 0, 0, 0.55);
+  border-left: 2px solid rgba(255,255,255,0.25);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #d6dee8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 0;
+  transform: translateX(-8px);
+  animation: logEntryIn 0.25s ease-out forwards;
+}
+#vassal-log .log-entry.fading {
+  animation: logEntryOut 0.4s ease-in forwards;
+}
+#vassal-log .log-entry b {
+  color: #e8c04a;
+  font-weight: 600;
+}
+@keyframes logEntryIn {
+  to { opacity: 0.95; transform: translateX(0); }
+}
+@keyframes logEntryOut {
+  to { opacity: 0; transform: translateX(-8px); }
+}
+
 #hint {
   position: absolute;
   bottom: 14px; left: 50%;

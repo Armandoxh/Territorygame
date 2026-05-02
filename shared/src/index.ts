@@ -6,4 +6,5 @@ export * from './palette.js';
 export * from './terrain.js';
 export * from './territory.js';
 export * from './regions.js';
+export * from './names.js';
 export * from './game.js';

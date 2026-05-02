@@ -29,6 +29,7 @@ export class HUD {
     bombCd:       this._byId('bomb-cd'),
     bombSheet:    this._byId('bombsheet'),
     leaderbar:    this._byId('leaderbar'),
+    vassalLog:    this._byId('vassal-log'),
     tutorial:     this._byId('tutorial'),
     helpBtn:      this._byId('help-btn'),
     tutorialBtn:  this._byId('tutorial-start'),
@@ -76,6 +77,23 @@ export class HUD {
   onBombEvent?: (x: number, y: number, radius: number) => void;
 
   // --- public ---
+
+  // Append a vassal-decision line to the persistent log on the bottom-left.
+  // Caps at 6 visible entries; oldest fade out after a few seconds.
+  private _logVassal(html: string): void {
+    if (!this.el.vassalLog) return;
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = html;
+    this.el.vassalLog.appendChild(entry);
+    while (this.el.vassalLog.childElementCount > 6) {
+      this.el.vassalLog.firstElementChild?.remove();
+    }
+    setTimeout(() => {
+      entry.classList.add('fading');
+      setTimeout(() => entry.remove(), 500);
+    }, 6000);
+  }
 
   toast(msg: string): void {
     if (!this.el.toast) return;
@@ -529,12 +547,15 @@ export class HUD {
       } else if (e.type === 'bomb') {
         this.onBombEvent?.(e.x, e.y, e.radius);
       } else if (e.type === 'region-conquered' && e.ownerId === 1) {
-        this.toast(`Region #${e.regionId} fortified`);
+        const name = this.game.regionNameOf(e.regionId) || `Region ${e.regionId}`;
+        this.toast(`${name} fortified`);
+        this._logVassal(`Conquered <b>${name}</b>`);
       } else if (e.type === 'vassal-built' && e.ownerId === 1) {
-        this.toast(`Vassal #${e.regionId} built ${e.buildingType}`);
+        const name = this.game.regionNameOf(e.regionId) || `Region ${e.regionId}`;
+        this._logVassal(`<b>${name}</b> built a ${e.buildingType}`);
       } else if (e.type === 'vassal-bombed' && e.ownerId === 1) {
-        this.toast(`Vassal #${e.regionId} dropped a ${e.bombType} bomb`);
-        // Re-use the explosion effect from manual bombs.
+        const name = this.game.regionNameOf(e.regionId) || `Region ${e.regionId}`;
+        this._logVassal(`<b>${name}</b> dropped a ${e.bombType} bomb`);
         this.onBombEvent?.(e.x, e.y, this.game.config.BOMB_RADII[e.bombType]);
       }
     }
