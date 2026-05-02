@@ -69,6 +69,9 @@ export class Game {
   private _regionDominant!: Uint8Array;
   /** Random country-style name per region ("Kingdom of …"). Set at boot. */
   regionNames: string[] = [];
+  /** Random country-style name per player (their "empire"). Set at boot.
+   *  Index 0 is unused (matches player IDs starting at 1). */
+  playerEmpireNames: string[] = [];
   /** Vassal target region for each region (0 = idle). Used as the
    *  autonomous expansion target for tiles inside that vassal region when
    *  the leader hasn't issued a manual override. */
@@ -96,6 +99,11 @@ export class Game {
   /** Random country-style name for this region (e.g. "Kingdom of Bhutan"). */
   regionNameOf(regionId: number): string {
     return this.regionNames[regionId] ?? '';
+  }
+
+  /** Random country-style name for a player's empire (their realm name). */
+  playerEmpireNameOf(playerId: PlayerId): string {
+    return this.playerEmpireNames[playerId] ?? '';
   }
 
   /** Centroid (in tile coordinates) of a region's tiles, or null if empty. */
@@ -187,6 +195,8 @@ export class Game {
     this._vassalTarget = new Uint16Array(this.regionCount + 1);
     this._vassalGold = new Float32Array(this.regionCount + 1);
     this.regionNames = generateRegionNames(this.regionCount);
+    // One empire-name per player (1..N); index 0 unused.
+    this.playerEmpireNames = generateRegionNames(this.players.length - 1);
     this._tilesByRegion = [];
     for (let r = 0; r <= this.regionCount; r++) this._tilesByRegion.push([]);
     for (let i = 0; i < this.regions.length; i++) {
@@ -730,46 +740,65 @@ export class Game {
     for (let pid = 1; pid < this.players.length; pid++) {
       const player = this.players[pid];
       if (!player || !player.alive) continue;
-      // For now only the human gets autonomous vassals — AI players already
-      // have a global brain. The "loyalty" threshold (vassalsLoyalFor) is
-      // surfaced in the HUD as a status indicator but doesn't gate action;
-      // vassals work from the moment a region is fully owned.
       if (!player.isHuman) continue;
+      // Mutual defense: figure out who's invading our vassals the most this
+      // moment. _vassalRetarget will boost adjacent regions that belong to
+      // this attacker, so OTHER vassals redirect pressure toward them when
+      // any one of ours is under siege.
+      const threatPlayer = this._findGreatestThreatTo(player.id);
       for (let r = 1; r <= this.regionCount; r++) {
-        // Use DOMINANT owner (>50%), not strict full ownership. This way
-        // vassals keep agency through invasions — they can target their own
-        // region in reclaim mode rather than going dormant the moment one
-        // tile is lost.
         if (this._regionDominant[r] !== player.id) continue;
-        // Stagger so all vassals don't act on the same tick.
         if (((this.tickCount + r * 7) % interval) !== 0) continue;
-        this._vassalTickFor(r, player);
+        this._vassalTickFor(r, player, threatPlayer);
       }
     }
   }
 
-  private _vassalTickFor(regionId: number, leader: Player): void {
-    this._vassalRetarget(regionId, leader);
+  // Tally every non-leader-owned tile inside the leader's vassal regions,
+  // bucketed by attacker. Returns the worst offender (or 0 if no real
+  // pressure). Threshold avoids reacting to single-tile probes.
+  private _findGreatestThreatTo(playerId: PlayerId): PlayerId {
+    const counts = new Int32Array(256);
+    for (let r = 1; r <= this.regionCount; r++) {
+      if (this._regionDominant[r] !== playerId) continue;
+      const tiles = this._tilesByRegion[r];
+      if (!tiles) continue;
+      for (const i of tiles) {
+        const o = this.territory.owners[i]!;
+        if (o > 0 && o !== playerId) counts[o]!++;
+      }
+    }
+    let bestId: PlayerId = 0, bestCount = 0;
+    for (let id = 1; id < 256; id++) {
+      if (counts[id]! > bestCount) { bestCount = counts[id]!; bestId = id; }
+    }
+    return bestCount >= 8 ? bestId : 0;
+  }
+
+  private _vassalTickFor(regionId: number, leader: Player, threatPlayer: PlayerId = 0): void {
+    this._vassalRetarget(regionId, leader, threatPlayer);
     this._vassalBuild(regionId, leader);
     this._vassalMaybeBomb(regionId, leader);
   }
 
-  // Smart target selection: priority order is
-  //   1. Reclaim — if our own region has any non-leader tile, push BACK
-  //      into our own territory before chasing new land.
-  //   2. Neutral adjacent — easy wins.
-  //   3. Weak enemy adjacent — winnable fights.
-  //   4. Strong enemy adjacent — last resort.
-  private _vassalRetarget(regionId: number, leader: Player): void {
-    // Reclaim check first.
+  // Priority order (higher score wins):
+  //   - Pure-neutral region (≥95% unclaimed): score 5000 — no-brainer.
+  //   - Mostly neutral: score 1000+. Easy wins.
+  //   - Weak enemy adjacent: medium score.
+  //   - Mutual-defense bonus: +800 to any adjacent region whose dominant
+  //     owner is the player invading our other vassals (relieves pressure
+  //     by redirecting elsewhere on their territory).
+  // Reclaim self-targeting only triggers when at least 10% of OUR region
+  // has been lost; trivial 1-tile probes don't pull us off offense.
+  private _vassalRetarget(regionId: number, leader: Player, threatPlayer: PlayerId = 0): void {
     const ownTiles = this._tilesByRegion[regionId];
     if (ownTiles && ownTiles.length > 0) {
       let invaded = 0;
       for (const i of ownTiles) {
-        if (this.territory.owners[i] !== leader.id) { invaded++; break; }
+        if (this.territory.owners[i] !== leader.id) invaded++;
       }
-      if (invaded > 0) {
-        // Self-target: vassal pushes back into its own region's lost tiles.
+      const reclaimThreshold = Math.max(2, Math.floor(ownTiles.length * 0.10));
+      if (invaded >= reclaimThreshold) {
         this._vassalTarget[regionId] = regionId;
         return;
       }
@@ -787,9 +816,8 @@ export class Game {
       const tiles = this._tilesByRegion[r];
       if (!tiles || tiles.length === 0) continue;
 
-      // Composition: how many tiles are unclaimed vs enemy-held.
       let unclaimed = 0;
-      let dominantEnemy = 0;
+      let dominantEnemy: PlayerId = 0;
       const counts = new Int32Array(256);
       for (const i of tiles) {
         const o = this.territory.owners[i]!;
@@ -804,18 +832,24 @@ export class Game {
       const neutralFrac = unclaimed / tiles.length;
 
       let score: number;
-      if (neutralFrac >= 0.4) {
-        // Mostly neutral — push there first. Higher = better.
+      if (neutralFrac >= 0.95) {
+        // Practically empty — top priority no-brainer.
+        score = 5000;
+      } else if (neutralFrac >= 0.4) {
         score = 1000 + neutralFrac * 200;
       } else if (dominantEnemy > 0) {
-        // Enemy region: prefer weaker enemy (less troops + smaller foothold).
         const enemy = this.players[dominantEnemy];
         const enemyTroops = enemy?.troops ?? 1;
-        // Lower troops + lower count → higher score.
         score = 500 - Math.log10(enemyTroops + 1) * 80 - domCount * 0.5 + neutralFrac * 100;
       } else {
         // Empty region (all unclaimed). Treat as neutral.
         score = 1100;
+      }
+      // Mutual defense: redirect pressure toward the bully invading our other
+      // vassals. Adjacent regions belonging to the threat player get a big
+      // boost so multiple vassals collectively converge on the offender.
+      if (threatPlayer > 0 && dominantEnemy === threatPlayer) {
+        score += 800;
       }
       if (score > bestScore) {
         bestScore = score;

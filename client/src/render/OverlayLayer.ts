@@ -78,7 +78,16 @@ export class OverlayLayer {
       this._regionCentroids[r * 2]     = c.x;
       this._regionCentroids[r * 2 + 1] = c.y;
     }
+    // Empire labels: one Pixi Text per player, drawn at the player's overall
+    // territory centroid. Visible at low zoom; hidden when zoomed in. The
+    // region labels swap in at high zoom.
+    this._empireLabelLayer = new Container();
+    this.container.addChild(this._empireLabelLayer);
+    this._empireLabels = new Map();
   }
+
+  private readonly _empireLabelLayer: Container;
+  private readonly _empireLabels: Map<PlayerId, Text>;
 
   private readonly _regionLabelLayer: Container;
   private readonly _regionLabels: Map<number, Text>;
@@ -99,17 +108,72 @@ export class OverlayLayer {
     this._drawCapitals(now);
     this._drawBuildings(now);
     this._drawTroopLabels();
+    this._drawEmpireLabels();
     this._drawRegionNames();
     this._drawTarget(now);
     this._drawExplosions(now);
   }
 
-  // One italic country-name label per region, anchored at the precomputed
-  // centroid and tinted by the region's CURRENT dominant owner (so the name
-  // fades back to a neutral grey when no one holds majority).
+  // Big italic "Empire of X" label per alive player, positioned at their
+  // territory centroid. Visible at low zoom (when individual region names
+  // would be unreadable noise) and hidden once the player zooms in enough
+  // for region labels to take over.
+  private _drawEmpireLabels(): void {
+    const showEmpires = this.renderer.zoom < OverlayLayer.REGION_LABEL_ZOOM;
+    if (!showEmpires) {
+      for (const t of this._empireLabels.values()) t.visible = false;
+      return;
+    }
+    const palette = this.game.config.PLAYER_COLORS;
+    const seen = new Set<PlayerId>();
+    for (let id = 1; id < this.game.players.length; id++) {
+      const p = this.game.players[id];
+      if (!p || !p.alive) continue;
+      const owned = this.game.territory.counts[id]!;
+      if (owned < 12) continue; // tiny dots aren't worth a banner
+      seen.add(id);
+      const centroid = this.game.territory.centroid(id);
+      const s = this.renderer.worldToScreen(centroid.x, centroid.y);
+      let label = this._empireLabels.get(id);
+      if (!label) {
+        const name = p.isHuman
+          ? `${this.game.playerEmpireNameOf(id)}`
+          : this.game.playerEmpireNameOf(id);
+        label = new Text({
+          text: name || `Empire ${id}`,
+          style: {
+            fill: 0xffffff,
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontStyle: 'italic',
+            fontSize: 18,
+            fontWeight: '700',
+            stroke: { color: 0x000000, width: 5, alpha: 0.9 },
+          },
+        });
+        label.anchor.set(0.5, 0.5);
+        this._empireLabels.set(id, label);
+        this._empireLabelLayer.addChild(label);
+      }
+      const c = palette[id];
+      if (c) label.tint = (c[0] << 16) | (c[1] << 8) | c[2];
+      label.position.set(s.x, s.y);
+      label.visible = true;
+    }
+    for (const [id, label] of this._empireLabels) {
+      if (!seen.has(id)) label.visible = false;
+    }
+  }
+
+  // Zoom threshold: above this zoom we show individual country names per
+  // region; below we show one big empire label per player so the screen
+  // doesn't drown in text when the camera's pulled out.
+  private static REGION_LABEL_ZOOM = 2.6;
+
+  // One italic country-name label per region. Hidden at low zoom; the
+  // empire labels take over there.
   private _drawRegionNames(): void {
-    if (this.renderer.zoom < 0.9) {
-      // At very low zoom labels become noise; hide them.
+    const showRegions = this.renderer.zoom >= OverlayLayer.REGION_LABEL_ZOOM;
+    if (!showRegions) {
       for (const t of this._regionLabels.values()) t.visible = false;
       return;
     }

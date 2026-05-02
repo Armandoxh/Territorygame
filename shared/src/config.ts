@@ -115,7 +115,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   ATTACK_RATE_MULT: 0.55,
 
   STARTING_TROOPS: 100,
-  TROOP_GROWTH_PER_TILE_PER_TICK: 0.5, // 5/sec per tile until cap
+  TROOP_GROWTH_PER_TILE_PER_TICK: 0.55, // ~5.5/sec per tile
   TROOP_CAP_PER_TILE: 100,
   TROOP_COST_PER_ATTACK: 5,
   TROOP_DAMAGE_PER_ATTACK: 3,
@@ -137,7 +137,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   VASSAL_LOYALTY_THRESHOLD: 0.5,
   /** Multiplier on per-tile expansion chance when expansion is driven by a
    *  vassal target (no manual override). > 1.0 makes vassals push faster. */
-  VASSAL_EXPANSION_BOOST: 2.2,
+  VASSAL_EXPANSION_BOOST: 2.8,
   /** Fraction of vassal income forwarded to the leader as tribute each tick. */
   VASSAL_TRIBUTE_FRACTION: 0.20,
 
