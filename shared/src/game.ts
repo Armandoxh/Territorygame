@@ -55,6 +55,29 @@ export class Game {
   regions: Uint8Array;
   regionCount: number;
 
+  // --- Region ownership tracking ---
+  /** Total passable tile count per region (index = regionId). */
+  private _regionTotal!: Uint32Array;
+  /** Per-(region, owner) tile count — flattened: index = r * 256 + ownerId. */
+  private _regionOwnedTiles!: Int32Array;
+  /** Player ID currently fully owning each region (0 if contested or empty). */
+  private _regionOwner!: Uint8Array;
+
+  /** Returns the player ID who fully owns this region, or 0. */
+  regionOwnerOf(regionId: number): PlayerId {
+    return this._regionOwner?.[regionId] ?? 0;
+  }
+
+  /** How many regions are completely owned by this player. */
+  fullRegionsForOwner(id: PlayerId): number {
+    if (!this._regionOwner) return 0;
+    let n = 0;
+    for (let r = 1; r <= this.regionCount; r++) {
+      if (this._regionOwner[r] === id) n++;
+    }
+    return n;
+  }
+
   // --- Setup ---
 
   generateTerrain(seed?: number): void {
@@ -77,15 +100,16 @@ export class Game {
     // when the chosen tile sits on a coastline.
     const carveR = this._spawnRadius() + 1;
     for (const s of spots) this.territory.carveLand(s.x, s.y, carveR);
-    for (const s of spots) this._spawnPlayerAt(s.id, s.x, s.y);
-    // Carving may have added a few land tiles — recount after spawn.
+
+    // Land count is final (water won't be re-added). Region partition needs
+    // it, so do it before spawning.
     let land = 0;
     const t = this.territory.terrain;
     for (let i = 0; i < t.length; i++) if (t[i] === TERRAIN_LAND) land++;
     this.totalLand = land;
 
     // Partition the (now final) land into districts. The renderer reads this
-    // for the border overlay and the gameplay reads it to bound expansion.
+    // for the border overlay and gameplay reads it to bound expansion.
     const seedCount = Math.max(20, Math.min(120, Math.floor(Math.sqrt(this.totalLand) / 3)));
     this.regions = generateRegions(this.territory.terrain, W, H, seedCount);
     let maxR = 0;
@@ -94,12 +118,54 @@ export class Game {
     }
     this.regionCount = maxR;
 
-    // Each AI gets an initial target region — one they don't yet own
-    // adjacent to their spawn (or any random region as fallback).
+    // Region ownership tracking. Must be initialised before the spawn blobs
+    // start landing tiles, since _claim updates these arrays as it goes.
+    this._regionTotal = new Uint32Array(this.regionCount + 1);
+    this._regionOwnedTiles = new Int32Array((this.regionCount + 1) * 256);
+    this._regionOwner = new Uint8Array(this.regionCount + 1);
+    for (let i = 0; i < this.regions.length; i++) {
+      const r = this.regions[i]!;
+      if (r > 0) this._regionTotal[r]!++;
+    }
+
+    // Now spawn each player. _claim updates regionOwnedTiles + regionOwner.
+    for (const s of spots) this._spawnPlayerAt(s.id, s.x, s.y);
+
+    // AI targets adjacent to their spawn (or random fallback).
     for (let id = 2; id < this.players.length; id++) {
       const p = this.players[id];
       if (p) p.targetRegion = this._pickAiTargetRegion(p.id);
     }
+  }
+
+  // Centralised tile claim: routes through territory.claim and keeps the
+  // per-region ownership tables in sync. All gameplay code paths that change
+  // tile ownership (spawn blobs, expansion, combat capture, bombs) call this.
+  private _claim(x: number, y: number, newOwner: PlayerId): boolean {
+    if (!this.territory.inBounds(x, y)) return false;
+    const W = this.territory.width;
+    const oldOwner = this.territory.getOwner(x, y);
+    if (!this.territory.claim(x, y, newOwner)) return false;
+    if (this.regionCount > 0) {
+      const r = this.regions[y * W + x]!;
+      if (r > 0) {
+        if (oldOwner > 0) {
+          this._regionOwnedTiles[r * 256 + oldOwner]!--;
+          if (this._regionOwner[r] === oldOwner) {
+            this._regionOwner[r] = 0;
+            this.events.push({ type: 'region-lost', regionId: r, ownerId: oldOwner });
+          }
+        }
+        if (newOwner > 0) {
+          this._regionOwnedTiles[r * 256 + newOwner]!++;
+          if (this._regionOwnedTiles[r * 256 + newOwner] === this._regionTotal[r]) {
+            this._regionOwner[r] = newOwner;
+            this.events.push({ type: 'region-conquered', regionId: r, ownerId: newOwner });
+          }
+        }
+      }
+    }
+    return true;
   }
 
   regionAt(x: number, y: number): number {
@@ -338,7 +404,7 @@ export class Game {
         // Only land tiles can be hit (water already has nothing to lose).
         if (!this.territory.isPassable(tx, ty)) continue;
         if (this.territory.getOwner(tx, ty) !== 0) {
-          if (this.territory.claim(tx, ty, 0)) {
+          if (this._claim(tx, ty, 0)) {
             this._destroyBuildingsAt(tx, ty);
           }
         } else {
@@ -359,7 +425,7 @@ export class Game {
     if (defender < 0 || defender === attackerId) return false;
     const capIdx = this._capitalIndexAt(x, y);
     const capOwner = capIdx >= 0 ? this.capitals[capIdx]!.owner : -1;
-    if (!this.territory.claim(x, y, attackerId)) return false;
+    if (!this._claim(x, y, attackerId)) return false;
     this._destroyBuildingsAt(x, y);
     // Capitals are still destroyed when their tile is captured, but losing
     // them no longer eliminates a player — victory is decided by territory
@@ -399,7 +465,7 @@ export class Game {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (dx * dx + dy * dy <= r * r) {
-          this.territory.claim(cx + dx, cy + dy, id);
+          this._claim(cx + dx, cy + dy, id);
         }
       }
     }
@@ -439,17 +505,27 @@ export class Game {
     const growth = this.config.TROOP_GROWTH_PER_TILE_PER_TICK;
     const cap = this.config.TROOP_CAP_PER_TILE;
     const settlementBonus = this.config.SETTLEMENT_TROOP_BONUS;
+    const fullRegionBonus = this.config.FULL_REGION_TROOP_BONUS;
     // Pre-count settlements per owner so we don't iterate buildings inside the loop.
     const settlementCount = new Int32Array(256);
     for (const b of this.buildings) {
       if (b.type === 'settlement') settlementCount[b.owner]!++;
+    }
+    // Pre-count fully-owned regions per owner.
+    const fullRegions = new Int32Array(256);
+    for (let r = 1; r <= this.regionCount; r++) {
+      const o = this._regionOwner[r]!;
+      if (o > 0) fullRegions[o]!++;
     }
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
       if (!p || !p.alive) continue;
       const owned = this.territory.counts[id]!;
       const max = owned * cap;
-      const next = p.troops + owned * growth + settlementCount[id]! * settlementBonus;
+      const next = p.troops
+        + owned * growth
+        + settlementCount[id]! * settlementBonus
+        + fullRegions[id]! * fullRegionBonus;
       p.troops = next > max ? max : next;
     }
   }
@@ -596,6 +672,15 @@ export class Game {
       if (b.owner !== defenderId) continue;
       const dx = b.x - x, dy = b.y - y;
       if (dx * dx + dy * dy <= r2) bonus += this.config.TURRET_DEFENSE_BONUS;
+    }
+    // Fully-owned region: every tile inside the region gets a flat fortress
+    // bonus on top of any turrets, simulating the "walls + reinforcement"
+    // benefit of holding the whole district.
+    if (this.regionCount > 0) {
+      const r = this.regions[y * this.territory.width + x]!;
+      if (r > 0 && this._regionOwner[r] === defenderId) {
+        bonus += this.config.FULL_REGION_DEFENSE_BONUS;
+      }
     }
     return bonus;
   }

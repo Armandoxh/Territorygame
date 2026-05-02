@@ -39,6 +39,10 @@ export class Renderer {
   // thousands of individual rectangles per frame.
   private territoryOutlines!: Graphics;
   private _outlinesDirtyAtTick = -1;
+  // Thicker player-colored walls around regions a player has fully
+  // conquered (the "fortified" visual reward).
+  private fortifiedWalls!: Graphics;
+  private _fortifiedAtTick = -1;
 
   private readonly _config: GameConfig;
   private readonly game: Game;
@@ -93,6 +97,13 @@ export class Renderer {
     this.territoryOutlines = new Graphics();
     this.world.addChild(this.territoryOutlines);
     this._outlinesDirtyAtTick = -1;
+
+    // Player-colored fortress walls drawn around every fully-owned region.
+    // Sit above the territory outline so they read as a clear "this region
+    // is locked down" cue.
+    this.fortifiedWalls = new Graphics();
+    this.world.addChild(this.fortifiedWalls);
+    this._fortifiedAtTick = -1;
 
     this.border = new Graphics();
     this.border.rect(0, 0, W, H);
@@ -165,7 +176,51 @@ export class Renderer {
   draw(now: number): void {
     this.territoryLayer.flushDirty();
     this._maybeRebuildOutlines();
+    this._maybeRebuildFortifications();
     this.overlay.update(now);
+  }
+
+  // Rebuild the fortified-region walls if the simulation has advanced. Each
+  // segment is grouped by owner and stroked once per color so all walls of a
+  // given player are batched into a single GPU draw call.
+  private _maybeRebuildFortifications(): void {
+    if (this._fortifiedAtTick === this.game.tickCount) return;
+    this._fortifiedAtTick = this.game.tickCount;
+    const g = this.fortifiedWalls;
+    g.clear();
+    const W = this.game.territory.width;
+    const H = this.game.territory.height;
+    const regions = this.game.regions;
+    const palette = this.game.config.PLAYER_COLORS;
+    // owner -> flat array of segment endpoints [x1, y1, x2, y2, ...]
+    const byOwner = new Map<number, number[]>();
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const r = regions[row + x];
+        if (!r) continue;
+        const owner = this.game.regionOwnerOf(r);
+        if (!owner) continue;
+        let arr = byOwner.get(owner);
+        if (!arr) { arr = []; byOwner.set(owner, arr); }
+        // Wall along edges where the next tile is in a DIFFERENT region (or
+        // out of bounds). Region-internal edges between same-region tiles
+        // don't get a wall — only the outer perimeter does.
+        if (x === 0 || regions[row + x - 1] !== r) arr.push(x, y, x, y + 1);
+        if (x === W - 1 || regions[row + x + 1] !== r) arr.push(x + 1, y, x + 1, y + 1);
+        if (y === 0 || regions[row - W + x] !== r) arr.push(x, y, x + 1, y);
+        if (y === H - 1 || regions[row + W + x] !== r) arr.push(x, y + 1, x + 1, y + 1);
+      }
+    }
+    for (const [ownerId, arr] of byOwner) {
+      const c = palette[ownerId];
+      if (!c) continue;
+      const color = (c[0] << 16) | (c[1] << 8) | c[2];
+      for (let i = 0; i < arr.length; i += 4) {
+        g.moveTo(arr[i]!, arr[i + 1]!).lineTo(arr[i + 2]!, arr[i + 3]!);
+      }
+      g.stroke({ color, alpha: 1, width: 0.55 });
+    }
   }
 
   // Rebuild the territory-outline graphics if the simulation has advanced

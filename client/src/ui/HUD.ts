@@ -528,6 +528,8 @@ export class HUD {
         this.toast(`Your ${e.buildingType} destroyed`);
       } else if (e.type === 'bomb') {
         this.onBombEvent?.(e.x, e.y, e.radius);
+      } else if (e.type === 'region-conquered' && e.ownerId === 1) {
+        this.toast(`Region #${e.regionId} fortified`);
       }
     }
   }
@@ -574,6 +576,7 @@ export class HUD {
       `<b>Gold</b> ${me.gold.toFixed(1)}`,
       `<b>Caps</b> ${this.game.capitals.length}`,
       `<b>Builds</b> ${this.game.buildings.length}`,
+      `<b>Regions</b> ${this.game.fullRegionsForOwner(me.id)} / ${this.game.regionCount}`,
       me.target ? `<b>Target</b> ${me.target.x}, ${me.target.y}` : '<b>Target</b> none',
     ];
     this.el.debug.innerHTML = lines.join('<br>');

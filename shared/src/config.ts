@@ -38,6 +38,12 @@ export interface GameConfig {
   /** Win threshold: any player owning this fraction of LAND tiles wins. */
   WIN_TERRITORY_FRACTION: number;
 
+  /** Defense bonus applied to every tile of a player's fully-owned region
+   *  (equivalent to having a turret stack but covering the whole district). */
+  FULL_REGION_DEFENSE_BONUS: number;
+  /** Flat troops/tick added per fully-owned region (the "garrison"). */
+  FULL_REGION_TROOP_BONUS: number;
+
   // Buildings
   BUILDING_COSTS: Record<BuildingType, number>;
   SETTLEMENT_RADIUS: number;
@@ -102,6 +108,9 @@ export const DEFAULT_CONFIG: GameConfig = {
   ATTACK_RATIO_MAX: 3,          // cap the snowball — bigger doesn't mean unstoppable (was 10)
 
   WIN_TERRITORY_FRACTION: 0.95,
+
+  FULL_REGION_DEFENSE_BONUS: 1.5,
+  FULL_REGION_TROOP_BONUS: 5,
 
   BUILDING_COSTS: {
     settlement: 60,
