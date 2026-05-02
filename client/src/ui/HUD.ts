@@ -530,6 +530,8 @@ export class HUD {
         this.onBombEvent?.(e.x, e.y, e.radius);
       } else if (e.type === 'region-conquered' && e.ownerId === 1) {
         this.toast(`Region #${e.regionId} fortified`);
+      } else if (e.type === 'vassal-built' && e.ownerId === 1) {
+        this.toast(`Vassal #${e.regionId} built ${e.buildingType}`);
       }
     }
   }

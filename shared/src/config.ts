@@ -121,7 +121,7 @@ export const DEFAULT_CONFIG: GameConfig = {
 
   // --- Vassal autonomy ---
   /** Ticks between vassal AI decisions (re-target + maybe build). */
-  VASSAL_THINK_INTERVAL: 80,
+  VASSAL_THINK_INTERVAL: 40,
   /** Leader gold reserve a vassal won't dip below when buying buildings. */
   VASSAL_GOLD_RESERVE: 200,
   /** Min leader-fraction-of-map for human vassals to stay loyal/active. */

@@ -216,6 +216,11 @@ export class Game {
           if (this._regionOwnedTiles[r * 256 + newOwner] === this._regionTotal[r]) {
             this._regionOwner[r] = newOwner;
             this.events.push({ type: 'region-conquered', regionId: r, ownerId: newOwner });
+            // Wake the vassal up immediately so it has a target on the
+            // very next expansion tick instead of waiting for the next
+            // VASSAL_THINK_INTERVAL boundary.
+            const player = this.players[newOwner];
+            if (player && player.isHuman) this._vassalTickFor(r, player);
           }
         }
       }
@@ -614,11 +619,11 @@ export class Game {
     for (let pid = 1; pid < this.players.length; pid++) {
       const player = this.players[pid];
       if (!player || !player.alive) continue;
-      // Loyalty: humans need to control >= the threshold, AIs are always
-      // backed by their global brain so we don't grant them autonomous
-      // vassals (would compound their advantage too much).
+      // For now only the human gets autonomous vassals — AI players already
+      // have a global brain. The "loyalty" threshold (vassalsLoyalFor) is
+      // surfaced in the HUD as a status indicator but doesn't gate action;
+      // vassals work from the moment a region is fully owned.
       if (!player.isHuman) continue;
-      if (!this.vassalsLoyalFor(player.id)) continue;
       for (let r = 1; r <= this.regionCount; r++) {
         if (this._regionOwner[r] !== player.id) continue;
         // Stagger so all vassals don't act on the same tick.
@@ -660,7 +665,10 @@ export class Game {
         const x = i % W, y = (i - x) / W;
         if (!this._hasEnemyNeighbor(x, y, leader.id)) continue;
         if (this.buildingAt(x, y)) continue;
-        if (this.tryBuild('turret', x, y, leader.id) === null) return;
+        if (this.tryBuild('turret', x, y, leader.id) === null) {
+          this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'turret' });
+          return;
+        }
       }
     }
     // 2. A settlement on a safe interior tile if budget allows.
@@ -671,7 +679,10 @@ export class Game {
         const x = i % W, y = (i - x) / W;
         if (this._hasEnemyNeighbor(x, y, leader.id)) continue;
         if (this.buildingAt(x, y)) continue;
-        if (this.tryBuild('settlement', x, y, leader.id) === null) return;
+        if (this.tryBuild('settlement', x, y, leader.id) === null) {
+          this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'settlement' });
+          return;
+        }
       }
     }
     // 3. An airstrip if there are no airstrips yet and we have plenty of gold.
@@ -682,7 +693,10 @@ export class Game {
         const x = i % W, y = (i - x) / W;
         if (this._hasEnemyNeighbor(x, y, leader.id)) continue;
         if (this.buildingAt(x, y)) continue;
-        if (this.tryBuild('airstrip', x, y, leader.id) === null) return;
+        if (this.tryBuild('airstrip', x, y, leader.id) === null) {
+          this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'airstrip' });
+          return;
+        }
       }
     }
   }
