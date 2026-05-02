@@ -73,6 +73,9 @@ export class Game {
    *  autonomous expansion target for tiles inside that vassal region when
    *  the leader hasn't issued a manual override. */
   private _vassalTarget!: Uint16Array;
+  /** Per-vassal gold pool. Independent from leader.gold — region income
+   *  flows here (minus tribute), and vassal-driven builds spend from here. */
+  private _vassalGold!: Float32Array;
   /** Tile indices grouped by region. */
   private _tilesByRegion!: number[][];
   /** Set of region IDs that border each region (incl. across the map edge). */
@@ -108,6 +111,11 @@ export class Game {
   /** Returns the autonomous expansion target for a region's vassal, or 0. */
   vassalTargetOf(regionId: number): number {
     return this._vassalTarget?.[regionId] ?? 0;
+  }
+
+  /** Returns the gold balance held by a region's vassal (0 if no vassal). */
+  vassalGoldOf(regionId: number): number {
+    return this._vassalGold?.[regionId] ?? 0;
   }
 
   /** Whether a given player's vassals are currently loyal (active). Humans
@@ -177,6 +185,7 @@ export class Game {
     this._regionOwner = new Uint8Array(this.regionCount + 1);
     this._regionDominant = new Uint8Array(this.regionCount + 1);
     this._vassalTarget = new Uint16Array(this.regionCount + 1);
+    this._vassalGold = new Float32Array(this.regionCount + 1);
     this.regionNames = generateRegionNames(this.regionCount);
     this._tilesByRegion = [];
     for (let r = 0; r <= this.regionCount; r++) this._tilesByRegion.push([]);
@@ -438,7 +447,12 @@ export class Game {
   }
 
   /** null on success, error code otherwise. */
-  tryBuild(type: BuildingType, x: number, y: number, ownerId: PlayerId): BuildError | null {
+  /**
+   * Build a building. If `fromVassalRegion` > 0, the cost is paid from that
+   * vassal's gold pool (used by autonomous vassal builds). Default 0 means
+   * the cost is paid from the player's main gold pool (manual builds).
+   */
+  tryBuild(type: BuildingType, x: number, y: number, ownerId: PlayerId, fromVassalRegion = 0): BuildError | null {
     const cost = this.config.BUILDING_COSTS[type];
     if (cost == null) return 'bad-type';
     if (!this.territory.inBounds(x, y)) return 'oob';
@@ -447,8 +461,13 @@ export class Game {
     if (this.territory.getOwner(x, y) !== ownerId) return 'not-yours';
     if (this.buildingAt(x, y)) return 'occupied';
     if (this._capitalIndexAt(x, y) >= 0) return 'on-capital';
-    if (owner.gold < cost) return 'gold';
-    owner.gold -= cost;
+    if (fromVassalRegion > 0) {
+      if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
+      this._vassalGold[fromVassalRegion]! -= cost;
+    } else {
+      if (owner.gold < cost) return 'gold';
+      owner.gold -= cost;
+    }
     const b: Building = { x, y, owner: ownerId, type };
     this.buildings.push(b);
     if (type === 'settlement') this._applySettlement(x, y, +1);
@@ -463,7 +482,7 @@ export class Game {
    * cooldown and enough gold. Wipes claims and destroys buildings on every
    * tile in radius — including the bomber's own. Capitals are immune.
    */
-  dropBomb(type: BombType, x: number, y: number, ownerId: PlayerId): BombError | null {
+  dropBomb(type: BombType, x: number, y: number, ownerId: PlayerId, fromVassalRegion = 0): BombError | null {
     if (!this.territory.inBounds(x, y)) return 'oob';
     const owner = this.players[ownerId];
     if (!owner || !owner.alive) return 'dead';
@@ -485,9 +504,13 @@ export class Game {
     }
     if (!any) return 'no-airstrip';
     if (!chosen) return 'cooldown';
-    if (owner.gold < cost) return 'gold';
-
-    owner.gold -= cost;
+    if (fromVassalRegion > 0) {
+      if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
+      this._vassalGold[fromVassalRegion]! -= cost;
+    } else {
+      if (owner.gold < cost) return 'gold';
+      owner.gold -= cost;
+    }
     chosen.cooldownUntil = this.tickCount + this.config.BOMB_COOLDOWN_TICKS[type];
 
     const radius = this.config.BOMB_RADII[type];
@@ -527,11 +550,26 @@ export class Game {
     if (defender < 0 || defender === attackerId) return false;
     const capIdx = this._capitalIndexAt(x, y);
     const capOwner = capIdx >= 0 ? this.capitals[capIdx]!.owner : -1;
+    // Turret retaliation: BEFORE the claim, count defending turrets in range
+    // and bleed the attacker's troop pool by RETALIATION × turrets. Turrets
+    // bite back — every successful capture inside a defender's turret radius
+    // costs the attacker extra population.
+    if (defender > 0) {
+      const r2 = this.config.TURRET_RADIUS * this.config.TURRET_RADIUS;
+      let retaliation = 0;
+      for (const b of this.buildings) {
+        if (b.type !== 'turret') continue;
+        if (b.owner !== defender) continue;
+        const dx = b.x - x, dy = b.y - y;
+        if (dx * dx + dy * dy <= r2) retaliation += this.config.TURRET_RETALIATION_DAMAGE;
+      }
+      if (retaliation > 0) {
+        const attacker = this.players[attackerId];
+        if (attacker) attacker.troops = Math.max(0, attacker.troops - retaliation);
+      }
+    }
     if (!this._claim(x, y, attackerId)) return false;
     this._destroyBuildingsAt(x, y);
-    // Capitals are still destroyed when their tile is captured, but losing
-    // them no longer eliminates a player — victory is decided by territory
-    // share. We just emit a 'capital' toast for player feedback.
     if (capIdx >= 0 && capOwner > 0) {
       this.capitals.splice(capIdx, 1);
       this.events.push({ type: 'capital', playerId: capOwner, by: attackerId });
@@ -632,17 +670,52 @@ export class Game {
   }
 
   private _earnGoldAll(): void {
+    // Tile-level income with per-vassal accounting:
+    //   - If the tile sits in a region the HUMAN owner is the dominant
+    //     majority of, route gold to the vassal's pool, with a
+    //     VASSAL_TRIBUTE_FRACTION slice forwarded to the leader.
+    //   - Otherwise (non-vassal tiles, AI tiles): straight to player.gold.
     const owners = this.territory.owners;
     const mult = this.goldMultiplier;
     const base = this.config.GOLD_PER_TILE_PER_TICK;
+    const tributeFrac = this.config.VASSAL_TRIBUTE_FRACTION;
     const N = owners.length;
     const players = this.players;
+    const regions = this.regions;
+    const dominant = this._regionDominant;
+    const vGold = this._vassalGold;
     for (let i = 0; i < N; i++) {
       const id = owners[i]!;
       if (id === 0) continue;
       const p = players[id];
       if (!p || !p.alive) continue;
-      p.gold += base * (1 + mult[i]!);
+      const tileGold = base * (1 + mult[i]!);
+      const r = regions[i]!;
+      if (p.isHuman && r > 0 && dominant[r] === id) {
+        const tribute = tileGold * tributeFrac;
+        vGold[r]! += tileGold - tribute;
+        p.gold += tribute;
+      } else {
+        p.gold += tileGold;
+      }
+    }
+    // Flat per-settlement income (in addition to the radius multiplier).
+    const flatGold = this.config.SETTLEMENT_GOLD_BONUS;
+    if (flatGold > 0) {
+      const W = this.territory.width;
+      for (const b of this.buildings) {
+        if (b.type !== 'settlement') continue;
+        const p = players[b.owner];
+        if (!p || !p.alive) continue;
+        const r = regions[b.y * W + b.x]!;
+        if (p.isHuman && r > 0 && dominant[r] === b.owner) {
+          const tribute = flatGold * tributeFrac;
+          vGold[r]! += flatGold - tribute;
+          p.gold += tribute;
+        } else {
+          p.gold += flatGold;
+        }
+      }
     }
   }
 
@@ -752,14 +825,15 @@ export class Game {
     this._vassalTarget[regionId] = bestRegion;
   }
 
-  // Priority chain: defend, fund, set up offense, spread settlements.
+  // Priority chain: defend, set up offense, expand economy. All build costs
+  // come out of THIS vassal's own gold pool now, not the leader's.
   private _vassalBuild(regionId: number, leader: Player): void {
     const reserve = this.config.VASSAL_GOLD_RESERVE;
     const tiles = this._tilesByRegion[regionId];
     if (!tiles || tiles.length === 0) return;
     const W = this.territory.width;
+    const vGold = this._vassalGold[regionId] ?? 0;
 
-    // Bucket vassal-owned tiles into exposed (enemy nearby) vs safe interior.
     const exposed: number[] = [];
     const safe: number[] = [];
     for (const i of tiles) {
@@ -770,62 +844,43 @@ export class Game {
       else safe.push(i);
     }
 
-    // 1. THREAT: any exposed tiles? Drop a turret on the most-pressured one
-    //    (count enemies in radius 3). Skip if a turret is already nearby.
+    // 1. THREAT: turret on the most-pressured exposed tile.
     const turretCost = this.config.BUILDING_COSTS.turret;
-    if (exposed.length > 0 && leader.gold >= reserve + turretCost) {
+    if (exposed.length > 0 && vGold >= reserve + turretCost) {
       const spot = this._pickBestTurretSpot(exposed, leader.id);
       if (spot >= 0) {
         const x = spot % W, y = (spot - x) / W;
-        if (this.tryBuild('turret', x, y, leader.id) === null) {
+        if (this.tryBuild('turret', x, y, leader.id, regionId) === null) {
           this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'turret' });
           return;
         }
       }
     }
 
-    // 2. ECONOMY: if leader is cash-poor relative to their footprint, fund
-    //    a settlement. We compare gold against a per-tile expectation —
-    //    if you're sitting on a lot of land but not much cash, build.
-    const settCost = this.config.BUILDING_COSTS.settlement;
-    const ownedCount = this.territory.counts[leader.id]!;
-    const lowGold = leader.gold < Math.max(400, ownedCount * 1.5);
-    if (lowGold && safe.length > 0 && leader.gold >= reserve + settCost) {
-      const spot = this._pickSettlementSpot(safe, leader.id);
-      if (spot >= 0) {
-        const x = spot % W, y = (spot - x) / W;
-        if (this.tryBuild('settlement', x, y, leader.id) === null) {
-          this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'settlement' });
-          return;
-        }
-      }
-    }
-
-    // 3. OFFENSE: if our target is enemy-held and we don't have an airstrip
-    //    yet (or only one), drop one near the target so bombs are reachable.
+    // 2. OFFENSE: airstrip near the target if we have an enemy in our sights.
     const airCost = this.config.BUILDING_COSTS.airstrip;
     const targetRegion = this._vassalTarget[regionId] ?? 0;
     const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
     const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== leader.id;
     if (targetIsEnemy && this.countBuildings(leader.id, 'airstrip') < 2 &&
-        safe.length > 0 && leader.gold >= reserve + airCost) {
+        safe.length > 0 && vGold >= reserve + airCost) {
       const spot = this._pickAirstripSpot(safe, targetRegion, leader.id);
       if (spot >= 0) {
         const x = spot % W, y = (spot - x) / W;
-        if (this.tryBuild('airstrip', x, y, leader.id) === null) {
+        if (this.tryBuild('airstrip', x, y, leader.id, regionId) === null) {
           this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'airstrip' });
           return;
         }
       }
     }
 
-    // 4. MAINTENANCE: spread additional settlements when the budget is healthy
-    //    so empires keep their economy growing during peaceful spells.
-    if (safe.length > 0 && leader.gold >= reserve + settCost + 200) {
+    // 3. ECONOMY: settlements whenever affordable, spread out from existing.
+    const settCost = this.config.BUILDING_COSTS.settlement;
+    if (safe.length > 0 && vGold >= reserve + settCost) {
       const spot = this._pickSettlementSpot(safe, leader.id);
       if (spot >= 0) {
         const x = spot % W, y = (spot - x) / W;
-        if (this.tryBuild('settlement', x, y, leader.id) === null) {
+        if (this.tryBuild('settlement', x, y, leader.id, regionId) === null) {
           this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'settlement' });
           return;
         }
@@ -844,12 +899,15 @@ export class Game {
     const targetTiles = this._tilesByRegion[targetRegion];
     if (!targetTiles || targetTiles.length === 0) return;
 
-    // Choose bomb size by what the leader can comfortably afford.
+    // Choose bomb size by what the VASSAL can comfortably afford from its
+    // own pool (not the leader's). Keep a healthy reserve so we don't
+    // bottom out our own bank on a single bomb.
+    const vGold = this._vassalGold[regionId] ?? 0;
     let bombType: BombType | null = null;
     const smallCost = this.config.BOMB_COSTS.small;
     const largeCost = this.config.BOMB_COSTS.large;
-    if (leader.gold >= 600 + largeCost) bombType = 'large';
-    else if (leader.gold >= 350 + smallCost) bombType = 'small';
+    if (vGold >= 100 + largeCost) bombType = 'large';
+    else if (vGold >= 60 + smallCost) bombType = 'small';
     if (!bombType) return;
     const radius = this.config.BOMB_RADII[bombType];
 
@@ -877,7 +935,7 @@ export class Game {
     const minEnemies = Math.floor(tilesInArea * (bombType === 'large' ? 0.35 : 0.45));
     if (bestEnemies < minEnemies || bestX < 0) return;
 
-    if (this.dropBomb(bombType, bestX, bestY, leader.id) === null) {
+    if (this.dropBomb(bombType, bestX, bestY, leader.id, regionId) === null) {
       this.events.push({ type: 'vassal-bombed', regionId, ownerId: leader.id, bombType, x: bestX, y: bestY });
     }
   }

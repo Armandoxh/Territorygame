@@ -136,13 +136,24 @@ export class OverlayLayer {
         this._regionLabelLayer.addChild(label);
       }
       const dominant = this.game.regionDominantOwnerOf(r);
+      // Append vassal gold when this region is a vassal of the dominant
+      // player. Reads as "Kingdom of Bhutan · 240" for human-owned regions.
+      const baseName = this.game.regionNameOf(r);
       if (dominant > 0 && palette[dominant]) {
         const c = palette[dominant]!;
         label.tint = (c[0] << 16) | (c[1] << 8) | c[2];
         label.alpha = 0.95;
+        const player = this.game.players[dominant];
+        if (player && player.isHuman) {
+          const gold = this.game.vassalGoldOf(r);
+          label.text = `${baseName} · ${formatGold(gold)}`;
+        } else {
+          label.text = baseName;
+        }
       } else {
         label.tint = 0xb0b8c0;
         label.alpha = 0.65;
+        label.text = baseName;
       }
       const s = this.renderer.worldToScreen(cx, cy);
       label.position.set(s.x, s.y);
@@ -377,6 +388,14 @@ export class OverlayLayer {
     this.targetCtx.putImageData(data, 0, 0);
     this.targetTexture.source.update();
   }
+}
+
+// Compact gold number for region labels — same formatting as troops but
+// floored small values for the on-map readout (no decimals when small).
+export function formatGold(n: number): string {
+  if (n < 1000) return Math.floor(n).toString();
+  if (n < 10000) return (n / 1000).toFixed(1) + 'k';
+  return Math.floor(n / 1000) + 'k';
 }
 
 // Compact troop number for HUD + labels: 1234 → 1.2k, 1234567 → 1.2M.

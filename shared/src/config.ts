@@ -52,6 +52,8 @@ export interface GameConfig {
   VASSAL_LOYALTY_THRESHOLD: number;
   /** Multiplier on per-tile chance for vassal-driven expansion. */
   VASSAL_EXPANSION_BOOST: number;
+  /** Fraction of vassal income forwarded as tribute to the leader each tick. */
+  VASSAL_TRIBUTE_FRACTION: number;
 
   // Buildings
   BUILDING_COSTS: Record<BuildingType, number>;
@@ -59,8 +61,13 @@ export interface GameConfig {
   SETTLEMENT_BONUS: number;
   /** Flat troops/tick added per owned settlement (independent of radius). */
   SETTLEMENT_TROOP_BONUS: number;
+  /** Flat gold/tick added per owned settlement (in addition to multiplier). */
+  SETTLEMENT_GOLD_BONUS: number;
   TURRET_RADIUS: number;
   TURRET_DEFENSE_BONUS: number;
+  /** Attacker troop loss per defending turret on every successful capture
+   *  inside that turret's radius. Turrets bite back. */
+  TURRET_RETALIATION_DAMAGE: number;
 
   // Bombs (require an airstrip; fired by player, hit ANY claimed tile in
   // radius — own or enemy — and destroy buildings on those tiles. Capitals
@@ -97,7 +104,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   CAPITALS_PER_PLAYER: 2,
 
   STARTING_GOLD: 120,
-  GOLD_PER_TILE_PER_TICK: 0.05,
+  GOLD_PER_TILE_PER_TICK: 0.04,
   EXPANSION_COST_PER_CLAIM: 1,
   EXPANSION_TROOP_COST: 3, // troops drained per unclaimed claim — settling new land needs people
   EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.22,
@@ -123,14 +130,16 @@ export const DEFAULT_CONFIG: GameConfig = {
 
   // --- Vassal autonomy ---
   /** Ticks between vassal AI decisions (re-target + maybe build). */
-  VASSAL_THINK_INTERVAL: 40,
-  /** Leader gold reserve a vassal won't dip below when buying buildings. */
-  VASSAL_GOLD_RESERVE: 200,
+  VASSAL_THINK_INTERVAL: 30,
+  /** Per-vassal gold reserve they keep before opting to spend on buildings. */
+  VASSAL_GOLD_RESERVE: 30,
   /** Min leader-fraction-of-map for human vassals to stay loyal/active. */
   VASSAL_LOYALTY_THRESHOLD: 0.5,
   /** Multiplier on per-tile expansion chance when expansion is driven by a
    *  vassal target (no manual override). > 1.0 makes vassals push faster. */
-  VASSAL_EXPANSION_BOOST: 1.4,
+  VASSAL_EXPANSION_BOOST: 2.2,
+  /** Fraction of vassal income forwarded to the leader as tribute each tick. */
+  VASSAL_TRIBUTE_FRACTION: 0.20,
 
   BUILDING_COSTS: {
     settlement: 60,
@@ -140,8 +149,10 @@ export const DEFAULT_CONFIG: GameConfig = {
   SETTLEMENT_RADIUS: 6,
   SETTLEMENT_BONUS: 1.0,        // +100% gold in radius (was +50%)
   SETTLEMENT_TROOP_BONUS: 8,    // +80 troops/sec per settlement (flat)
+  SETTLEMENT_GOLD_BONUS: 0.5,   // +5 gold/sec flat per settlement on top of multiplier
   TURRET_RADIUS: 5,             // covers ~78 tiles (was 28)
   TURRET_DEFENSE_BONUS: 4,      // (1 + 4) = 5x cost / 1/5 rate per stacked turret
+  TURRET_RETALIATION_DAMAGE: 8, // attacker troops lost per turret on successful capture in radius
 
   BOMB_COSTS:          { small: 60,  large: 240 },
   BOMB_RADII:          { small: 4,   large: 12  },
