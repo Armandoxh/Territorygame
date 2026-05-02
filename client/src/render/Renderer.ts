@@ -1,6 +1,5 @@
 import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Game, GameConfig } from '@territorygame/shared';
-import { computeBorderRGBA } from '@territorygame/shared';
 import { TerritoryLayer } from './TerritoryLayer.js';
 import { OverlayLayer } from './OverlayLayer.js';
 
@@ -51,28 +50,35 @@ export class Renderer {
     this.territoryLayer = new TerritoryLayer(game.territory, game.config);
     this.world.addChild(this.territoryLayer.sprite);
 
-    // Region overlay sprite: dark outline along every region border. Regions
-    // themselves are computed inside Game.spawnAll so the simulation can
-    // consult them (region-bounded expansion). We just consume game.regions
-    // here to produce the visual layer.
+    // Region outlines as VECTOR polylines instead of a pixel sprite. Each
+    // grid edge between two different region IDs becomes a Pixi line segment
+    // in world coordinates. Pixi rasterises crisply at any zoom level, so
+    // borders no longer jaggy or fuzz out as you scale in.
     const W = game.territory.width;
     const H = game.territory.height;
-    const borderRGBA = computeBorderRGBA(game.regions, W, H);
-    const borderCanvas = document.createElement('canvas');
-    borderCanvas.width = W;
-    borderCanvas.height = H;
-    const bctx = borderCanvas.getContext('2d');
-    if (bctx) {
-      const data = bctx.createImageData(W, H);
-      data.data.set(borderRGBA);
-      bctx.putImageData(data, 0, 0);
+    const regionLines = new Graphics();
+    const regions = game.regions;
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const r = regions[row + x];
+        if (!r) continue;
+        if (x + 1 < W) {
+          const nr = regions[row + x + 1];
+          if (nr && nr !== r) {
+            regionLines.moveTo(x + 1, y).lineTo(x + 1, y + 1);
+          }
+        }
+        if (y + 1 < H) {
+          const nr = regions[row + W + x];
+          if (nr && nr !== r) {
+            regionLines.moveTo(x, y + 1).lineTo(x + 1, y + 1);
+          }
+        }
+      }
     }
-    const borderTexture = Texture.from(borderCanvas);
-    // Linear filtering smooths the border edges as the world is scaled up,
-    // turning chunky 1-pixel jaggies into a softer hairline.
-    borderTexture.source.scaleMode = 'linear';
-    const borderSprite = new Sprite(borderTexture);
-    this.world.addChild(borderSprite);
+    regionLines.stroke({ color: 0x0a0d10, alpha: 0.7, width: 0.25 });
+    this.world.addChild(regionLines);
 
     this.border = new Graphics();
     this.border.rect(0, 0, W, H);
