@@ -256,7 +256,11 @@ export class HUD {
       // Hint stays visible (and pulses) any time the player has nothing
       // targeted — gives them a clear "tap a region" cue without nagging
       // toasts. Hidden on game over so it doesn't fight the overlay.
-      const idle = !this.game.outcome && me.alive && me.targetRegion == null;
+      // "idle" = no manual targets AND no fully-owned regions yet (no
+      // vassals to autopilot). Hint stays visible until they tap.
+      const idle = !this.game.outcome && me.alive
+        && me.targetRegions.length === 0
+        && this.game.fullRegionsForOwner(me.id) === 0;
       this.el.hint.style.display = idle ? '' : 'none';
       this.el.hint.classList.toggle('idle', idle);
     }
@@ -605,7 +609,7 @@ export class HUD {
       `<b>Builds</b> ${this.game.buildings.length}`,
       `<b>Regions</b> ${this.game.fullRegionsForOwner(me.id)} / ${this.game.regionCount}`,
       `<b>Vassals</b> ${this.game.vassalsLoyalFor(me.id) ? 'loyal' : 'dormant'}`,
-      me.target ? `<b>Target</b> ${me.target.x}, ${me.target.y}` : '<b>Target</b> none',
+      `<b>Targets</b> ${me.targetRegions.length}`,
     ];
     this.el.debug.innerHTML = lines.join('<br>');
   }

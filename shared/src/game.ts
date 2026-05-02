@@ -220,7 +220,9 @@ export class Game {
     // AI targets adjacent to their spawn (or random fallback).
     for (let id = 2; id < this.players.length; id++) {
       const p = this.players[id];
-      if (p) p.targetRegion = this._pickAiTargetRegion(p.id);
+      if (!p) continue;
+      const t = this._pickAiTargetRegion(p.id);
+      p.targetRegions = (t != null && t > 0) ? [t] : [];
     }
   }
 
@@ -348,25 +350,27 @@ export class Game {
   // --- Player actions ---
 
   /**
-   * Tap-to-claim: target the region containing (x, y). Frontier tiles bordering
-   * that region will push into it and only into it. Returns the region ID
-   * targeted, or 0 if the tap was on water/oob.
+   * Tap-to-toggle: tapping a region adds it to the player's manual target
+   * list (parallel attack); tapping the same region again removes it.
+   * Returns the region ID at the tap, or 0 if the tap was on water/oob.
+   * Manual targets only drive non-vassal tiles — vassals keep their own
+   * autonomous target so your push doesn't pull them off their job.
    */
   setHumanTargetRegion(x: number, y: number): number {
     const p = this.human();
     if (!p.alive) return 0;
     const r = this.regionAt(x, y);
     if (r <= 0) return 0;
-    p.targetRegion = r;
-    p.target = { x, y };
-    p.expanding = true;
+    const idx = p.targetRegions.indexOf(r);
+    if (idx >= 0) p.targetRegions.splice(idx, 1);
+    else p.targetRegions.push(r);
+    p.expanding = p.targetRegions.length > 0;
     return r;
   }
 
   haltHuman(): void {
     const p = this.human();
-    p.targetRegion = null;
-    p.target = null;
+    p.targetRegions = [];
     p.expanding = false;
   }
 
@@ -543,8 +547,7 @@ export class Game {
       gold: this.config.STARTING_GOLD,
       troops: this.config.STARTING_TROOPS,
       alive: true,
-      targetRegion: null,
-      target: null,
+      targetRegions: [],
       expanding: !isHuman,
     };
   }
@@ -960,7 +963,9 @@ export class Game {
 
   // Re-scans tile counts in a region to set _regionDominant — the player
   // (if any) holding strict majority. Called from _claim on every flip;
-  // 256 ops per call is trivial.
+  // 256 ops per call is trivial. When dominance flips to a NEW human owner,
+  // we wake their vassal AI immediately so it can pick a target on the
+  // next expansion tick instead of waiting up to VASSAL_THINK_INTERVAL.
   private _recomputeDominant(regionId: number): void {
     const total = this._regionTotal[regionId]!;
     if (total === 0) { this._regionDominant[regionId] = 0; return; }
@@ -970,8 +975,28 @@ export class Game {
       const c = this._regionOwnedTiles[base + o]!;
       if (c > bestCount) { bestCount = c; bestOwner = o; }
     }
-    // Strict majority: > 50% of the region's tiles.
-    this._regionDominant[regionId] = (bestCount * 2 > total) ? bestOwner : 0;
+    const newDom: PlayerId = (bestCount * 2 > total) ? bestOwner : 0;
+    const oldDom = this._regionDominant[regionId]!;
+    this._regionDominant[regionId] = newDom;
+    if (newDom !== oldDom && newDom > 0) {
+      const player = this.players[newDom];
+      if (player && player.isHuman) this._vassalTickFor(regionId, player);
+    }
+  }
+
+  // Of a list of candidate target regions, returns the one whose centroid
+  // is closest to (x, y) — used to spread non-vassal frontier tiles
+  // across multiple parallel manual attacks.
+  private _pickClosestTarget(x: number, y: number, candidates: readonly number[]): number {
+    let best = 0, bestSq = Infinity;
+    for (const r of candidates) {
+      const c = this.regionCentroidOf(r);
+      if (!c) continue;
+      const dx = c.x - x, dy = c.y - y;
+      const d = dx * dx + dy * dy;
+      if (d < bestSq) { bestSq = d; best = r; }
+    }
+    return best;
   }
 
   private _hasEnemyNeighbor(x: number, y: number, ownerId: PlayerId): boolean {
@@ -984,8 +1009,9 @@ export class Game {
   }
 
   private _aiThink(p: Player): void {
-    if (this.tickCount % this.config.AI_RETARGET_TICKS !== 0 && p.targetRegion != null) return;
-    p.targetRegion = this._pickAiTargetRegion(p.id);
+    if (this.tickCount % this.config.AI_RETARGET_TICKS !== 0 && p.targetRegions.length > 0) return;
+    const t = this._pickAiTargetRegion(p.id);
+    p.targetRegions = (t != null && t > 0) ? [t] : [];
   }
 
   // Pick a region for an AI to push into: prefer regions adjacent to its
@@ -1025,19 +1051,20 @@ export class Game {
 
   // Region-bounded expansion. Each frontier tile picks its own effective
   // target region:
-  //   - If the player has set a manual override (p.targetRegion), every
-  //     frontier tile uses that.
-  //   - Otherwise, frontier tiles inside a region the player FULLY owns
-  //     (a vassal region) use that vassal's autonomous target.
-  //   - Frontier tiles in partially-owned regions stay idle when there's
-  //     no override (the player must tap to push there).
-  // Combat math (troop ratio, turret defense) is unchanged.
+  //   - VASSAL TILE (tile in a region where this player is the dominant
+  //     owner): use the vassal's autonomous target. Manual override does
+  //     NOT apply here — vassals keep working on their own job no matter
+  //     how many manual fronts the leader is running.
+  //   - NON-VASSAL TILE: use the closest manual target from
+  //     p.targetRegions. Stays idle if the player has no manual targets.
+  //   - If a vassal tile has no vassal target yet (transient at game
+  //     start), it falls back to the closest manual target.
   private _expand(p: Player): void {
     const frontier = this.territory.getFrontier(p.id);
     if (frontier.size === 0) return;
     const W = this.territory.width;
     const baseChance = this.config.EXPANSION_CHANCE_PER_FRONTIER_TILE;
-    const overrideTarget = p.targetRegion;
+    const manualTargets = p.targetRegions;
 
     const tiles = Array.from(frontier);
     for (let k = 0; k < tiles.length; k++) {
@@ -1046,21 +1073,21 @@ export class Game {
       const x = i % W;
       const y = (i - x) / W;
 
-      // Resolve the target region for THIS tile:
-      //   override > vassal target (if tile is in a vassal of p) > skip
-      let effectiveTarget = overrideTarget;
+      let effectiveTarget: number | undefined;
       let isVassalDriven = false;
-      if (effectiveTarget == null) {
-        const tileRegion = this.regions[i]!;
-        // Use DOMINANT ownership for vassal targeting so the vassal still
-        // pushes during partial losses.
-        if (tileRegion > 0 && this._regionDominant[tileRegion] === p.id) {
-          const vt = this._vassalTarget[tileRegion];
-          if (vt && vt > 0) {
-            effectiveTarget = vt;
-            isVassalDriven = true;
-          }
+      const tileRegion = this.regions[i]!;
+      const isVassal = tileRegion > 0 && this._regionDominant[tileRegion] === p.id;
+      if (isVassal) {
+        const vt = this._vassalTarget[tileRegion];
+        if (vt && vt > 0) {
+          effectiveTarget = vt;
+          isVassalDriven = true;
         }
+      }
+      if (effectiveTarget == null && manualTargets.length > 0) {
+        effectiveTarget = manualTargets.length === 1
+          ? manualTargets[0]!
+          : this._pickClosestTarget(x, y, manualTargets);
       }
       if (effectiveTarget == null) continue;
       // Vassals push more eagerly than the player's manual orders.

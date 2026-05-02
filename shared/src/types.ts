@@ -24,10 +24,9 @@ export interface Player {
   /** Army strength. Grows passively from owned land, consumed on attacks. */
   troops: number;
   alive: boolean;
-  /** Region the player is actively trying to capture. null = idle. */
-  targetRegion: number | null;
-  /** Legacy free-form target point (unused once a region is set). */
-  target: Point | null;
+  /** Regions the player is actively pushing into. Multiple = parallel
+   *  attacks. Empty = idle (vassals still run on their own). */
+  targetRegions: number[];
   expanding: boolean;
 }
 

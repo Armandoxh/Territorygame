@@ -25,7 +25,7 @@ export class OverlayLayer {
   private readonly targetCanvas: HTMLCanvasElement;
   private readonly targetCtx: CanvasRenderingContext2D | null;
   private readonly targetTexture: Texture;
-  private targetDrawnRegion: number = -1;
+  private targetDrawnSig: string = '';
 
   // Tap flash: a fading expanding ring at the most-recent tap (screen coords).
   private flashSx = 0;
@@ -334,36 +334,39 @@ export class OverlayLayer {
     }
   }
 
-  // Highlight the human's currently-targeted region by tinting its tiles on a
-  // native-resolution canvas-backed sprite that lives inside renderer.world.
-  // The sprite pans/zooms with the camera. We only repaint when the targeted
-  // region changes; per-frame work is just a sin-wave alpha pulse.
+  // Highlight EVERY one of the human's active manual targets with a soft
+  // pulsing white tint. Multiple targets = multiple regions glowing in
+  // parallel (parallel attacks). Repainted only when the target set
+  // changes (cheap signature compare); per-frame work is just an alpha
+  // pulse on the single sprite.
   private _drawTarget(now: number): void {
     const me = this.game.human();
-    const tr = me.targetRegion;
-    if (tr == null) {
+    const targets = me.targetRegions;
+    if (!targets || targets.length === 0) {
       this.targetSprite.alpha = 0;
-      this.targetDrawnRegion = -1;
+      this.targetDrawnSig = '';
       return;
     }
-    if (this.targetDrawnRegion !== tr) {
-      this._repaintTargetRegion(tr);
-      this.targetDrawnRegion = tr;
+    const sig = targets.slice().sort((a, b) => a - b).join(',');
+    if (sig !== this.targetDrawnSig) {
+      this._repaintTargetRegions(targets);
+      this.targetDrawnSig = sig;
     }
     const t = (now / 900) % 1;
     const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
     this.targetSprite.alpha = 0.22 + 0.18 * pulse;
   }
 
-  private _repaintTargetRegion(regionId: number): void {
+  private _repaintTargetRegions(regionIds: readonly number[]): void {
     if (!this.targetCtx) return;
     const W = this.game.territory.width;
     const H = this.game.territory.height;
     const regions = this.game.regions;
+    const set = new Set<number>(regionIds);
     const data = this.targetCtx.createImageData(W, H);
     const buf = data.data;
     for (let i = 0; i < regions.length; i++) {
-      if (regions[i] === regionId) {
+      if (set.has(regions[i]!)) {
         const o = i * 4;
         buf[o]     = 255;
         buf[o + 1] = 255;
