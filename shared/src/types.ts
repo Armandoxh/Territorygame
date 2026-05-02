@@ -57,7 +57,8 @@ export type GameEvent =
   | { type: 'bomb';       bombType: BombType; x: number; y: number; radius: number; ownerId: PlayerId }
   | { type: 'region-conquered'; regionId: number; ownerId: PlayerId }
   | { type: 'region-lost';      regionId: number; ownerId: PlayerId }
-  | { type: 'vassal-built';     regionId: number; ownerId: PlayerId; buildingType: BuildingType };
+  | { type: 'vassal-built';     regionId: number; ownerId: PlayerId; buildingType: BuildingType }
+  | { type: 'vassal-bombed';    regionId: number; ownerId: PlayerId; bombType: BombType; x: number; y: number };
 
 export type RGBA = readonly [number, number, number, number];
 

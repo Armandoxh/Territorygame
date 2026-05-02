@@ -634,71 +634,271 @@ export class Game {
   }
 
   private _vassalTickFor(regionId: number, leader: Player): void {
-    // Refresh / pick an expansion target adjacent to this region that the
-    // leader doesn't already fully own.
-    const adj = this._regionAdjacency[regionId];
-    if (adj && adj.size > 0) {
-      const choices: number[] = [];
-      for (const a of adj) {
-        if (this._regionOwner[a] !== leader.id) choices.push(a);
-      }
-      if (choices.length > 0) {
-        this._vassalTarget[regionId] = choices[(Math.random() * choices.length) | 0]!;
-      } else {
-        this._vassalTarget[regionId] = 0;
-      }
-    }
+    this._vassalRetarget(regionId, leader);
     this._vassalBuild(regionId, leader);
+    this._vassalMaybeBomb(regionId, leader);
   }
 
+  // Smart target selection: prioritise neutral land (cheap wins), then weak
+  // enemies (winnable fights), then strong enemies (last resort).
+  private _vassalRetarget(regionId: number, leader: Player): void {
+    const adj = this._regionAdjacency[regionId];
+    if (!adj || adj.size === 0) {
+      this._vassalTarget[regionId] = 0;
+      return;
+    }
+    let bestRegion = 0;
+    let bestScore = -Infinity;
+    for (const r of adj) {
+      if (this._regionOwner[r] === leader.id) continue;
+      const tiles = this._tilesByRegion[r];
+      if (!tiles || tiles.length === 0) continue;
+
+      // Composition: how many tiles are unclaimed vs enemy-held.
+      let unclaimed = 0;
+      let dominantEnemy = 0;
+      const counts = new Int32Array(256);
+      for (const i of tiles) {
+        const o = this.territory.owners[i]!;
+        if (o === 0) unclaimed++;
+        counts[o]!++;
+      }
+      let domCount = 0;
+      for (let o = 1; o < 256; o++) {
+        if (o === leader.id) continue;
+        if (counts[o]! > domCount) { domCount = counts[o]!; dominantEnemy = o; }
+      }
+      const neutralFrac = unclaimed / tiles.length;
+
+      let score: number;
+      if (neutralFrac >= 0.4) {
+        // Mostly neutral — push there first. Higher = better.
+        score = 1000 + neutralFrac * 200;
+      } else if (dominantEnemy > 0) {
+        // Enemy region: prefer weaker enemy (less troops + smaller foothold).
+        const enemy = this.players[dominantEnemy];
+        const enemyTroops = enemy?.troops ?? 1;
+        // Lower troops + lower count → higher score.
+        score = 500 - Math.log10(enemyTroops + 1) * 80 - domCount * 0.5 + neutralFrac * 100;
+      } else {
+        // Empty region (all unclaimed). Treat as neutral.
+        score = 1100;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestRegion = r;
+      }
+    }
+    this._vassalTarget[regionId] = bestRegion;
+  }
+
+  // Priority chain: defend, fund, set up offense, spread settlements.
   private _vassalBuild(regionId: number, leader: Player): void {
     const reserve = this.config.VASSAL_GOLD_RESERVE;
     const tiles = this._tilesByRegion[regionId];
     if (!tiles || tiles.length === 0) return;
     const W = this.territory.width;
 
-    // 1. Try a turret on an enemy-bordering tile if we can spare it.
+    // Bucket vassal-owned tiles into exposed (enemy nearby) vs safe interior.
+    const exposed: number[] = [];
+    const safe: number[] = [];
+    for (const i of tiles) {
+      if (this.territory.owners[i] !== leader.id) continue;
+      const x = i % W, y = (i - x) / W;
+      if (this.buildingAt(x, y)) continue;
+      if (this._hasEnemyNeighbor(x, y, leader.id)) exposed.push(i);
+      else safe.push(i);
+    }
+
+    // 1. THREAT: any exposed tiles? Drop a turret on the most-pressured one
+    //    (count enemies in radius 3). Skip if a turret is already nearby.
     const turretCost = this.config.BUILDING_COSTS.turret;
-    if (leader.gold >= reserve + turretCost) {
-      for (const i of tiles) {
-        if (this.territory.owners[i] !== leader.id) continue;
-        const x = i % W, y = (i - x) / W;
-        if (!this._hasEnemyNeighbor(x, y, leader.id)) continue;
-        if (this.buildingAt(x, y)) continue;
+    if (exposed.length > 0 && leader.gold >= reserve + turretCost) {
+      const spot = this._pickBestTurretSpot(exposed, leader.id);
+      if (spot >= 0) {
+        const x = spot % W, y = (spot - x) / W;
         if (this.tryBuild('turret', x, y, leader.id) === null) {
           this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'turret' });
           return;
         }
       }
     }
-    // 2. A settlement on a safe interior tile if budget allows.
+
+    // 2. ECONOMY: if leader is cash-poor relative to their footprint, fund
+    //    a settlement. We compare gold against a per-tile expectation —
+    //    if you're sitting on a lot of land but not much cash, build.
     const settCost = this.config.BUILDING_COSTS.settlement;
-    if (leader.gold >= reserve + settCost) {
-      for (const i of tiles) {
-        if (this.territory.owners[i] !== leader.id) continue;
-        const x = i % W, y = (i - x) / W;
-        if (this._hasEnemyNeighbor(x, y, leader.id)) continue;
-        if (this.buildingAt(x, y)) continue;
+    const ownedCount = this.territory.counts[leader.id]!;
+    const lowGold = leader.gold < Math.max(400, ownedCount * 1.5);
+    if (lowGold && safe.length > 0 && leader.gold >= reserve + settCost) {
+      const spot = this._pickSettlementSpot(safe, leader.id);
+      if (spot >= 0) {
+        const x = spot % W, y = (spot - x) / W;
         if (this.tryBuild('settlement', x, y, leader.id) === null) {
           this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'settlement' });
           return;
         }
       }
     }
-    // 3. An airstrip if there are no airstrips yet and we have plenty of gold.
+
+    // 3. OFFENSE: if our target is enemy-held and we don't have an airstrip
+    //    yet (or only one), drop one near the target so bombs are reachable.
     const airCost = this.config.BUILDING_COSTS.airstrip;
-    if (leader.gold >= reserve + airCost && this.countBuildings(leader.id, 'airstrip') < 2) {
-      for (const i of tiles) {
-        if (this.territory.owners[i] !== leader.id) continue;
-        const x = i % W, y = (i - x) / W;
-        if (this._hasEnemyNeighbor(x, y, leader.id)) continue;
-        if (this.buildingAt(x, y)) continue;
+    const targetRegion = this._vassalTarget[regionId] ?? 0;
+    const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
+    const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== leader.id;
+    if (targetIsEnemy && this.countBuildings(leader.id, 'airstrip') < 2 &&
+        safe.length > 0 && leader.gold >= reserve + airCost) {
+      const spot = this._pickAirstripSpot(safe, targetRegion, leader.id);
+      if (spot >= 0) {
+        const x = spot % W, y = (spot - x) / W;
         if (this.tryBuild('airstrip', x, y, leader.id) === null) {
           this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'airstrip' });
           return;
         }
       }
     }
+
+    // 4. MAINTENANCE: spread additional settlements when the budget is healthy
+    //    so empires keep their economy growing during peaceful spells.
+    if (safe.length > 0 && leader.gold >= reserve + settCost + 200) {
+      const spot = this._pickSettlementSpot(safe, leader.id);
+      if (spot >= 0) {
+        const x = spot % W, y = (spot - x) / W;
+        if (this.tryBuild('settlement', x, y, leader.id) === null) {
+          this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'settlement' });
+          return;
+        }
+      }
+    }
+  }
+
+  // Drop a bomb on a dense enemy cluster inside the vassal's target region —
+  // softens the target before the push. Only fires when the leader can spare
+  // the gold and an airstrip is off cooldown.
+  private _vassalMaybeBomb(regionId: number, leader: Player): void {
+    const ready = this.airstripReadyAt(leader.id);
+    if (ready < 0 || ready > this.tickCount) return;
+    const targetRegion = this._vassalTarget[regionId];
+    if (!targetRegion) return;
+    const targetTiles = this._tilesByRegion[targetRegion];
+    if (!targetTiles || targetTiles.length === 0) return;
+
+    // Choose bomb size by what the leader can comfortably afford.
+    let bombType: BombType | null = null;
+    const smallCost = this.config.BOMB_COSTS.small;
+    const largeCost = this.config.BOMB_COSTS.large;
+    if (leader.gold >= 600 + largeCost) bombType = 'large';
+    else if (leader.gold >= 350 + smallCost) bombType = 'small';
+    if (!bombType) return;
+    const radius = this.config.BOMB_RADII[bombType];
+
+    // Sample the target region for the densest enemy cluster within bomb range.
+    const W = this.territory.width;
+    const r2 = radius * radius;
+    let bestX = -1, bestY = -1, bestEnemies = 0;
+    const sampleStep = Math.max(1, Math.floor(targetTiles.length / 36));
+    for (let k = 0; k < targetTiles.length; k += sampleStep) {
+      const i = targetTiles[k]!;
+      const x = i % W, y = (i - x) / W;
+      let enemies = 0;
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx * dx + dy * dy > r2) continue;
+          const o = this.territory.getOwner(x + dx, y + dy);
+          if (o > 0 && o !== leader.id) enemies++;
+        }
+      }
+      if (enemies > bestEnemies) { bestEnemies = enemies; bestX = x; bestY = y; }
+    }
+
+    // Don't waste a bomb on a sparse target. Require enough enemies under it.
+    const tilesInArea = Math.PI * r2;
+    const minEnemies = Math.floor(tilesInArea * (bombType === 'large' ? 0.35 : 0.45));
+    if (bestEnemies < minEnemies || bestX < 0) return;
+
+    if (this.dropBomb(bombType, bestX, bestY, leader.id) === null) {
+      this.events.push({ type: 'vassal-bombed', regionId, ownerId: leader.id, bombType, x: bestX, y: bestY });
+    }
+  }
+
+  private _pickBestTurretSpot(exposed: number[], ownerId: PlayerId): number {
+    const W = this.territory.width;
+    let best = -1, bestScore = 0;
+    for (const i of exposed) {
+      const x = i % W, y = (i - x) / W;
+      let enemies = 0;
+      for (let dy = -3; dy <= 3; dy++) {
+        for (let dx = -3; dx <= 3; dx++) {
+          const o = this.territory.getOwner(x + dx, y + dy);
+          if (o > 0 && o !== ownerId) enemies++;
+        }
+      }
+      // Penalise sites that already have a turret nearby — don't stack.
+      let nearbyTurrets = 0;
+      for (const b of this.buildings) {
+        if (b.type !== 'turret' || b.owner !== ownerId) continue;
+        const dx = b.x - x, dy = b.y - y;
+        if (dx * dx + dy * dy < 9) nearbyTurrets++;
+      }
+      const score = enemies - nearbyTurrets * 8;
+      if (score > bestScore) { bestScore = score; best = i; }
+    }
+    return best;
+  }
+
+  private _pickSettlementSpot(safe: number[], ownerId: PlayerId): number {
+    const W = this.territory.width;
+    let best = -1, bestDist = -1;
+    for (const i of safe) {
+      const x = i % W, y = (i - x) / W;
+      let nearestSettleSq = Infinity;
+      for (const b of this.buildings) {
+        if (b.type !== 'settlement' || b.owner !== ownerId) continue;
+        const dx = b.x - x, dy = b.y - y;
+        const d = dx * dx + dy * dy;
+        if (d < nearestSettleSq) nearestSettleSq = d;
+      }
+      // Prefer farther from existing settlements (spread out).
+      if (nearestSettleSq > bestDist) { bestDist = nearestSettleSq; best = i; }
+    }
+    return best;
+  }
+
+  private _pickAirstripSpot(safe: number[], targetRegion: number, ownerId: PlayerId): number {
+    void ownerId;
+    const W = this.territory.width;
+    const targetTiles = this._tilesByRegion[targetRegion];
+    if (!targetTiles || targetTiles.length === 0) return safe[0] ?? -1;
+    // Centroid of the target region (where bombs should reach).
+    let cx = 0, cy = 0;
+    for (const i of targetTiles) {
+      cx += i % W;
+      cy += (i - (i % W)) / W;
+    }
+    cx /= targetTiles.length;
+    cy /= targetTiles.length;
+    // Pick the safe tile closest to that centroid so bombs stay in range.
+    let best = -1, bestSq = Infinity;
+    for (const i of safe) {
+      const x = i % W, y = (i - x) / W;
+      const dx = cx - x, dy = cy - y;
+      const d = dx * dx + dy * dy;
+      if (d < bestSq) { bestSq = d; best = i; }
+    }
+    return best;
+  }
+
+  private _dominantOwnerInRegion(regionId: number): PlayerId {
+    const tiles = this._tilesByRegion[regionId];
+    if (!tiles || tiles.length === 0) return 0;
+    const counts = new Int32Array(256);
+    for (const i of tiles) counts[this.territory.owners[i]!]!++;
+    let best: PlayerId = 0, bestC = 0;
+    for (let o = 1; o < 256; o++) {
+      if (counts[o]! > bestC) { bestC = counts[o]!; best = o; }
+    }
+    return best;
   }
 
   private _hasEnemyNeighbor(x: number, y: number, ownerId: PlayerId): boolean {

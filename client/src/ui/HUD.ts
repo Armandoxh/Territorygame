@@ -532,6 +532,10 @@ export class HUD {
         this.toast(`Region #${e.regionId} fortified`);
       } else if (e.type === 'vassal-built' && e.ownerId === 1) {
         this.toast(`Vassal #${e.regionId} built ${e.buildingType}`);
+      } else if (e.type === 'vassal-bombed' && e.ownerId === 1) {
+        this.toast(`Vassal #${e.regionId} dropped a ${e.bombType} bomb`);
+        // Re-use the explosion effect from manual bombs.
+        this.onBombEvent?.(e.x, e.y, this.game.config.BOMB_RADII[e.bombType]);
       }
     }
   }
