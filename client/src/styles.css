@@ -29,9 +29,26 @@ html, body {
           env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
 }
 
+#leaderbar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  z-index: 11;
+  pointer-events: none;
+}
+#leaderbar > span {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-right: 1px solid rgba(0, 0, 0, 0.3);
+}
+#leaderbar > span:last-child { border-right: 0; }
+
 #topbar {
   position: absolute;
-  top: 8px; left: 12px; right: 12px;
+  top: 12px; left: 12px; right: 12px;
   display: flex; align-items: center; gap: 14px;
   font-size: 13px;
   background: rgba(0, 0, 0, 0.35);

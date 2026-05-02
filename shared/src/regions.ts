@@ -88,7 +88,7 @@ export function computeBorderRGBA(
   regions: Uint8Array,
   width: number,
   height: number,
-  rgba: readonly [number, number, number, number] = [0, 0, 0, 130],
+  rgba: readonly [number, number, number, number] = [0, 0, 0, 175],
 ): Uint8ClampedArray {
   const out = new Uint8ClampedArray(width * height * 4);
   for (let y = 0; y < height; y++) {

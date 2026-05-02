@@ -6,8 +6,8 @@ import type { RGBA } from './types.js';
 // angle so colors remain distinct even at high N.
 export function generatePalette(playerCount: number): RGBA[] {
   const palette: RGBA[] = [
-    [0x3d, 0x33, 0x24, 0xff],
-    [0xe8, 0x4a, 0x4a, 0xff],
+    [0x4a, 0x3e, 0x2e, 0xff], // unclaimed parchment
+    [0xe8, 0x4a, 0x4a, 0xff], // human red
   ];
 
   const golden = 137.508;

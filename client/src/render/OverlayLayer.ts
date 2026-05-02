@@ -197,8 +197,11 @@ export class OverlayLayer {
       if (!c) continue;
       const r = Math.max(7, Math.min(22, this.renderer.zoom * 1.6));
       const color = (c[0] << 16) | (c[1] << 8) | c[2];
+      // Offset shadow blob behind, so capitals "lift" off the map.
+      g.circle(s.x + 1.5, s.y + 2, r * 1.05).fill({ color: 0x000000, alpha: 0.35 });
+      // Outer pulse ring
       g.circle(s.x, s.y, r * 1.55).stroke({ color: 0xffffff, alpha: 0.35 + 0.4 * pulse, width: 1.5 });
-      // Diamond
+      // Diamond body
       g.poly([s.x, s.y - r, s.x + r, s.y, s.x, s.y + r, s.x - r, s.y]);
       g.fill({ color });
       g.stroke({ color: 0xffffff, alpha: 0.95, width: 1.4 });
@@ -230,7 +233,7 @@ export class OverlayLayer {
       }
     }
 
-    // Pass 2: the icons themselves.
+    // Pass 2: the icons themselves with a soft drop shadow.
     for (const b of this.game.buildings) {
       const s = this._toScreen(b.x + 0.5, b.y + 0.5);
       const c = palette[b.owner];
@@ -238,6 +241,8 @@ export class OverlayLayer {
       const color = (c[0] << 16) | (c[1] << 8) | c[2];
       const r = Math.max(6, Math.min(18, this.renderer.zoom * 1.1));
       const cx = s.x, cy = s.y;
+      // Drop shadow ellipse beneath every building.
+      g.ellipse(cx + 1, cy + r * 0.55, r * 0.85, r * 0.35).fill({ color: 0x000000, alpha: 0.32 });
       const fillStroke = (): void => {
         g.fill({ color });
         g.stroke({ color: 0xffffff, alpha: 0.95, width: 1.2 });

@@ -117,6 +117,8 @@ export class Territory {
       this.getFrontier(owner).add(i);
     }
     // Re-evaluate the four neighbors' frontier membership for THEIR owner.
+    // Anytime a neighbor's frontier status flips we also mark them dirty, so
+    // the renderer can repaint with the new shading (frontier tiles glow).
     const ns: ReadonlyArray<readonly [number, number]> = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     for (const [dx, dy] of ns) {
       const nx = x + dx, ny = y + dy;
@@ -125,8 +127,11 @@ export class Territory {
       const no = this.owners[ni]!;
       if (no === 0) continue;
       const set = this.getFrontier(no);
-      if (this._isFrontierFor(nx, ny, no)) set.add(ni);
+      const wasFrontier = set.has(ni);
+      const isFrontier = this._isFrontierFor(nx, ny, no);
+      if (isFrontier) set.add(ni);
       else set.delete(ni);
+      if (wasFrontier !== isFrontier) this.dirty.add(ni);
     }
     return true;
   }

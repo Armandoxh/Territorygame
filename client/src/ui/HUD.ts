@@ -28,6 +28,7 @@ export class HUD {
     bombBtn:      this._byId('bomb-btn'),
     bombCd:       this._byId('bomb-cd'),
     bombSheet:    this._byId('bombsheet'),
+    leaderbar:    this._byId('leaderbar'),
     tutorial:     this._byId('tutorial'),
     helpBtn:      this._byId('help-btn'),
     tutorialBtn:  this._byId('tutorial-start'),
@@ -245,6 +246,7 @@ export class HUD {
     this._refreshHotbar();
     this._refreshBombFab();
     if (this.el.bombSheet?.classList.contains('show')) this._refreshBombSheetButtons();
+    this._refreshLeaderBar();
     for (const [id, ref] of this.enemyEls) {
       const p = this.game.players[id];
       if (!p) continue;
@@ -359,6 +361,49 @@ export class HUD {
       } else {
         this.el.bombCd.textContent = 'BOMB';
       }
+    }
+  }
+
+  // Rebuilds the thin stacked progress bar at the top of the screen showing
+  // each alive player's share of the map. Top 8 + "others" so it stays
+  // readable at high opponent counts.
+  private _refreshLeaderBar(): void {
+    if (!this.el.leaderbar) return;
+    const land = this.game.totalLand;
+    if (land <= 0) return;
+    const palette = this.game.config.PLAYER_COLORS;
+    const ranked: { id: number; owned: number }[] = [];
+    for (let id = 1; id < this.game.players.length; id++) {
+      const owned = this.game.territory.counts[id]!;
+      if (owned > 0) ranked.push({ id, owned });
+    }
+    ranked.sort((a, b) => b.owned - a.owned);
+
+    const TOP = 8;
+    const top = ranked.slice(0, TOP);
+    const rest = ranked.slice(TOP).reduce((s, r) => s + r.owned, 0);
+
+    // Reuse children to avoid GC churn each frame.
+    const bar = this.el.leaderbar;
+    const slotCount = top.length + (rest > 0 ? 1 : 0);
+    while (bar.childElementCount > slotCount) bar.removeChild(bar.lastChild!);
+    while (bar.childElementCount < slotCount) bar.appendChild(document.createElement('span'));
+
+    for (let i = 0; i < top.length; i++) {
+      const { id, owned } = top[i]!;
+      const c = palette[id];
+      const pct = owned / land * 100;
+      const el = bar.children[i] as HTMLElement;
+      el.style.width = pct.toFixed(2) + '%';
+      el.style.background = c ? `rgb(${c[0]},${c[1]},${c[2]})` : '#888';
+      el.title = `${this.game.players[id]?.name ?? id}: ${pct.toFixed(1)}%`;
+    }
+    if (rest > 0) {
+      const pct = rest / land * 100;
+      const el = bar.children[top.length] as HTMLElement;
+      el.style.width = pct.toFixed(2) + '%';
+      el.style.background = '#3a4048';
+      el.title = `others: ${pct.toFixed(1)}%`;
     }
   }
 
