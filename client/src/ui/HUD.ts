@@ -577,6 +577,7 @@ export class HUD {
       `<b>Caps</b> ${this.game.capitals.length}`,
       `<b>Builds</b> ${this.game.buildings.length}`,
       `<b>Regions</b> ${this.game.fullRegionsForOwner(me.id)} / ${this.game.regionCount}`,
+      `<b>Vassals</b> ${this.game.vassalsLoyalFor(me.id) ? 'loyal' : 'dormant'}`,
       me.target ? `<b>Target</b> ${me.target.x}, ${me.target.y}` : '<b>Target</b> none',
     ];
     this.el.debug.innerHTML = lines.join('<br>');

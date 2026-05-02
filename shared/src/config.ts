@@ -44,6 +44,13 @@ export interface GameConfig {
   /** Flat troops/tick added per fully-owned region (the "garrison"). */
   FULL_REGION_TROOP_BONUS: number;
 
+  /** Ticks between vassal AI decisions (re-target + maybe build). */
+  VASSAL_THINK_INTERVAL: number;
+  /** Leader gold reserve vassals won't dip below. */
+  VASSAL_GOLD_RESERVE: number;
+  /** Min leader fraction-of-map for human vassals to remain loyal. */
+  VASSAL_LOYALTY_THRESHOLD: number;
+
   // Buildings
   BUILDING_COSTS: Record<BuildingType, number>;
   SETTLEMENT_RADIUS: number;
@@ -111,6 +118,14 @@ export const DEFAULT_CONFIG: GameConfig = {
 
   FULL_REGION_DEFENSE_BONUS: 1.5,
   FULL_REGION_TROOP_BONUS: 5,
+
+  // --- Vassal autonomy ---
+  /** Ticks between vassal AI decisions (re-target + maybe build). */
+  VASSAL_THINK_INTERVAL: 80,
+  /** Leader gold reserve a vassal won't dip below when buying buildings. */
+  VASSAL_GOLD_RESERVE: 200,
+  /** Min leader-fraction-of-map for human vassals to stay loyal/active. */
+  VASSAL_LOYALTY_THRESHOLD: 0.5,
 
   BUILDING_COSTS: {
     settlement: 60,

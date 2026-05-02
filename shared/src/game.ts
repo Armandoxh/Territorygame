@@ -62,10 +62,33 @@ export class Game {
   private _regionOwnedTiles!: Int32Array;
   /** Player ID currently fully owning each region (0 if contested or empty). */
   private _regionOwner!: Uint8Array;
+  /** Vassal target region for each region (0 = idle). Used as the
+   *  autonomous expansion target for tiles inside that vassal region when
+   *  the leader hasn't issued a manual override. */
+  private _vassalTarget!: Uint16Array;
+  /** Tile indices grouped by region. */
+  private _tilesByRegion!: number[][];
+  /** Set of region IDs that border each region (incl. across the map edge). */
+  private _regionAdjacency!: Set<number>[];
 
   /** Returns the player ID who fully owns this region, or 0. */
   regionOwnerOf(regionId: number): PlayerId {
     return this._regionOwner?.[regionId] ?? 0;
+  }
+
+  /** Returns the autonomous expansion target for a region's vassal, or 0. */
+  vassalTargetOf(regionId: number): number {
+    return this._vassalTarget?.[regionId] ?? 0;
+  }
+
+  /** Whether a given player's vassals are currently loyal (active). Humans
+   *  need >= VASSAL_LOYALTY_THRESHOLD of the map; AIs are always loyal. */
+  vassalsLoyalFor(playerId: PlayerId): boolean {
+    const p = this.players[playerId];
+    if (!p || !p.alive) return false;
+    if (!p.isHuman) return true;
+    if (this.totalLand <= 0) return false;
+    return (this.territory.counts[playerId]! / this.totalLand) >= this.config.VASSAL_LOYALTY_THRESHOLD;
   }
 
   /** How many regions are completely owned by this player. */
@@ -123,9 +146,41 @@ export class Game {
     this._regionTotal = new Uint32Array(this.regionCount + 1);
     this._regionOwnedTiles = new Int32Array((this.regionCount + 1) * 256);
     this._regionOwner = new Uint8Array(this.regionCount + 1);
+    this._vassalTarget = new Uint16Array(this.regionCount + 1);
+    this._tilesByRegion = [];
+    for (let r = 0; r <= this.regionCount; r++) this._tilesByRegion.push([]);
     for (let i = 0; i < this.regions.length; i++) {
       const r = this.regions[i]!;
-      if (r > 0) this._regionTotal[r]!++;
+      if (r > 0) {
+        this._regionTotal[r]!++;
+        this._tilesByRegion[r]!.push(i);
+      }
+    }
+    // Region adjacency: which regions touch which. One scan, check left/up
+    // neighbours so each pair is added once (we still add both directions
+    // for symmetric lookup).
+    this._regionAdjacency = [];
+    for (let r = 0; r <= this.regionCount; r++) this._regionAdjacency.push(new Set<number>());
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) {
+        const r = this.regions[row + x]!;
+        if (r === 0) continue;
+        if (x > 0) {
+          const nr = this.regions[row + x - 1]!;
+          if (nr > 0 && nr !== r) {
+            this._regionAdjacency[r]!.add(nr);
+            this._regionAdjacency[nr]!.add(r);
+          }
+        }
+        if (y > 0) {
+          const nr = this.regions[row - W + x]!;
+          if (nr > 0 && nr !== r) {
+            this._regionAdjacency[r]!.add(nr);
+            this._regionAdjacency[nr]!.add(r);
+          }
+        }
+      }
     }
 
     // Now spawn each player. _claim updates regionOwnedTiles + regionOwner.
@@ -282,11 +337,14 @@ export class Game {
     this.tickCount++;
     this._earnGoldAll();
     this._growTroops();
+    this._vassalsThink();
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
       if (!p || !p.alive) continue;
       if (!p.isHuman) this._aiThink(p);
-      if (p.expanding) this._expand(p);
+      // Always attempt expansion. _expand falls through tile-by-tile and
+      // skips tiles with no effective target (no override + non-vassal).
+      this._expand(p);
     }
     this._checkVictory();
   }
@@ -545,6 +603,99 @@ export class Game {
     }
   }
 
+  // Per-region vassal AI tick. Each vassal: (1) refreshes its expansion
+  // target to an adjacent enemy/empty region, (2) opportunistically buys a
+  // turret on an enemy-bordering tile or a settlement on an interior tile.
+  // Vassals dip into the leader's gold but keep VASSAL_GOLD_RESERVE in the
+  // pot so the leader still has cash for big strategic moves.
+  private _vassalsThink(): void {
+    const interval = this.config.VASSAL_THINK_INTERVAL;
+    if (interval <= 0) return;
+    for (let pid = 1; pid < this.players.length; pid++) {
+      const player = this.players[pid];
+      if (!player || !player.alive) continue;
+      // Loyalty: humans need to control >= the threshold, AIs are always
+      // backed by their global brain so we don't grant them autonomous
+      // vassals (would compound their advantage too much).
+      if (!player.isHuman) continue;
+      if (!this.vassalsLoyalFor(player.id)) continue;
+      for (let r = 1; r <= this.regionCount; r++) {
+        if (this._regionOwner[r] !== player.id) continue;
+        // Stagger so all vassals don't act on the same tick.
+        if (((this.tickCount + r * 7) % interval) !== 0) continue;
+        this._vassalTickFor(r, player);
+      }
+    }
+  }
+
+  private _vassalTickFor(regionId: number, leader: Player): void {
+    // Refresh / pick an expansion target adjacent to this region that the
+    // leader doesn't already fully own.
+    const adj = this._regionAdjacency[regionId];
+    if (adj && adj.size > 0) {
+      const choices: number[] = [];
+      for (const a of adj) {
+        if (this._regionOwner[a] !== leader.id) choices.push(a);
+      }
+      if (choices.length > 0) {
+        this._vassalTarget[regionId] = choices[(Math.random() * choices.length) | 0]!;
+      } else {
+        this._vassalTarget[regionId] = 0;
+      }
+    }
+    this._vassalBuild(regionId, leader);
+  }
+
+  private _vassalBuild(regionId: number, leader: Player): void {
+    const reserve = this.config.VASSAL_GOLD_RESERVE;
+    const tiles = this._tilesByRegion[regionId];
+    if (!tiles || tiles.length === 0) return;
+    const W = this.territory.width;
+
+    // 1. Try a turret on an enemy-bordering tile if we can spare it.
+    const turretCost = this.config.BUILDING_COSTS.turret;
+    if (leader.gold >= reserve + turretCost) {
+      for (const i of tiles) {
+        if (this.territory.owners[i] !== leader.id) continue;
+        const x = i % W, y = (i - x) / W;
+        if (!this._hasEnemyNeighbor(x, y, leader.id)) continue;
+        if (this.buildingAt(x, y)) continue;
+        if (this.tryBuild('turret', x, y, leader.id) === null) return;
+      }
+    }
+    // 2. A settlement on a safe interior tile if budget allows.
+    const settCost = this.config.BUILDING_COSTS.settlement;
+    if (leader.gold >= reserve + settCost) {
+      for (const i of tiles) {
+        if (this.territory.owners[i] !== leader.id) continue;
+        const x = i % W, y = (i - x) / W;
+        if (this._hasEnemyNeighbor(x, y, leader.id)) continue;
+        if (this.buildingAt(x, y)) continue;
+        if (this.tryBuild('settlement', x, y, leader.id) === null) return;
+      }
+    }
+    // 3. An airstrip if there are no airstrips yet and we have plenty of gold.
+    const airCost = this.config.BUILDING_COSTS.airstrip;
+    if (leader.gold >= reserve + airCost && this.countBuildings(leader.id, 'airstrip') < 2) {
+      for (const i of tiles) {
+        if (this.territory.owners[i] !== leader.id) continue;
+        const x = i % W, y = (i - x) / W;
+        if (this._hasEnemyNeighbor(x, y, leader.id)) continue;
+        if (this.buildingAt(x, y)) continue;
+        if (this.tryBuild('airstrip', x, y, leader.id) === null) return;
+      }
+    }
+  }
+
+  private _hasEnemyNeighbor(x: number, y: number, ownerId: PlayerId): boolean {
+    const dirs: ReadonlyArray<readonly [number, number]> = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    for (const [dx, dy] of dirs) {
+      const o = this.territory.getOwner(x + dx, y + dy);
+      if (o > 0 && o !== ownerId) return true;
+    }
+    return false;
+  }
+
   private _aiThink(p: Player): void {
     if (this.tickCount % this.config.AI_RETARGET_TICKS !== 0 && p.targetRegion != null) return;
     p.targetRegion = this._pickAiTargetRegion(p.id);
@@ -585,16 +736,21 @@ export class Game {
     return out;
   }
 
-  // Region-bounded expansion: a player only pushes into tiles inside their
-  // current targetRegion. If they have no target (idle), they don't grow at
-  // all. Combat math (troop ratio, turret defense) is unchanged.
+  // Region-bounded expansion. Each frontier tile picks its own effective
+  // target region:
+  //   - If the player has set a manual override (p.targetRegion), every
+  //     frontier tile uses that.
+  //   - Otherwise, frontier tiles inside a region the player FULLY owns
+  //     (a vassal region) use that vassal's autonomous target.
+  //   - Frontier tiles in partially-owned regions stay idle when there's
+  //     no override (the player must tap to push there).
+  // Combat math (troop ratio, turret defense) is unchanged.
   private _expand(p: Player): void {
-    if (p.targetRegion == null) return;
     const frontier = this.territory.getFrontier(p.id);
     if (frontier.size === 0) return;
     const W = this.territory.width;
     const baseChance = this.config.EXPANSION_CHANCE_PER_FRONTIER_TILE;
-    const targetRegion = p.targetRegion;
+    const overrideTarget = p.targetRegion;
 
     const tiles = Array.from(frontier);
     for (let k = 0; k < tiles.length; k++) {
@@ -603,13 +759,24 @@ export class Game {
       const x = i % W;
       const y = (i - x) / W;
 
+      // Resolve the target region for THIS tile:
+      //   override > vassal target (if tile is in a vassal of p) > skip
+      let effectiveTarget = overrideTarget;
+      if (effectiveTarget == null) {
+        const tileRegion = this.regions[i]!;
+        if (tileRegion > 0 && this._regionOwner[tileRegion] === p.id) {
+          const vt = this._vassalTarget[tileRegion];
+          if (vt && vt > 0) effectiveTarget = vt;
+        }
+      }
+      if (effectiveTarget == null) continue;
+
       const cands = this._validTargets(x, y, p.id);
       if (cands.length === 0) continue;
 
-      // Filter to neighbors inside the target region.
       const inRegion: ExpansionCandidate[] = [];
       for (const c of cands) {
-        if (this.regions[c.y * W + c.x] === targetRegion) inRegion.push(c);
+        if (this.regions[c.y * W + c.x] === effectiveTarget) inRegion.push(c);
       }
       if (inRegion.length === 0) continue;
       const chosen = inRegion[(Math.random() * inRegion.length) | 0]!;
