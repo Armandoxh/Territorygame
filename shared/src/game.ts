@@ -795,7 +795,8 @@ export class Game {
     if (ownTiles && ownTiles.length > 0) {
       let invaded = 0;
       for (const i of ownTiles) {
-        if (this.territory.owners[i] !== leader.id) invaded++;
+        const o = this.territory.owners[i];
+        if (o !== 0 && o !== leader.id) invaded++;
       }
       const reclaimThreshold = Math.max(2, Math.floor(ownTiles.length * 0.10));
       if (invaded >= reclaimThreshold) {
