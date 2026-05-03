@@ -27,6 +27,8 @@ export interface Player {
   /** Regions the player is actively pushing into. Multiple = parallel
    *  attacks. Empty = idle (vassals still run on their own). */
   targetRegions: number[];
+  /** Number of permanent +10% production decrees the leader has bought. */
+  productionStacks: number;
   expanding: boolean;
 }
 

@@ -54,6 +54,14 @@ export interface GameConfig {
   VASSAL_EXPANSION_BOOST: number;
   /** Fraction of vassal income forwarded as tribute to the leader each tick. */
   VASSAL_TRIBUTE_FRACTION: number;
+  /** Cost of a Production Decree (one stack = +10% gold). */
+  DECREE_PRODUCTION_COST: number;
+  /** Per-stack income boost from Production Decree. */
+  DECREE_PRODUCTION_BOOST: number;
+  /** Cost of a Conscription Decree (instant troops). */
+  DECREE_CONSCRIPT_COST: number;
+  /** Troops added to the leader pool per Conscription. */
+  DECREE_CONSCRIPT_TROOPS: number;
 
   // Buildings
   BUILDING_COSTS: Record<BuildingType, number>;
@@ -139,7 +147,13 @@ export const DEFAULT_CONFIG: GameConfig = {
    *  vassal target (no manual override). > 1.0 makes vassals push faster. */
   VASSAL_EXPANSION_BOOST: 2.8,
   /** Fraction of vassal income forwarded to the leader as tribute each tick. */
-  VASSAL_TRIBUTE_FRACTION: 0.20,
+  VASSAL_TRIBUTE_FRACTION: 0.10,
+
+  /** Commander decree costs and effects. */
+  DECREE_PRODUCTION_COST: 500,
+  DECREE_PRODUCTION_BOOST: 0.10,
+  DECREE_CONSCRIPT_COST: 300,
+  DECREE_CONSCRIPT_TROOPS: 1000,
 
   BUILDING_COSTS: {
     settlement: 60,

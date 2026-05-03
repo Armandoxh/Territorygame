@@ -49,6 +49,30 @@
     </button>
     <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu">≡</button>
     <button id="help-btn" class="icon-btn icon-btn-help" type="button" aria-label="How to play">?</button>
+    <button id="crown-btn" class="icon-btn icon-btn-crown" type="button" aria-label="Commander">♛</button>
+    <div id="commander">
+      <div class="card">
+        <h2>COMMANDER</h2>
+        <p class="commander-blurb">Spend your tribute on empire-wide decrees.</p>
+        <div class="commander-stats">
+          <span><b id="cmd-gold">0</b><i>treasury</i></span>
+          <span><b id="cmd-prod">+0%</b><i>production</i></span>
+        </div>
+        <div class="cmd-list">
+          <button id="cmd-production" class="cmd-btn" type="button">
+            <span class="cmd-name">Production Decree</span>
+            <span class="cmd-desc">+10% gold income for everything you own. Stackable.</span>
+            <span class="cmd-cost">500</span>
+          </button>
+          <button id="cmd-conscript" class="cmd-btn" type="button">
+            <span class="cmd-name">Conscription</span>
+            <span class="cmd-desc">+1000 troops to your pool, instant.</span>
+            <span class="cmd-cost">300</span>
+          </button>
+        </div>
+        <button id="commander-cancel" class="secondary" type="button">CLOSE</button>
+      </div>
+    </div>
     <div id="buildsheet">
       <div class="bs-handle"></div>
       <div class="bs-header">Build at <span id="bs-coords">—</span></div>

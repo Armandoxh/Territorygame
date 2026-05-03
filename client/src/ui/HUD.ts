@@ -30,6 +30,13 @@ export class HUD {
     bombSheet:    this._byId('bombsheet'),
     leaderbar:    this._byId('leaderbar'),
     vassalLog:    this._byId('vassal-log'),
+    commander:    this._byId('commander'),
+    crownBtn:     this._byId('crown-btn'),
+    cmdGold:      this._byId('cmd-gold'),
+    cmdProd:      this._byId('cmd-prod'),
+    cmdProductionBtn: this._byId('cmd-production'),
+    cmdConscriptBtn:  this._byId('cmd-conscript'),
+    cmdCancel:    this._byId('commander-cancel'),
     tutorial:     this._byId('tutorial'),
     helpBtn:      this._byId('help-btn'),
     tutorialBtn:  this._byId('tutorial-start'),
@@ -65,6 +72,7 @@ export class HUD {
     this._wireMenu();
     this._wireGameOver();
     this._wireTutorial();
+    this._wireCommander();
     // Show the welcome tutorial automatically on first launch.
     try {
       if (!localStorage.getItem('territory:tutorial-seen')) this.showTutorial();
@@ -268,6 +276,7 @@ export class HUD {
     this._refreshHotbar();
     this._refreshBombFab();
     if (this.el.bombSheet?.classList.contains('show')) this._refreshBombSheetButtons();
+    if (this.el.commander?.classList.contains('show')) this._refreshCommander();
     this._refreshLeaderBar();
     for (const [id, ref] of this.enemyEls) {
       const p = this.game.players[id];
@@ -484,6 +493,54 @@ export class HUD {
     this.el.tutorial?.addEventListener('click', (e) => {
       if (e.target === this.el.tutorial) this.hideTutorial();
     });
+  }
+
+  private _wireCommander(): void {
+    this.el.crownBtn?.addEventListener('click', () => this.showCommander());
+    this.el.cmdCancel?.addEventListener('click', () => this.hideCommander());
+    this.el.commander?.addEventListener('click', (e) => {
+      if (e.target === this.el.commander) this.hideCommander();
+    });
+    this.el.cmdProductionBtn?.addEventListener('click', () => {
+      const err = this.game.buyProductionDecree(1);
+      if (err) this.toast(err === 'gold' ? 'Treasury too low' : 'Cannot decree');
+      else { this.toast('Production decree issued'); this._refreshCommander(); }
+    });
+    this.el.cmdConscriptBtn?.addEventListener('click', () => {
+      const err = this.game.buyConscriptDecree(1);
+      if (err) this.toast(err === 'gold' ? 'Treasury too low' : 'Cannot decree');
+      else { this.toast('Conscription called'); this._refreshCommander(); }
+    });
+  }
+
+  showCommander(): void {
+    this._refreshCommander();
+    this.el.commander?.classList.add('show');
+  }
+
+  hideCommander(): void {
+    this.el.commander?.classList.remove('show');
+  }
+
+  private _refreshCommander(): void {
+    const me = this.game.human();
+    if (this.el.cmdGold) this.el.cmdGold.textContent = String(Math.floor(me.gold));
+    if (this.el.cmdProd) {
+      const pct = (me.productionStacks ?? 0) * this.game.config.DECREE_PRODUCTION_BOOST * 100;
+      this.el.cmdProd.textContent = pct === 0 ? '+0%' : `+${pct.toFixed(0)}%`;
+    }
+    const prodCost = this.game.config.DECREE_PRODUCTION_COST;
+    const conCost = this.game.config.DECREE_CONSCRIPT_COST;
+    if (this.el.cmdProductionBtn) {
+      this.el.cmdProductionBtn.classList.toggle('disabled', me.gold < prodCost);
+      const costEl = this.el.cmdProductionBtn.querySelector('.cmd-cost');
+      if (costEl) costEl.textContent = String(prodCost);
+    }
+    if (this.el.cmdConscriptBtn) {
+      this.el.cmdConscriptBtn.classList.toggle('disabled', me.gold < conCost);
+      const costEl = this.el.cmdConscriptBtn.querySelector('.cmd-cost');
+      if (costEl) costEl.textContent = String(conCost);
+    }
   }
 
   showTutorial(): void {

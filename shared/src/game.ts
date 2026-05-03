@@ -596,8 +596,34 @@ export class Game {
       troops: this.config.STARTING_TROOPS,
       alive: true,
       targetRegions: [],
+      productionStacks: 0,
       expanding: !isHuman,
     };
+  }
+
+  // --- Commander decrees ---
+
+  /** Buy a permanent +DECREE_PRODUCTION_BOOST income stack. Returns
+   *  null on success, 'gold' on insufficient funds. */
+  buyProductionDecree(playerId: PlayerId): 'gold' | 'dead' | null {
+    const p = this.players[playerId];
+    if (!p || !p.alive) return 'dead';
+    const cost = this.config.DECREE_PRODUCTION_COST;
+    if (p.gold < cost) return 'gold';
+    p.gold -= cost;
+    p.productionStacks = (p.productionStacks ?? 0) + 1;
+    return null;
+  }
+
+  /** Buy a one-shot Conscription Decree: instant troops boost. */
+  buyConscriptDecree(playerId: PlayerId): 'gold' | 'dead' | null {
+    const p = this.players[playerId];
+    if (!p || !p.alive) return 'dead';
+    const cost = this.config.DECREE_CONSCRIPT_COST;
+    if (p.gold < cost) return 'gold';
+    p.gold -= cost;
+    p.troops += this.config.DECREE_CONSCRIPT_TROOPS;
+    return null;
   }
 
   private _spawnRadius(): number {
@@ -694,12 +720,14 @@ export class Game {
     const regions = this.regions;
     const dominant = this._regionDominant;
     const vGold = this._vassalGold;
+    const decreeBoost = this.config.DECREE_PRODUCTION_BOOST;
     for (let i = 0; i < N; i++) {
       const id = owners[i]!;
       if (id === 0) continue;
       const p = players[id];
       if (!p || !p.alive) continue;
-      const tileGold = base * (1 + mult[i]!);
+      const decreeMult = 1 + decreeBoost * (p.productionStacks ?? 0);
+      const tileGold = base * (1 + mult[i]!) * decreeMult;
       const r = regions[i]!;
       if (p.isHuman && r > 0 && dominant[r] === id) {
         const tribute = tileGold * tributeFrac;
@@ -1191,12 +1219,23 @@ export class Game {
       const cands = this._validTargets(x, y, p.id);
       if (cands.length === 0) continue;
 
-      const inRegion: ExpansionCandidate[] = [];
+      // Tier 1: neighbors inside the effective target region (focused push).
+      // Tier 2: any unclaimed neighbor — opportunistic free-land grab so a
+      //         vassal sitting between two neutral regions DOES expand into
+      //         the one its target isn't, instead of idling.
+      // Tier 3: any candidate at all — guarantees a manual tap on a non-
+      //         adjacent region still produces SOME forward motion.
+      let pool: ExpansionCandidate[] = [];
       for (const c of cands) {
-        if (this.regions[c.y * W + c.x] === effectiveTarget) inRegion.push(c);
+        if (this.regions[c.y * W + c.x] === effectiveTarget) pool.push(c);
       }
-      if (inRegion.length === 0) continue;
-      const chosen = inRegion[(Math.random() * inRegion.length) | 0]!;
+      if (pool.length === 0) {
+        for (const c of cands) {
+          if (this.territory.getOwner(c.x, c.y) === 0) pool.push(c);
+        }
+      }
+      if (pool.length === 0) pool = cands;
+      const chosen = pool[(Math.random() * pool.length) | 0]!;
 
       const targetOwner = this.territory.getOwner(chosen.x, chosen.y);
       if (targetOwner === 0) {
