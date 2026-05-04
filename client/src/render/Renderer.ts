@@ -4,6 +4,7 @@ import { TerritoryShaderLayer } from './TerritoryShaderLayer.js';
 import { OverlayLayer } from './OverlayLayer.js';
 import { ShipsLayer } from './ShipsLayer.js';
 import { PlanesLayer } from './PlanesLayer.js';
+import { FogLayer } from './FogLayer.js';
 import { StageGradeFilter } from './StageGradeFilter.js';
 
 export interface RendererOptions {
@@ -30,6 +31,7 @@ export class Renderer {
   readonly overlay: OverlayLayer;
   readonly ships!: ShipsLayer;
   readonly planes!: PlanesLayer;
+  readonly fog!: FogLayer;
   private readonly _stageGrade: StageGradeFilter;
   readonly opts: RendererOptions;
 
@@ -119,6 +121,11 @@ export class Renderer {
     this.cameraX = game.territory.width / 2;
     this.cameraY = game.territory.height / 2;
     this.zoom = this.opts.defaultZoom;
+
+    // Fog of war overlay sits in world space directly on top of the
+    // territory sprite — pans and zooms with the camera.
+    (this as { fog: FogLayer }).fog = new FogLayer(game, this);
+    this.world.addChild(this.fog.sprite);
 
     this.overlay = new OverlayLayer(game, this);
     // World-space layers (target-region highlight) pan + zoom with the camera.
@@ -210,6 +217,7 @@ export class Renderer {
     this._stageGrade.tickTime(now);
     this._maybeRebuildOutlines();
     this._maybeRebuildFortifications();
+    this.fog.update();
     this.overlay.update(now);
     this.ships.update(now);
     this.planes.update(now);

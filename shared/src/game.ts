@@ -159,6 +159,47 @@ export class Game {
     return (this.territory.counts[playerId]! / this.totalLand) >= this.config.VASSAL_LOYALTY_THRESHOLD;
   }
 
+  /** Per-region visibility for this player and their allies, recomputed
+   *  on demand. Returns Uint8Array of length regionCount+1 where:
+   *    0 = hidden (fog), 1 = partial (half-fog), 2 = full visible
+   *  Rules:
+   *    - regions you have ANY tile in or your allies have any tile in → 2
+   *    - regions adjacent to a level-2 region → 2 (you border them)
+   *    - regions adjacent to a level-2 region (but not already 2) → 1
+   *      (you can see "half of the one behind it") */
+  visibilityForPlayer(playerId: PlayerId): Uint8Array {
+    const out = new Uint8Array(this.regionCount + 1);
+    const allies = new Set<PlayerId>([playerId, ...this.alliesOf(playerId)]);
+    // Level 2 — regions you or your allies have presence in.
+    const W = this.territory.width;
+    const owners = this.territory.owners;
+    for (let i = 0; i < owners.length; i++) {
+      const o = owners[i]!;
+      if (o > 0 && allies.has(o)) {
+        const r = this.regions[i]!;
+        if (r > 0) out[r] = 2;
+      }
+    }
+    // Level 2 again — regions adjacent to a presence region.
+    const presence: number[] = [];
+    for (let r = 1; r <= this.regionCount; r++) if (out[r] === 2) presence.push(r);
+    for (const r of presence) {
+      const adj = this._regionAdjacency[r];
+      if (!adj) continue;
+      for (const nr of adj) if (out[nr]! < 2) out[nr] = 2;
+    }
+    // Level 1 — regions adjacent to a level-2 region (one further hop).
+    const visible: number[] = [];
+    for (let r = 1; r <= this.regionCount; r++) if (out[r] === 2) visible.push(r);
+    for (const r of visible) {
+      const adj = this._regionAdjacency[r];
+      if (!adj) continue;
+      for (const nr of adj) if (out[nr] === 0) out[nr] = 1;
+    }
+    void W;
+    return out;
+  }
+
   /** How many regions are completely owned by this player. */
   fullRegionsForOwner(id: PlayerId): number {
     if (!this._regionOwner) return 0;
@@ -685,7 +726,15 @@ export class Game {
         if (tx < 0 || tx >= W) continue;
         if (this._capitalIndexAt(tx, ty) >= 0) continue;
         if (!this.territory.isPassable(tx, ty)) continue;
-        if (this.territory.getOwner(tx, ty) !== 0) {
+        const tileOwner = this.territory.getOwner(tx, ty);
+        // No friendly fire — bombs spare the bomber's own tiles and
+        // their allies' tiles. Vassal-launched bombs (ownerId == leader)
+        // therefore won't wipe the leader's other vassals' land either.
+        // Used to be unrestricted AOE which had vassal AI cratering its
+        // own front line.
+        if (tileOwner === ownerId) continue;
+        if (tileOwner > 0 && this.areAllied(ownerId, tileOwner)) continue;
+        if (tileOwner !== 0) {
           if (this._claim(tx, ty, 0)) {
             this._destroyBuildingsAt(tx, ty);
           }
@@ -1546,23 +1595,31 @@ export class Game {
     if (!bombType) return;
     const radius = this.config.BOMB_RADII[bombType];
 
-    // Sample the target region for the densest enemy cluster within bomb range.
+    // Sample the target region for the densest enemy cluster within bomb
+    // range. Score = enemies − 4×friendlies. Heavy penalty on own-tile
+    // splash so vassals stop bombing their own front line. Friendly fire
+    // is already disabled in _detonateBomb but the score still steers
+    // away from waste.
     const W = this.territory.width;
     const r2 = radius * radius;
-    let bestX = -1, bestY = -1, bestEnemies = 0;
+    let bestX = -1, bestY = -1, bestEnemies = 0, bestScore = -Infinity;
     const sampleStep = Math.max(1, Math.floor(targetTiles.length / 36));
     for (let k = 0; k < targetTiles.length; k += sampleStep) {
       const i = targetTiles[k]!;
       const x = i % W, y = (i - x) / W;
-      let enemies = 0;
+      let enemies = 0, friendlies = 0;
       for (let dy = -radius; dy <= radius; dy++) {
         for (let dx = -radius; dx <= radius; dx++) {
           if (dx * dx + dy * dy > r2) continue;
           const o = this.territory.getOwner(x + dx, y + dy);
-          if (o > 0 && o !== leader.id) enemies++;
+          if (o <= 0) continue;
+          if (o === leader.id) friendlies++;
+          else if (this.areAllied(leader.id, o)) friendlies++;
+          else enemies++;
         }
       }
-      if (enemies > bestEnemies) { bestEnemies = enemies; bestX = x; bestY = y; }
+      const score = enemies - friendlies * 4;
+      if (score > bestScore) { bestScore = score; bestEnemies = enemies; bestX = x; bestY = y; }
     }
 
     // Don't waste a bomb on a sparse target. Require enough enemies under it.
@@ -1822,23 +1879,28 @@ export class Game {
     if (ready < 0 || ready > this.tickCount) return;
     const tiles = this._tilesByRegion[targetRegion];
     if (!tiles || tiles.length === 0) return;
-    // Pick the densest enemy cluster in the target region.
+    // Pick the densest enemy cluster in the target region. Score
+    // = enemies − 4×friendlies so we don't bomb our own border.
     const W = this.territory.width;
-    let bestX = -1, bestY = -1, bestCount = 0;
+    let bestX = -1, bestY = -1, bestCount = 0, bestScore = -Infinity;
     for (let n = 0; n < Math.min(20, tiles.length); n++) {
       const i = tiles[(Math.random() * tiles.length) | 0]!;
       const o = this.territory.owners[i]!;
       if (o === 0 || o === p.id) continue;
       const x = i % W, y = (i - x) / W;
-      let c = 0;
+      let enemies = 0, friendlies = 0;
       const r = 4;
       for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
         const nx = x + dx, ny = y + dy;
         if (!this.territory.inBounds(nx, ny)) continue;
         const oo = this.territory.getOwner(nx, ny);
-        if (oo > 0 && oo !== p.id) c++;
+        if (oo <= 0) continue;
+        if (oo === p.id) friendlies++;
+        else if (this.areAllied(p.id, oo)) friendlies++;
+        else enemies++;
       }
-      if (c > bestCount) { bestCount = c; bestX = x; bestY = y; }
+      const score = enemies - friendlies * 4;
+      if (score > bestScore) { bestScore = score; bestCount = enemies; bestX = x; bestY = y; }
     }
     if (bestCount < 6) return;
     const bombType: BombType = p.gold >= this.config.BOMB_COSTS.large * 1.5 ? 'large' : 'small';
@@ -1851,12 +1913,15 @@ export class Game {
   // region if none are adjacent.
   private _pickAiTargetRegion(playerId: PlayerId): number | null {
     if (this.regionCount <= 0) return null;
+    // Sim-aware fog: AI can only target regions adjacent to its frontier.
+    // No random-distant-region fallback — that was effectively the AI
+    // "seeing through fog". An AI cut off from any neighbour just sits
+    // tight (which is what a real player would do until they expand to
+    // a new contact point).
     const adjacent = this._adjacentRegions(playerId);
-    if (adjacent.size > 0) {
-      const arr = Array.from(adjacent);
-      return arr[(Math.random() * arr.length) | 0]!;
-    }
-    return 1 + ((Math.random() * this.regionCount) | 0);
+    if (adjacent.size === 0) return null;
+    const arr = Array.from(adjacent);
+    return arr[(Math.random() * arr.length) | 0]!;
   }
 
   // Region IDs touching the player's frontier (incl. tiles currently owned by
