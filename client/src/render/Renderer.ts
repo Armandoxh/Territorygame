@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Game, GameConfig } from '@territorygame/shared';
-import { TerritoryLayer } from './TerritoryLayer.js';
+import { TerritoryShaderLayer } from './TerritoryShaderLayer.js';
 import { OverlayLayer } from './OverlayLayer.js';
 import { ShipsLayer } from './ShipsLayer.js';
 
@@ -24,7 +24,7 @@ const DEFAULT_OPTS: RendererOptions = {
 export class Renderer {
   readonly app: Application;
   readonly world: Container;
-  readonly territoryLayer: TerritoryLayer;
+  readonly territoryLayer: TerritoryShaderLayer;
   readonly overlay: OverlayLayer;
   readonly ships!: ShipsLayer;
   readonly opts: RendererOptions;
@@ -58,7 +58,7 @@ export class Renderer {
     this.world = new Container();
     this.app.stage.addChild(this.world);
 
-    this.territoryLayer = new TerritoryLayer(game.territory, game.config);
+    this.territoryLayer = new TerritoryShaderLayer(game.territory, game.config);
     this.world.addChild(this.territoryLayer.sprite);
 
     // Region outlines as VECTOR polylines instead of a pixel sprite. Each
@@ -181,6 +181,7 @@ export class Renderer {
   // Called every frame from the host loop. Pixi's auto-render after this draws.
   draw(now: number): void {
     this.territoryLayer.flushDirty();
+    this.territoryLayer.tickTime(now);
     this._maybeRebuildOutlines();
     this._maybeRebuildFortifications();
     this.overlay.update(now);
