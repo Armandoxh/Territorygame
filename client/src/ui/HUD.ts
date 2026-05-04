@@ -60,6 +60,7 @@ export class HUD {
   private buildSheetCoord: { x: number; y: number } | null = null;
   private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement; intel: HTMLElement }>();
   private cmdActiveBranch: DecreeBranch = 'economy';
+  private _cmdLastSig = '';
 
   // Debug HUD live stats — set by main.ts loop
   fps = 0;
@@ -593,12 +594,22 @@ export class HUD {
         const branch = btn.dataset['branch'] as DecreeBranch | undefined;
         if (!branch) return;
         this.cmdActiveBranch = branch;
+        this._cmdLastSig = '';
         this._refreshCommander();
       });
+    });
+    // Event delegation: a single click handler on the tree container so the
+    // listener survives re-renders. Buy buttons carry data-decree-id.
+    this.el.cmdTree?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('.dn-buy');
+      if (!btn || btn.disabled) return;
+      const id = btn.dataset['decree'];
+      if (id) this._buyDecree(id);
     });
   }
 
   showCommander(): void {
+    this._cmdLastSig = '';
     this._refreshCommander();
     this.el.commander?.classList.add('show');
   }
@@ -629,6 +640,16 @@ export class HUD {
     if (!tree) return;
     const me = this.game.human();
     const branch = this.cmdActiveBranch;
+    // Re-render only when something actually changed (gold bucket, branch,
+    // or stack counts). Without this we re-create the buttons every frame
+    // and clicks die between mousedown/mouseup.
+    const goldBucket = Math.floor(me.gold / 5) * 5;
+    let stackSig = '';
+    for (const d of DECREES) stackSig += (me.decreeStacks[d.id] ?? 0) + '.';
+    const sig = `${branch}|${goldBucket}|${stackSig}`;
+    if (sig === this._cmdLastSig) return;
+    this._cmdLastSig = sig;
+
     tree.innerHTML = '';
     const nodes = DECREES.filter(d => d.branch === branch).slice().sort((a, b) => a.tier - b.tier);
     for (const d of nodes) {
@@ -690,9 +711,9 @@ export class HUD {
       const buy = document.createElement('button');
       buy.className = 'dn-buy';
       buy.type = 'button';
+      buy.dataset['decree'] = d.id;
       buy.textContent = locked ? '—' : (d.oneShot ? 'ISSUE' : 'DECREE');
       buy.disabled = locked || !canAfford;
-      buy.addEventListener('click', () => this._buyDecree(d.id));
       foot.appendChild(buy);
       row.appendChild(foot);
 
@@ -704,6 +725,7 @@ export class HUD {
     const err = this.game.buyDecree(1, id);
     if (err === null) {
       this.toast('Decree issued');
+      this._cmdLastSig = '';
       this._refreshCommander();
       return;
     }

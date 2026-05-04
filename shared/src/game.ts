@@ -85,6 +85,19 @@ export class Game {
   /** Set of region IDs that border each region (incl. across the map edge). */
   private _regionAdjacency!: Set<number>[];
 
+  /** Per-tile cached turret defense bonus per defender. Allocated lazily
+   *  per active defender (full 256-player buffer would be 150 MB on a
+   *  384×384 map). Rebuilt only when buildings/decrees change. */
+  private _turretBonus = new Map<PlayerId, Float32Array>();
+  /** Per-tile cached turret retaliation per defender. */
+  private _turretRetal = new Map<PlayerId, Float32Array>();
+  /** Set when buildings change; we rebuild the caches lazily on next read. */
+  private _turretCacheDirty = true;
+  /** Reusable scratch arrays so tick paths don't allocate. */
+  private readonly _scratch256a = new Float32Array(256);
+  private readonly _scratch256b = new Int32Array(256);
+  private readonly _scratch256c = new Int32Array(256);
+
   /** Returns the player ID who fully owns this region, or 0. */
   regionOwnerOf(regionId: number): PlayerId {
     return this._regionOwner?.[regionId] ?? 0;
@@ -482,6 +495,7 @@ export class Game {
     const b: Building = { x, y, owner: ownerId, type, level: 1 };
     this.buildings.push(b);
     if (type === 'settlement') this._applySettlement(x, y, +1);
+    if (type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: type, ownerId });
     return null;
   }
@@ -512,6 +526,7 @@ export class Game {
     // Settlement gold-multiplier accounting: each tier adds one full
     // SETTLEMENT_BONUS unit to its radius.
     if (b.type === 'settlement') this._applySettlement(b.x, b.y, +1);
+    if (b.type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: b.type, ownerId });
     return null;
   }
@@ -614,21 +629,7 @@ export class Game {
     // bite back — every successful capture inside a defender's turret radius
     // costs the attacker extra population.
     if (defender > 0) {
-      const defPlayer = this.players[defender];
-      const borderPatrol = defPlayer ? (defPlayer.decreeStacks['border-patrol'] ?? 0) : 0;
-      const baseR = this.config.TURRET_RADIUS + (borderPatrol > 0 ? 1 : 0);
-      const retalMult = borderPatrol > 0 ? 1.5 : 1;
-      let retaliation = 0;
-      for (const b of this.buildings) {
-        if (b.type !== 'turret') continue;
-        if (b.owner !== defender) continue;
-        const lvl = b.level ?? 1;
-        const r = baseR + (lvl - 1);
-        const dx = b.x - x, dy = b.y - y;
-        if (dx * dx + dy * dy <= r * r) {
-          retaliation += this.config.TURRET_RETALIATION_DAMAGE * lvl * retalMult;
-        }
-      }
+      const retaliation = this._turretRetaliationAt(x, y, defender);
       if (retaliation > 0) {
         const attacker = this.players[attackerId];
         if (attacker) attacker.troops = Math.max(0, attacker.troops - retaliation);
@@ -690,6 +691,8 @@ export class Game {
     if (p.gold < cost) return 'gold';
     p.gold -= cost;
     p.decreeStacks[decreeId] = (p.decreeStacks[decreeId] ?? 0) + 1;
+    // Border Patrol changes effective turret radius — invalidate cache.
+    if (decreeId === 'border-patrol') this._turretCacheDirty = true;
     // Apply one-shot side effects at purchase time.
     this._applyDecreeOneShot(p, decreeId);
     return null;
@@ -787,13 +790,15 @@ export class Game {
     const growth = this.config.TROOP_GROWTH_PER_TILE_PER_TICK;
     const settlementBonus = this.config.SETTLEMENT_TROOP_BONUS;
     const fullRegionBonus = this.config.FULL_REGION_TROOP_BONUS;
-    // Pre-count settlements per owner so we don't iterate buildings inside the loop.
-    const settlementCount = new Int32Array(256);
+    // Pre-count settlements per owner — reuse scratch arrays so we don't
+    // allocate every tick.
+    const settlementCount = this._scratch256b;
+    settlementCount.fill(0);
     for (const b of this.buildings) {
       if (b.type === 'settlement') settlementCount[b.owner]! += (b.level ?? 1);
     }
-    // Pre-count fully-owned regions per owner.
-    const fullRegions = new Int32Array(256);
+    const fullRegions = this._scratch256c;
+    fullRegions.fill(0);
     for (let r = 1; r <= this.regionCount; r++) {
       const o = this._regionOwner[r]!;
       if (o > 0) fullRegions[o]!++;
@@ -828,14 +833,20 @@ export class Game {
     const dominant = this._regionDominant;
     const vGold = this._vassalGold;
 
-    const sabotageDrain = new Float32Array(256);
+    const sabotageDrain = this._scratch256a;
+    sabotageDrain.fill(0);
+    let anySabotage = false;
     for (let id = 1; id < players.length; id++) {
       const sp = players[id];
       if (!sp || !sp.alive) continue;
       const stacks = sp.decreeStacks['sabotage'] ?? 0;
-      if (stacks > 0) sabotageDrain[id] = Math.min(0.5, 0.05 * stacks);
+      if (stacks > 0) {
+        sabotageDrain[id] = Math.min(0.5, 0.05 * stacks);
+        anySabotage = true;
+      }
     }
     const siphon = (earnerId: PlayerId, gross: number): number => {
+      if (!anySabotage) return gross;
       let kept = gross;
       for (let id = 1; id < players.length; id++) {
         if (id === earnerId) continue;
@@ -918,7 +929,8 @@ export class Game {
   // bucketed by attacker. Returns the worst offender (or 0 if no real
   // pressure). Threshold avoids reacting to single-tile probes.
   private _findGreatestThreatTo(playerId: PlayerId): PlayerId {
-    const counts = new Int32Array(256);
+    const counts = this._scratch256c;
+    counts.fill(0);
     for (let r = 1; r <= this.regionCount; r++) {
       if (this._regionDominant[r] !== playerId) continue;
       const tiles = this._tilesByRegion[r];
@@ -1443,35 +1455,95 @@ export class Game {
   }
 
   private _defenseAt(x: number, y: number, defenderId: PlayerId): number {
-    let bonus = 0;
+    if (this._turretCacheDirty) this._rebuildTurretCache();
     const defender = this.players[defenderId];
-    const borderPatrol = defender ? (defender.decreeStacks['border-patrol'] ?? 0) : 0;
     const ironDoctrine = defender ? (defender.decreeStacks['iron-doctrine'] ?? 0) : 0;
-    const baseR = this.config.TURRET_RADIUS + (borderPatrol > 0 ? 1 : 0);
-    for (const b of this.buildings) {
-      if (b.type !== 'turret') continue;
-      if (b.owner !== defenderId) continue;
-      const lvl = b.level ?? 1;
-      // Each tier expands the turret's coverage (r5 / r6 / r7) and adds an
-      // extra base defense bonus on top.
-      const r = baseR + (lvl - 1);
-      const dx = b.x - x, dy = b.y - y;
-      if (dx * dx + dy * dy <= r * r) {
-        bonus += this.config.TURRET_DEFENSE_BONUS * lvl;
-      }
-    }
-    // Iron Doctrine: every tile owned by us defends 20% better.
+    const W = this.territory.width;
+    const i = y * W + x;
+    const grid = this._turretBonus.get(defenderId);
+    let bonus = grid ? grid[i]! : 0;
     if (ironDoctrine > 0) bonus = (bonus + 1) * 1.2 - 1;
-    // Fully-owned region: every tile inside the region gets a flat fortress
-    // bonus on top of any turrets, simulating the "walls + reinforcement"
-    // benefit of holding the whole district.
     if (this.regionCount > 0) {
-      const r = this.regions[y * this.territory.width + x]!;
+      const r = this.regions[i]!;
       if (r > 0 && this._regionOwner[r] === defenderId) {
         bonus += this.config.FULL_REGION_DEFENSE_BONUS;
       }
     }
     return bonus;
+  }
+
+  /** Returns total turret retaliation damage at (x, y) against attackerId. */
+  private _turretRetaliationAt(x: number, y: number, defenderId: PlayerId): number {
+    if (this._turretCacheDirty) this._rebuildTurretCache();
+    const grid = this._turretRetal.get(defenderId);
+    if (!grid) return 0;
+    const W = this.territory.width;
+    const i = y * W + x;
+    let val = grid[i]!;
+    const defender = this.players[defenderId];
+    const borderPatrol = defender ? (defender.decreeStacks['border-patrol'] ?? 0) : 0;
+    if (borderPatrol > 0) val *= 1.5;
+    return val;
+  }
+
+  /** Stamps every turret's defense + retaliation onto a per-defender tile
+   *  grid (one Float32Array per active defender). After this, _defenseAt /
+   *  retaliation lookups are O(1). Border Patrol's +1 radius is baked in;
+   *  the +50% retaliation is applied at lookup time so the cache doesn't
+   *  invalidate as decrees stack. */
+  private _rebuildTurretCache(): void {
+    const W = this.territory.width;
+    const H = this.territory.height;
+    const tiles = W * H;
+    // Reuse existing buffers; zero them in place. Owners that no longer have
+    // turrets keep the zeroed buffer (cheap to leave; freed when player dies).
+    for (const arr of this._turretBonus.values()) arr.fill(0);
+    for (const arr of this._turretRetal.values()) arr.fill(0);
+
+    const ensureGrid = (id: PlayerId): { def: Float32Array; ret: Float32Array } => {
+      let def = this._turretBonus.get(id);
+      let ret = this._turretRetal.get(id);
+      if (!def) { def = new Float32Array(tiles); this._turretBonus.set(id, def); }
+      if (!ret) { ret = new Float32Array(tiles); this._turretRetal.set(id, ret); }
+      return { def, ret };
+    };
+
+    const baseRBy = this._scratch256b;
+    baseRBy.fill(this.config.TURRET_RADIUS);
+    for (let id = 1; id < this.players.length; id++) {
+      const p = this.players[id];
+      if (p && (p.decreeStacks['border-patrol'] ?? 0) > 0) {
+        baseRBy[id]! = this.config.TURRET_RADIUS + 1;
+      }
+    }
+    for (const b of this.buildings) {
+      if (b.type !== 'turret') continue;
+      const owner = b.owner;
+      const lvl = b.level ?? 1;
+      const r = baseRBy[owner]! + (lvl - 1);
+      const r2 = r * r;
+      const defAdd = this.config.TURRET_DEFENSE_BONUS * lvl;
+      const retAdd = this.config.TURRET_RETALIATION_DAMAGE * lvl;
+      const grids = ensureGrid(owner);
+      const def = grids.def, ret = grids.ret;
+      const x0 = Math.max(0, b.x - r);
+      const x1 = Math.min(W - 1, b.x + r);
+      const y0 = Math.max(0, b.y - r);
+      const y1 = Math.min(H - 1, b.y + r);
+      for (let y = y0; y <= y1; y++) {
+        const dy = y - b.y;
+        const dy2 = dy * dy;
+        const row = y * W;
+        for (let x = x0; x <= x1; x++) {
+          const dx = x - b.x;
+          if (dx * dx + dy2 <= r2) {
+            def[row + x]! += defAdd;
+            ret[row + x]! += retAdd;
+          }
+        }
+      }
+    }
+    this._turretCacheDirty = false;
   }
 
   private _capitalIndexAt(x: number, y: number): number {
@@ -1487,6 +1559,7 @@ export class Game {
       const b = this.buildings[i]!;
       if (b.x === x && b.y === y) {
         if (b.type === 'settlement') this._applySettlement(b.x, b.y, -(b.level ?? 1));
+        if (b.type === 'turret') this._turretCacheDirty = true;
         this.buildings.splice(i, 1);
         this.events.push({ type: 'destroyed', buildingType: b.type, ownerId: b.owner });
       }
