@@ -375,13 +375,17 @@ export class OverlayLayer {
       }
     }
 
-    // Pass 2: the icons themselves with a soft drop shadow.
+    // Pass 2: the icons themselves with a soft drop shadow. Higher tier
+    // buildings render slightly larger and get gold dots above them so the
+    // upgrade tier reads at a glance.
     for (const b of this.game.buildings) {
       const s = this._toScreen(b.x + 0.5, b.y + 0.5);
       const c = palette[b.owner];
       if (!c) continue;
       const color = (c[0] << 16) | (c[1] << 8) | c[2];
-      const r = Math.max(6, Math.min(18, this.renderer.zoom * 1.1));
+      const lvl = b.level ?? 1;
+      const tierScale = 1 + 0.25 * (lvl - 1);
+      const r = Math.max(6, Math.min(18, this.renderer.zoom * 1.1)) * tierScale;
       const cx = s.x, cy = s.y;
       // Drop shadow ellipse beneath every building.
       g.ellipse(cx + 1, cy + r * 0.55, r * 0.85, r * 0.35).fill({ color: 0x000000, alpha: 0.32 });
@@ -405,6 +409,17 @@ export class OverlayLayer {
           cx - t, cy + r, cx - t, cy + t, cx - r, cy + t,
         ]);
         fillStroke();
+      }
+      // Tier dots: small gold pips above the icon — one per tier above L1.
+      // L2 = 1 dot, L3 = 2 dots. Skipped at L1 to keep low-tier buildings clean.
+      const dots = lvl - 1;
+      if (dots > 0) {
+        const spacing = 4;
+        const startX = cx - ((dots - 1) * spacing) / 2;
+        const dotY = cy - r - 4;
+        for (let d = 0; d < dots; d++) {
+          g.circle(startX + d * spacing, dotY, 1.8).fill({ color: 0xffd66b });
+        }
       }
     }
   }

@@ -76,7 +76,15 @@
     <div id="buildsheet">
       <div class="bs-handle"></div>
       <div class="bs-header">Build at <span id="bs-coords">—</span></div>
-      <div class="bs-grid">
+      <div class="bs-grid upgrade-options" style="display:none">
+        <button class="bs-btn upgrade-btn" type="button" id="upgrade-button">
+          <span class="bs-icon" data-icon="settlement" id="upgrade-icon"></span>
+          <span class="bs-name" id="upgrade-name">Upgrade</span>
+          <span class="bs-desc" id="upgrade-desc">—</span>
+          <span class="bs-cost" id="upgrade-cost">0</span>
+        </button>
+      </div>
+      <div class="bs-grid build-options">
         <button class="bs-btn" data-type="settlement" type="button">
           <span class="bs-icon" data-icon="settlement"></span>
           <span class="bs-name">Settlement <em>(S)</em></span>

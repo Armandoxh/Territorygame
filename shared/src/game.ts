@@ -478,11 +478,54 @@ export class Game {
       if (owner.gold < cost) return 'gold';
       owner.gold -= cost;
     }
-    const b: Building = { x, y, owner: ownerId, type };
+    const b: Building = { x, y, owner: ownerId, type, level: 1 };
     this.buildings.push(b);
     if (type === 'settlement') this._applySettlement(x, y, +1);
     this.events.push({ type: 'built', buildingType: type, ownerId });
     return null;
+  }
+
+  /**
+   * Upgrade an existing building one tier. Same fund routing as tryBuild
+   * (fromVassalRegion > 0 spends from vassal pool). Each upgrade costs the
+   * building's base BUILDING_COST at L1→L2 and 1.5× base at L2→L3.
+   * Returns null on success.
+   */
+  tryUpgrade(x: number, y: number, ownerId: PlayerId, fromVassalRegion = 0): BuildError | null {
+    if (!this.territory.inBounds(x, y)) return 'oob';
+    const owner = this.players[ownerId];
+    if (!owner || !owner.alive) return 'dead';
+    const b = this.buildingAt(x, y);
+    if (!b) return 'no-building';
+    if (b.owner !== ownerId) return 'not-yours';
+    if (b.level >= this.config.BUILDING_MAX_LEVEL) return 'max-level';
+    const cost = this._upgradeCost(b.type, b.level);
+    if (fromVassalRegion > 0) {
+      if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
+      this._vassalGold[fromVassalRegion]! -= cost;
+    } else {
+      if (owner.gold < cost) return 'gold';
+      owner.gold -= cost;
+    }
+    b.level++;
+    // Settlement gold-multiplier accounting: each tier adds one full
+    // SETTLEMENT_BONUS unit to its radius.
+    if (b.type === 'settlement') this._applySettlement(b.x, b.y, +1);
+    this.events.push({ type: 'built', buildingType: b.type, ownerId });
+    return null;
+  }
+
+  /** Cost to take a building of `type` from `currentLevel` to the next tier.
+   *  L1→L2 = base, L2→L3 = 1.5× base. Returns -1 if already at max. */
+  upgradeCostFor(type: BuildingType, currentLevel: number): number {
+    if (currentLevel >= this.config.BUILDING_MAX_LEVEL) return -1;
+    const base = this.config.BUILDING_COSTS[type];
+    if (base == null) return -1;
+    return currentLevel === 1 ? base : Math.floor(base * 1.5);
+  }
+
+  private _upgradeCost(type: BuildingType, currentLevel: number): number {
+    return this.upgradeCostFor(type, currentLevel);
   }
 
   // --- Bombs ---
@@ -521,9 +564,13 @@ export class Game {
       if (owner.gold < cost) return 'gold';
       owner.gold -= cost;
     }
-    chosen.cooldownUntil = this.tickCount + this.config.BOMB_COOLDOWN_TICKS[type];
+    // Higher-tier airstrips reload faster and throw bombs slightly farther.
+    const stripLevel = chosen.level ?? 1;
+    const cooldownMult = Math.pow(0.85, stripLevel - 1);  // L1=1, L2=0.85, L3≈0.72
+    const radiusMult   = 1 + 0.10 * (stripLevel - 1);     // L1=1, L2=1.1, L3=1.2
+    chosen.cooldownUntil = this.tickCount + Math.floor(this.config.BOMB_COOLDOWN_TICKS[type] * cooldownMult);
 
-    const radius = this.config.BOMB_RADII[type];
+    const radius = Math.floor(this.config.BOMB_RADII[type] * radiusMult);
     const r2 = radius * radius;
     const W = this.territory.width;
     const H = this.territory.height;
@@ -565,13 +612,17 @@ export class Game {
     // bite back — every successful capture inside a defender's turret radius
     // costs the attacker extra population.
     if (defender > 0) {
-      const r2 = this.config.TURRET_RADIUS * this.config.TURRET_RADIUS;
+      const baseR = this.config.TURRET_RADIUS;
       let retaliation = 0;
       for (const b of this.buildings) {
         if (b.type !== 'turret') continue;
         if (b.owner !== defender) continue;
+        const lvl = b.level ?? 1;
+        const r = baseR + (lvl - 1);
         const dx = b.x - x, dy = b.y - y;
-        if (dx * dx + dy * dy <= r2) retaliation += this.config.TURRET_RETALIATION_DAMAGE;
+        if (dx * dx + dy * dy <= r * r) {
+          retaliation += this.config.TURRET_RETALIATION_DAMAGE * lvl;
+        }
       }
       if (retaliation > 0) {
         const attacker = this.players[attackerId];
@@ -684,7 +735,7 @@ export class Game {
     // Pre-count settlements per owner so we don't iterate buildings inside the loop.
     const settlementCount = new Int32Array(256);
     for (const b of this.buildings) {
-      if (b.type === 'settlement') settlementCount[b.owner]!++;
+      if (b.type === 'settlement') settlementCount[b.owner]! += (b.level ?? 1);
     }
     // Pre-count fully-owned regions per owner.
     const fullRegions = new Int32Array(256);
@@ -745,13 +796,14 @@ export class Game {
         if (b.type !== 'settlement') continue;
         const p = players[b.owner];
         if (!p || !p.alive) continue;
+        const tierGold = flatGold * (b.level ?? 1);
         const r = regions[b.y * W + b.x]!;
         if (p.isHuman && r > 0 && dominant[r] === b.owner) {
-          const tribute = flatGold * tributeFrac;
-          vGold[r]! += flatGold - tribute;
+          const tribute = tierGold * tributeFrac;
+          vGold[r]! += tierGold - tribute;
           p.gold += tribute;
         } else {
-          p.gold += flatGold;
+          p.gold += tierGold;
         }
       }
     }
@@ -947,6 +999,28 @@ export class Game {
           this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'settlement' });
           return;
         }
+      }
+    }
+
+    // 4. UPGRADE: spend leftover budget tier-ing up our existing buildings.
+    //    Iterate buildings inside this region; pick the lowest-level
+    //    upgrade-eligible one whose cost we can afford. Tiering yields more
+    //    bang-per-tile than spreading more settlements indefinitely.
+    let bestB: Building | null = null;
+    let bestLvl = Infinity;
+    for (const b of this.buildings) {
+      if (b.owner !== leader.id) continue;
+      if ((b.level ?? 1) >= this.config.BUILDING_MAX_LEVEL) continue;
+      if (this.regions[b.y * W + b.x] !== regionId) continue;
+      const cost = this.upgradeCostFor(b.type, b.level);
+      if (cost < 0 || vGold < reserve + cost) continue;
+      // Prefer upgrading the lowest-level building we have so progress
+      // spreads across tiers instead of one structure jumping to L3.
+      if (b.level < bestLvl) { bestLvl = b.level; bestB = b; }
+    }
+    if (bestB) {
+      if (this.tryUpgrade(bestB.x, bestB.y, leader.id, regionId) === null) {
+        this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: bestB.type });
       }
     }
   }
@@ -1289,12 +1363,18 @@ export class Game {
 
   private _defenseAt(x: number, y: number, defenderId: PlayerId): number {
     let bonus = 0;
-    const r2 = this.config.TURRET_RADIUS * this.config.TURRET_RADIUS;
+    const baseR = this.config.TURRET_RADIUS;
     for (const b of this.buildings) {
       if (b.type !== 'turret') continue;
       if (b.owner !== defenderId) continue;
+      const lvl = b.level ?? 1;
+      // Each tier expands the turret's coverage (r5 / r6 / r7) and adds an
+      // extra base defense bonus on top.
+      const r = baseR + (lvl - 1);
       const dx = b.x - x, dy = b.y - y;
-      if (dx * dx + dy * dy <= r2) bonus += this.config.TURRET_DEFENSE_BONUS;
+      if (dx * dx + dy * dy <= r * r) {
+        bonus += this.config.TURRET_DEFENSE_BONUS * lvl;
+      }
     }
     // Fully-owned region: every tile inside the region gets a flat fortress
     // bonus on top of any turrets, simulating the "walls + reinforcement"
@@ -1320,7 +1400,7 @@ export class Game {
     for (let i = this.buildings.length - 1; i >= 0; i--) {
       const b = this.buildings[i]!;
       if (b.x === x && b.y === y) {
-        if (b.type === 'settlement') this._applySettlement(b.x, b.y, -1);
+        if (b.type === 'settlement') this._applySettlement(b.x, b.y, -(b.level ?? 1));
         this.buildings.splice(i, 1);
         this.events.push({ type: 'destroyed', buildingType: b.type, ownerId: b.owner });
       }

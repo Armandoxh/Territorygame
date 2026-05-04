@@ -62,6 +62,8 @@ export interface GameConfig {
   DECREE_CONSCRIPT_COST: number;
   /** Troops added to the leader pool per Conscription. */
   DECREE_CONSCRIPT_TROOPS: number;
+  /** Max tier any building can be upgraded to. Linear stacking effects. */
+  BUILDING_MAX_LEVEL: number;
 
   // Buildings
   BUILDING_COSTS: Record<BuildingType, number>;
@@ -154,6 +156,8 @@ export const DEFAULT_CONFIG: GameConfig = {
   DECREE_PRODUCTION_BOOST: 0.10,
   DECREE_CONSCRIPT_COST: 300,
   DECREE_CONSCRIPT_TROOPS: 1000,
+
+  BUILDING_MAX_LEVEL: 3,
 
   BUILDING_COSTS: {
     settlement: 60,

@@ -37,6 +37,8 @@ export interface Building {
   y: number;
   owner: PlayerId;
   type: BuildingType;
+  /** Upgrade tier (1..BUILDING_MAX_LEVEL). Default 1 when freshly built. */
+  level: number;
   /** Airstrips only. Tick count after which this airstrip can fire again. */
   cooldownUntil?: number;
 }
@@ -65,7 +67,7 @@ export type RGBA = readonly [number, number, number, number];
 
 export type BuildError =
   | 'gold' | 'not-yours' | 'occupied' | 'on-capital'
-  | 'oob' | 'dead' | 'bad-type';
+  | 'oob' | 'dead' | 'bad-type' | 'no-building' | 'max-level';
 
 export type BombError =
   | 'no-airstrip' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type';

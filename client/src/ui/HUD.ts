@@ -1,4 +1,4 @@
-import type { Game, BuildingType, BuildError, BombType, BombError, Player } from '@territorygame/shared';
+import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip'];
@@ -22,6 +22,11 @@ export class HUD {
     placeBannerType: this._byId('pb-type'),
     sheet:        this._byId('buildsheet'),
     sheetCoords:  this._byId('bs-coords'),
+    upgradeBtn:   this._byId<HTMLButtonElement>('upgrade-button'),
+    upgradeIcon:  this._byId('upgrade-icon'),
+    upgradeName:  this._byId('upgrade-name'),
+    upgradeDesc:  this._byId('upgrade-desc'),
+    upgradeCost:  this._byId('upgrade-cost'),
     menu:         this._byId('menu'),
     menuBtn:      this._byId('menu-btn'),
     oppCount:     this._byId<HTMLInputElement>('opp-count'),
@@ -216,15 +221,61 @@ export class HUD {
       this.toast('Build on your own land');
       return;
     }
-    if (this.game.buildingAt(x, y)) {
-      this.toast('Tile already built on');
-      return;
-    }
     this.clearPlaceMode();
     this.buildSheetCoord = { x, y };
     if (this.el.sheetCoords) this.el.sheetCoords.textContent = `${x}, ${y}`;
-    this.el.sheet?.classList.add('show');
-    this._refreshSheetButtons();
+    const sheet = this.el.sheet;
+    if (!sheet) return;
+    const buildOpts = sheet.querySelector<HTMLElement>('.build-options');
+    const upgradeOpts = sheet.querySelector<HTMLElement>('.upgrade-options');
+
+    const existing = this.game.buildingAt(x, y);
+    if (existing) {
+      // Show upgrade variant
+      if (existing.level >= this.game.config.BUILDING_MAX_LEVEL) {
+        this.toast('Already max tier');
+        return;
+      }
+      if (buildOpts) buildOpts.style.display = 'none';
+      if (upgradeOpts) upgradeOpts.style.display = '';
+      this._refreshUpgradeButton(existing);
+    } else {
+      if (buildOpts) buildOpts.style.display = '';
+      if (upgradeOpts) upgradeOpts.style.display = 'none';
+      this._refreshSheetButtons();
+    }
+    sheet.classList.add('show');
+  }
+
+  private _refreshUpgradeButton(b: Building): void {
+    const me = this.game.human();
+    const next = b.level + 1;
+    const cost = this.game.upgradeCostFor(b.type, b.level);
+    if (this.el.upgradeIcon) this.el.upgradeIcon.setAttribute('data-icon', b.type);
+    if (this.el.upgradeName) this.el.upgradeName.textContent = `Upgrade ${b.type} → Lv ${next}`;
+    if (this.el.upgradeDesc) this.el.upgradeDesc.textContent = this._upgradeDescription(b.type, next);
+    if (this.el.upgradeCost) this.el.upgradeCost.textContent = String(cost);
+    if (this.el.upgradeBtn) this.el.upgradeBtn.classList.toggle('disabled', me.gold < cost);
+  }
+
+  private _upgradeDescription(type: BuildingType, lvl: number): string {
+    if (type === 'settlement') {
+      const goldMult = lvl;        // L2 → +200% in radius, L3 → +300%
+      const flatGold = lvl * 5;
+      const troops = lvl * 80;
+      return `+${goldMult * 100}% gold (r6) · +${flatGold} g/s · +${troops} troops/s`;
+    }
+    if (type === 'turret') {
+      const def = lvl * 4;
+      const r = 5 + (lvl - 1);
+      return `${1 + def}× attack difficulty · r${r} · ${lvl * 8} retaliation`;
+    }
+    if (type === 'airstrip') {
+      const cdPct = Math.round((1 - Math.pow(0.85, lvl - 1)) * 100);
+      const radPct = Math.round((lvl - 1) * 10);
+      return `Bombs: ${cdPct}% faster reload · +${radPct}% radius`;
+    }
+    return '';
   }
 
   hideBuildSheet(): void {
@@ -272,7 +323,14 @@ export class HUD {
       this.el.hint.style.display = idle ? '' : 'none';
       this.el.hint.classList.toggle('idle', idle);
     }
-    if (this.buildSheetCoord) this._refreshSheetButtons();
+    if (this.buildSheetCoord) {
+      const existing = this.game.buildingAt(this.buildSheetCoord.x, this.buildSheetCoord.y);
+      if (existing && existing.level < this.game.config.BUILDING_MAX_LEVEL) {
+        this._refreshUpgradeButton(existing);
+      } else {
+        this._refreshSheetButtons();
+      }
+    }
     this._refreshHotbar();
     this._refreshBombFab();
     if (this.el.bombSheet?.classList.contains('show')) this._refreshBombSheetButtons();
@@ -339,6 +397,8 @@ export class HUD {
   private _wireSheet(): void {
     if (!this.el.sheet) return;
     this.el.sheet.querySelectorAll<HTMLButtonElement>('.bs-btn').forEach((btn) => {
+      // The upgrade button has no data-type — it's wired below.
+      if (btn.id === 'upgrade-button') return;
       btn.addEventListener('click', () => {
         if (!this.buildSheetCoord) return;
         const type = btn.dataset['type'] as BuildingType | undefined;
@@ -348,6 +408,17 @@ export class HUD {
         if (err === null) { this.toast(`Built ${type}`); this.hideBuildSheet(); }
         else this.toast(this._buildErrorMsg(err));
       });
+    });
+    this.el.upgradeBtn?.addEventListener('click', () => {
+      if (!this.buildSheetCoord) return;
+      const { x, y } = this.buildSheetCoord;
+      const err = this.game.tryUpgrade(x, y, 1);
+      if (err === null) {
+        this.toast('Upgraded');
+        this.hideBuildSheet();
+      } else {
+        this.toast(this._buildErrorMsg(err));
+      }
     });
     this.el.sheet.querySelector<HTMLButtonElement>('.bs-cancel')
       ?.addEventListener('click', () => this.hideBuildSheet());
@@ -702,6 +773,8 @@ export class HUD {
       'oob':          'Out of bounds',
       'dead':         'You are eliminated',
       'bad-type':     'Unknown building',
+      'no-building':  'Nothing to upgrade here',
+      'max-level':    'Already max tier',
     };
     return msgs[err];
   }
