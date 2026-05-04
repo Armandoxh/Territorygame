@@ -200,7 +200,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   TURRET_RETALIATION_DAMAGE: 8, // attacker troops lost per turret on successful capture in radius
 
   BOMB_COSTS:          { small: 60,  large: 240 },
-  BOMB_RADII:          { small: 4,   large: 12  },
+  BOMB_RADII:          { small: 3,   large: 6   },
   BOMB_COOLDOWN_TICKS: { small: 80,  large: 250 }, // 8s / 25s @ 10Hz
   PLANE_SPEED:         { small: 0.45, large: 0.30 }, // tiles/tick — large bomber slower
 
