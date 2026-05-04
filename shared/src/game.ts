@@ -3,6 +3,7 @@ import type {
   Player, PlayerId, Capital, Building, BuildingType, BombType, GameEvent,
   GameOutcome, BuildError, BombError, Point,
   Ship, ShipKind, ShipBuildError,
+  Plane,
 } from './types.js';
 import { TERRAIN_LAND } from './types.js';
 import { Territory } from './territory.js';
@@ -30,6 +31,8 @@ export class Game {
   readonly buildings: Building[];
   readonly ships: Ship[] = [];
   private _shipNextId = 1;
+  readonly planes: Plane[] = [];
+  private _planeNextId = 1;
   readonly goldMultiplier: Float32Array;
   tickCount: number;
   outcome: GameOutcome;
@@ -432,6 +435,7 @@ export class Game {
       this._expand(p);
     }
     this._shipsTick();
+    this._planesTick();
     this._checkVictory();
   }
 
@@ -617,9 +621,46 @@ export class Game {
     // Air Supremacy decree halves cooldown empire-wide on top of tier bonus.
     const stripLevel = chosen.level ?? 1;
     const cooldownMult = Math.pow(0.85, stripLevel - 1) * this._bombCooldownMult(owner);
-    const radiusMult   = 1 + 0.10 * (stripLevel - 1);     // L1=1, L2=1.1, L3=1.2
     chosen.cooldownUntil = this.tickCount + Math.floor(this.config.BOMB_COOLDOWN_TICKS[type] * cooldownMult);
 
+    // Launch a plane from the airstrip toward the target. The actual
+    // bomb effect is deferred to plane arrival inside _planesTick — and
+    // any AA along the route gets a chance to shoot the plane down first.
+    const plane: Plane = {
+      id: this._planeNextId++,
+      owner: ownerId,
+      bombType: type,
+      x: chosen.x + 0.5,
+      y: chosen.y + 0.5,
+      destX: x + 0.5,
+      destY: y + 0.5,
+      speed: this.config.PLANE_SPEED[type],
+      rolledAA: new Set<number>(),
+    };
+    this.planes.push(plane);
+    this.events.push({
+      type: 'plane-launched',
+      bombType: type,
+      ownerId,
+      x: plane.x, y: plane.y,
+      destX: plane.destX, destY: plane.destY,
+    });
+    return null;
+  }
+
+  /** Detonate a bomb at (x, y) — the actual radius effect that used to
+   *  live inside dropBomb. Now invoked when a plane arrives or, if the
+   *  plane is shot down, NOT invoked at all. */
+  private _detonateBomb(type: BombType, x: number, y: number, ownerId: PlayerId): void {
+    // Tier-based radius bump from the spawning airstrip is approximated
+    // here by re-scanning the owner's airstrips for the highest level.
+    let stripLevel = 1;
+    for (const b of this.buildings) {
+      if (b.type === 'airstrip' && b.owner === ownerId) {
+        if ((b.level ?? 1) > stripLevel) stripLevel = b.level ?? 1;
+      }
+    }
+    const radiusMult = 1 + 0.10 * (stripLevel - 1);
     const radius = Math.floor(this.config.BOMB_RADII[type] * radiusMult);
     const r2 = radius * radius;
     const W = this.territory.width;
@@ -631,22 +672,18 @@ export class Game {
         if (dx * dx + dy * dy > r2) continue;
         const tx = x + dx;
         if (tx < 0 || tx >= W) continue;
-        // Capitals are immune — bombs cannot remove a capital.
         if (this._capitalIndexAt(tx, ty) >= 0) continue;
-        // Only land tiles can be hit (water already has nothing to lose).
         if (!this.territory.isPassable(tx, ty)) continue;
         if (this.territory.getOwner(tx, ty) !== 0) {
           if (this._claim(tx, ty, 0)) {
             this._destroyBuildingsAt(tx, ty);
           }
         } else {
-          // Edge case: a stray building on unclaimed land — destroy it.
           if (this.buildingAt(tx, ty)) this._destroyBuildingsAt(tx, ty);
         }
       }
     }
     this.events.push({ type: 'bomb', bombType: type, x, y, radius, ownerId });
-    return null;
   }
 
   // --- Capture (combat) ---
@@ -2175,6 +2212,69 @@ export class Game {
       if (enemyAdj > 0 || attempt >= 8) return { x: tx, y: ty };
     }
     return null;
+  }
+
+  // --- Planes (deferred bomb delivery) ---------------------------------
+
+  /** Per-tick simulation for in-flight planes:
+   *   - move toward dest at the bomb's speed
+   *   - any enemy AA whose radius the plane is inside (and that hasn't
+   *     yet rolled against it) gets one 75% chance to shoot it down
+   *   - on arrival, detonate the bomb and remove the plane
+   */
+  private _planesTick(): void {
+    if (this.planes.length === 0) return;
+    const aaR2 = this.config.AA_RADIUS * this.config.AA_RADIUS;
+    const hitChance = this.config.AA_HIT_CHANCE;
+    for (let i = this.planes.length - 1; i >= 0; i--) {
+      const pl = this.planes[i]!;
+      // Advance position toward dest.
+      const dx = pl.destX - pl.x;
+      const dy = pl.destY - pl.y;
+      const d = Math.hypot(dx, dy);
+      if (d <= pl.speed) {
+        // Arrived — detonate, then remove.
+        this._detonateBomb(pl.bombType, Math.floor(pl.destX), Math.floor(pl.destY), pl.owner);
+        this.planes.splice(i, 1);
+        continue;
+      }
+      pl.x += (dx / d) * pl.speed;
+      pl.y += (dy / d) * pl.speed;
+
+      // Check enemy AA for shootdown. Each AA gets one roll per plane.
+      let shotDown = false;
+      for (const b of this.buildings) {
+        if (b.type !== 'aa') continue;
+        if (b.owner === pl.owner) continue;
+        if (this.areAllied(b.owner, pl.owner)) continue;
+        if (pl.rolledAA.has(this._buildingKey(b))) continue;
+        const bx = b.x + 0.5, by = b.y + 0.5;
+        const ddx = bx - pl.x, ddy = by - pl.y;
+        if (ddx * ddx + ddy * ddy > aaR2) continue;
+        // Plane is in range AND this AA hasn't rolled yet — roll now.
+        pl.rolledAA.add(this._buildingKey(b));
+        if (Math.random() < hitChance) {
+          shotDown = true;
+          this.events.push({
+            type: 'plane-shot-down',
+            bombType: pl.bombType,
+            ownerId: pl.owner,
+            byOwner: b.owner,
+            x: pl.x, y: pl.y,
+          });
+          break;
+        }
+      }
+      if (shotDown) {
+        this.planes.splice(i, 1);
+      }
+    }
+  }
+
+  /** Stable id for a building (for the AA-already-rolled set). Buildings
+   *  don't carry an id field today so we synth one from coords + type. */
+  private _buildingKey(b: Building): number {
+    return ((b.y | 0) * 65536 + (b.x | 0)) * 8 + (b.type === 'aa' ? 1 : b.type === 'turret' ? 2 : 0);
   }
 
 

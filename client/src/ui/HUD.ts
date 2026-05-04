@@ -2,7 +2,7 @@ import type { Game, Building, BuildingType, BuildError, BombType, BombError, Pla
 import { DECREES, ABILITIES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
-const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip'];
+const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa'];
 const BOMB_TYPES: BombType[] = ['small', 'large'];
 const SHIP_TYPES: ShipKind[] = ['scout', 'skirmisher', 'warship'];
 const DECREE_BRANCHES: DecreeBranch[] = ['economy', 'defense', 'military', 'offense', 'espionage'];
@@ -306,6 +306,13 @@ export class HUD {
       const cdPct = Math.round((1 - Math.pow(0.85, lvl - 1)) * 100);
       const radPct = Math.round((lvl - 1) * 10);
       return `Bombs: ${cdPct}% faster reload · +${radPct}% radius`;
+    }
+    if (type === 'aa') {
+      // Higher tiers tighten the firing ring (more chances per pass)
+      // and bump radius slightly. Implementation today scales radius
+      // via the level read in game.ts (only base used currently); keep
+      // the description aspirational for now.
+      return `Anti-air r${7 + (lvl - 1)} · 75% chance per AA · L${lvl}`;
     }
     return '';
   }

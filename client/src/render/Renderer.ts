@@ -3,6 +3,7 @@ import type { Game, GameConfig } from '@territorygame/shared';
 import { TerritoryShaderLayer } from './TerritoryShaderLayer.js';
 import { OverlayLayer } from './OverlayLayer.js';
 import { ShipsLayer } from './ShipsLayer.js';
+import { PlanesLayer } from './PlanesLayer.js';
 import { StageGradeFilter } from './StageGradeFilter.js';
 
 export interface RendererOptions {
@@ -28,6 +29,7 @@ export class Renderer {
   readonly territoryLayer: TerritoryShaderLayer;
   readonly overlay: OverlayLayer;
   readonly ships!: ShipsLayer;
+  readonly planes!: PlanesLayer;
   private readonly _stageGrade: StageGradeFilter;
   readonly opts: RendererOptions;
 
@@ -128,6 +130,10 @@ export class Renderer {
     (this as { ships: ShipsLayer }).ships = new ShipsLayer(game, this);
     this.app.stage.addChild(this.ships.container);
 
+    // Planes (in flight bombers) render above ships.
+    (this as { planes: PlanesLayer }).planes = new PlanesLayer(game, this);
+    this.app.stage.addChild(this.planes.container);
+
     // Stage-level look pass (vignette + sepia tint + film grain).
     // HTML HUD elements sit above the canvas and are unaffected.
     this._stageGrade = new StageGradeFilter();
@@ -206,6 +212,7 @@ export class Renderer {
     this._maybeRebuildFortifications();
     this.overlay.update(now);
     this.ships.update(now);
+    this.planes.update(now);
   }
 
   // Rebuild the fortified-region walls if the simulation has advanced. Each

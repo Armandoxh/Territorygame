@@ -368,9 +368,10 @@ export class OverlayLayer {
     const palette = this.game.config.PLAYER_COLORS;
     const settleR = this.game.config.SETTLEMENT_RADIUS;
     const turretR = this.game.config.TURRET_RADIUS;
+    const aaR     = this.game.config.AA_RADIUS;
 
     // Pass 1: faint coverage rings under the icons so players see what
-    // their settlements / turrets actually affect.
+    // their settlements / turrets / AA actually cover.
     for (const b of this.game.buildings) {
       const s = this._toScreen(b.x + 0.5, b.y + 0.5);
       const c = palette[b.owner];
@@ -384,6 +385,12 @@ export class OverlayLayer {
         g.circle(s.x, s.y, turretR * this.renderer.zoom)
          .fill({ color, alpha: 0.05 })
          .stroke({ color, alpha: 0.32, width: 1 });
+      } else if (b.type === 'aa') {
+        // Distinct dashed-look ring (drawn as a stroked circle in cyan-tinted
+        // owner color so the AA umbrella is visually different from turrets).
+        g.circle(s.x, s.y, aaR * this.renderer.zoom)
+         .fill({ color, alpha: 0.04 })
+         .stroke({ color: 0x9bd9ea, alpha: 0.45, width: 1 });
       }
     }
 
@@ -421,6 +428,29 @@ export class OverlayLayer {
           cx - t, cy + r, cx - t, cy + t, cx - r, cy + t,
         ]);
         fillStroke();
+      } else if (b.type === 'aa') {
+        // AA gun: trapezoid base + two angled barrels pointing up.
+        // Distinct from turret's solid triangle so the role reads at a glance.
+        g.poly([
+          cx - r * 0.85, cy + r * 0.7,
+          cx + r * 0.85, cy + r * 0.7,
+          cx + r * 0.55, cy - r * 0.05,
+          cx - r * 0.55, cy - r * 0.05,
+        ]);
+        fillStroke();
+        // Twin barrels (angled outwards, dark)
+        g.poly([
+          cx - r * 0.10, cy - r * 0.05,
+          cx - r * 0.45, cy - r * 0.95,
+          cx - r * 0.25, cy - r * 1.00,
+          cx + r * 0.05, cy - r * 0.10,
+        ]).fill({ color: 0x222426 }).stroke({ color: 0xffffff, alpha: 0.85, width: 0.9 });
+        g.poly([
+          cx + r * 0.10, cy - r * 0.05,
+          cx + r * 0.45, cy - r * 0.95,
+          cx + r * 0.25, cy - r * 1.00,
+          cx - r * 0.05, cy - r * 0.10,
+        ]).fill({ color: 0x222426 }).stroke({ color: 0xffffff, alpha: 0.85, width: 0.9 });
       }
       // Tier dots: small gold pips above the icon — one per tier above L1.
       // L2 = 1 dot, L3 = 2 dots. Skipped at L1 to keep low-tier buildings clean.

@@ -11,6 +11,7 @@ const BUILD_KEYS: Record<string, BuildingType> = {
   s: 'settlement',
   t: 'turret',
   a: 'airstrip',
+  q: 'aa',
 };
 
 const BOMB_KEYS: Record<string, BombType> = {

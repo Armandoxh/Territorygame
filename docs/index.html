@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-  <script type="module" crossorigin src="/Territorygame/assets/index-CMp0Fd32.js"></script>
+  <script type="module" crossorigin src="/Territorygame/assets/index-DYgShuhn.js"></script>
   <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-B_VfkXih.css">
 </head>
 <body>
@@ -35,6 +35,10 @@
       <button class="hb-btn" data-type="airstrip" type="button" title="Airstrip (A)">
         <span class="hb-key">A</span>
         <span class="hb-cost">150</span>
+      </button>
+      <button class="hb-btn" data-type="aa" type="button" title="Anti-Air (Q)">
+        <span class="hb-key">Q</span>
+        <span class="hb-cost">110</span>
       </button>
     </div>
     <div id="place-banner">
@@ -142,8 +146,14 @@
         <button class="bs-btn" data-type="airstrip" type="button">
           <span class="bs-icon" data-icon="airstrip"></span>
           <span class="bs-name">Airstrip <em>(A)</em></span>
-          <span class="bs-desc">Unlocks bombs</span>
+          <span class="bs-desc">Unlocks bombs (planes can be shot down)</span>
           <span class="bs-cost">150</span>
+        </button>
+        <button class="bs-btn" data-type="aa" type="button">
+          <span class="bs-icon" data-icon="aa"></span>
+          <span class="bs-name">Anti-Air <em>(Q)</em></span>
+          <span class="bs-desc">75% chance to shoot down enemy bombers in r7</span>
+          <span class="bs-cost">110</span>
         </button>
       </div>
       <button class="bs-cancel" type="button">Cancel</button>

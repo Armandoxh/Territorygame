@@ -7,7 +7,7 @@ export const TERRAIN_LAND = 0;
 export const TERRAIN_WATER = 1;
 export const TERRAIN_DEEP = 2;
 
-export type BuildingType = 'settlement' | 'turret' | 'airstrip';
+export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'aa';
 
 export type BombType = 'small' | 'large';
 
@@ -33,6 +33,25 @@ export interface Ship {
 
 export type ShipBuildError =
   | 'gold' | 'dead' | 'oob' | 'bad-type' | 'not-coastal' | 'no-water' | 'cap';
+
+/** A bomber in flight. Spawned by dropBomb; flies from an airstrip toward
+ *  the target tile at PLANE_SPEED tiles/tick. On arrival it detonates
+ *  (radius damage); along the way enemy AA buildings can shoot it down. */
+export interface Plane {
+  id: number;
+  owner: PlayerId;
+  bombType: BombType;
+  /** Float world coordinates — sub-tile precision so movement reads smooth. */
+  x: number;
+  y: number;
+  destX: number;
+  destY: number;
+  /** Tiles per tick. */
+  speed: number;
+  /** Set of AA building ids that have already rolled against this plane,
+   *  so each AA gets one chance per plane (not one per tick of overlap). */
+  rolledAA: Set<number>;
+}
 
 export interface Point {
   x: number;
@@ -99,6 +118,8 @@ export type GameEvent =
   | { type: 'vassal-bombed';    regionId: number; ownerId: PlayerId; bombType: BombType; x: number; y: number }
   | { type: 'ship-built';       shipKind: ShipKind; ownerId: PlayerId }
   | { type: 'ship-sunk';        shipKind: ShipKind; ownerId: PlayerId; x: number; y: number }
+  | { type: 'plane-launched';   bombType: BombType; ownerId: PlayerId; x: number; y: number; destX: number; destY: number }
+  | { type: 'plane-shot-down';  bombType: BombType; ownerId: PlayerId; byOwner: PlayerId; x: number; y: number }
   | { type: 'ability-fired';    abilityId: string; ownerId: PlayerId; targetId?: PlayerId }
   | { type: 'alliance-formed';  a: PlayerId; b: PlayerId }
   | { type: 'alliance-broken';  a: PlayerId; b: PlayerId; brokenBy: PlayerId }

@@ -86,6 +86,16 @@ export interface GameConfig {
   BOMB_RADII: Record<BombType, number>;
   BOMB_COOLDOWN_TICKS: Record<BombType, number>;
 
+  // --- Planes (bomb delivery) ---
+  /** Tiles per tick a plane flies. */
+  PLANE_SPEED: Record<BombType, number>;
+
+  // --- Anti-aircraft ---
+  /** Tiles around an AA building inside which planes are vulnerable. */
+  AA_RADIUS: number;
+  /** Probability that any single AA succeeds against a plane in range. */
+  AA_HIT_CHANCE: number;
+
   // --- Ships ---
   // Naval units patrol water tiles, bombard coastal land, and (warships
   // only) make landfall by claiming the coastal tile they hit.
@@ -179,6 +189,7 @@ export const DEFAULT_CONFIG: GameConfig = {
     settlement: 60,
     turret:     90,
     airstrip:   150,
+    aa:         110,
   },
   SETTLEMENT_RADIUS: 6,
   SETTLEMENT_BONUS: 0.7,        // +70% gold in radius
@@ -191,6 +202,10 @@ export const DEFAULT_CONFIG: GameConfig = {
   BOMB_COSTS:          { small: 60,  large: 240 },
   BOMB_RADII:          { small: 4,   large: 12  },
   BOMB_COOLDOWN_TICKS: { small: 80,  large: 250 }, // 8s / 25s @ 10Hz
+  PLANE_SPEED:         { small: 0.45, large: 0.30 }, // tiles/tick — large bomber slower
+
+  AA_RADIUS:     7,    // a bit bigger than turret radius — defensive umbrella
+  AA_HIT_CHANCE: 0.75, // single 75% roll per AA per plane
 
   SHIP_COSTS:      { scout: 80,  skirmisher: 200, warship: 500 },
   SHIP_HP:         { scout: 30,  skirmisher: 80,  warship: 200 },
