@@ -93,6 +93,10 @@ export class Game {
   private _tilesByRegion!: number[][];
   /** Set of region IDs that border each region (incl. across the map edge). */
   private _regionAdjacency!: Set<number>[];
+  /** Per-region morale (0..1). Drops when bombs wipe tiles inside the
+   *  region, recovers slowly each tick. Multiplies into per-region
+   *  combat power so a bombed-out vassal genuinely fights weaker. */
+  private _regionMorale!: Float32Array;
 
   /** Per-tile cached turret defense bonus per defender. Allocated lazily
    *  per active defender (full 256-player buffer would be 150 MB on a
@@ -210,6 +214,11 @@ export class Game {
     return n;
   }
 
+  /** Morale of a region (0..1). 1 = full strength, drops on bomb damage. */
+  regionMoraleOf(regionId: number): number {
+    return this._regionMorale?.[regionId] ?? 1;
+  }
+
   // --- Setup ---
 
   generateTerrain(seed?: number): void {
@@ -258,6 +267,7 @@ export class Game {
     this._regionDominant = new Uint8Array(this.regionCount + 1);
     this._vassalTarget = new Uint16Array(this.regionCount + 1);
     this._vassalGold = new Float32Array(this.regionCount + 1);
+    this._regionMorale = new Float32Array(this.regionCount + 1).fill(1.0);
     this.regionNames = generateRegionNames(this.regionCount);
     // One empire-name per player (1..N); index 0 unused.
     this.playerEmpireNames = generateRegionNames(this.players.length - 1);
@@ -462,6 +472,7 @@ export class Game {
   tick(): void {
     if (this.outcome) return;
     this.tickCount++;
+    this._recoverMorale();
     this._earnGoldAll();
     this._growTroops();
     this._vassalsThink();
@@ -717,6 +728,10 @@ export class Game {
     const r2 = radius * radius;
     const W = this.territory.width;
     const H = this.territory.height;
+    // Track per-region wipe counts so we can drain morale proportionally
+    // after the radius loop — gives every wiped vassal a power penalty
+    // matching how much of their land we just took.
+    const wipedByRegion = new Map<number, number>();
     for (let dy = -radius; dy <= radius; dy++) {
       const ty = y + dy;
       if (ty < 0 || ty >= H) continue;
@@ -728,21 +743,21 @@ export class Game {
         if (!this.territory.isPassable(tx, ty)) continue;
         const tileOwner = this.territory.getOwner(tx, ty);
         // No friendly fire — bombs spare the bomber's own tiles and
-        // their allies' tiles. Vassal-launched bombs (ownerId == leader)
-        // therefore won't wipe the leader's other vassals' land either.
-        // Used to be unrestricted AOE which had vassal AI cratering its
-        // own front line.
+        // their allies' tiles.
         if (tileOwner === ownerId) continue;
         if (tileOwner > 0 && this.areAllied(ownerId, tileOwner)) continue;
         if (tileOwner !== 0) {
           if (this._claim(tx, ty, 0)) {
             this._destroyBuildingsAt(tx, ty);
+            const r = this.regions[ty * W + tx]!;
+            if (r > 0) wipedByRegion.set(r, (wipedByRegion.get(r) ?? 0) + 1);
           }
         } else {
           if (this.buildingAt(tx, ty)) this._destroyBuildingsAt(tx, ty);
         }
       }
     }
+    for (const [r, n] of wipedByRegion) this._drainMoraleForRegion(r, n);
     // Air-vs-naval: enemy ships caught in the blast take direct hull damage.
     // Small bomb 30hp, large bomb 100hp — small one-shots scouts (30hp),
     // large one-shots skirmishers (80hp), warships (200hp) eat 2 large hits.
@@ -783,6 +798,7 @@ export class Game {
     const blastR = 2;
     const blastR2 = blastR * blastR;
     let hit = 0;
+    const wipedByRegion = new Map<number, number>();
     for (let dy = -blastR; dy <= blastR; dy++) {
       const ny = ty + dy;
       if (ny < 0 || ny >= H) continue;
@@ -803,6 +819,9 @@ export class Game {
         }
         if (this._claim(nx, ny, 0)) {
           this._destroyBuildingsAt(nx, ny);
+          const W2 = this.territory.width;
+          const r = this.regions[ny * W2 + nx]!;
+          if (r > 0) wipedByRegion.set(r, (wipedByRegion.get(r) ?? 0) + 1);
         } else if (this.buildingAt(nx, ny)) {
           this._destroyBuildingsAt(nx, ny);
         }
@@ -810,6 +829,7 @@ export class Game {
       }
     }
     void hit;
+    for (const [r, n] of wipedByRegion) this._drainMoraleForRegion(r, n);
     // Renderer flashes the strafe.
     this.events.push({ type: 'bomb', bombType: 'ac130', x: tx, y: ty, radius: blastR, ownerId });
     // Splash on enemy ships nearby (15 hp).
@@ -1781,6 +1801,35 @@ export class Game {
     return false;
   }
 
+  /** Slow morale recovery — every region nudges back toward 1.0 by a
+   *  small amount each tick. ~1% per tick = full recovery in ~10s from
+   *  any drop, so a bombed-out vassal genuinely feels weakened for a
+   *  meaningful window of time before bouncing back. */
+  private _recoverMorale(): void {
+    const m = this._regionMorale;
+    if (!m) return;
+    const RECOVER = 0.005; // 0.5% per tick → ~20s for a 0→1 climb
+    for (let r = 1; r <= this.regionCount; r++) {
+      const v = m[r]!;
+      if (v < 1.0) m[r] = v + RECOVER > 1.0 ? 1.0 : v + RECOVER;
+    }
+  }
+
+  /** Apply morale damage to a region based on lost-tile fraction.
+   *  Called by bombs and strafes when tiles in a region are wiped. */
+  private _drainMoraleForRegion(regionId: number, lostTiles: number): void {
+    if (regionId <= 0) return;
+    const total = this._tilesByRegion[regionId]?.length ?? 1;
+    // The morale drop scales with the LOST FRACTION times 0.8 — slightly
+    // amplified relative to the area lost so bombs feel like real
+    // setbacks, not just chip damage. Floored at 0.20 so a region is
+    // never fully impotent.
+    const drop = Math.min(0.7, (lostTiles / total) * 0.8);
+    const cur = this._regionMorale[regionId]!;
+    const next = cur - drop;
+    this._regionMorale[regionId] = next < 0.20 ? 0.20 : next;
+  }
+
   /** True if any non-allied alive player has an airstrip OR a plane in
    *  the air. Used by AI/vassal builders to decide whether AA is worth
    *  the gold (reactive, not eager). */
@@ -2105,8 +2154,30 @@ export class Game {
         const def = this._defenseAt(chosen.x, chosen.y, targetOwner);
         const cost = this.config.ATTACK_COST_PER_CLAIM * (1 + def);
         const defender = this.players[targetOwner];
-        const defTroops = Math.max(1, defender?.troops ?? 1);
-        const ratio = p.troops / defTroops;
+        // Vassal-driven attacks now resolve at the REGIONAL level: each
+        // side's effective troop strength is its leader's pool times the
+        // attacker/defender region's share of that leader's empire,
+        // times that region's morale. So a small wiped-out vassal
+        // genuinely fights weaker than a big intact vassal of the same
+        // empire. Manual / AI attacks still use raw player.troops.
+        let attackerPower = p.troops;
+        let defenderPower = Math.max(1, defender?.troops ?? 1);
+        if (isVassalDriven) {
+          const ownedA = this.territory.counts[p.id] || 1;
+          const tilesA = (tileRegion > 0 ? this._tilesByRegion[tileRegion]?.length : 0) || 1;
+          const fracA = ownedA > 0 ? Math.min(1, tilesA / ownedA) : 1;
+          const moraleA = tileRegion > 0 ? (this._regionMorale[tileRegion] ?? 1) : 1;
+          attackerPower = p.troops * fracA * moraleA;
+          if (defender) {
+            const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
+            const ownedD = this.territory.counts[defender.id] || 1;
+            const tilesD = defR > 0 ? (this._tilesByRegion[defR]?.length ?? 1) : ownedD;
+            const fracD = ownedD > 0 ? Math.min(1, tilesD / ownedD) : 1;
+            const moraleD = defR > 0 ? (this._regionMorale[defR] ?? 1) : 1;
+            defenderPower = Math.max(1, defender.troops * fracD * moraleD);
+          }
+        }
+        const ratio = attackerPower / defenderPower;
         const ratioFactor = Math.max(
           this.config.ATTACK_RATIO_MIN,
           Math.min(

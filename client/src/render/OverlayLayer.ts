@@ -209,11 +209,18 @@ export class OverlayLayer {
         label.tint = (c[0] << 16) | (c[1] << 8) | c[2];
         label.alpha = 0.95;
         const player = this.game.players[dominant];
+        const morale = this.game.regionMoraleOf(r);
+        // Show morale only when meaningfully degraded (< 0.85). Annotated
+        // with a percent so the player can see exactly how weakened a
+        // region is after a bombing run.
+        const moraleSuffix = morale < 0.85
+          ? ` · ${Math.round(morale * 100)}%☠`
+          : '';
         if (player && player.isHuman) {
           const gold = this.game.vassalGoldOf(r);
-          label.text = `${baseName} · ${formatGold(gold)}g`;
+          label.text = `${baseName} · ${formatGold(gold)}g${moraleSuffix}`;
         } else {
-          label.text = baseName;
+          label.text = `${baseName}${moraleSuffix}`;
         }
       } else {
         label.tint = 0xb0b8c0;
