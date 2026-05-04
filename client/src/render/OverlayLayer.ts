@@ -12,6 +12,7 @@ export class OverlayLayer {
   readonly worldContainer: Container;
   private readonly capitals: Graphics;
   private readonly buildings: Graphics;
+  private _bldsLastSig = '';
   private readonly target: Graphics; // unused screen-space target (kept for legacy)
   private readonly tapFlash: Graphics;
   private readonly labelLayer: Container;
@@ -351,6 +352,17 @@ export class OverlayLayer {
   }
 
   private _drawBuildings(_now: number): void {
+    // Skip the redraw entirely when nothing visible has changed. Building
+    // icons live in screen space, so they need a redraw on camera/zoom
+    // change OR when the buildings array changes (length / level / owner).
+    // Without this gate we paint ~50 buildings × ~5 shapes every frame
+    // even when the player is sitting still — measurable on phones.
+    let levelSum = 0;
+    for (const b of this.game.buildings) levelSum += (b.level ?? 1) * 31 + b.owner;
+    const sig = `${this.game.buildings.length}.${levelSum}.${this.renderer.cameraX | 0}.${this.renderer.cameraY | 0}.${this.renderer.zoom.toFixed(2)}`;
+    if (sig === this._bldsLastSig) return;
+    this._bldsLastSig = sig;
+
     const g = this.buildings;
     g.clear();
     const palette = this.game.config.PLAYER_COLORS;

@@ -90,7 +90,10 @@ export class StageGradeFilter extends Filter {
       uTime:              { value: 0,    type: 'f32' },
       uVignetteStrength:  { value: 0.85, type: 'f32' },
       uVignetteRadius:    { value: 0.95, type: 'f32' },
-      uGrainAmount:       { value: 0.025, type: 'f32' },
+      // Per-pixel hash for film grain is the most expensive part of this
+      // pass. Set to 0 to skip the grain branch entirely; the gritty look
+      // mostly comes from the territory shader's parchment grain anyway.
+      uGrainAmount:       { value: 0.0,  type: 'f32' },
       uTint:              { value: new Float32Array([0.94, 0.85, 0.70]), type: 'vec3<f32>' },
     });
     super({

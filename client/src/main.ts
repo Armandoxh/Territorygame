@@ -138,10 +138,13 @@ async function boot(): Promise<void> {
   });
 
   // --- Sim tick (10 Hz) ---
+  // Pause sim when the page is hidden — phone tabs in the background
+  // shouldn't burn battery on simulation; resumes on visibility change.
   let tickCount = 0;
   let lastTickStamp = performance.now();
   const tickIntervalMs = 1000 / config.SIM_HZ;
   setInterval(() => {
+    if (document.hidden) return;
     game.tick();
     tickCount++;
     const now = performance.now();
@@ -154,10 +157,19 @@ async function boot(): Promise<void> {
   }, tickIntervalMs);
 
   // --- Render loop ---
+  // Capped to ~30 fps. The simulation runs at 10 Hz so anything above 30
+  // is wasted GPU work — and on phones the territory + grade fragment
+  // shaders are the dominant cost. Halving frames roughly halves shader
+  // load and visibly stabilises framerate on lower-end mobiles.
+  const RENDER_INTERVAL_MS = 1000 / 30;
   let frameCount = 0;
   let lastFpsStamp = performance.now();
+  let lastDrawStamp = 0;
   app.ticker.add(() => {
     const now = performance.now();
+    if (now - lastDrawStamp < RENDER_INTERVAL_MS) return;
+    lastDrawStamp = now;
+    if (document.hidden) return;
     renderer.draw(now);
     hud.update();
     frameCount++;
