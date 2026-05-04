@@ -1067,65 +1067,120 @@ export class HUD {
   private _renderDiplomacy(): void {
     const list = this.el.diploList;
     if (!list) return;
-    list.innerHTML = '';
     const me = this.game.human();
     const tick = this.game.tickCount;
     const palette = this.game.config.PLAYER_COLORS;
     const spy = this.game.spyActive(1);
+
+    // Collect alive enemies first so we can diff against the existing DOM.
+    const enemyIds: number[] = [];
     for (let id = 2; id < this.game.players.length; id++) {
       const p = this.game.players[id];
       if (!p || !p.alive) continue;
+      if ((this.game.territory.counts[id] ?? 0) === 0) continue;
+      enemyIds.push(id);
+    }
+    if (enemyIds.length === 0) {
+      if (list.dataset['empty'] !== '1') {
+        list.innerHTML = '<p class="diplo-empty">No alive enemies to negotiate with.</p>';
+        list.dataset['empty'] = '1';
+      }
+      return;
+    }
+    if (list.dataset['empty'] === '1') {
+      list.innerHTML = '';
+      list.dataset['empty'] = '0';
+    }
+
+    // Structural rebuild only when the enemy set changes (rare). After
+    // that we mutate text/disabled/tag classes on existing nodes — keeps
+    // taps reliable and the DOM tree small per frame.
+    const sig = enemyIds.join(',');
+    if (list.dataset['sig'] !== sig) {
+      list.dataset['sig'] = sig;
+      list.innerHTML = '';
+      for (const id of enemyIds) {
+        const p = this.game.players[id]!;
+        const c = palette[id];
+        const tint = c ? `rgb(${c[0]},${c[1]},${c[2]})` : '#888';
+        const row = document.createElement('div');
+        row.className = 'diplo-node';
+        row.dataset['enemy'] = String(id);
+        row.innerHTML = `
+          <div class="dn-head">
+            <span class="dn-dot" style="background:${tint}"></span>
+            <span class="dn-name">${p.name}</span>
+            <span class="diplo-tag ally" style="display:none"></span>
+            <span class="diplo-tag embargo" style="display:none"></span>
+          </div>
+          <i class="dn-intel"></i>
+          <div class="dn-actions">
+            <button class="diplo-act" data-action="trade"    data-target="${id}" type="button">Trade</button>
+            <button class="diplo-act ally-btn" data-action="alliance" data-target="${id}" type="button">Propose Alliance</button>
+            <button class="diplo-act embargo-btn" data-action="embargo" data-target="${id}" type="button">Embargo</button>
+          </div>
+        `;
+        list.appendChild(row);
+      }
+    }
+
+    // Per-frame field updates only.
+    const emb = ABILITIES.find(a => a.id === 'embargo')!;
+    const embReady = this.game.abilityReadyAt(1, 'embargo');
+    const embCooling = embReady > tick;
+    const canAffordEmb = me.treasury >= emb.cost;
+    list.querySelectorAll<HTMLElement>('.diplo-node').forEach((row) => {
+      const id = parseInt(row.dataset['enemy'] ?? '0', 10);
+      const p = this.game.players[id];
+      if (!p) return;
       const owned = this.game.territory.counts[id] ?? 0;
-      if (owned === 0) continue;
       const allied = this.game.areAllied(1, id);
       const allianceExpire = this.game.allianceExpireAt(1, id);
       const embExp = this.game.buffExpireAt(id, 'embargoed');
       const embargoed = embExp > tick;
 
-      const c = palette[id];
-      const tint = c ? `rgb(${c[0]},${c[1]},${c[2]})` : '#888';
-      const row = document.createElement('div');
-      row.className = 'diplo-node';
-      const intel = spy ? `<i class="dn-intel">${formatTroops(p.troops)} troops · ${owned} tiles</i>` : `<i class="dn-intel">${owned} tiles</i>`;
-      const allyTag = allied ? `<span class="diplo-tag ally">ALLY · ${Math.max(0, Math.ceil((allianceExpire - tick) / this.game.config.SIM_HZ))}s</span>` : '';
-      const embargoTag = embargoed ? `<span class="diplo-tag embargo">EMBARGOED · ${Math.max(0, Math.ceil((embExp - tick) / this.game.config.SIM_HZ))}s</span>` : '';
-      row.innerHTML = `
-        <div class="dn-head">
-          <span class="dn-dot" style="background:${tint}"></span>
-          <span class="dn-name">${p.name}</span>
-          ${allyTag}
-          ${embargoTag}
-        </div>
-        ${intel}
-        <div class="dn-actions">
-          <button class="diplo-act" data-action="trade"    data-target="${id}" type="button">Trade</button>
-          ${allied
-            ? `<button class="diplo-act" data-action="break"    data-target="${id}" type="button">Break Alliance</button>`
-            : `<button class="diplo-act" data-action="alliance" data-target="${id}" type="button">Propose Alliance</button>`}
-          <button class="diplo-act" data-action="embargo"  data-target="${id}" type="button">Embargo</button>
-        </div>
-      `;
-      list.appendChild(row);
-      // Disable Embargo when on cooldown, treasury too low, or already active.
-      const emb = ABILITIES.find(a => a.id === 'embargo')!;
-      const ready = this.game.abilityReadyAt(1, 'embargo');
-      const cooling = ready > tick;
-      const canAfford = me.treasury >= emb.cost;
-      const eBtn = row.querySelector<HTMLButtonElement>('[data-action="embargo"]');
-      if (eBtn) {
-        eBtn.disabled = cooling || !canAfford || embargoed || allied;
-        if (cooling) eBtn.textContent = `Embargo · ${Math.ceil((ready - tick) / this.game.config.SIM_HZ)}s`;
-        else if (embargoed) eBtn.textContent = 'Embargo · active';
-        else eBtn.textContent = `Embargo · ${emb.cost}♛`;
+      const intel = row.querySelector<HTMLElement>('.dn-intel');
+      if (intel) intel.textContent = spy ? `${formatTroops(p.troops)} troops · ${owned} tiles` : `${owned} tiles`;
+
+      const allyTag = row.querySelector<HTMLElement>('.diplo-tag.ally');
+      if (allyTag) {
+        if (allied) {
+          allyTag.style.display = '';
+          allyTag.textContent = `ALLY · ${Math.max(0, Math.ceil((allianceExpire - tick) / this.game.config.SIM_HZ))}s`;
+        } else {
+          allyTag.style.display = 'none';
+        }
       }
-      const aBtn = row.querySelector<HTMLButtonElement>('[data-action="alliance"]');
-      if (aBtn && allied) aBtn.disabled = true;
-      const tBtn = row.querySelector<HTMLButtonElement>('[data-action="trade"]');
-      if (tBtn) tBtn.disabled = false;
-    }
-    if (list.childElementCount === 0) {
-      list.innerHTML = '<p class="diplo-empty">No alive enemies to negotiate with.</p>';
-    }
+      const embTag = row.querySelector<HTMLElement>('.diplo-tag.embargo');
+      if (embTag) {
+        if (embargoed) {
+          embTag.style.display = '';
+          embTag.textContent = `EMBARGOED · ${Math.max(0, Math.ceil((embExp - tick) / this.game.config.SIM_HZ))}s`;
+        } else {
+          embTag.style.display = 'none';
+        }
+      }
+
+      const allyBtn = row.querySelector<HTMLButtonElement>('.ally-btn');
+      if (allyBtn) {
+        if (allied) {
+          allyBtn.dataset['action'] = 'break';
+          allyBtn.textContent = 'Break Alliance';
+          allyBtn.disabled = false;
+        } else {
+          allyBtn.dataset['action'] = 'alliance';
+          allyBtn.textContent = 'Propose Alliance';
+          allyBtn.disabled = false;
+        }
+      }
+      const embBtn = row.querySelector<HTMLButtonElement>('.embargo-btn');
+      if (embBtn) {
+        embBtn.disabled = embCooling || !canAffordEmb || embargoed || allied;
+        if (embCooling) embBtn.textContent = `Embargo · ${Math.ceil((embReady - tick) / this.game.config.SIM_HZ)}s`;
+        else if (embargoed) embBtn.textContent = 'Embargo · active';
+        else embBtn.textContent = `Embargo · ${emb.cost}♛`;
+      }
+    });
   }
 
   private _proposeAlliance(targetId: PlayerId): void {

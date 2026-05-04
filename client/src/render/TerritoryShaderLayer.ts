@@ -44,7 +44,7 @@ void main() {
 `;
 
 const FRAG = /* glsl */ `#version 300 es
-precision highp float;
+precision mediump float;
 
 in vec2 vTextureCoord;
 out vec4 finalColor;
@@ -80,13 +80,10 @@ float vnoise(vec2 p) {
 }
 
 float fbm(vec2 p) {
-  float v = 0.0;
-  float a = 0.5;
-  for (int i = 0; i < 3; i++) {
-    v += a * vnoise(p);
-    p *= 2.05;
-    a *= 0.55;
-  }
+  // 2 octaves is enough for the gritty noise look and roughly halves
+  // the per-pixel cost compared with 3.
+  float v = 0.5 * vnoise(p);
+  v += 0.275 * vnoise(p * 2.05);
   return v;
 }
 
@@ -101,7 +98,8 @@ void main() {
   int terrain = int(terrainF + 0.5);
 
   vec2 tileP = uv * uInputSize.xy;
-  float grain = fbm(tileP * 0.45) * 0.5 + fbm(tileP * 1.7) * 0.18 - 0.34;
+  // Grain only used on land — compute lazily inside that branch below.
+  float grain = 0.0;
 
   vec3 col;
   if (terrain >= 1) {
@@ -127,7 +125,8 @@ void main() {
     float trough = smoothstep(0.20, 0.05, waveMix);
     col *= (1.0 - trough * 0.18);
   } else {
-    // Land — parchment, then tint by owner
+    // Land — parchment, then tint by owner. Grain lives only on land.
+    grain = fbm(tileP * 0.45) - 0.36;
     col = uParchment * (1.0 + grain * 0.35);
     if (owner > 0 && float(owner) <= uPlayerCount + 0.5) {
       vec3 tint = uPalette[owner - 1];
