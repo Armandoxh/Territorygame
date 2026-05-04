@@ -715,46 +715,63 @@ export class Game {
     this.events.push({ type: 'bomb', bombType: type, x, y, radius, ownerId });
   }
 
-  /** AC-130 strafe — a tight burst that scuffs an area without the
-   *  region-wiping force of a real bomb. Picks a random tile within
-   *  the gunship's strafe radius, drains a chunk of defender troops,
-   *  and has a small chance to flip the tile to neutral.
-   *
-   *  Called repeatedly during orbit, so the cumulative effect over a
-   *  full orbit window is significant — but a single strafe is far less
-   *  punishing than a bomb. */
+  /** AC-130 strafe — a tight mini-bomb that scuffs a small area each
+   *  pass. Picks a random spot inside the orbit zone and detonates a
+   *  radius-2 blast (wipes claims, destroys buildings, damages ships).
+   *  Called every AC130_STRAFE_INTERVAL ticks during orbit, so a full
+   *  10s pass produces ~7 of these — the cumulative wipe is comparable
+   *  to a single small bomb but spread across the orbit zone. */
   private _strafe(cx: number, cy: number, ownerId: PlayerId): void {
-    const radius = this.config.BOMB_RADII['ac130'];
-    const r2 = radius * radius;
+    const orbitR = this.config.BOMB_RADII['ac130'];
     const W = this.territory.width;
     const H = this.territory.height;
-    // Pick a random target tile inside the orbit radius.
-    let tx = Math.floor(cx + (Math.random() * 2 - 1) * radius);
-    let ty = Math.floor(cy + (Math.random() * 2 - 1) * radius);
+    // Pick a random target tile inside the orbit footprint.
+    let tx = Math.floor(cx + (Math.random() * 2 - 1) * orbitR);
+    let ty = Math.floor(cy + (Math.random() * 2 - 1) * orbitR);
     if (tx < 0) tx = 0; if (tx >= W) tx = W - 1;
     if (ty < 0) ty = 0; if (ty >= H) ty = H - 1;
-    if (this._capitalIndexAt(tx, ty) >= 0) return;
-    if (!this.territory.isPassable(tx, ty)) return;
-    const defender = this.territory.getOwner(tx, ty);
-    if (defender > 0 && defender !== ownerId && !this.areAllied(ownerId, defender)) {
-      const dp = this.players[defender];
-      if (dp) dp.troops = Math.max(0, dp.troops - 60);
-      // 22% chance per strafe to neutralise the tile.
-      if (Math.random() < 0.22) {
-        if (this._claim(tx, ty, 0)) this._destroyBuildingsAt(tx, ty);
+    // Strafe blast: tight radius-2 area bomb.
+    const blastR = 2;
+    const blastR2 = blastR * blastR;
+    let hit = 0;
+    for (let dy = -blastR; dy <= blastR; dy++) {
+      const ny = ty + dy;
+      if (ny < 0 || ny >= H) continue;
+      for (let dx = -blastR; dx <= blastR; dx++) {
+        if (dx * dx + dy * dy > blastR2) continue;
+        const nx = tx + dx;
+        if (nx < 0 || nx >= W) continue;
+        if (this._capitalIndexAt(nx, ny) >= 0) continue;
+        if (!this.territory.isPassable(nx, ny)) continue;
+        const o = this.territory.getOwner(nx, ny);
+        if (o === ownerId) continue;
+        if (o > 0 && this.areAllied(ownerId, o)) continue;
+        // Drain troops on owned tiles (whether enemy or unclaimed
+        // defenders sitting nearby) and clear the claim.
+        if (o > 0) {
+          const dp = this.players[o];
+          if (dp) dp.troops = Math.max(0, dp.troops - 25);
+        }
+        if (this._claim(nx, ny, 0)) {
+          this._destroyBuildingsAt(nx, ny);
+        } else if (this.buildingAt(nx, ny)) {
+          this._destroyBuildingsAt(nx, ny);
+        }
+        hit++;
       }
     }
-    // Use the bomb event so the renderer flashes a small explosion.
-    this.events.push({ type: 'bomb', bombType: 'ac130', x: tx, y: ty, radius: 1, ownerId });
-    // Damage enemy ships caught nearby (small splash, 12 hp).
+    void hit;
+    // Renderer flashes the strafe.
+    this.events.push({ type: 'bomb', bombType: 'ac130', x: tx, y: ty, radius: blastR, ownerId });
+    // Splash on enemy ships nearby (15 hp).
     for (let i = this.ships.length - 1; i >= 0; i--) {
       const s = this.ships[i]!;
       if (s.owner === ownerId) continue;
       if (this.areAllied(ownerId, s.owner)) continue;
       const dx2 = s.x + 0.5 - tx;
       const dy2 = s.y + 0.5 - ty;
-      if (dx2 * dx2 + dy2 * dy2 > r2) continue;
-      s.hp -= 12;
+      if (dx2 * dx2 + dy2 * dy2 > blastR2) continue;
+      s.hp -= 15;
       if (s.hp <= 0) {
         this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
         this.ships.splice(i, 1);
@@ -2378,11 +2395,16 @@ export class Game {
           this.planes.splice(i, 1);
           continue;
         }
-        // Move in a slow circle around (destX, destY) at radius 2.
-        const orbitR = 2.0;
-        const ang = (this.tickCount * 0.12) + pl.id * 1.7;
-        pl.x = pl.destX + Math.cos(ang) * orbitR;
-        pl.y = pl.destY + Math.sin(ang) * orbitR;
+        // Figure-8 (lemniscate of Bernoulli) around (destX, destY).
+        // x(t) = a*cos(t) / (1 + sin²(t))
+        // y(t) = a*cos(t)*sin(t) / (1 + sin²(t))
+        // a = horizontal lobe size; the curve is naturally narrower
+        // vertically so we stretch it slightly for a clean ∞ shape.
+        const a = 3.5;
+        const t = (this.tickCount * 0.07) + pl.id * 1.3;
+        const denom = 1 + Math.sin(t) * Math.sin(t);
+        pl.x = pl.destX + (a * Math.cos(t)) / denom;
+        pl.y = pl.destY + (a * Math.cos(t) * Math.sin(t)) / denom;
         // Strafe at intervals.
         if (this.tickCount >= pl.nextStrafeTick) {
           this._strafe(pl.destX, pl.destY, pl.owner);
