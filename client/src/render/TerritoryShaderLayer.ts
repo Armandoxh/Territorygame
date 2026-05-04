@@ -105,11 +105,27 @@ void main() {
 
   vec3 col;
   if (terrain >= 1) {
-    // Water — drift noise + tint by depth
+    // Layered water: long swell + small chop + faux directional waves.
+    // Each octave drifts at a different speed/direction so they don't
+    // resonate into a tiled pattern.
     float t = (terrain == 2) ? 0.0 : 1.0;
-    float drift = fbm(tileP * 0.15 + vec2(uTime * 0.05, uTime * 0.03));
-    col = mix(uWaterDeep, uWaterShallow, t * 0.7 + drift * 0.3);
-    col *= 0.92 + drift * 0.14;
+    vec2 swellP = tileP * 0.08 + vec2(uTime * 0.040, uTime * 0.028);
+    float swell = fbm(swellP);
+    vec2 chopP  = tileP * 0.45 + vec2(-uTime * 0.075, uTime * 0.05);
+    float chop  = fbm(chopP);
+    float dir   = sin((tileP.x * 0.16 + tileP.y * 0.10) - uTime * 0.55) * 0.5 + 0.5;
+
+    float waveMix = swell * 0.60 + chop * 0.30 + dir * 0.10;
+
+    col = mix(uWaterDeep, uWaterShallow, t * 0.55 + waveMix * 0.40);
+
+    // Specular-ish highlights on wave crests
+    float crest = smoothstep(0.62, 0.88, waveMix);
+    col = mix(col, vec3(0.82, 0.90, 1.0), crest * 0.20);
+
+    // Trough darkening for depth
+    float trough = smoothstep(0.20, 0.05, waveMix);
+    col *= (1.0 - trough * 0.18);
   } else {
     // Land — parchment, then tint by owner
     col = uParchment * (1.0 + grain * 0.35);
@@ -156,15 +172,17 @@ void main() {
     if (tW >= 0.5) waterAdj += 1.0;
     if (waterAdj > 0.0) col = mix(col, uInk, 0.55);
   } else {
-    // Water-side coast: shore tint where adjacent to land
+    // Water-side coast: animated foam where adjacent to land
     float landAdj = 0.0;
     if (tN < 0.5) landAdj += 1.0;
     if (tS < 0.5) landAdj += 1.0;
     if (tE < 0.5) landAdj += 1.0;
     if (tW < 0.5) landAdj += 1.0;
     if (landAdj > 0.0) {
-      float foam = clamp(landAdj * 0.30, 0.0, 1.0);
-      col = mix(col, vec3(0.78, 0.71, 0.55), foam * 0.22);
+      vec2 foamP = tileP * 0.7 + vec2(uTime * 0.20, uTime * 0.13);
+      float foamMask = fbm(foamP) * 0.55 + 0.45;
+      float foam = clamp(landAdj * 0.35, 0.0, 1.0) * foamMask;
+      col = mix(col, vec3(0.86, 0.80, 0.62), foam * 0.32);
     }
   }
 
