@@ -44,7 +44,7 @@ void main() {
 `;
 
 const FRAG = /* glsl */ `#version 300 es
-precision mediump float;
+precision highp float;
 
 in vec2 vTextureCoord;
 out vec4 finalColor;
