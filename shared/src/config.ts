@@ -96,6 +96,12 @@ export interface GameConfig {
   /** Probability that any single AA succeeds against a plane in range. */
   AA_HIT_CHANCE: number;
 
+  // --- AC-130 gunship ---
+  /** Ticks the gunship orbits the target after arrival. */
+  AC130_ORBIT_TICKS: number;
+  /** Ticks between successive strafes while orbiting. */
+  AC130_STRAFE_INTERVAL: number;
+
   // --- Ships ---
   // Naval units patrol water tiles, bombard coastal land, and (warships
   // only) make landfall by claiming the coastal tile they hit.
@@ -199,13 +205,18 @@ export const DEFAULT_CONFIG: GameConfig = {
   TURRET_DEFENSE_BONUS: 4,      // (1 + 4) = 5x cost / 1/5 rate per stacked turret
   TURRET_RETALIATION_DAMAGE: 8, // attacker troops lost per turret on successful capture in radius
 
-  BOMB_COSTS:          { small: 60,  large: 240 },
-  BOMB_RADII:          { small: 3,   large: 6   },
-  BOMB_COOLDOWN_TICKS: { small: 80,  large: 250 }, // 8s / 25s @ 10Hz
-  PLANE_SPEED:         { small: 0.45, large: 0.30 }, // tiles/tick — large bomber slower
+  BOMB_COSTS:          { small: 60,  large: 240, ac130: 350 },
+  BOMB_RADII:          { small: 3,   large: 6,   ac130: 4   }, // ac130 = single-strafe radius
+  BOMB_COOLDOWN_TICKS: { small: 80,  large: 250, ac130: 320 }, // 32s @ 10Hz
+  PLANE_SPEED:         { small: 0.45, large: 0.30, ac130: 0.35 },
 
   AA_RADIUS:     7,    // a bit bigger than turret radius — defensive umbrella
   AA_HIT_CHANCE: 0.75, // single 75% roll per AA per plane
+
+  /** AC-130 only. Ticks the gunship orbits the target after arrival. */
+  AC130_ORBIT_TICKS:    100,  // 10s on station
+  /** AC-130 only. Ticks between strafes during orbit. */
+  AC130_STRAFE_INTERVAL: 14,  // ~1.4s
 
   SHIP_COSTS:      { scout: 80,  skirmisher: 200, warship: 500 },
   SHIP_HP:         { scout: 30,  skirmisher: 80,  warship: 200 },

@@ -17,6 +17,7 @@ const BUILD_KEYS: Record<string, BuildingType> = {
 const BOMB_KEYS: Record<string, BombType> = {
   b: 'small',
   l: 'large',
+  c: 'ac130',
 };
 
 async function boot(): Promise<void> {

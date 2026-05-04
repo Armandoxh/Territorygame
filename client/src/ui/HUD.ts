@@ -3,7 +3,7 @@ import { DECREES, ABILITIES, MASTERIES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa'];
-const BOMB_TYPES: BombType[] = ['small', 'large'];
+const BOMB_TYPES: BombType[] = ['small', 'large', 'ac130'];
 const SHIP_TYPES: ShipKind[] = ['scout', 'skirmisher', 'warship'];
 const DECREE_BRANCHES: DecreeBranch[] = ['economy', 'defense', 'military', 'offense', 'espionage'];
 type CmdMode = 'abilities' | 'doctrines';
@@ -233,7 +233,8 @@ export class HUD {
     const type = this.bombMode;
     const err = this.game.dropBomb(type, x, y, 1);
     if (err === null) {
-      this.toast(`${type[0]!.toUpperCase()}${type.slice(1)} bomb dropped`);
+      const label = type === 'ac130' ? 'AC-130 inbound' : `${type[0]!.toUpperCase()}${type.slice(1)} bomb launched`;
+      this.toast(label);
       this.bombMode = null;
       this._refreshPlaceBanner();
       this._refreshBombFab();

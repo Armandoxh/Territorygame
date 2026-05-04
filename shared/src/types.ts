@@ -9,7 +9,7 @@ export const TERRAIN_DEEP = 2;
 
 export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'aa';
 
-export type BombType = 'small' | 'large';
+export type BombType = 'small' | 'large' | 'ac130';
 
 export type ShipKind = 'scout' | 'skirmisher' | 'warship';
 
@@ -51,6 +51,12 @@ export interface Plane {
   /** Set of AA building ids that have already rolled against this plane,
    *  so each AA gets one chance per plane (not one per tick of overlap). */
   rolledAA: Set<number>;
+  /** AC-130 only. tickCount when the orbit ends (0 = not orbiting yet).
+   *  While orbiting, the gunship hovers near destX/destY and strafes
+   *  periodically; AA gets fresh chances on each pass through range. */
+  orbitUntilTick: number;
+  /** AC-130 only. tickCount when the next strafe fires. */
+  nextStrafeTick: number;
 }
 
 export interface Point {

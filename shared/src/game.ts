@@ -642,6 +642,8 @@ export class Game {
       destY: y + 0.5,
       speed: this.config.PLANE_SPEED[type],
       rolledAA: new Set<number>(),
+      orbitUntilTick: 0,
+      nextStrafeTick: 0,
     };
     this.planes.push(plane);
     this.events.push({
@@ -711,6 +713,53 @@ export class Game {
     }
 
     this.events.push({ type: 'bomb', bombType: type, x, y, radius, ownerId });
+  }
+
+  /** AC-130 strafe — a tight burst that scuffs an area without the
+   *  region-wiping force of a real bomb. Picks a random tile within
+   *  the gunship's strafe radius, drains a chunk of defender troops,
+   *  and has a small chance to flip the tile to neutral.
+   *
+   *  Called repeatedly during orbit, so the cumulative effect over a
+   *  full orbit window is significant — but a single strafe is far less
+   *  punishing than a bomb. */
+  private _strafe(cx: number, cy: number, ownerId: PlayerId): void {
+    const radius = this.config.BOMB_RADII['ac130'];
+    const r2 = radius * radius;
+    const W = this.territory.width;
+    const H = this.territory.height;
+    // Pick a random target tile inside the orbit radius.
+    let tx = Math.floor(cx + (Math.random() * 2 - 1) * radius);
+    let ty = Math.floor(cy + (Math.random() * 2 - 1) * radius);
+    if (tx < 0) tx = 0; if (tx >= W) tx = W - 1;
+    if (ty < 0) ty = 0; if (ty >= H) ty = H - 1;
+    if (this._capitalIndexAt(tx, ty) >= 0) return;
+    if (!this.territory.isPassable(tx, ty)) return;
+    const defender = this.territory.getOwner(tx, ty);
+    if (defender > 0 && defender !== ownerId && !this.areAllied(ownerId, defender)) {
+      const dp = this.players[defender];
+      if (dp) dp.troops = Math.max(0, dp.troops - 60);
+      // 22% chance per strafe to neutralise the tile.
+      if (Math.random() < 0.22) {
+        if (this._claim(tx, ty, 0)) this._destroyBuildingsAt(tx, ty);
+      }
+    }
+    // Use the bomb event so the renderer flashes a small explosion.
+    this.events.push({ type: 'bomb', bombType: 'ac130', x: tx, y: ty, radius: 1, ownerId });
+    // Damage enemy ships caught nearby (small splash, 12 hp).
+    for (let i = this.ships.length - 1; i >= 0; i--) {
+      const s = this.ships[i]!;
+      if (s.owner === ownerId) continue;
+      if (this.areAllied(ownerId, s.owner)) continue;
+      const dx2 = s.x + 0.5 - tx;
+      const dy2 = s.y + 0.5 - ty;
+      if (dx2 * dx2 + dy2 * dy2 > r2) continue;
+      s.hp -= 12;
+      if (s.hp <= 0) {
+        this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
+        this.ships.splice(i, 1);
+      }
+    }
   }
 
   // --- Capture (combat) ---
@@ -2317,14 +2366,50 @@ export class Game {
       const dx = pl.destX - pl.x;
       const dy = pl.destY - pl.y;
       const d = Math.hypot(dx, dy);
-      if (d <= pl.speed) {
-        // Arrived — detonate, then remove.
-        this._detonateBomb(pl.bombType, Math.floor(pl.destX), Math.floor(pl.destY), pl.owner);
-        this.planes.splice(i, 1);
-        continue;
+
+      // AC-130 orbit mode: instead of detonating on arrival, the gunship
+      // hovers near the target and strafes periodically until orbit ends.
+      // Each pass through enemy AA range gets a fresh roll because we
+      // clear rolledAA when the plane moves out of range — see the AA
+      // loop below for the re-entry handling.
+      if (pl.bombType === 'ac130' && pl.orbitUntilTick > 0) {
+        // Orbit done? Despawn.
+        if (this.tickCount >= pl.orbitUntilTick) {
+          this.planes.splice(i, 1);
+          continue;
+        }
+        // Move in a slow circle around (destX, destY) at radius 2.
+        const orbitR = 2.0;
+        const ang = (this.tickCount * 0.12) + pl.id * 1.7;
+        pl.x = pl.destX + Math.cos(ang) * orbitR;
+        pl.y = pl.destY + Math.sin(ang) * orbitR;
+        // Strafe at intervals.
+        if (this.tickCount >= pl.nextStrafeTick) {
+          this._strafe(pl.destX, pl.destY, pl.owner);
+          pl.nextStrafeTick = this.tickCount + this.config.AC130_STRAFE_INTERVAL;
+        }
+        // Reset AA roll tracking every 3s so AA can fire again on a
+        // gunship that's been overhead for a while. Otherwise a single
+        // miss permanently neutralises that AA against the orbit.
+        if (this.tickCount % 30 === 0) pl.rolledAA.clear();
+        // Fall through to AA check (orbit phase is the most vulnerable).
+      } else if (d <= pl.speed) {
+        // Arrived — bombers detonate and despawn; AC-130 enters orbit.
+        if (pl.bombType === 'ac130') {
+          pl.x = pl.destX; pl.y = pl.destY;
+          pl.orbitUntilTick = this.tickCount + this.config.AC130_ORBIT_TICKS;
+          pl.nextStrafeTick = this.tickCount + 4; // first strafe almost immediately
+          // Don't continue — fall through so AA can immediately roll
+          // against the now-stationary gunship.
+        } else {
+          this._detonateBomb(pl.bombType, Math.floor(pl.destX), Math.floor(pl.destY), pl.owner);
+          this.planes.splice(i, 1);
+          continue;
+        }
+      } else {
+        pl.x += (dx / d) * pl.speed;
+        pl.y += (dy / d) * pl.speed;
       }
-      pl.x += (dx / d) * pl.speed;
-      pl.y += (dy / d) * pl.speed;
 
       // Check enemy AA for shootdown. Each AA gets one roll per plane.
       let shotDown = false;

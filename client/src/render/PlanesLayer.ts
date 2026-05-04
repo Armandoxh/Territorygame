@@ -58,7 +58,7 @@ export class PlanesLayer {
   }
 }
 
-function drawPlane(g: Graphics, bombType: 'small' | 'large', tint: number): void {
+function drawPlane(g: Graphics, bombType: 'small' | 'large' | 'ac130', tint: number): void {
   g.clear();
   // Trail (drawn first so the body sits on top)
   g.poly([-0.5, 6, 0.5, 6, 0, 12]).fill({ color: 0xffffff, alpha: 0.20 });
@@ -76,7 +76,7 @@ function drawPlane(g: Graphics, bombType: 'small' | 'large', tint: number): void
     ]).fill({ color: tint, alpha: 0.95 }).stroke({ color: 0x1a0f08, width: 0.9 });
     // Cockpit dot
     g.circle(0, -3, 0.7).fill({ color: 0x1a0f08 });
-  } else {
+  } else if (bombType === 'large') {
     // Heavy bomber: longer fuselage, four-engine look (two visible).
     g.poly([
       0, -10,
@@ -94,5 +94,31 @@ function drawPlane(g: Graphics, bombType: 'small' | 'large', tint: number): void
     g.circle( 3.4, 1.5, 0.8).fill({ color: 0x1a0f08 });
     // Cockpit
     g.circle(0, -5, 0.9).fill({ color: 0x1a0f08 });
+  } else {
+    // AC-130 gunship: longer fuselage, swept wings, side gun bulge,
+    // four engines on the wings. Reads as "this thing hangs around".
+    g.poly([
+      0, -11,
+      4, -3,
+      8, 1,
+      8, 3,
+      2, 3,
+      2, 7,
+     -2, 7,
+     -2, 3,
+     -8, 3,
+     -8, 1,
+     -4, -3,
+    ]).fill({ color: tint, alpha: 0.95 }).stroke({ color: 0x1a0f08, width: 1 });
+    // Side gun bulge (left-side howitzer)
+    g.circle(-3, 0, 1.4).fill({ color: 0x222426 }).stroke({ color: 0x1a0f08, width: 0.6 });
+    g.rect(-5.0, -0.4, 1.6, 0.8).fill({ color: 0x222426 });
+    // Four engines along the wings
+    g.circle(-5.5, 1.5, 0.7).fill({ color: 0x1a0f08 });
+    g.circle(-2.5, 1.5, 0.7).fill({ color: 0x1a0f08 });
+    g.circle( 2.5, 1.5, 0.7).fill({ color: 0x1a0f08 });
+    g.circle( 5.5, 1.5, 0.7).fill({ color: 0x1a0f08 });
+    // Cockpit
+    g.circle(0, -7, 0.9).fill({ color: 0x1a0f08 });
   }
 }
