@@ -1,9 +1,10 @@
-import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player, DecreeBranch } from '@territorygame/shared';
+import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player, DecreeBranch, ShipKind, ShipBuildError } from '@territorygame/shared';
 import { DECREES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip'];
 const BOMB_TYPES: BombType[] = ['small', 'large'];
+const SHIP_TYPES: ShipKind[] = ['scout', 'skirmisher', 'warship'];
 const DECREE_BRANCHES: DecreeBranch[] = ['economy', 'defense', 'military', 'offense', 'espionage'];
 
 export class HUD {
@@ -35,6 +36,9 @@ export class HUD {
     bombBtn:      this._byId('bomb-btn'),
     bombCd:       this._byId('bomb-cd'),
     bombSheet:    this._byId('bombsheet'),
+    fleetBtn:     this._byId('fleet-btn'),
+    fleetCount:   this._byId('fleet-count'),
+    fleetSheet:   this._byId('fleetsheet'),
     leaderbar:    this._byId('leaderbar'),
     vassalLog:    this._byId('vassal-log'),
     commander:    this._byId('commander'),
@@ -57,6 +61,7 @@ export class HUD {
   private debugVisible = false;
   private placeMode: BuildingType | null = null;
   private bombMode: BombType | null = null;
+  private shipBuildMode: ShipKind | null = null;
   private buildSheetCoord: { x: number; y: number } | null = null;
   private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement; intel: HTMLElement }>();
   private cmdActiveBranch: DecreeBranch = 'economy';
@@ -80,6 +85,7 @@ export class HUD {
     this._wireHotbar();
     this._wireSheet();
     this._wireBomb();
+    this._wireFleet();
     this._wireMenu();
     this._wireGameOver();
     this._wireTutorial();
@@ -339,7 +345,9 @@ export class HUD {
     }
     this._refreshHotbar();
     this._refreshBombFab();
+    this._refreshFleetFab();
     if (this.el.bombSheet?.classList.contains('show')) this._refreshBombSheetButtons();
+    if (this.el.fleetSheet?.classList.contains('show')) this._refreshFleetSheetButtons();
     if (this.el.commander?.classList.contains('show')) this._refreshCommander();
     this._refreshLeaderBar();
     const spy = (me.decreeStacks['spy-network'] ?? 0) > 0;
@@ -460,6 +468,113 @@ export class HUD {
       this.el.bombSheet.querySelector<HTMLButtonElement>('.bs-cancel')
         ?.addEventListener('click', () => this.hideBombSheet());
     }
+  }
+
+  private _wireFleet(): void {
+    this.el.fleetBtn?.addEventListener('click', () => {
+      if (this.shipBuildMode) { this.clearShipBuildMode(); return; }
+      if (this.el.fleetSheet?.classList.contains('show')) { this.hideFleetSheet(); return; }
+      this.showFleetSheet();
+    });
+    if (this.el.fleetSheet) {
+      this.el.fleetSheet.querySelectorAll<HTMLButtonElement>('.sb-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const kind = btn.dataset['ship'] as ShipKind | undefined;
+          if (!kind || !SHIP_TYPES.includes(kind)) return;
+          this.hideFleetSheet();
+          this.toggleShipBuildMode(kind);
+        });
+      });
+      this.el.fleetSheet.querySelector<HTMLButtonElement>('.bs-cancel')
+        ?.addEventListener('click', () => this.hideFleetSheet());
+    }
+  }
+
+  showFleetSheet(): void {
+    if (!this.el.fleetSheet) return;
+    this.clearPlaceMode();
+    this.bombMode = null;
+    this.shipBuildMode = null;
+    this._refreshHotbar();
+    this._refreshPlaceBanner();
+    this._refreshBombFab();
+    this.el.fleetSheet.classList.add('show');
+    this._refreshFleetSheetButtons();
+  }
+
+  hideFleetSheet(): void {
+    this.el.fleetSheet?.classList.remove('show');
+  }
+
+  toggleShipBuildMode(kind: ShipKind): void {
+    if (this.game.outcome) { this.shipBuildMode = null; }
+    else if (this.shipBuildMode === kind) this.shipBuildMode = null;
+    else this.shipBuildMode = kind;
+    this.placeMode = null;
+    this.bombMode = null;
+    this._refreshHotbar();
+    this._refreshPlaceBanner();
+    this._refreshBombFab();
+  }
+
+  clearShipBuildMode(): void {
+    if (!this.shipBuildMode) return;
+    this.shipBuildMode = null;
+    this._refreshPlaceBanner();
+  }
+
+  /** Returns true if the tap was consumed by ship-build mode. */
+  tryBuildShipAt(x: number, y: number): boolean {
+    if (!this.shipBuildMode) return false;
+    const kind = this.shipBuildMode;
+    const err = this.game.buildShip(kind, x, y, 1);
+    if (err === null) {
+      this.toast(`${kind} launched`);
+      this.shipBuildMode = null;
+      this._refreshPlaceBanner();
+    } else {
+      this.toast(this._shipErrorMsg(err));
+    }
+    return true;
+  }
+
+  private _shipErrorMsg(err: ShipBuildError): string {
+    const msgs: Record<ShipBuildError, string> = {
+      'gold':         'Not enough gold',
+      'dead':         'You are eliminated',
+      'oob':          'Out of bounds',
+      'bad-type':     'Unknown ship',
+      'not-coastal':  'Tap your own coastal land',
+      'no-water':     'No adjacent water',
+      'cap':          'Fleet at capacity',
+    };
+    return msgs[err];
+  }
+
+  private _refreshFleetSheetButtons(): void {
+    if (!this.el.fleetSheet) return;
+    const me = this.game.human();
+    this.el.fleetSheet.querySelectorAll<HTMLButtonElement>('.sb-btn').forEach((btn) => {
+      const kind = btn.dataset['ship'] as ShipKind | undefined;
+      if (!kind) return;
+      const cost = this.game.config.SHIP_COSTS[kind];
+      const costEl = btn.querySelector('.bs-cost');
+      if (costEl) costEl.textContent = String(cost);
+      btn.classList.toggle('disabled', me.gold < cost);
+    });
+  }
+
+  private _refreshFleetFab(): void {
+    if (!this.el.fleetBtn) return;
+    if (this.game.outcome) {
+      this.el.fleetBtn.classList.add('hidden');
+      return;
+    }
+    this.el.fleetBtn.classList.remove('hidden');
+    const myShips = this.game.ships.reduce((n, s) => s.owner === 1 ? n + 1 : n, 0);
+    const cap = this.game.config.SHIP_PLAYER_CAP;
+    if (this.el.fleetCount) this.el.fleetCount.textContent = `${myShips}/${cap}`;
+    this.el.fleetBtn.classList.toggle('aiming', !!this.shipBuildMode);
   }
 
   private _refreshBombFab(): void {
@@ -815,6 +930,10 @@ export class HUD {
     if (this.bombMode) {
       if (this.el.placeBannerType) this.el.placeBannerType.textContent = `${this.bombMode.toUpperCase()} BOMB`;
       this.el.placeBanner.classList.add('show', 'bomb');
+    } else if (this.shipBuildMode) {
+      if (this.el.placeBannerType) this.el.placeBannerType.textContent = `${this.shipBuildMode.toUpperCase()} · TAP COASTAL TILE`;
+      this.el.placeBanner.classList.remove('bomb');
+      this.el.placeBanner.classList.add('show');
     } else if (this.placeMode) {
       if (this.el.placeBannerType) this.el.placeBannerType.textContent = this.placeMode.toUpperCase();
       this.el.placeBanner.classList.remove('bomb');

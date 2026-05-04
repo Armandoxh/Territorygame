@@ -1,4 +1,4 @@
-import type { BuildingType, BombType, RGBA } from './types.js';
+import type { BuildingType, BombType, ShipKind, RGBA } from './types.js';
 
 export interface GameConfig {
   GRID_WIDTH: number;
@@ -85,6 +85,22 @@ export interface GameConfig {
   BOMB_COSTS: Record<BombType, number>;
   BOMB_RADII: Record<BombType, number>;
   BOMB_COOLDOWN_TICKS: Record<BombType, number>;
+
+  // --- Ships ---
+  // Naval units patrol water tiles, bombard coastal land, and (warships
+  // only) make landfall by claiming the coastal tile they hit.
+  SHIP_COSTS:      Record<ShipKind, number>;
+  SHIP_HP:         Record<ShipKind, number>;
+  /** Manhattan-ish max range a ship will fire at coastal land tiles. */
+  SHIP_RANGE:      Record<ShipKind, number>;
+  /** Damage applied to defender troops per fire event. */
+  SHIP_DAMAGE:     Record<ShipKind, number>;
+  /** Ticks between successive moves (lower = faster). */
+  SHIP_MOVE_TICKS: Record<ShipKind, number>;
+  /** Ticks between successive shots. */
+  SHIP_FIRE_TICKS: Record<ShipKind, number>;
+  /** Max ships a single player can have at once. */
+  SHIP_PLAYER_CAP: number;
 
   // AI behavior
   AI_RETARGET_TICKS: number;
@@ -175,6 +191,14 @@ export const DEFAULT_CONFIG: GameConfig = {
   BOMB_COSTS:          { small: 60,  large: 240 },
   BOMB_RADII:          { small: 4,   large: 12  },
   BOMB_COOLDOWN_TICKS: { small: 80,  large: 250 }, // 8s / 25s @ 10Hz
+
+  SHIP_COSTS:      { scout: 80,  skirmisher: 200, warship: 500 },
+  SHIP_HP:         { scout: 30,  skirmisher: 80,  warship: 200 },
+  SHIP_RANGE:      { scout: 3,   skirmisher: 5,   warship: 7   },
+  SHIP_DAMAGE:     { scout: 4,   skirmisher: 10,  warship: 20  },
+  SHIP_MOVE_TICKS: { scout: 1,   skirmisher: 2,   warship: 3   },
+  SHIP_FIRE_TICKS: { scout: 25,  skirmisher: 18,  warship: 14  },
+  SHIP_PLAYER_CAP: 8,
 
   AI_RETARGET_TICKS: 120,
 

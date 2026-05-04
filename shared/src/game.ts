@@ -2,6 +2,7 @@ import type { GameConfig } from './config.js';
 import type {
   Player, PlayerId, Capital, Building, BuildingType, BombType, GameEvent,
   GameOutcome, BuildError, BombError, Point,
+  Ship, ShipKind, ShipBuildError,
 } from './types.js';
 import { TERRAIN_LAND } from './types.js';
 import { Territory } from './territory.js';
@@ -25,6 +26,8 @@ export class Game {
   readonly players: Array<Player | null>;
   readonly capitals: Capital[];
   readonly buildings: Building[];
+  readonly ships: Ship[] = [];
+  private _shipNextId = 1;
   readonly goldMultiplier: Float32Array;
   tickCount: number;
   outcome: GameOutcome;
@@ -426,6 +429,7 @@ export class Game {
       // skips tiles with no effective target (no override + non-vassal).
       this._expand(p);
     }
+    this._shipsTick();
     this._checkVictory();
   }
 
@@ -473,7 +477,7 @@ export class Game {
   private _regionBuildingCap(type: BuildingType, regionTiles: number): number {
     if (type === 'turret')     return 1 + Math.floor(regionTiles / 25);
     if (type === 'settlement') return 1 + Math.floor(regionTiles / 35);
-    if (type === 'airstrip')   return Math.max(0, Math.floor(regionTiles / 90));
+    if (type === 'airstrip')   return 1 + Math.floor(regionTiles / 60);
     return 0;
   }
 
@@ -1107,7 +1111,7 @@ export class Game {
     const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
     const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== leader.id;
     if (targetIsEnemy && airstripCount < airstripCap &&
-        this.countBuildings(leader.id, 'airstrip') < 2 &&
+        this.countBuildings(leader.id, 'airstrip') < 4 &&
         safe.length > 0 && vGold >= reserve + airCost) {
       const spot = this._pickAirstripSpot(safe, targetRegion, leader.id);
       if (spot >= 0) {
@@ -1199,7 +1203,7 @@ export class Game {
 
     // Don't waste a bomb on a sparse target. Require enough enemies under it.
     const tilesInArea = Math.PI * r2;
-    const minEnemies = Math.floor(tilesInArea * (bombType === 'large' ? 0.35 : 0.45));
+    const minEnemies = Math.floor(tilesInArea * (bombType === 'large' ? 0.20 : 0.25));
     if (bestEnemies < minEnemies || bestX < 0) return;
 
     if (this.dropBomb(bombType, bestX, bestY, leader.id, regionId) === null) {
@@ -1352,19 +1356,28 @@ export class Game {
     if (((this.tickCount + p.id * 11) % interval) !== 0) return;
     const reserve = this.config.VASSAL_GOLD_RESERVE;
     if (p.gold < reserve) return;
-    const W = this.territory.width;
 
-    // Find regions where this AI is the dominant owner. Pick ONE per
-    // think tick (rotated by tickCount) so the work spreads across frames.
-    const myRegions: number[] = [];
+    // Build in every region we dominate — same throttle the vassals use.
+    // Each region tries one structure per think tick; cap is enforced inside.
     for (let r = 1; r <= this.regionCount; r++) {
-      if (this._regionDominant[r] === p.id) myRegions.push(r);
+      if (this._regionDominant[r] !== p.id) continue;
+      this._aiBuildRegion(p, r);
+      if (p.gold < reserve) break;
     }
-    if (myRegions.length === 0) return;
-    const regionId = myRegions[(Math.floor(this.tickCount / interval)) % myRegions.length]!;
 
+    // Bombs: try once per think against the AI's current target region.
+    const targetRegion = p.targetRegions[0] ?? 0;
+    const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
+    const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== p.id;
+    if (targetIsEnemy && this.hasAirstrip(p.id)) this._aiMaybeBomb(p, targetRegion);
+  }
+
+  private _aiBuildRegion(p: Player, regionId: number): void {
+    const reserve = this.config.VASSAL_GOLD_RESERVE;
+    const W = this.territory.width;
     const tiles = this._tilesByRegion[regionId];
     if (!tiles || tiles.length === 0) return;
+
     const exposed: number[] = [];
     const safe: number[] = [];
     for (const i of tiles) {
@@ -1382,25 +1395,34 @@ export class Game {
     const settlementCount = this._countBuildingsInRegion(regionId, p.id, 'settlement');
     const airstripCount   = this._countBuildingsInRegion(regionId, p.id, 'airstrip');
 
-    // 1. THREAT
+    // 1. THREAT — turret on any exposed tile, OR a preemptive perimeter
+    // turret on safe tiles when this region has none yet (so AI hardens
+    // its core regions even before they're attacked).
     const turretCost = this.config.BUILDING_COSTS.turret;
-    if (exposed.length > 0 && turretCount < turretCap && p.gold >= reserve + turretCost) {
-      const spot = this._pickBestTurretSpot(exposed, p.id);
-      if (spot >= 0) {
-        const x = spot % W, y = (spot - x) / W;
-        if (this.tryBuild('turret', x, y, p.id) === null) return;
+    if (turretCount < turretCap && p.gold >= reserve + turretCost) {
+      const candidates = exposed.length > 0
+        ? exposed
+        : (turretCount === 0 ? safe : []);
+      if (candidates.length > 0) {
+        const spot = this._pickBestTurretSpot(candidates, p.id);
+        if (spot >= 0) {
+          const x = spot % W, y = (spot - x) / W;
+          if (this.tryBuild('turret', x, y, p.id) === null) return;
+        }
       }
     }
 
-    // 2. OFFENSE: airstrip if pushing an enemy region
+    // 2. OFFENSE — airstrip if pushing an enemy region (or if we have NONE
+    // anywhere on the map — gives AI a baseline bomb capability).
     const targetRegion = p.targetRegions[0] ?? 0;
     const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
     const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== p.id;
     const airCost = this.config.BUILDING_COSTS.airstrip;
-    if (targetIsEnemy && airstripCount < airstripCap &&
-        this.countBuildings(p.id, 'airstrip') < 2 &&
+    const wantAirstrip = targetIsEnemy || this.countBuildings(p.id, 'airstrip') === 0;
+    if (wantAirstrip && airstripCount < airstripCap &&
+        this.countBuildings(p.id, 'airstrip') < 3 &&
         safe.length > 0 && p.gold >= reserve + airCost) {
-      const spot = this._pickAirstripSpot(safe, targetRegion, p.id);
+      const spot = this._pickAirstripSpot(safe, targetRegion || regionId, p.id);
       if (spot >= 0) {
         const x = spot % W, y = (spot - x) / W;
         if (this.tryBuild('airstrip', x, y, p.id) === null) return;
@@ -1429,9 +1451,6 @@ export class Game {
       if (b.level < bestLvl) { bestLvl = b.level; bestB = b; }
     }
     if (bestB) this.tryUpgrade(bestB.x, bestB.y, p.id);
-
-    // 5. AI bombs: opportunistically drop on enemy clusters in the target.
-    if (targetIsEnemy && this.hasAirstrip(p.id)) this._aiMaybeBomb(p, targetRegion);
   }
 
   private _aiMaybeBomb(p: Player, targetRegion: number): void {
@@ -1446,7 +1465,6 @@ export class Game {
       const i = tiles[(Math.random() * tiles.length) | 0]!;
       const o = this.territory.owners[i]!;
       if (o === 0 || o === p.id) continue;
-      // Quick neighborhood density poll
       const x = i % W, y = (i - x) / W;
       let c = 0;
       const r = 4;
@@ -1458,7 +1476,7 @@ export class Game {
       }
       if (c > bestCount) { bestCount = c; bestX = x; bestY = y; }
     }
-    if (bestCount < 12) return;
+    if (bestCount < 6) return;
     const bombType: BombType = p.gold >= this.config.BOMB_COSTS.large * 1.5 ? 'large' : 'small';
     if (p.gold < this.config.BOMB_COSTS[bombType]) return;
     this.dropBomb(bombType, bestX, bestY, p.id);
@@ -1756,6 +1774,209 @@ export class Game {
         this.goldMultiplier[y * W + x]! += sign * this.config.SETTLEMENT_BONUS;
       }
     }
+  }
+
+  // --- Ships -------------------------------------------------------------
+
+  /** Returns true if (x, y) is in bounds AND a water tile (any kind). */
+  private _isWaterTile(x: number, y: number): boolean {
+    if (!this.territory.inBounds(x, y)) return false;
+    return !this.territory.isPassable(x, y);
+  }
+
+  /** Build a ship of the given kind. The build origin must be a coastal
+   *  land tile owned by the player; the ship spawns on the closest water
+   *  tile adjacent to it. */
+  buildShip(kind: ShipKind, x: number, y: number, ownerId: PlayerId): ShipBuildError | null {
+    const cost = this.config.SHIP_COSTS[kind];
+    if (cost == null) return 'bad-type';
+    if (!this.territory.inBounds(x, y)) return 'oob';
+    const owner = this.players[ownerId];
+    if (!owner || !owner.alive) return 'dead';
+    if (this.territory.getOwner(x, y) !== ownerId) return 'not-coastal';
+    if (this.territory.isPassable(x, y) === false) return 'not-coastal';
+    // Find adjacent water tile to spawn on.
+    let sx = -1, sy = -1;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]] as const) {
+      const nx = x + dx, ny = y + dy;
+      if (this._isWaterTile(nx, ny)) { sx = nx; sy = ny; break; }
+    }
+    if (sx < 0) return 'no-water';
+    const myShips = this.ships.reduce((n, s) => s.owner === ownerId ? n + 1 : n, 0);
+    if (myShips >= this.config.SHIP_PLAYER_CAP) return 'cap';
+    if (owner.gold < cost) return 'gold';
+    owner.gold -= cost;
+    const ship: Ship = {
+      id: this._shipNextId++,
+      owner: ownerId,
+      kind,
+      x: sx, y: sy,
+      destX: -1, destY: -1,
+      manual: false,
+      hp: this.config.SHIP_HP[kind],
+      fireCooldown: 0,
+    };
+    this.ships.push(ship);
+    this.events.push({ type: 'ship-built', shipKind: kind, ownerId });
+    return null;
+  }
+
+  /** Set a ship's destination. If (x, y) is land it's snapped to the
+   *  nearest water neighbor — otherwise the ship can't reach it. Returns
+   *  true on success. Used by the player tap-to-target. */
+  setShipTarget(shipId: number, x: number, y: number, ownerId: PlayerId): boolean {
+    const s = this.shipById(shipId);
+    if (!s || s.owner !== ownerId) return false;
+    if (!this.territory.inBounds(x, y)) return false;
+    let tx = x, ty = y;
+    if (!this._isWaterTile(tx, ty)) {
+      // Snap to the nearest water-adjacent tile.
+      let best = -1, bx = tx, by = ty;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = tx + dx, ny = ty + dy;
+        if (this._isWaterTile(nx, ny)) {
+          const d = Math.abs(nx - s.x) + Math.abs(ny - s.y);
+          if (best < 0 || d < best) { best = d; bx = nx; by = ny; }
+        }
+      }
+      if (best < 0) return false;
+      tx = bx; ty = by;
+    }
+    s.destX = tx; s.destY = ty;
+    s.manual = true;
+    return true;
+  }
+
+  shipById(id: number): Ship | null {
+    for (const s of this.ships) if (s.id === id) return s;
+    return null;
+  }
+
+  /** Return a ship belonging to ownerId within `tolTiles` of (wx, wy), or
+   *  null. Used by tap-to-select. Closest match wins. */
+  shipNear(wx: number, wy: number, ownerId: PlayerId, tolTiles: number): Ship | null {
+    let best: Ship | null = null;
+    let bestD = Infinity;
+    for (const s of this.ships) {
+      if (s.owner !== ownerId) continue;
+      const d = Math.hypot(s.x - wx, s.y - wy);
+      if (d <= tolTiles && d < bestD) { bestD = d; best = s; }
+    }
+    return best;
+  }
+
+  /** Per-tick simulation for all ships: movement, patrol target choice,
+   *  bombardment of adjacent enemy coast, and warship landfall (claiming
+   *  the coastal tile). */
+  private _shipsTick(): void {
+    if (this.ships.length === 0) return;
+    for (let i = this.ships.length - 1; i >= 0; i--) {
+      const s = this.ships[i]!;
+      const owner = this.players[s.owner];
+      if (!owner || !owner.alive || s.hp <= 0) {
+        this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
+        this.ships.splice(i, 1);
+        continue;
+      }
+      if (s.fireCooldown > 0) s.fireCooldown--;
+      this._shipMove(s);
+      this._shipFire(s);
+    }
+  }
+
+  private _shipMove(s: Ship): void {
+    const moveTicks = this.config.SHIP_MOVE_TICKS[s.kind];
+    if (this.tickCount % moveTicks !== 0) return;
+    if (s.destX < 0 || s.destY < 0) {
+      // Pick a patrol target near an enemy coast (or random water).
+      const t = this._pickShipPatrolTarget(s);
+      if (t) { s.destX = t.x; s.destY = t.y; s.manual = false; }
+      else return;
+    }
+    if (s.x === s.destX && s.y === s.destY) {
+      s.destX = -1; s.destY = -1; s.manual = false;
+      return;
+    }
+    const dx = Math.sign(s.destX - s.x);
+    const dy = Math.sign(s.destY - s.y);
+    // Try diagonal first, then axis-aligned, then perpendicular nudges.
+    const tries: Array<[number, number]> = [
+      [dx, dy], [dx, 0], [0, dy],
+      [dx, dy === 0 ? 1 : 0], [dx, dy === 0 ? -1 : 0],
+      [dx === 0 ? 1 : 0, dy], [dx === 0 ? -1 : 0, dy],
+    ];
+    for (const [stepX, stepY] of tries) {
+      if (stepX === 0 && stepY === 0) continue;
+      const nx = s.x + stepX, ny = s.y + stepY;
+      if (this._isWaterTile(nx, ny)) {
+        s.x = nx; s.y = ny;
+        return;
+      }
+    }
+    // Stuck — drop the destination so we re-roll a patrol next tick.
+    s.destX = -1; s.destY = -1; s.manual = false;
+  }
+
+  private _shipFire(s: Ship): void {
+    if (s.fireCooldown > 0) return;
+    const range = this.config.SHIP_RANGE[s.kind];
+    const dmg = this.config.SHIP_DAMAGE[s.kind];
+    const r2 = range * range;
+    let bestX = -1, bestY = -1, bestD = Infinity;
+    const W = this.territory.width;
+    for (let dy = -range; dy <= range; dy++) {
+      for (let dx = -range; dx <= range; dx++) {
+        const d2 = dx * dx + dy * dy;
+        if (d2 > r2) continue;
+        const tx = s.x + dx, ty = s.y + dy;
+        if (!this.territory.inBounds(tx, ty)) continue;
+        if (!this.territory.isPassable(tx, ty)) continue;
+        const o = this.territory.getOwner(tx, ty);
+        if (o <= 0 || o === s.owner) continue;
+        if (d2 < bestD) { bestD = d2; bestX = tx; bestY = ty; }
+      }
+    }
+    if (bestX < 0) return;
+    const defender = this.players[this.territory.getOwner(bestX, bestY)];
+    if (defender) defender.troops = Math.max(0, defender.troops - dmg);
+    // Warship landfall: if the hit tile is within 2 tiles AND not a capital,
+    // attempt to flip it to the ship's owner.
+    if (s.kind === 'warship') {
+      const md = Math.abs(bestX - s.x) + Math.abs(bestY - s.y);
+      if (md <= 2 && this._capitalIndexAt(bestX, bestY) < 0) {
+        this.tryCapture(bestX, bestY, s.owner);
+      }
+    }
+    s.fireCooldown = this.config.SHIP_FIRE_TICKS[s.kind];
+    void W;
+  }
+
+  /** Pick a water tile near an enemy coast (preferred) or a random water
+   *  tile within sight. Used as the auto-patrol target. */
+  private _pickShipPatrolTarget(s: Ship): Point | null {
+    // Sample a few enemy coastal tiles within a radius and target adjacent water.
+    const W = this.territory.width;
+    const H = this.territory.height;
+    const maxR = 30;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const ang = Math.random() * Math.PI * 2;
+      const dist = Math.random() * maxR;
+      const tx = (s.x + Math.cos(ang) * dist) | 0;
+      const ty = (s.y + Math.sin(ang) * dist) | 0;
+      if (tx < 0 || tx >= W || ty < 0 || ty >= H) continue;
+      if (!this._isWaterTile(tx, ty)) continue;
+      // Score: nearby enemy land = good.
+      let enemyAdj = 0;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const nx = tx + dx, ny = ty + dy;
+        if (!this.territory.inBounds(nx, ny)) continue;
+        const o = this.territory.getOwner(nx, ny);
+        if (o > 0 && o !== s.owner) enemyAdj++;
+      }
+      if (enemyAdj > 0 || attempt >= 8) return { x: tx, y: ty };
+    }
+    return null;
   }
 
 

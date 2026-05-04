@@ -11,6 +11,29 @@ export type BuildingType = 'settlement' | 'turret' | 'airstrip';
 
 export type BombType = 'small' | 'large';
 
+export type ShipKind = 'scout' | 'skirmisher' | 'warship';
+
+export interface Ship {
+  id: number;
+  owner: PlayerId;
+  kind: ShipKind;
+  /** Tile-space integer position. Ships only occupy water tiles. */
+  x: number;
+  y: number;
+  /** Manual / patrol destination. -1 = no destination (will pick a patrol). */
+  destX: number;
+  destY: number;
+  /** True when the player explicitly set the destination — cleared on arrival
+   *  so the ship returns to autopilot. */
+  manual: boolean;
+  hp: number;
+  /** Ticks remaining until the ship can fire again. */
+  fireCooldown: number;
+}
+
+export type ShipBuildError =
+  | 'gold' | 'dead' | 'oob' | 'bad-type' | 'not-coastal' | 'no-water' | 'cap';
+
 export interface Point {
   x: number;
   y: number;
@@ -63,7 +86,9 @@ export type GameEvent =
   | { type: 'region-conquered'; regionId: number; ownerId: PlayerId }
   | { type: 'region-lost';      regionId: number; ownerId: PlayerId }
   | { type: 'vassal-built';     regionId: number; ownerId: PlayerId; buildingType: BuildingType }
-  | { type: 'vassal-bombed';    regionId: number; ownerId: PlayerId; bombType: BombType; x: number; y: number };
+  | { type: 'vassal-bombed';    regionId: number; ownerId: PlayerId; bombType: BombType; x: number; y: number }
+  | { type: 'ship-built';       shipKind: ShipKind; ownerId: PlayerId }
+  | { type: 'ship-sunk';        shipKind: ShipKind; ownerId: PlayerId; x: number; y: number };
 
 export type RGBA = readonly [number, number, number, number];
 

@@ -79,7 +79,30 @@ async function boot(): Promise<void> {
       if (game.outcome) return;
       if (!game.territory.inBounds(wx, wy)) { hud.toast('off-map'); return; }
       if (hud.tryBombAt(wx, wy)) return;
+      if (hud.tryBuildShipAt(wx, wy)) return;
       if (hud.tryPlaceAt(wx, wy)) return;
+
+      // Ship interaction: if a ship is already selected, ANY tap retargets
+      // it. Otherwise, a tap close to one of our ships selects it (and is
+      // consumed — does not also retarget territory).
+      const sel = renderer.ships.selected();
+      if (sel > 0) {
+        if (game.setShipTarget(sel, wx, wy, 1)) {
+          hud.toast('ordered');
+          return;
+        }
+        // Tap landed somewhere unreachable — drop the selection so the
+        // next tap can do something else (like target a region).
+        renderer.ships.setSelected(0);
+      } else {
+        const ship = game.shipNear(wx, wy, 1, 6 / Math.max(1, renderer.zoom * 0.4));
+        if (ship) {
+          renderer.ships.setSelected(ship.id);
+          hud.toast(`${ship.kind} selected · tap destination`);
+          return;
+        }
+      }
+
       const region = game.setHumanTargetRegion(wx, wy);
       if (region <= 0) { hud.toast('No region here'); return; }
       if (firstTap) { hud.hideHint(); firstTap = false; }

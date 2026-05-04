@@ -7,8 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-  <script type="module" crossorigin src="/Territorygame/assets/index-DBGw2IvL.js"></script>
-  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-GwGLZQKt.css">
+  <script type="module" crossorigin src="/Territorygame/assets/index-CHv5n-UB.js"></script>
+  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-CBZFih6_.css">
 </head>
 <body>
   <div id="app"></div>
@@ -47,6 +47,10 @@
     <button id="bomb-btn" class="fab fab-bomb hidden" type="button" aria-label="Bombs">
       <span class="fab-glyph">◎</span>
       <span class="fab-cd" id="bomb-cd"></span>
+    </button>
+    <button id="fleet-btn" class="fab fab-fleet" type="button" aria-label="Fleet">
+      <span class="fab-glyph">⛵</span>
+      <span class="fab-cd" id="fleet-count">0</span>
     </button>
     <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu">≡</button>
     <button id="help-btn" class="icon-btn icon-btn-help" type="button" aria-label="How to play">?</button>
@@ -119,6 +123,28 @@
           <span class="bs-name">Large <em>(L)</em></span>
           <span class="bs-desc">r12 · 25s cooldown</span>
           <span class="bs-cost">240</span>
+        </button>
+      </div>
+      <button class="bs-cancel" type="button">Cancel</button>
+    </div>
+    <div id="fleetsheet">
+      <div class="bs-handle"></div>
+      <div class="bs-header">Build a ship · tap a coastal tile</div>
+      <div class="bs-grid">
+        <button class="sb-btn" data-ship="scout" type="button">
+          <span class="bs-name">Scout</span>
+          <span class="bs-desc">Fast · range 3 · 4 dmg · 30 hp</span>
+          <span class="bs-cost">80</span>
+        </button>
+        <button class="sb-btn" data-ship="skirmisher" type="button">
+          <span class="bs-name">Skirmisher</span>
+          <span class="bs-desc">range 5 · 10 dmg · 80 hp</span>
+          <span class="bs-cost">200</span>
+        </button>
+        <button class="sb-btn" data-ship="warship" type="button">
+          <span class="bs-name">Warship</span>
+          <span class="bs-desc">range 7 · 20 dmg · 200 hp · LANDFALL</span>
+          <span class="bs-cost">500</span>
         </button>
       </div>
       <button class="bs-cancel" type="button">Cancel</button>

@@ -2,6 +2,7 @@ import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Game, GameConfig } from '@territorygame/shared';
 import { TerritoryLayer } from './TerritoryLayer.js';
 import { OverlayLayer } from './OverlayLayer.js';
+import { ShipsLayer } from './ShipsLayer.js';
 
 export interface RendererOptions {
   minZoom: number;
@@ -25,6 +26,7 @@ export class Renderer {
   readonly world: Container;
   readonly territoryLayer: TerritoryLayer;
   readonly overlay: OverlayLayer;
+  readonly ships!: ShipsLayer;
   readonly opts: RendererOptions;
 
   // Camera in WORLD (tile) coordinates. Zoom is screen-pixels-per-tile.
@@ -120,6 +122,10 @@ export class Renderer {
     // Screen-space layers (capitals, buildings, labels, tap flash).
     this.app.stage.addChild(this.overlay.container);
 
+    // Ships render in screen space on top of buildings.
+    (this as { ships: ShipsLayer }).ships = new ShipsLayer(game, this);
+    this.app.stage.addChild(this.ships.container);
+
     this.applyViewport();
   }
 
@@ -178,6 +184,7 @@ export class Renderer {
     this._maybeRebuildOutlines();
     this._maybeRebuildFortifications();
     this.overlay.update(now);
+    this.ships.update(now);
   }
 
   // Rebuild the fortified-region walls if the simulation has advanced. Each
