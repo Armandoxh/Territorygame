@@ -51,25 +51,22 @@
     <button id="help-btn" class="icon-btn icon-btn-help" type="button" aria-label="How to play">?</button>
     <button id="crown-btn" class="icon-btn icon-btn-crown" type="button" aria-label="Commander">♛</button>
     <div id="commander">
-      <div class="card">
+      <div class="card cmd-card">
         <h2>COMMANDER</h2>
-        <p class="commander-blurb">Spend your tribute on empire-wide decrees.</p>
+        <p class="commander-blurb">Spend tribute on the decree tree. Tier 1 unlocks Tier 2.</p>
         <div class="commander-stats">
           <span><b id="cmd-gold">0</b><i>treasury</i></span>
           <span><b id="cmd-prod">+0%</b><i>production</i></span>
+          <span><b id="cmd-troops">0</b><i>troops</i></span>
         </div>
-        <div class="cmd-list">
-          <button id="cmd-production" class="cmd-btn" type="button">
-            <span class="cmd-name">Production Decree</span>
-            <span class="cmd-desc">+10% gold income for everything you own. Stackable.</span>
-            <span class="cmd-cost">500</span>
-          </button>
-          <button id="cmd-conscript" class="cmd-btn" type="button">
-            <span class="cmd-name">Conscription</span>
-            <span class="cmd-desc">+1000 troops to your pool, instant.</span>
-            <span class="cmd-cost">300</span>
-          </button>
+        <div class="cmd-tabs" id="cmd-tabs">
+          <button class="cmd-tab active" data-branch="economy"   type="button">Economy</button>
+          <button class="cmd-tab"        data-branch="defense"   type="button">Defense</button>
+          <button class="cmd-tab"        data-branch="military"  type="button">Military</button>
+          <button class="cmd-tab"        data-branch="offense"   type="button">Offense</button>
+          <button class="cmd-tab"        data-branch="espionage" type="button">Espionage</button>
         </div>
+        <div class="cmd-tree" id="cmd-tree"></div>
         <button id="commander-cancel" class="secondary" type="button">CLOSE</button>
       </div>
     </div>

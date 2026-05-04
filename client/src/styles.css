@@ -88,6 +88,17 @@ html, body {
 }
 .enemy-badge .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .enemy-badge b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.enemy-badge .intel {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.6;
+  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
+  display: none;
+}
+.enemy-badge.with-intel .intel { display: inline; }
+.enemy-badge.with-intel .intel::before { content: "·"; opacity: 0.5; margin-right: 3px; }
 .enemy-badge.dead { opacity: 0.3; text-decoration: line-through; }
 
 #hotbar {
@@ -343,8 +354,9 @@ html, body {
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 18px;
   padding: 24px 22px 18px;
-  width: min(360px, 92vw);
+  width: min(420px, 94vw);
 }
+.cmd-card { max-height: 92vh; display: flex; flex-direction: column; }
 #commander h2 {
   margin: 0 0 6px;
   font-size: 22px;
@@ -411,6 +423,90 @@ html, body {
   cursor: pointer;
   font-family: inherit;
 }
+
+/* --- Decree tree --- */
+.cmd-tabs {
+  display: flex; gap: 4px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.cmd-tab {
+  flex: 1 1 auto;
+  min-width: 60px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 7px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #9aa3ad;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.cmd-tab:active { transform: scale(0.97); }
+.cmd-tab.active {
+  background: rgba(232, 192, 74, 0.16);
+  border-color: rgba(232, 192, 74, 0.55);
+  color: #e8c04a;
+}
+.cmd-tree {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 12px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.decree-node {
+  background: #20262e;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-left: 3px solid rgba(232, 192, 74, 0.55);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.decree-node.tier-2 { border-left-color: rgba(74, 155, 232, 0.65); }
+.decree-node.tier-3 { border-left-color: rgba(232, 74, 74, 0.65); }
+.decree-node.locked,
+.decree-node.coming-soon { opacity: 0.55; }
+.decree-node.owned { background: #243042; border-left-color: #55c86e; }
+.dn-head {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.dn-name { font-size: 13px; font-weight: 800; color: #e6e6e6; letter-spacing: 0.4px; }
+.dn-stacks {
+  font-size: 10px; font-weight: 800;
+  color: #55c86e;
+  background: rgba(85, 200, 110, 0.12);
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 1px;
+}
+.dn-desc { font-size: 11px; opacity: 0.72; line-height: 1.4; }
+.dn-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
+.dn-cost {
+  font-size: 13px; font-weight: 800;
+  color: #e8c04a;
+  font-variant-numeric: tabular-nums;
+}
+.dn-cost.soon {
+  color: #6a7480; font-weight: 600; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.dn-buy {
+  background: #2a3440;
+  color: #e8c04a;
+  border: 1px solid rgba(232,192,74,0.35);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 11px; font-weight: 800; letter-spacing: 1px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.dn-buy:active:not(:disabled) { transform: scale(0.96); background: #364252; }
+.dn-buy:disabled { opacity: 0.45; cursor: not-allowed; }
 
 #tutorial {
   position: absolute; inset: 0;

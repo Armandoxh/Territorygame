@@ -8,6 +8,7 @@ import { Territory } from './territory.js';
 import { generateTerrain } from './terrain.js';
 import { generateRegions } from './regions.js';
 import { generateRegionNames } from './names.js';
+import { decreeById } from './decrees.js';
 
 interface ExpansionCandidate {
   x: number; y: number;
@@ -565,8 +566,9 @@ export class Game {
       owner.gold -= cost;
     }
     // Higher-tier airstrips reload faster and throw bombs slightly farther.
+    // Air Supremacy decree halves cooldown empire-wide on top of tier bonus.
     const stripLevel = chosen.level ?? 1;
-    const cooldownMult = Math.pow(0.85, stripLevel - 1);  // L1=1, L2=0.85, L3≈0.72
+    const cooldownMult = Math.pow(0.85, stripLevel - 1) * this._bombCooldownMult(owner);
     const radiusMult   = 1 + 0.10 * (stripLevel - 1);     // L1=1, L2=1.1, L3=1.2
     chosen.cooldownUntil = this.tickCount + Math.floor(this.config.BOMB_COOLDOWN_TICKS[type] * cooldownMult);
 
@@ -612,7 +614,10 @@ export class Game {
     // bite back — every successful capture inside a defender's turret radius
     // costs the attacker extra population.
     if (defender > 0) {
-      const baseR = this.config.TURRET_RADIUS;
+      const defPlayer = this.players[defender];
+      const borderPatrol = defPlayer ? (defPlayer.decreeStacks['border-patrol'] ?? 0) : 0;
+      const baseR = this.config.TURRET_RADIUS + (borderPatrol > 0 ? 1 : 0);
+      const retalMult = borderPatrol > 0 ? 1.5 : 1;
       let retaliation = 0;
       for (const b of this.buildings) {
         if (b.type !== 'turret') continue;
@@ -621,7 +626,7 @@ export class Game {
         const r = baseR + (lvl - 1);
         const dx = b.x - x, dy = b.y - y;
         if (dx * dx + dy * dy <= r * r) {
-          retaliation += this.config.TURRET_RETALIATION_DAMAGE * lvl;
+          retaliation += this.config.TURRET_RETALIATION_DAMAGE * lvl * retalMult;
         }
       }
       if (retaliation > 0) {
@@ -647,34 +652,85 @@ export class Game {
       troops: this.config.STARTING_TROOPS,
       alive: true,
       targetRegions: [],
-      productionStacks: 0,
+      decreeStacks: {},
       expanding: !isHuman,
     };
   }
 
   // --- Commander decrees ---
 
-  /** Buy a permanent +DECREE_PRODUCTION_BOOST income stack. Returns
-   *  null on success, 'gold' on insufficient funds. */
-  buyProductionDecree(playerId: PlayerId): 'gold' | 'dead' | null {
+  /** Returns the player's stack count for a decree (0 if never bought). */
+  decreeStackCount(playerId: PlayerId, decreeId: string): number {
+    const p = this.players[playerId];
+    return p?.decreeStacks?.[decreeId] ?? 0;
+  }
+
+  /** True if the decree is currently buyable for that player — prereq met,
+   *  not coming-soon, and (for non-stackable) not already bought. Used by
+   *  the UI to grey out locked nodes. */
+  decreeAvailable(playerId: PlayerId, decreeId: string): boolean {
+    const d = decreeById(decreeId);
+    if (!d) return false;
+    if (d.comingSoon) return false;
+    if (d.prereq && this.decreeStackCount(playerId, d.prereq) === 0) return false;
+    if (!d.stackable && this.decreeStackCount(playerId, decreeId) > 0) return false;
+    return true;
+  }
+
+  /** Returns null on success, error code otherwise. */
+  buyDecree(playerId: PlayerId, decreeId: string): 'gold' | 'dead' | 'locked' | 'unknown' | null {
     const p = this.players[playerId];
     if (!p || !p.alive) return 'dead';
-    const cost = this.config.DECREE_PRODUCTION_COST;
+    const d = decreeById(decreeId);
+    if (!d) return 'unknown';
+    if (!this.decreeAvailable(playerId, decreeId)) return 'locked';
+    // War Bonds: cost is 30% of current gold (configurable in registry as 0).
+    let cost = d.cost;
+    if (decreeId === 'war-bonds') cost = Math.floor(p.gold * 0.30);
     if (p.gold < cost) return 'gold';
     p.gold -= cost;
-    p.productionStacks = (p.productionStacks ?? 0) + 1;
+    p.decreeStacks[decreeId] = (p.decreeStacks[decreeId] ?? 0) + 1;
+    // Apply one-shot side effects at purchase time.
+    this._applyDecreeOneShot(p, decreeId);
     return null;
   }
 
-  /** Buy a one-shot Conscription Decree: instant troops boost. */
-  buyConscriptDecree(playerId: PlayerId): 'gold' | 'dead' | null {
-    const p = this.players[playerId];
-    if (!p || !p.alive) return 'dead';
-    const cost = this.config.DECREE_CONSCRIPT_COST;
-    if (p.gold < cost) return 'gold';
-    p.gold -= cost;
-    p.troops += this.config.DECREE_CONSCRIPT_TROOPS;
-    return null;
+  private _applyDecreeOneShot(p: Player, id: string): void {
+    if (id === 'conscription') {
+      p.troops += this.config.DECREE_CONSCRIPT_TROOPS;
+    } else if (id === 'war-bonds') {
+      p.troops += 5000;
+    }
+  }
+
+  // --- Decree effect helpers (read at the call sites in income/troops/etc.) ---
+
+  /** Income multiplier from Production Decree stacks. */
+  private _productionMult(p: Player): number {
+    return 1 + this.config.DECREE_PRODUCTION_BOOST * (p.decreeStacks['production'] ?? 0);
+  }
+
+  /** Tribute fraction taking Free Market into account. */
+  private _tributeFractionFor(p: Player): number {
+    const base = this.config.VASSAL_TRIBUTE_FRACTION;
+    return (p.decreeStacks['free-market'] ?? 0) > 0 ? base * 0.5 : base;
+  }
+
+  /** Vassal expansion boost taking Forced March into account. */
+  private _expansionBoostFor(p: Player): number {
+    const stacks = p.decreeStacks['forced-march'] ?? 0;
+    return this.config.VASSAL_EXPANSION_BOOST + 0.20 * stacks;
+  }
+
+  /** Troop cap multiplier from Standing Army stacks. */
+  private _troopCapFor(p: Player): number {
+    const stacks = p.decreeStacks['standing-army'] ?? 0;
+    return this.config.TROOP_CAP_PER_TILE * (1 + 0.50 * stacks);
+  }
+
+  /** Bomb-cooldown multiplier from Air Supremacy. */
+  private _bombCooldownMult(p: Player): number {
+    return (p.decreeStacks['air-supremacy'] ?? 0) > 0 ? 0.5 : 1;
   }
 
   private _spawnRadius(): number {
@@ -729,7 +785,6 @@ export class Game {
 
   private _growTroops(): void {
     const growth = this.config.TROOP_GROWTH_PER_TILE_PER_TICK;
-    const cap = this.config.TROOP_CAP_PER_TILE;
     const settlementBonus = this.config.SETTLEMENT_TROOP_BONUS;
     const fullRegionBonus = this.config.FULL_REGION_TROOP_BONUS;
     // Pre-count settlements per owner so we don't iterate buildings inside the loop.
@@ -747,7 +802,7 @@ export class Game {
       const p = this.players[id];
       if (!p || !p.alive) continue;
       const owned = this.territory.counts[id]!;
-      const max = owned * cap;
+      const max = owned * this._troopCapFor(p);
       const next = p.troops
         + owned * growth
         + settlementCount[id]! * settlementBonus
@@ -762,30 +817,54 @@ export class Game {
     //     majority of, route gold to the vassal's pool, with a
     //     VASSAL_TRIBUTE_FRACTION slice forwarded to the leader.
     //   - Otherwise (non-vassal tiles, AI tiles): straight to player.gold.
+    // Sabotage: a player with sabotage stacks siphons 5% per stack from
+    // every other player's per-tick gross income into their own treasury.
     const owners = this.territory.owners;
     const mult = this.goldMultiplier;
     const base = this.config.GOLD_PER_TILE_PER_TICK;
-    const tributeFrac = this.config.VASSAL_TRIBUTE_FRACTION;
     const N = owners.length;
     const players = this.players;
     const regions = this.regions;
     const dominant = this._regionDominant;
     const vGold = this._vassalGold;
-    const decreeBoost = this.config.DECREE_PRODUCTION_BOOST;
+
+    const sabotageDrain = new Float32Array(256);
+    for (let id = 1; id < players.length; id++) {
+      const sp = players[id];
+      if (!sp || !sp.alive) continue;
+      const stacks = sp.decreeStacks['sabotage'] ?? 0;
+      if (stacks > 0) sabotageDrain[id] = Math.min(0.5, 0.05 * stacks);
+    }
+    const siphon = (earnerId: PlayerId, gross: number): number => {
+      let kept = gross;
+      for (let id = 1; id < players.length; id++) {
+        if (id === earnerId) continue;
+        const drain = sabotageDrain[id]!;
+        if (drain <= 0) continue;
+        const sp = players[id];
+        if (!sp || !sp.alive) continue;
+        const slice = gross * drain;
+        sp.gold += slice;
+        kept -= slice;
+      }
+      return kept;
+    };
+
     for (let i = 0; i < N; i++) {
       const id = owners[i]!;
       if (id === 0) continue;
       const p = players[id];
       if (!p || !p.alive) continue;
-      const decreeMult = 1 + decreeBoost * (p.productionStacks ?? 0);
+      const decreeMult = this._productionMult(p);
       const tileGold = base * (1 + mult[i]!) * decreeMult;
+      const net = siphon(id, tileGold);
       const r = regions[i]!;
       if (p.isHuman && r > 0 && dominant[r] === id) {
-        const tribute = tileGold * tributeFrac;
-        vGold[r]! += tileGold - tribute;
+        const tribute = net * this._tributeFractionFor(p);
+        vGold[r]! += net - tribute;
         p.gold += tribute;
       } else {
-        p.gold += tileGold;
+        p.gold += net;
       }
     }
     // Flat per-settlement income (in addition to the radius multiplier).
@@ -797,13 +876,14 @@ export class Game {
         const p = players[b.owner];
         if (!p || !p.alive) continue;
         const tierGold = flatGold * (b.level ?? 1);
+        const net = siphon(b.owner, tierGold);
         const r = regions[b.y * W + b.x]!;
         if (p.isHuman && r > 0 && dominant[r] === b.owner) {
-          const tribute = tierGold * tributeFrac;
-          vGold[r]! += tierGold - tribute;
+          const tribute = net * this._tributeFractionFor(p);
+          vGold[r]! += net - tribute;
           p.gold += tribute;
         } else {
-          p.gold += tierGold;
+          p.gold += net;
         }
       }
     }
@@ -1285,9 +1365,10 @@ export class Game {
           : this._pickClosestTarget(x, y, manualTargets);
       }
       if (effectiveTarget == null) continue;
-      // Vassals push more eagerly than the player's manual orders.
+      // Vassals push more eagerly than the player's manual orders. Forced
+      // March decree adds further boost on top.
       const tileChance = isVassalDriven
-        ? baseChance * this.config.VASSAL_EXPANSION_BOOST
+        ? baseChance * this._expansionBoostFor(p)
         : baseChance;
 
       const cands = this._validTargets(x, y, p.id);
@@ -1363,7 +1444,10 @@ export class Game {
 
   private _defenseAt(x: number, y: number, defenderId: PlayerId): number {
     let bonus = 0;
-    const baseR = this.config.TURRET_RADIUS;
+    const defender = this.players[defenderId];
+    const borderPatrol = defender ? (defender.decreeStacks['border-patrol'] ?? 0) : 0;
+    const ironDoctrine = defender ? (defender.decreeStacks['iron-doctrine'] ?? 0) : 0;
+    const baseR = this.config.TURRET_RADIUS + (borderPatrol > 0 ? 1 : 0);
     for (const b of this.buildings) {
       if (b.type !== 'turret') continue;
       if (b.owner !== defenderId) continue;
@@ -1376,6 +1460,8 @@ export class Game {
         bonus += this.config.TURRET_DEFENSE_BONUS * lvl;
       }
     }
+    // Iron Doctrine: every tile owned by us defends 20% better.
+    if (ironDoctrine > 0) bonus = (bonus + 1) * 1.2 - 1;
     // Fully-owned region: every tile inside the region gets a flat fortress
     // bonus on top of any turrets, simulating the "walls + reinforcement"
     // benefit of holding the whole district.

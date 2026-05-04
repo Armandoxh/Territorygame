@@ -27,8 +27,10 @@ export interface Player {
   /** Regions the player is actively pushing into. Multiple = parallel
    *  attacks. Empty = idle (vassals still run on their own). */
   targetRegions: number[];
-  /** Number of permanent +10% production decrees the leader has bought. */
-  productionStacks: number;
+  /** Stack count per Commander decree id (see shared/src/decrees.ts).
+   *  Stackable nodes accumulate; one-shot purchases also increment so
+   *  the UI can show how many times an action was issued. */
+  decreeStacks: Record<string, number>;
   expanding: boolean;
 }
 

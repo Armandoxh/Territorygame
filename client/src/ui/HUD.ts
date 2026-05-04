@@ -1,8 +1,10 @@
-import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player } from '@territorygame/shared';
+import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player, DecreeBranch } from '@territorygame/shared';
+import { DECREES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip'];
 const BOMB_TYPES: BombType[] = ['small', 'large'];
+const DECREE_BRANCHES: DecreeBranch[] = ['economy', 'defense', 'military', 'offense', 'espionage'];
 
 export class HUD {
   private readonly game: Game;
@@ -39,8 +41,9 @@ export class HUD {
     crownBtn:     this._byId('crown-btn'),
     cmdGold:      this._byId('cmd-gold'),
     cmdProd:      this._byId('cmd-prod'),
-    cmdProductionBtn: this._byId('cmd-production'),
-    cmdConscriptBtn:  this._byId('cmd-conscript'),
+    cmdTroops:    this._byId('cmd-troops'),
+    cmdTabs:      this._byId('cmd-tabs'),
+    cmdTree:      this._byId('cmd-tree'),
     cmdCancel:    this._byId('commander-cancel'),
     tutorial:     this._byId('tutorial'),
     helpBtn:      this._byId('help-btn'),
@@ -55,7 +58,8 @@ export class HUD {
   private placeMode: BuildingType | null = null;
   private bombMode: BombType | null = null;
   private buildSheetCoord: { x: number; y: number } | null = null;
-  private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement }>();
+  private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement; intel: HTMLElement }>();
+  private cmdActiveBranch: DecreeBranch = 'economy';
 
   // Debug HUD live stats — set by main.ts loop
   fps = 0;
@@ -336,12 +340,20 @@ export class HUD {
     if (this.el.bombSheet?.classList.contains('show')) this._refreshBombSheetButtons();
     if (this.el.commander?.classList.contains('show')) this._refreshCommander();
     this._refreshLeaderBar();
+    const spy = (me.decreeStacks['spy-network'] ?? 0) > 0;
     for (const [id, ref] of this.enemyEls) {
       const p = this.game.players[id];
       if (!p) continue;
       const cnt = this.game.territory.counts[id]!;
       ref.num.textContent = String(cnt);
       ref.wrap.classList.toggle('dead', cnt === 0);
+      if (spy && cnt > 0) {
+        ref.intel.textContent = formatTroops(p.troops);
+        ref.wrap.classList.add('with-intel');
+      } else {
+        ref.intel.textContent = '';
+        ref.wrap.classList.remove('with-intel');
+      }
     }
     this._consumeEvents();
 
@@ -372,8 +384,12 @@ export class HUD {
       const num = document.createElement('b');
       num.textContent = '0';
       wrap.appendChild(num);
+      const intel = document.createElement('i');
+      intel.className = 'intel';
+      intel.textContent = '';
+      wrap.appendChild(intel);
       this.el.enemies.appendChild(wrap);
-      this.enemyEls.set(id, { wrap, num });
+      this.enemyEls.set(id, { wrap, num, intel });
     }
   }
 
@@ -572,15 +588,13 @@ export class HUD {
     this.el.commander?.addEventListener('click', (e) => {
       if (e.target === this.el.commander) this.hideCommander();
     });
-    this.el.cmdProductionBtn?.addEventListener('click', () => {
-      const err = this.game.buyProductionDecree(1);
-      if (err) this.toast(err === 'gold' ? 'Treasury too low' : 'Cannot decree');
-      else { this.toast('Production decree issued'); this._refreshCommander(); }
-    });
-    this.el.cmdConscriptBtn?.addEventListener('click', () => {
-      const err = this.game.buyConscriptDecree(1);
-      if (err) this.toast(err === 'gold' ? 'Treasury too low' : 'Cannot decree');
-      else { this.toast('Conscription called'); this._refreshCommander(); }
+    this.el.cmdTabs?.querySelectorAll<HTMLButtonElement>('.cmd-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const branch = btn.dataset['branch'] as DecreeBranch | undefined;
+        if (!branch) return;
+        this.cmdActiveBranch = branch;
+        this._refreshCommander();
+      });
     });
   }
 
@@ -595,23 +609,108 @@ export class HUD {
 
   private _refreshCommander(): void {
     const me = this.game.human();
-    if (this.el.cmdGold) this.el.cmdGold.textContent = String(Math.floor(me.gold));
+    if (this.el.cmdGold)   this.el.cmdGold.textContent   = String(Math.floor(me.gold));
+    if (this.el.cmdTroops) this.el.cmdTroops.textContent = formatTroops(me.troops);
     if (this.el.cmdProd) {
-      const pct = (me.productionStacks ?? 0) * this.game.config.DECREE_PRODUCTION_BOOST * 100;
+      const stacks = me.decreeStacks['production'] ?? 0;
+      const pct = stacks * this.game.config.DECREE_PRODUCTION_BOOST * 100;
       this.el.cmdProd.textContent = pct === 0 ? '+0%' : `+${pct.toFixed(0)}%`;
     }
-    const prodCost = this.game.config.DECREE_PRODUCTION_COST;
-    const conCost = this.game.config.DECREE_CONSCRIPT_COST;
-    if (this.el.cmdProductionBtn) {
-      this.el.cmdProductionBtn.classList.toggle('disabled', me.gold < prodCost);
-      const costEl = this.el.cmdProductionBtn.querySelector('.cmd-cost');
-      if (costEl) costEl.textContent = String(prodCost);
+    if (this.el.cmdTabs) {
+      this.el.cmdTabs.querySelectorAll<HTMLButtonElement>('.cmd-tab').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset['branch'] === this.cmdActiveBranch);
+      });
     }
-    if (this.el.cmdConscriptBtn) {
-      this.el.cmdConscriptBtn.classList.toggle('disabled', me.gold < conCost);
-      const costEl = this.el.cmdConscriptBtn.querySelector('.cmd-cost');
-      if (costEl) costEl.textContent = String(conCost);
+    if (this.el.cmdTree) this._renderDecreeTree();
+  }
+
+  private _renderDecreeTree(): void {
+    const tree = this.el.cmdTree;
+    if (!tree) return;
+    const me = this.game.human();
+    const branch = this.cmdActiveBranch;
+    tree.innerHTML = '';
+    const nodes = DECREES.filter(d => d.branch === branch).slice().sort((a, b) => a.tier - b.tier);
+    for (const d of nodes) {
+      const stacks = me.decreeStacks[d.id] ?? 0;
+      const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
+      const owned = stacks > 0;
+      const locked = d.comingSoon || !prereqMet || (!d.stackable && owned);
+
+      // War Bonds: cost is dynamic (30% of current gold).
+      const cost = d.id === 'war-bonds' ? Math.floor(me.gold * 0.30) : d.cost;
+      const canAfford = me.gold >= cost;
+
+      const row = document.createElement('div');
+      row.className = 'decree-node';
+      row.classList.add(`tier-${d.tier}`);
+      if (d.comingSoon) row.classList.add('coming-soon');
+      else if (!prereqMet) row.classList.add('locked');
+      else if (!d.stackable && owned) row.classList.add('owned');
+      else if (!canAfford) row.classList.add('cant-afford');
+
+      const head = document.createElement('div');
+      head.className = 'dn-head';
+      const name = document.createElement('span');
+      name.className = 'dn-name';
+      name.textContent = `T${d.tier} · ${d.name}`;
+      head.appendChild(name);
+      if (stacks > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'dn-stacks';
+        badge.textContent = d.stackable ? `×${stacks}` : 'OWNED';
+        head.appendChild(badge);
+      }
+      row.appendChild(head);
+
+      const desc = document.createElement('div');
+      desc.className = 'dn-desc';
+      desc.textContent = d.desc;
+      row.appendChild(desc);
+
+      const foot = document.createElement('div');
+      foot.className = 'dn-foot';
+      const costEl = document.createElement('span');
+      costEl.className = 'dn-cost';
+      if (d.comingSoon) {
+        costEl.textContent = 'Coming soon';
+        costEl.classList.add('soon');
+      } else if (!prereqMet) {
+        const pre = DECREES.find(x => x.id === d.prereq);
+        costEl.textContent = `Locked · needs ${pre?.name ?? d.prereq}`;
+        costEl.classList.add('soon');
+      } else if (!d.stackable && owned) {
+        costEl.textContent = 'Issued';
+        costEl.classList.add('soon');
+      } else {
+        costEl.textContent = `${cost}g`;
+      }
+      foot.appendChild(costEl);
+
+      const buy = document.createElement('button');
+      buy.className = 'dn-buy';
+      buy.type = 'button';
+      buy.textContent = locked ? '—' : (d.oneShot ? 'ISSUE' : 'DECREE');
+      buy.disabled = locked || !canAfford;
+      buy.addEventListener('click', () => this._buyDecree(d.id));
+      foot.appendChild(buy);
+      row.appendChild(foot);
+
+      tree.appendChild(row);
     }
+  }
+
+  private _buyDecree(id: string): void {
+    const err = this.game.buyDecree(1, id);
+    if (err === null) {
+      this.toast('Decree issued');
+      this._refreshCommander();
+      return;
+    }
+    if (err === 'gold')   this.toast('Treasury too low');
+    else if (err === 'locked') this.toast('Locked — buy prereq first');
+    else if (err === 'dead')   this.toast('You are eliminated');
+    else this.toast('Cannot decree');
   }
 
   showTutorial(): void {

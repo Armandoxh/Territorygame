@@ -129,9 +129,9 @@ export const DEFAULT_CONFIG: GameConfig = {
   TROOP_CAP_PER_TILE: 100,
   TROOP_COST_PER_ATTACK: 5,
   TROOP_DAMAGE_PER_ATTACK: 3,
-  ATTACK_RATIO_EXP: 0.3,        // gentler scaling (was 0.5)
-  ATTACK_RATIO_MIN: 0.3,        // smaller players still inflict some damage (was 0.1)
-  ATTACK_RATIO_MAX: 3,          // cap the snowball — bigger doesn't mean unstoppable (was 10)
+  ATTACK_RATIO_EXP: 0.4,
+  ATTACK_RATIO_MIN: 0.25,
+  ATTACK_RATIO_MAX: 4,
 
   WIN_TERRITORY_FRACTION: 0.95,
 

@@ -210,7 +210,7 @@ export class OverlayLayer {
         const player = this.game.players[dominant];
         if (player && player.isHuman) {
           const gold = this.game.vassalGoldOf(r);
-          label.text = `${baseName} · ${formatGold(gold)}`;
+          label.text = `${baseName} · ${formatGold(gold)}g`;
         } else {
           label.text = baseName;
         }
