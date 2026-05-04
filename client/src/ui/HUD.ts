@@ -61,6 +61,7 @@ export class HUD {
   private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement; intel: HTMLElement }>();
   private cmdActiveBranch: DecreeBranch = 'economy';
   private _cmdLastSig = '';
+  private _lastBuyAt = 0;
 
   // Debug HUD live stats — set by main.ts loop
   fps = 0;
@@ -635,19 +636,24 @@ export class HUD {
     if (this.el.cmdTree) this._renderDecreeTree();
   }
 
+  // Tree rendering is split in two so the DOM stays stable during a tap:
+  //   - _renderDecreeTree rebuilds nodes ONLY when branch or stack counts
+  //     change (rare). Cost / disabled state are NOT in the signature so a
+  //     ticking gold counter doesn't blow away the buttons mid-click.
+  //   - _updateDecreeAffordability runs every frame and only flips
+  //     classes / disabled / dynamic cost text on existing buttons.
   private _renderDecreeTree(): void {
     const tree = this.el.cmdTree;
     if (!tree) return;
     const me = this.game.human();
     const branch = this.cmdActiveBranch;
-    // Re-render only when something actually changed (gold bucket, branch,
-    // or stack counts). Without this we re-create the buttons every frame
-    // and clicks die between mousedown/mouseup.
-    const goldBucket = Math.floor(me.gold / 5) * 5;
     let stackSig = '';
     for (const d of DECREES) stackSig += (me.decreeStacks[d.id] ?? 0) + '.';
-    const sig = `${branch}|${goldBucket}|${stackSig}`;
-    if (sig === this._cmdLastSig) return;
+    const sig = `${branch}|${stackSig}`;
+    if (sig === this._cmdLastSig) {
+      this._updateDecreeAffordability();
+      return;
+    }
     this._cmdLastSig = sig;
 
     tree.innerHTML = '';
@@ -656,19 +662,14 @@ export class HUD {
       const stacks = me.decreeStacks[d.id] ?? 0;
       const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
       const owned = stacks > 0;
-      const locked = d.comingSoon || !prereqMet || (!d.stackable && owned);
-
-      // War Bonds: cost is dynamic (30% of current gold).
-      const cost = d.id === 'war-bonds' ? Math.floor(me.gold * 0.30) : d.cost;
-      const canAfford = me.gold >= cost;
 
       const row = document.createElement('div');
       row.className = 'decree-node';
       row.classList.add(`tier-${d.tier}`);
+      row.dataset['decree'] = d.id;
       if (d.comingSoon) row.classList.add('coming-soon');
       else if (!prereqMet) row.classList.add('locked');
       else if (!d.stackable && owned) row.classList.add('owned');
-      else if (!canAfford) row.classList.add('cant-afford');
 
       const head = document.createElement('div');
       head.className = 'dn-head';
@@ -693,35 +694,73 @@ export class HUD {
       foot.className = 'dn-foot';
       const costEl = document.createElement('span');
       costEl.className = 'dn-cost';
-      if (d.comingSoon) {
-        costEl.textContent = 'Coming soon';
-        costEl.classList.add('soon');
-      } else if (!prereqMet) {
-        const pre = DECREES.find(x => x.id === d.prereq);
-        costEl.textContent = `Locked · needs ${pre?.name ?? d.prereq}`;
-        costEl.classList.add('soon');
-      } else if (!d.stackable && owned) {
-        costEl.textContent = 'Issued';
-        costEl.classList.add('soon');
-      } else {
-        costEl.textContent = `${cost}g`;
-      }
       foot.appendChild(costEl);
 
       const buy = document.createElement('button');
       buy.className = 'dn-buy';
       buy.type = 'button';
       buy.dataset['decree'] = d.id;
-      buy.textContent = locked ? '—' : (d.oneShot ? 'ISSUE' : 'DECREE');
-      buy.disabled = locked || !canAfford;
+      buy.textContent = (d.comingSoon || !prereqMet || (!d.stackable && owned))
+        ? '—'
+        : (d.oneShot ? 'ISSUE' : 'DECREE');
       foot.appendChild(buy);
       row.appendChild(foot);
 
       tree.appendChild(row);
     }
+    this._updateDecreeAffordability();
+  }
+
+  // Per-frame cheap update: gold ticks change affordability + war-bonds
+  // dynamic cost. We mutate existing nodes instead of rebuilding the DOM.
+  private _updateDecreeAffordability(): void {
+    const tree = this.el.cmdTree;
+    if (!tree) return;
+    const me = this.game.human();
+    const rows = tree.children;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] as HTMLElement;
+      const id = row.dataset['decree'];
+      if (!id) continue;
+      const d = DECREES.find(x => x.id === id);
+      if (!d) continue;
+      const stacks = me.decreeStacks[d.id] ?? 0;
+      const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
+      const owned = stacks > 0;
+      const locked = !!d.comingSoon || !prereqMet || (!d.stackable && owned);
+      const cost = d.id === 'war-bonds' ? Math.floor(me.gold * 0.30) : d.cost;
+      const canAfford = me.gold >= cost;
+
+      row.classList.toggle('cant-afford', !locked && !canAfford);
+
+      const costEl = row.querySelector<HTMLElement>('.dn-cost');
+      if (costEl) {
+        costEl.classList.remove('soon');
+        if (d.comingSoon) {
+          costEl.textContent = 'Coming soon';
+          costEl.classList.add('soon');
+        } else if (!prereqMet) {
+          const pre = DECREES.find(x => x.id === d.prereq);
+          costEl.textContent = `Locked · needs ${pre?.name ?? d.prereq}`;
+          costEl.classList.add('soon');
+        } else if (!d.stackable && owned) {
+          costEl.textContent = 'Issued';
+          costEl.classList.add('soon');
+        } else {
+          costEl.textContent = `${cost}g`;
+        }
+      }
+      const buy = row.querySelector<HTMLButtonElement>('.dn-buy');
+      if (buy) buy.disabled = locked || !canAfford;
+    }
   }
 
   private _buyDecree(id: string): void {
+    // Debounce double-fires from synthesized click + touch events on mobile.
+    const now = performance.now();
+    if (now - this._lastBuyAt < 250) return;
+    this._lastBuyAt = now;
+
     const err = this.game.buyDecree(1, id);
     if (err === null) {
       this.toast('Decree issued');
