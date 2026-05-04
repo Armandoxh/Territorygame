@@ -418,7 +418,10 @@ export class Game {
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
       if (!p || !p.alive) continue;
-      if (!p.isHuman) this._aiThink(p);
+      if (!p.isHuman) {
+        this._aiThink(p);
+        this._aiBuild(p);
+      }
       // Always attempt expansion. _expand falls through tile-by-tile and
       // skips tiles with no effective target (no override + non-vassal).
       this._expand(p);
@@ -448,6 +451,30 @@ export class Game {
       if (b.owner === ownerId && b.type === type) n++;
     }
     return n;
+  }
+
+  /** Count owner's buildings of a given type that sit inside `regionId`. */
+  private _countBuildingsInRegion(regionId: number, ownerId: PlayerId, type: BuildingType): number {
+    const W = this.territory.width;
+    let n = 0;
+    for (const b of this.buildings) {
+      if (b.owner !== ownerId) continue;
+      if (b.type !== type) continue;
+      if (this.regions[b.y * W + b.x] !== regionId) continue;
+      n++;
+    }
+    return n;
+  }
+
+  /** Cap on how many of a given building type one owner can squeeze into
+   *  one region, scaled by region size so a 60-tile patch can't host an
+   *  airstrip + turret farm. Manual builds are NOT capped — the cap is a
+   *  guideline used by AI / vassal builders only. */
+  private _regionBuildingCap(type: BuildingType, regionTiles: number): number {
+    if (type === 'turret')     return 1 + Math.floor(regionTiles / 25);
+    if (type === 'settlement') return 1 + Math.floor(regionTiles / 35);
+    if (type === 'airstrip')   return Math.max(0, Math.floor(regionTiles / 90));
+    return 0;
   }
 
   hasAirstrip(ownerId: PlayerId): boolean {
@@ -1051,9 +1078,19 @@ export class Game {
       else safe.push(i);
     }
 
+    // Building caps scale with region size — small districts get 1-2
+    // structures total, large ones get more. Prevents stacking 20 turrets
+    // on a 50-tile patch and the runaway lag that comes with it.
+    const turretCap     = this._regionBuildingCap('turret',     tiles.length);
+    const settlementCap = this._regionBuildingCap('settlement', tiles.length);
+    const airstripCap   = this._regionBuildingCap('airstrip',   tiles.length);
+    const turretCount     = this._countBuildingsInRegion(regionId, leader.id, 'turret');
+    const settlementCount = this._countBuildingsInRegion(regionId, leader.id, 'settlement');
+    const airstripCount   = this._countBuildingsInRegion(regionId, leader.id, 'airstrip');
+
     // 1. THREAT: turret on the most-pressured exposed tile.
     const turretCost = this.config.BUILDING_COSTS.turret;
-    if (exposed.length > 0 && vGold >= reserve + turretCost) {
+    if (exposed.length > 0 && turretCount < turretCap && vGold >= reserve + turretCost) {
       const spot = this._pickBestTurretSpot(exposed, leader.id);
       if (spot >= 0) {
         const x = spot % W, y = (spot - x) / W;
@@ -1069,7 +1106,8 @@ export class Game {
     const targetRegion = this._vassalTarget[regionId] ?? 0;
     const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
     const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== leader.id;
-    if (targetIsEnemy && this.countBuildings(leader.id, 'airstrip') < 2 &&
+    if (targetIsEnemy && airstripCount < airstripCap &&
+        this.countBuildings(leader.id, 'airstrip') < 2 &&
         safe.length > 0 && vGold >= reserve + airCost) {
       const spot = this._pickAirstripSpot(safe, targetRegion, leader.id);
       if (spot >= 0) {
@@ -1083,7 +1121,7 @@ export class Game {
 
     // 3. ECONOMY: settlements whenever affordable, spread out from existing.
     const settCost = this.config.BUILDING_COSTS.settlement;
-    if (safe.length > 0 && vGold >= reserve + settCost) {
+    if (safe.length > 0 && settlementCount < settlementCap && vGold >= reserve + settCost) {
       const spot = this._pickSettlementSpot(safe, leader.id);
       if (spot >= 0) {
         const x = spot % W, y = (spot - x) / W;
@@ -1299,6 +1337,131 @@ export class Game {
     if (this.tickCount % this.config.AI_RETARGET_TICKS !== 0 && p.targetRegions.length > 0) return;
     const t = this._pickAiTargetRegion(p.id);
     p.targetRegions = (t != null && t > 0) ? [t] : [];
+  }
+
+  /** AI players build the same way vassals do — turret on threat, airstrip
+   *  for offense, settlement for income, then upgrade. Cost comes out of
+   *  p.gold (no vassal pool for AI). Capped per region by region size to
+   *  avoid late-game building sprawl + perf cliff.
+   *
+   *  Called every VASSAL_THINK_INTERVAL ticks per AI player, with the
+   *  player offset spread by ID so all AIs don't think on the same frame. */
+  private _aiBuild(p: Player): void {
+    const interval = this.config.VASSAL_THINK_INTERVAL;
+    if (interval <= 0) return;
+    if (((this.tickCount + p.id * 11) % interval) !== 0) return;
+    const reserve = this.config.VASSAL_GOLD_RESERVE;
+    if (p.gold < reserve) return;
+    const W = this.territory.width;
+
+    // Find regions where this AI is the dominant owner. Pick ONE per
+    // think tick (rotated by tickCount) so the work spreads across frames.
+    const myRegions: number[] = [];
+    for (let r = 1; r <= this.regionCount; r++) {
+      if (this._regionDominant[r] === p.id) myRegions.push(r);
+    }
+    if (myRegions.length === 0) return;
+    const regionId = myRegions[(Math.floor(this.tickCount / interval)) % myRegions.length]!;
+
+    const tiles = this._tilesByRegion[regionId];
+    if (!tiles || tiles.length === 0) return;
+    const exposed: number[] = [];
+    const safe: number[] = [];
+    for (const i of tiles) {
+      if (this.territory.owners[i] !== p.id) continue;
+      const x = i % W, y = (i - x) / W;
+      if (this.buildingAt(x, y)) continue;
+      if (this._hasEnemyNeighbor(x, y, p.id)) exposed.push(i);
+      else safe.push(i);
+    }
+
+    const turretCap     = this._regionBuildingCap('turret',     tiles.length);
+    const settlementCap = this._regionBuildingCap('settlement', tiles.length);
+    const airstripCap   = this._regionBuildingCap('airstrip',   tiles.length);
+    const turretCount     = this._countBuildingsInRegion(regionId, p.id, 'turret');
+    const settlementCount = this._countBuildingsInRegion(regionId, p.id, 'settlement');
+    const airstripCount   = this._countBuildingsInRegion(regionId, p.id, 'airstrip');
+
+    // 1. THREAT
+    const turretCost = this.config.BUILDING_COSTS.turret;
+    if (exposed.length > 0 && turretCount < turretCap && p.gold >= reserve + turretCost) {
+      const spot = this._pickBestTurretSpot(exposed, p.id);
+      if (spot >= 0) {
+        const x = spot % W, y = (spot - x) / W;
+        if (this.tryBuild('turret', x, y, p.id) === null) return;
+      }
+    }
+
+    // 2. OFFENSE: airstrip if pushing an enemy region
+    const targetRegion = p.targetRegions[0] ?? 0;
+    const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
+    const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== p.id;
+    const airCost = this.config.BUILDING_COSTS.airstrip;
+    if (targetIsEnemy && airstripCount < airstripCap &&
+        this.countBuildings(p.id, 'airstrip') < 2 &&
+        safe.length > 0 && p.gold >= reserve + airCost) {
+      const spot = this._pickAirstripSpot(safe, targetRegion, p.id);
+      if (spot >= 0) {
+        const x = spot % W, y = (spot - x) / W;
+        if (this.tryBuild('airstrip', x, y, p.id) === null) return;
+      }
+    }
+
+    // 3. ECONOMY
+    const settCost = this.config.BUILDING_COSTS.settlement;
+    if (safe.length > 0 && settlementCount < settlementCap && p.gold >= reserve + settCost) {
+      const spot = this._pickSettlementSpot(safe, p.id);
+      if (spot >= 0) {
+        const x = spot % W, y = (spot - x) / W;
+        if (this.tryBuild('settlement', x, y, p.id) === null) return;
+      }
+    }
+
+    // 4. UPGRADE: tier up the lowest-level building we have here.
+    let bestB: Building | null = null;
+    let bestLvl = Infinity;
+    for (const b of this.buildings) {
+      if (b.owner !== p.id) continue;
+      if ((b.level ?? 1) >= this.config.BUILDING_MAX_LEVEL) continue;
+      if (this.regions[b.y * W + b.x] !== regionId) continue;
+      const cost = this.upgradeCostFor(b.type, b.level);
+      if (cost < 0 || p.gold < reserve + cost) continue;
+      if (b.level < bestLvl) { bestLvl = b.level; bestB = b; }
+    }
+    if (bestB) this.tryUpgrade(bestB.x, bestB.y, p.id);
+
+    // 5. AI bombs: opportunistically drop on enemy clusters in the target.
+    if (targetIsEnemy && this.hasAirstrip(p.id)) this._aiMaybeBomb(p, targetRegion);
+  }
+
+  private _aiMaybeBomb(p: Player, targetRegion: number): void {
+    const ready = this.airstripReadyAt(p.id);
+    if (ready < 0 || ready > this.tickCount) return;
+    const tiles = this._tilesByRegion[targetRegion];
+    if (!tiles || tiles.length === 0) return;
+    // Pick the densest enemy cluster in the target region.
+    const W = this.territory.width;
+    let bestX = -1, bestY = -1, bestCount = 0;
+    for (let n = 0; n < Math.min(20, tiles.length); n++) {
+      const i = tiles[(Math.random() * tiles.length) | 0]!;
+      const o = this.territory.owners[i]!;
+      if (o === 0 || o === p.id) continue;
+      // Quick neighborhood density poll
+      const x = i % W, y = (i - x) / W;
+      let c = 0;
+      const r = 4;
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (!this.territory.inBounds(nx, ny)) continue;
+        const oo = this.territory.getOwner(nx, ny);
+        if (oo > 0 && oo !== p.id) c++;
+      }
+      if (c > bestCount) { bestCount = c; bestX = x; bestY = y; }
+    }
+    if (bestCount < 12) return;
+    const bombType: BombType = p.gold >= this.config.BOMB_COSTS.large * 1.5 ? 'large' : 'small';
+    if (p.gold < this.config.BOMB_COSTS[bombType]) return;
+    this.dropBomb(bombType, bestX, bestY, p.id);
   }
 
   // Pick a region for an AI to push into: prefer regions adjacent to its

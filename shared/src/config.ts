@@ -114,18 +114,18 @@ export const DEFAULT_CONFIG: GameConfig = {
   CAPITALS_PER_PLAYER: 2,
 
   STARTING_GOLD: 120,
-  GOLD_PER_TILE_PER_TICK: 0.04,
+  GOLD_PER_TILE_PER_TICK: 0.028,
   EXPANSION_COST_PER_CLAIM: 1,
   EXPANSION_TROOP_COST: 3, // troops drained per unclaimed claim — settling new land needs people
-  EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.22,
+  EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.13,
   EXPANSION_TARGET_BIAS: 0.95,
   EXPANSION_DIRECTIONAL_EXP: 1.5,
 
   ATTACK_COST_PER_CLAIM: 4,
-  ATTACK_RATE_MULT: 0.55,
+  ATTACK_RATE_MULT: 0.40,
 
   STARTING_TROOPS: 100,
-  TROOP_GROWTH_PER_TILE_PER_TICK: 0.55, // ~5.5/sec per tile
+  TROOP_GROWTH_PER_TILE_PER_TICK: 0.38, // ~3.8/sec per tile
   TROOP_CAP_PER_TILE: 100,
   TROOP_COST_PER_ATTACK: 5,
   TROOP_DAMAGE_PER_ATTACK: 3,
@@ -136,18 +136,18 @@ export const DEFAULT_CONFIG: GameConfig = {
   WIN_TERRITORY_FRACTION: 0.95,
 
   FULL_REGION_DEFENSE_BONUS: 1.5,
-  FULL_REGION_TROOP_BONUS: 5,
+  FULL_REGION_TROOP_BONUS: 3,
 
   // --- Vassal autonomy ---
   /** Ticks between vassal AI decisions (re-target + maybe build). */
-  VASSAL_THINK_INTERVAL: 30,
+  VASSAL_THINK_INTERVAL: 50,
   /** Per-vassal gold reserve they keep before opting to spend on buildings. */
   VASSAL_GOLD_RESERVE: 30,
   /** Min leader-fraction-of-map for human vassals to stay loyal/active. */
   VASSAL_LOYALTY_THRESHOLD: 0.5,
   /** Multiplier on per-tile expansion chance when expansion is driven by a
    *  vassal target (no manual override). > 1.0 makes vassals push faster. */
-  VASSAL_EXPANSION_BOOST: 2.8,
+  VASSAL_EXPANSION_BOOST: 2.0,
   /** Fraction of vassal income forwarded to the leader as tribute each tick. */
   VASSAL_TRIBUTE_FRACTION: 0.10,
 
@@ -165,9 +165,9 @@ export const DEFAULT_CONFIG: GameConfig = {
     airstrip:   150,
   },
   SETTLEMENT_RADIUS: 6,
-  SETTLEMENT_BONUS: 1.0,        // +100% gold in radius (was +50%)
-  SETTLEMENT_TROOP_BONUS: 8,    // +80 troops/sec per settlement (flat)
-  SETTLEMENT_GOLD_BONUS: 0.5,   // +5 gold/sec flat per settlement on top of multiplier
+  SETTLEMENT_BONUS: 0.7,        // +70% gold in radius
+  SETTLEMENT_TROOP_BONUS: 5,    // +50 troops/sec per settlement (flat)
+  SETTLEMENT_GOLD_BONUS: 0.35,  // +3.5 gold/sec flat per settlement
   TURRET_RADIUS: 5,             // covers ~78 tiles (was 28)
   TURRET_DEFENSE_BONUS: 4,      // (1 + 4) = 5x cost / 1/5 rate per stacked turret
   TURRET_RETALIATION_DAMAGE: 8, // attacker troops lost per turret on successful capture in radius
@@ -176,7 +176,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   BOMB_RADII:          { small: 4,   large: 12  },
   BOMB_COOLDOWN_TICKS: { small: 80,  large: 250 }, // 8s / 25s @ 10Hz
 
-  AI_RETARGET_TICKS: 80,
+  AI_RETARGET_TICKS: 120,
 
   TERRAIN_NOISE_SCALE: 0.025,
   TERRAIN_OCTAVES: 4,
