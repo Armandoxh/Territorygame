@@ -389,13 +389,26 @@ export class OverlayLayer {
       const cx = s.x, cy = s.y;
       // Drop shadow ellipse beneath every building.
       g.ellipse(cx + 1, cy + r * 0.55, r * 0.85, r * 0.35).fill({ color: 0x000000, alpha: 0.32 });
+      const fillStroke = (): void => {
+        g.fill({ color });
+        g.stroke({ color: 0xffffff, alpha: 0.95, width: 1.2 });
+      };
 
       if (b.type === 'settlement') {
-        drawSettlementSprite(g, cx, cy, r, color);
+        g.poly([cx - r, cy + r, cx - r, cy - r * 0.25, cx, cy - r, cx + r, cy - r * 0.25, cx + r, cy + r]);
+        fillStroke();
       } else if (b.type === 'turret') {
-        drawTurretSprite(g, cx, cy, r, color);
+        g.poly([cx, cy - r, cx + r, cy + r * 0.7, cx - r, cy + r * 0.7]);
+        fillStroke();
       } else if (b.type === 'airstrip') {
-        drawAirstripSprite(g, cx, cy, r, color);
+        const t = r * 0.4;
+        g.poly([
+          cx - r, cy - t, cx - t, cy - t, cx - t, cy - r,
+          cx + t, cy - r, cx + t, cy - t, cx + r, cy - t,
+          cx + r, cy + t, cx + t, cy + t, cx + t, cy + r,
+          cx - t, cy + r, cx - t, cy + t, cx - r, cy + t,
+        ]);
+        fillStroke();
       }
       // Tier dots: small gold pips above the icon — one per tier above L1.
       // L2 = 1 dot, L3 = 2 dots. Skipped at L1 to keep low-tier buildings clean.
@@ -471,133 +484,4 @@ export function formatTroops(n: number): string {
   if (n < 1_000_000) return Math.floor(n / 1000) + 'k';
   if (n < 10_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   return Math.floor(n / 1_000_000) + 'M';
-}
-
-// --- Building sprite drawers ---
-//
-// All shapes are painted into the shared `buildings` Graphics each frame.
-// Coordinates are screen-space. `r` is the sprite half-size (it already
-// includes zoom + tier scaling). `color` is the player tint as 0xRRGGBB.
-//
-// Style: ink outlines (deep brown) + player-tinted body + small detail
-// hits in dark + a single white highlight to suggest depth. Built for
-// readability at zooms ranging from r≈8 (cramped) to r≈22 (close-up).
-
-const INK = 0x1a0f08;
-const STONE_DARK = 0x2a1c12;
-
-function drawSettlementSprite(g: Graphics, cx: number, cy: number, r: number, color: number): void {
-  // Crenellated keep — a stocky castle silhouette that reads as
-  // "settlement / fortified town" rather than a generic house.
-  // Base wall
-  g.rect(cx - r * 0.95, cy - r * 0.15, r * 1.9, r * 0.95)
-    .fill({ color }).stroke({ color: INK, width: 1.4 });
-  // Crenellations along the top of the wall
-  const battlementCount = 5;
-  const bw = (r * 1.9) / (battlementCount * 2 - 1);
-  const baseY = cy - r * 0.15;
-  for (let i = 0; i < battlementCount; i++) {
-    const bx = cx - r * 0.95 + i * bw * 2;
-    g.rect(bx, baseY - r * 0.32, bw, r * 0.32)
-      .fill({ color }).stroke({ color: INK, width: 1 });
-  }
-  // Central tower
-  g.rect(cx - r * 0.28, cy - r * 0.85, r * 0.56, r * 0.7)
-    .fill({ color }).stroke({ color: INK, width: 1.2 });
-  // Tower crenellation cap
-  g.rect(cx - r * 0.36, cy - r * 0.95, r * 0.18, r * 0.18)
-    .fill({ color }).stroke({ color: INK, width: 0.9 });
-  g.rect(cx + r * 0.18, cy - r * 0.95, r * 0.18, r * 0.18)
-    .fill({ color }).stroke({ color: INK, width: 0.9 });
-  // Door (dark slot)
-  g.rect(cx - r * 0.13, cy + r * 0.4, r * 0.26, r * 0.4)
-    .fill({ color: INK, alpha: 0.85 });
-  // Pennant on the central tower
-  g.rect(cx - r * 0.02, cy - r * 1.18, r * 0.04, r * 0.28)
-    .fill({ color: INK });
-  g.poly([
-    cx + r * 0.02, cy - r * 1.16,
-    cx + r * 0.32, cy - r * 1.04,
-    cx + r * 0.02, cy - r * 0.94,
-  ]).fill({ color }).stroke({ color: INK, width: 0.8 });
-  // Subtle inner highlight (left-side wall)
-  g.rect(cx - r * 0.93, cy - r * 0.05, r * 0.18, r * 0.85)
-    .fill({ color: 0xffffff, alpha: 0.08 });
-}
-
-function drawTurretSprite(g: Graphics, cx: number, cy: number, r: number, color: number): void {
-  // Cannon emplacement — octagonal stone base + gun barrel + ring mount.
-  const w = r * 0.95;
-  const h = r * 0.95;
-  // Octagonal stone base
-  g.poly([
-    cx - w * 0.55, cy + h,
-    cx + w * 0.55, cy + h,
-    cx + w,        cy + h * 0.4,
-    cx + w,        cy - h * 0.1,
-    cx + w * 0.55, cy - h * 0.55,
-    cx - w * 0.55, cy - h * 0.55,
-    cx - w,        cy - h * 0.1,
-    cx - w,        cy + h * 0.4,
-  ]).fill({ color }).stroke({ color: INK, width: 1.4 });
-  // Cannon barrel (pointing up-right)
-  g.poly([
-    cx - r * 0.10, cy - r * 0.45,
-    cx + r * 0.42, cy - r * 1.10,
-    cx + r * 0.62, cy - r * 0.95,
-    cx + r * 0.10, cy - r * 0.30,
-  ]).fill({ color: STONE_DARK }).stroke({ color: INK, width: 1.1 });
-  // Barrel muzzle
-  g.circle(cx + r * 0.50, cy - r * 1.02, r * 0.10)
-    .fill({ color: INK });
-  // Ring mount (where the barrel pivots)
-  g.circle(cx, cy - r * 0.20, r * 0.30)
-    .fill({ color: STONE_DARK }).stroke({ color: INK, width: 1 });
-  g.circle(cx, cy - r * 0.20, r * 0.13)
-    .fill({ color: INK });
-  // Highlight on the base
-  g.poly([
-    cx - w, cy - h * 0.1,
-    cx - w * 0.55, cy - h * 0.55,
-    cx - w * 0.30, cy - h * 0.50,
-    cx - w * 0.85, cy - h * 0.05,
-  ]).fill({ color: 0xffffff, alpha: 0.10 });
-}
-
-function drawAirstripSprite(g: Graphics, cx: number, cy: number, r: number, color: number): void {
-  // Diagonal runway with center-line dashes + control tower at one end.
-  // Drawn axis-aligned for legibility at small sizes; the dashes give it
-  // motion and the tower gives it scale.
-  const runW = r * 2.1;
-  const runH = r * 0.55;
-  // Tarmac
-  g.rect(cx - runW * 0.5, cy - runH * 0.5, runW, runH)
-    .fill({ color: STONE_DARK }).stroke({ color: INK, width: 1.4 });
-  // Center-line dashes (yellow)
-  for (let i = -2; i <= 2; i++) {
-    g.rect(cx + i * r * 0.42 - r * 0.13, cy - r * 0.05, r * 0.26, r * 0.10)
-      .fill({ color: 0xeacc7a });
-  }
-  // Threshold markings at each end
-  const thrW = r * 0.10;
-  for (let i = 0; i < 3; i++) {
-    g.rect(cx - runW * 0.5 + r * 0.08, cy - runH * 0.4 + i * r * 0.18, thrW, r * 0.10)
-      .fill({ color: 0xeacc7a });
-    g.rect(cx + runW * 0.5 - r * 0.18, cy - runH * 0.4 + i * r * 0.18, thrW, r * 0.10)
-      .fill({ color: 0xeacc7a });
-  }
-  // Control tower at right end
-  const tx = cx + runW * 0.5 - r * 0.15;
-  const ty = cy - r * 0.30;
-  g.rect(tx, ty - r * 0.85, r * 0.35, r * 0.85)
-    .fill({ color }).stroke({ color: INK, width: 1.2 });
-  // Tower cab (slightly wider top)
-  g.rect(tx - r * 0.05, ty - r * 1.05, r * 0.45, r * 0.25)
-    .fill({ color }).stroke({ color: INK, width: 1 });
-  // Tower window
-  g.rect(tx + r * 0.02, ty - r * 1.0, r * 0.31, r * 0.10)
-    .fill({ color: 0xffd66b, alpha: 0.85 });
-  // Antenna
-  g.rect(tx + r * 0.155, ty - r * 1.32, r * 0.04, r * 0.32)
-    .fill({ color: INK });
 }

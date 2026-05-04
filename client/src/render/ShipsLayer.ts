@@ -69,119 +69,22 @@ export class ShipsLayer {
     const hull = new Graphics();
     drawHull(hull, s.kind, tint);
     const ring = new Graphics();
-    const ringR = s.kind === 'warship' ? 14 : s.kind === 'skirmisher' ? 11 : 9;
-    ring.circle(0, 0, ringR).stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
+    ring.circle(0, 0, 11).stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
     ring.visible = false;
     return { hull, ring };
   }
 }
 
-// Local style constants — match the inky look of the building sprites.
-const INK = 0x1a0f08;
-const DECK = 0x4a3826;
-const STEEL = 0x2a1c12;
-
 function drawHull(g: Graphics, kind: ShipKind, tint: number): void {
   g.clear();
-  // Bow points UP (negative Y). The ShipsLayer doesn't rotate sprites
-  // currently, so the silhouette reads regardless of facing.
   if (kind === 'scout') {
-    drawScout(g, tint);
+    // Small triangle
+    g.poly([0, -5, 4, 4, -4, 4]).fill({ color: tint, alpha: 0.95 }).stroke({ color: 0x000000, width: 1, alpha: 0.6 });
   } else if (kind === 'skirmisher') {
-    drawSkirmisher(g, tint);
+    // Larger triangle with a notch
+    g.poly([0, -7, 6, 5, 0, 3, -6, 5]).fill({ color: tint, alpha: 0.95 }).stroke({ color: 0x000000, width: 1, alpha: 0.6 });
   } else {
-    drawWarship(g, tint);
+    // Warship: rectangle with prow
+    g.poly([-7, -4, 7, -4, 9, 0, 7, 4, -7, 4]).fill({ color: tint, alpha: 0.95 }).stroke({ color: 0x000000, width: 1.2, alpha: 0.7 });
   }
-}
-
-function drawScout(g: Graphics, tint: number): void {
-  // Lean cutter — sleek hull, single triangular sail, small flag.
-  // Wake hint
-  g.poly([-3, 5, 0, 6, 3, 5]).fill({ color: 0xffffff, alpha: 0.18 });
-  // Hull (pointed prow up)
-  g.poly([
-    0, -7,
-    3, -2,
-    3, 4,
-    1, 5.5,
-   -1, 5.5,
-   -3, 4,
-   -3, -2,
-  ]).fill({ color: tint, alpha: 0.95 }).stroke({ color: INK, width: 1, alpha: 0.85 });
-  // Deck stripe
-  g.rect(-2.2, -1, 4.4, 1).fill({ color: DECK });
-  // Mast
-  g.rect(-0.3, -6, 0.6, 7).fill({ color: INK });
-  // Sail (triangular, leaning back)
-  g.poly([0, -6, 3, -1, 0, -1]).fill({ color: 0xeae0c2, alpha: 0.95 }).stroke({ color: INK, width: 0.6 });
-  // Pennant
-  g.poly([0, -6.5, 2, -6.0, 0, -5.5]).fill({ color: tint });
-}
-
-function drawSkirmisher(g: Graphics, tint: number): void {
-  // Compact gunboat — wider hull, bridge, single deck gun, smokestack.
-  // Wake
-  g.poly([-4, 6, 0, 7.5, 4, 6]).fill({ color: 0xffffff, alpha: 0.20 });
-  // Hull
-  g.poly([
-    0, -8,
-    4, -3,
-    4.4, 5,
-    2,  6.5,
-   -2,  6.5,
-   -4.4, 5,
-   -4, -3,
-  ]).fill({ color: tint, alpha: 0.95 }).stroke({ color: INK, width: 1.1, alpha: 0.9 });
-  // Deck
-  g.rect(-3, -2, 6, 7).fill({ color: DECK });
-  // Bridge (aft superstructure)
-  g.rect(-2, 1.5, 4, 2.5).fill({ color: STEEL }).stroke({ color: INK, width: 0.6 });
-  // Bridge window
-  g.rect(-1.6, 2.0, 3.2, 0.8).fill({ color: 0xffd66b, alpha: 0.85 });
-  // Forward gun ring
-  g.circle(0, -2.5, 1.6).fill({ color: STEEL }).stroke({ color: INK, width: 0.6 });
-  // Forward barrel
-  g.rect(-0.4, -6, 0.8, 4).fill({ color: STEEL }).stroke({ color: INK, width: 0.5 });
-  // Smokestack
-  g.rect(-0.7, 0, 1.4, 1.6).fill({ color: STEEL }).stroke({ color: INK, width: 0.5 });
-  // Smoke puff
-  g.circle(0, -1.0, 1.0).fill({ color: 0x6a5a4a, alpha: 0.45 });
-}
-
-function drawWarship(g: Graphics, tint: number): void {
-  // Dreadnought silhouette — long hull, three turrets, twin stacks,
-  // bridge tower. The biggest sprite by far so it reads at distance.
-  // Wake
-  g.poly([-6, 8, 0, 10, 6, 8]).fill({ color: 0xffffff, alpha: 0.22 });
-  // Hull (longer, narrow prow)
-  g.poly([
-    0, -11,
-    4, -7,
-    5, -2,
-    5,  6,
-    3,  8.5,
-   -3,  8.5,
-   -5,  6,
-   -5, -2,
-   -4, -7,
-  ]).fill({ color: tint, alpha: 0.97 }).stroke({ color: INK, width: 1.3, alpha: 0.92 });
-  // Deck
-  g.rect(-4, -6, 8, 13).fill({ color: DECK });
-  // Forward turret 1
-  g.circle(0, -4, 2.0).fill({ color: STEEL }).stroke({ color: INK, width: 0.7 });
-  g.poly([-0.8, -5.0, 0.8, -5.0, 0.6, -8.5, -0.6, -8.5]).fill({ color: STEEL }).stroke({ color: INK, width: 0.5 });
-  // Bridge tower (central superstructure)
-  g.rect(-2, -1, 4, 4).fill({ color: STEEL }).stroke({ color: INK, width: 0.8 });
-  g.rect(-1.5, -0.5, 3, 0.9).fill({ color: 0xffd66b, alpha: 0.85 });
-  // Mast
-  g.rect(-0.25, -3.5, 0.5, 2.5).fill({ color: INK });
-  // Twin smokestacks
-  g.rect(-1.6, 2.5, 1.2, 1.7).fill({ color: STEEL }).stroke({ color: INK, width: 0.5 });
-  g.rect( 0.4, 2.5, 1.2, 1.7).fill({ color: STEEL }).stroke({ color: INK, width: 0.5 });
-  // Smoke puffs
-  g.circle(-1.0, 1.6, 0.9).fill({ color: 0x4a3a2c, alpha: 0.5 });
-  g.circle( 1.0, 1.4, 0.9).fill({ color: 0x4a3a2c, alpha: 0.5 });
-  // Aft turret
-  g.circle(0, 6, 1.8).fill({ color: STEEL }).stroke({ color: INK, width: 0.7 });
-  g.poly([-0.7, 5.5, 0.7, 5.5, 0.55, 8.0, -0.55, 8.0]).fill({ color: STEEL }).stroke({ color: INK, width: 0.5 });
 }
