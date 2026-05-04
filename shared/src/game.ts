@@ -1501,9 +1501,11 @@ export class Game {
     const turretCap     = this._regionBuildingCap('turret',     tiles.length);
     const settlementCap = this._regionBuildingCap('settlement', tiles.length);
     const airstripCap   = this._regionBuildingCap('airstrip',   tiles.length);
+    const aaCap         = this._regionBuildingCap('aa',         tiles.length);
     const turretCount     = this._countBuildingsInRegion(regionId, leader.id, 'turret');
     const settlementCount = this._countBuildingsInRegion(regionId, leader.id, 'settlement');
     const airstripCount   = this._countBuildingsInRegion(regionId, leader.id, 'airstrip');
+    const aaCount         = this._countBuildingsInRegion(regionId, leader.id, 'aa');
 
     // 1. THREAT: turret on the most-pressured exposed tile.
     const turretCost = this.config.BUILDING_COSTS.turret;
@@ -1514,6 +1516,27 @@ export class Game {
         if (this.tryBuild('turret', x, y, leader.id, regionId) === null) {
           this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'turret' });
           return;
+        }
+      }
+    }
+
+    // 1b. AIR DEFENCE: vassals of an AIR-mastery leader build AA when an
+    // enemy has airstrips/planes. tryBuild's lock check passes only if
+    // leader has AIR mastery, so the isUnlocked test guards both lock
+    // and intent.
+    if (this.isUnlocked(leader.id, 'aa') && aaCount < aaCap && this._anyEnemyHasAir(leader.id)) {
+      const aaCost = this.config.BUILDING_COSTS.aa;
+      if (vGold >= reserve + aaCost) {
+        const candidates = safe.length > 0 ? safe : exposed;
+        if (candidates.length > 0) {
+          const spot = this._pickBestTurretSpot(candidates, leader.id);
+          if (spot >= 0) {
+            const x = spot % W, y = (spot - x) / W;
+            if (this.tryBuild('aa', x, y, leader.id, regionId) === null) {
+              this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'aa' });
+              return;
+            }
+          }
         }
       }
     }
@@ -1758,6 +1781,21 @@ export class Game {
     return false;
   }
 
+  /** True if any non-allied alive player has an airstrip OR a plane in
+   *  the air. Used by AI/vassal builders to decide whether AA is worth
+   *  the gold (reactive, not eager). */
+  private _anyEnemyHasAir(playerId: PlayerId): boolean {
+    if (this.planes.some(pl => pl.owner !== playerId && !this.areAllied(pl.owner, playerId))) return true;
+    for (const b of this.buildings) {
+      if (b.type !== 'airstrip') continue;
+      if (b.owner === playerId) continue;
+      if (this.areAllied(b.owner, playerId)) continue;
+      const o = this.players[b.owner];
+      if (o && o.alive) return true;
+    }
+    return false;
+  }
+
   private _aiThink(p: Player): void {
     if (this.tickCount % this.config.AI_RETARGET_TICKS !== 0 && p.targetRegions.length > 0) return;
     const t = this._pickAiTargetRegion(p.id);
@@ -1812,9 +1850,11 @@ export class Game {
     const turretCap     = this._regionBuildingCap('turret',     tiles.length);
     const settlementCap = this._regionBuildingCap('settlement', tiles.length);
     const airstripCap   = this._regionBuildingCap('airstrip',   tiles.length);
+    const aaCap         = this._regionBuildingCap('aa',         tiles.length);
     const turretCount     = this._countBuildingsInRegion(regionId, p.id, 'turret');
     const settlementCount = this._countBuildingsInRegion(regionId, p.id, 'settlement');
     const airstripCount   = this._countBuildingsInRegion(regionId, p.id, 'airstrip');
+    const aaCount         = this._countBuildingsInRegion(regionId, p.id, 'aa');
 
     // 1. THREAT — turret on any exposed tile, OR a preemptive perimeter
     // turret on safe tiles when this region has none yet (so AI hardens
@@ -1829,6 +1869,25 @@ export class Game {
         if (spot >= 0) {
           const x = spot % W, y = (spot - x) / W;
           if (this.tryBuild('turret', x, y, p.id) === null) return;
+        }
+      }
+    }
+
+    // 1b. AIR DEFENCE — AIR-mastery AIs build AA when any non-allied
+    // player has airstrips (or planes are airborne). Sized by region
+    // cap. Reactive, not eager — no point building AA before threats.
+    if (this.isUnlocked(p.id, 'aa') && aaCount < aaCap && this._anyEnemyHasAir(p.id)) {
+      const aaCost = this.config.BUILDING_COSTS.aa;
+      if (p.gold >= reserve + aaCost) {
+        // Prefer to drop AA on a safe interior tile so it isn't on the
+        // bleeding edge — AAs need to LIVE long enough to fire.
+        const candidates = safe.length > 0 ? safe : exposed;
+        if (candidates.length > 0) {
+          const spot = this._pickBestTurretSpot(candidates, p.id);
+          if (spot >= 0) {
+            const x = spot % W, y = (spot - x) / W;
+            if (this.tryBuild('aa', x, y, p.id) === null) return;
+          }
         }
       }
     }

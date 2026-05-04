@@ -1144,6 +1144,7 @@ export class HUD {
         const p = this.game.players[id]!;
         const c = palette[id];
         const tint = c ? `rgb(${c[0]},${c[1]},${c[2]})` : '#888';
+        const m = p.mastery ?? 'ground';
         const row = document.createElement('div');
         row.className = 'diplo-node';
         row.dataset['enemy'] = String(id);
@@ -1151,6 +1152,7 @@ export class HUD {
           <div class="dn-head">
             <span class="dn-dot" style="background:${tint}"></span>
             <span class="dn-name">${p.name}</span>
+            <span class="mastery-badge ${m}" style="margin-left:auto">${m.toUpperCase()}</span>
             <span class="diplo-tag ally" style="display:none"></span>
             <span class="diplo-tag embargo" style="display:none"></span>
           </div>
