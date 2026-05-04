@@ -1,8 +1,9 @@
-import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Application, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import type { Game, GameConfig } from '@territorygame/shared';
 import { TerritoryShaderLayer } from './TerritoryShaderLayer.js';
 import { OverlayLayer } from './OverlayLayer.js';
 import { ShipsLayer } from './ShipsLayer.js';
+import { StageGradeFilter } from './StageGradeFilter.js';
 
 export interface RendererOptions {
   minZoom: number;
@@ -27,6 +28,7 @@ export class Renderer {
   readonly territoryLayer: TerritoryShaderLayer;
   readonly overlay: OverlayLayer;
   readonly ships!: ShipsLayer;
+  private readonly _stageGrade: StageGradeFilter;
   readonly opts: RendererOptions;
 
   // Camera in WORLD (tile) coordinates. Zoom is screen-pixels-per-tile.
@@ -126,7 +128,23 @@ export class Renderer {
     (this as { ships: ShipsLayer }).ships = new ShipsLayer(game, this);
     this.app.stage.addChild(this.ships.container);
 
+    // Stage-level look pass (vignette + sepia tint + film grain).
+    // HTML HUD elements sit above the canvas and are unaffected.
+    this._stageGrade = new StageGradeFilter();
+    this.app.stage.filters = [this._stageGrade];
+    // The stage's filterArea must cover the screen so the grade shader
+    // sees the full rendered framebuffer, not the local bounds of the
+    // children (which would shrink as content moves around).
+    this._refreshStageFilterArea();
+    this.app.renderer.on('resize', () => this._refreshStageFilterArea());
+
     this.applyViewport();
+  }
+
+  private _refreshStageFilterArea(): void {
+    const w = this.app.screen.width;
+    const h = this.app.screen.height;
+    this.app.stage.filterArea = new Rectangle(0, 0, w, h);
   }
 
   // --- viewport math ---
@@ -182,6 +200,7 @@ export class Renderer {
   draw(now: number): void {
     this.territoryLayer.flushDirty();
     this.territoryLayer.tickTime(now);
+    this._stageGrade.tickTime(now);
     this._maybeRebuildOutlines();
     this._maybeRebuildFortifications();
     this.overlay.update(now);
