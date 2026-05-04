@@ -1355,7 +1355,6 @@ export class Game {
 
     const tiles = Array.from(frontier);
     for (let k = 0; k < tiles.length; k++) {
-      if (p.gold < this.config.EXPANSION_COST_PER_CLAIM) break;
       const i = tiles[k]!;
       const x = i % W;
       const y = (i - x) / W;
@@ -1377,6 +1376,20 @@ export class Game {
           : this._pickClosestTarget(x, y, manualTargets);
       }
       if (effectiveTarget == null) continue;
+
+      // Gold for vassal-driven expansion comes out of the vassal region's
+      // own pool, not the leader's. Manual / leader-driven expansion still
+      // pays from p.gold. This matches the per-vassal economy contract:
+      // commander treasury is fed by tribute, not drained by vassal moves.
+      const useVassalGold = isVassalDriven && p.isHuman && tileRegion > 0;
+      const goldPool = (): number => useVassalGold ? this._vassalGold[tileRegion]! : p.gold;
+      const spend = (n: number): void => {
+        if (useVassalGold) this._vassalGold[tileRegion]! -= n;
+        else p.gold -= n;
+      };
+
+      if (goldPool() < this.config.EXPANSION_COST_PER_CLAIM) continue;
+
       // Vassals push more eagerly than the player's manual orders. Forced
       // March decree adds further boost on top.
       const tileChance = isVassalDriven
@@ -1407,10 +1420,10 @@ export class Game {
       const targetOwner = this.territory.getOwner(chosen.x, chosen.y);
       if (targetOwner === 0) {
         if (Math.random() > tileChance) continue;
-        if (p.gold < this.config.EXPANSION_COST_PER_CLAIM) continue;
+        if (goldPool() < this.config.EXPANSION_COST_PER_CLAIM) continue;
         if (p.troops < this.config.EXPANSION_TROOP_COST) continue;
         if (this.tryCapture(chosen.x, chosen.y, p.id)) {
-          p.gold -= this.config.EXPANSION_COST_PER_CLAIM;
+          spend(this.config.EXPANSION_COST_PER_CLAIM);
           p.troops = Math.max(0, p.troops - this.config.EXPANSION_TROOP_COST);
         }
       } else {
@@ -1428,10 +1441,10 @@ export class Game {
         );
         const rate = tileChance * this.config.ATTACK_RATE_MULT * ratioFactor / (1 + def);
         if (Math.random() > rate) continue;
-        if (p.gold < cost) continue;
+        if (goldPool() < cost) continue;
         if (p.troops < this.config.TROOP_COST_PER_ATTACK) continue;
         if (this.tryCapture(chosen.x, chosen.y, p.id)) {
-          p.gold -= cost;
+          spend(cost);
           p.troops = Math.max(0, p.troops - this.config.TROOP_COST_PER_ATTACK);
           if (defender) {
             defender.troops = Math.max(0, defender.troops - this.config.TROOP_DAMAGE_PER_ATTACK);
