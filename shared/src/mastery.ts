@@ -33,10 +33,12 @@ export const MASTERIES: readonly MasteryDef[] = [
   {
     id: 'ground',
     name: 'GROUND',
-    tagline: 'Walls, depth, and a deep troop pool. Slow strangle.',
+    tagline: 'Fortress empire. Tank the world, strangle slowly.',
     perks: [
-      '+20% troop growth empire-wide',
-      '+30% defense bonus on owned tiles',
+      '+25% troop growth',
+      '+30% tile defense (compounds with turrets)',
+      '+50% turret retaliation damage',
+      '+50% full-region fortress bonus',
       'Locked: airstrip, AA, bombs, ships',
     ],
     unlocked: {},
@@ -44,10 +46,11 @@ export const MASTERIES: readonly MasteryDef[] = [
   {
     id: 'air',
     name: 'AIR',
-    tagline: 'Strike at distance. Aerial arms race.',
+    tagline: 'Strike at distance. Bombs reach inland fortresses.',
     perks: [
       'Unlocks airstrip, AA, bombers',
       '+25% bomb radius',
+      'Bombs damage enemy ships caught in blast',
       'Locked: ships',
     ],
     unlocked: { airstrip: true, aa: true, bombs: true },
@@ -55,10 +58,12 @@ export const MASTERIES: readonly MasteryDef[] = [
   {
     id: 'naval',
     name: 'NAVAL',
-    tagline: 'Project power from the sea. Bombard coasts.',
+    tagline: 'Project power from the sea. Shell coasts, hunt bombers.',
     perks: [
       'Unlocks all ships (Scout / Skirmisher / Warship)',
       '+2 ship cap, +25% reload speed',
+      'Warships shell coastal tiles + capture them',
+      'Skirmishers / warships shoot down enemy bombers',
       'Locked: airstrip, AA, bombs',
     ],
     unlocked: { ships: true },

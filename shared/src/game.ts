@@ -692,6 +692,24 @@ export class Game {
         }
       }
     }
+    // Air-vs-naval: enemy ships caught in the blast take direct hull damage.
+    // Small bomb 30hp, large bomb 100hp — small one-shots scouts (30hp),
+    // large one-shots skirmishers (80hp), warships (200hp) eat 2 large hits.
+    const shipDmg = type === 'small' ? 30 : 100;
+    for (let i = this.ships.length - 1; i >= 0; i--) {
+      const s = this.ships[i]!;
+      if (s.owner === ownerId) continue;
+      if (this.areAllied(ownerId, s.owner)) continue;
+      const dx2 = s.x + 0.5 - x;
+      const dy2 = s.y + 0.5 - y;
+      if (dx2 * dx2 + dy2 * dy2 > r2) continue;
+      s.hp -= shipDmg;
+      if (s.hp <= 0) {
+        this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
+        this.ships.splice(i, 1);
+      }
+    }
+
     this.events.push({ type: 'bomb', bombType: type, x, y, radius, ownerId });
   }
 
@@ -1114,8 +1132,8 @@ export class Game {
         p.troops = Math.min(p.troops, max);
         continue;
       }
-      // Ground mastery: +20% troop growth empire-wide.
-      const masteryGrowthMult = p.mastery === 'ground' ? 1.20 : 1.0;
+      // Ground mastery: +25% troop growth empire-wide.
+      const masteryGrowthMult = p.mastery === 'ground' ? 1.25 : 1.0;
       const next = p.troops
         + owned * growth * masteryGrowthMult
         + settlementCount[id]! * settlementBonus
@@ -1947,9 +1965,15 @@ export class Game {
     if (this.regionCount > 0) {
       const r = this.regions[i]!;
       if (r > 0 && this._regionOwner[r] === defenderId) {
-        bonus += this.config.FULL_REGION_DEFENSE_BONUS;
+        // Ground mastery: full-region fortress bonus is 50% bigger.
+        const groundFortMult = defender?.mastery === 'ground' ? 1.5 : 1.0;
+        bonus += this.config.FULL_REGION_DEFENSE_BONUS * groundFortMult;
       }
     }
+    // Ground mastery: every owned tile defends 30% better. Compounds
+    // multiplicatively with iron-doctrine and turret coverage so a
+    // ground player with turrets feels genuinely fortress-like.
+    if (defender?.mastery === 'ground') bonus = (bonus + 1) * 1.30 - 1;
     return bonus;
   }
 
@@ -1964,6 +1988,9 @@ export class Game {
     const defender = this.players[defenderId];
     const borderPatrol = defender ? (defender.decreeStacks['border-patrol'] ?? 0) : 0;
     if (borderPatrol > 0) val *= 1.5;
+    // Ground mastery: +50% turret retaliation (the bite-back damage when
+    // attackers successfully capture inside a turret radius).
+    if (defender?.mastery === 'ground') val *= 1.5;
     return val;
   }
 
@@ -2301,6 +2328,7 @@ export class Game {
 
       // Check enemy AA for shootdown. Each AA gets one roll per plane.
       let shotDown = false;
+      let killer: PlayerId = 0;
       for (const b of this.buildings) {
         if (b.type !== 'aa') continue;
         if (b.owner === pl.owner) continue;
@@ -2313,17 +2341,46 @@ export class Game {
         pl.rolledAA.add(this._buildingKey(b));
         if (Math.random() < hitChance) {
           shotDown = true;
-          this.events.push({
-            type: 'plane-shot-down',
-            bombType: pl.bombType,
-            ownerId: pl.owner,
-            byOwner: b.owner,
-            x: pl.x, y: pl.y,
-          });
+          killer = b.owner;
           break;
         }
       }
+
+      // Naval AA: warships and skirmishers also defend against bombers.
+      // Each ship gets one roll per plane (keyed by negative ship id so
+      // it doesn't collide with the building keyspace).
+      if (!shotDown) {
+        for (const sh of this.ships) {
+          if (sh.owner === pl.owner) continue;
+          if (this.areAllied(sh.owner, pl.owner)) continue;
+          const shipKey = -sh.id;
+          if (pl.rolledAA.has(shipKey)) continue;
+          const range = this.config.SHIP_RANGE[sh.kind];
+          const sddx = sh.x + 0.5 - pl.x;
+          const sddy = sh.y + 0.5 - pl.y;
+          if (sddx * sddx + sddy * sddy > range * range) continue;
+          pl.rolledAA.add(shipKey);
+          // Per-tier shootdown chance — scout has none (too small for AA),
+          // skirmisher 30%, warship 55%.
+          const navalChance = sh.kind === 'warship' ? 0.55
+            : sh.kind === 'skirmisher' ? 0.30
+            : 0;
+          if (navalChance > 0 && Math.random() < navalChance) {
+            shotDown = true;
+            killer = sh.owner;
+            break;
+          }
+        }
+      }
+
       if (shotDown) {
+        this.events.push({
+          type: 'plane-shot-down',
+          bombType: pl.bombType,
+          ownerId: pl.owner,
+          byOwner: killer,
+          x: pl.x, y: pl.y,
+        });
         this.planes.splice(i, 1);
       }
     }
