@@ -13,6 +13,7 @@ import { generateRegionNames } from './names.js';
 import { decreeById } from './decrees.js';
 import { abilityById } from './abilities.js';
 import type { AbilityError } from './abilities.js';
+import { masteryById, type Mastery } from './mastery.js';
 
 interface ExpansionCandidate {
   x: number; y: number;
@@ -522,6 +523,10 @@ export class Game {
     if (this.territory.getOwner(x, y) !== ownerId) return 'not-yours';
     if (this.buildingAt(x, y)) return 'occupied';
     if (this._capitalIndexAt(x, y) >= 0) return 'on-capital';
+    // Mastery gate. Settlement + turret are always available; airstrip
+    // and AA require the AIR mastery.
+    if (type === 'airstrip' && !this.isUnlocked(ownerId, 'airstrip')) return 'locked';
+    if (type === 'aa' && !this.isUnlocked(ownerId, 'aa')) return 'locked';
     if (fromVassalRegion > 0) {
       if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
       this._vassalGold[fromVassalRegion]! -= cost;
@@ -592,6 +597,7 @@ export class Game {
     if (!this.territory.inBounds(x, y)) return 'oob';
     const owner = this.players[ownerId];
     if (!owner || !owner.alive) return 'dead';
+    if (!this.isUnlocked(ownerId, 'bombs')) return 'locked';
     const cost = this.config.BOMB_COSTS[type];
     if (cost == null) return 'bad-type';
 
@@ -660,7 +666,10 @@ export class Game {
         if ((b.level ?? 1) > stripLevel) stripLevel = b.level ?? 1;
       }
     }
-    const radiusMult = 1 + 0.10 * (stripLevel - 1);
+    const owner = this.players[ownerId];
+    // Air mastery: +25% bomb radius.
+    const masteryRadiusMult = owner?.mastery === 'air' ? 1.25 : 1.0;
+    const radiusMult = (1 + 0.10 * (stripLevel - 1)) * masteryRadiusMult;
     const radius = Math.floor(this.config.BOMB_RADII[type] * radiusMult);
     const r2 = radius * radius;
     const W = this.territory.width;
@@ -720,6 +729,16 @@ export class Game {
   // --- Internals ---
 
   private _mkPlayer(id: PlayerId, name: string, isHuman: boolean): Player {
+    // AIs auto-pick mastery at spawn so they have a coherent kit from
+    // tick 1. Humans start unchosen and get prompted by the HUD on first
+    // launch (treated as 'ground' for build-lock purposes until chosen).
+    let mastery: Mastery | null = null;
+    if (!isHuman) {
+      const r = Math.random();
+      // Weighting: 50% ground / 30% air / 20% naval — keeps ground the
+      // most common so air/naval feel like committed strategies.
+      mastery = r < 0.5 ? 'ground' : r < 0.8 ? 'air' : 'naval';
+    }
     return {
       id, name, isHuman,
       gold: this.config.STARTING_GOLD,
@@ -730,8 +749,39 @@ export class Game {
       decreeStacks: {},
       abilityCooldowns: {},
       activeBuffs: {},
+      mastery,
       expanding: !isHuman,
     };
+  }
+
+  // --- Mastery (path-based specialization) ----------------------------------
+
+  /** Returns true if a building/unit category is unlocked for this player.
+   *  Humans with no chosen mastery yet are treated as 'ground' so they can
+   *  still build settlements/turrets while the picker is open. */
+  isUnlocked(playerId: PlayerId, category: 'airstrip' | 'aa' | 'bombs' | 'ships'): boolean {
+    const p = this.players[playerId];
+    if (!p) return false;
+    const m = p.mastery ?? 'ground';
+    const def = masteryById(m);
+    if (!def) return false;
+    return !!def.unlocked[category];
+  }
+
+  /** One-time pick at game start. Re-picks cost 3000 treasury (heavy fee
+   *  to discourage hot-swapping). Returns null on success. */
+  chooseMastery(playerId: PlayerId, mastery: Mastery): 'gold' | 'dead' | 'unknown' | null {
+    const p = this.players[playerId];
+    if (!p || !p.alive) return 'dead';
+    if (!masteryById(mastery)) return 'unknown';
+    const isReroll = p.mastery != null && p.mastery !== mastery;
+    if (isReroll) {
+      const cost = 3000;
+      if (p.treasury < cost) return 'gold';
+      p.treasury -= cost;
+    }
+    p.mastery = mastery;
+    return null;
   }
 
   // --- Commander decrees ---
@@ -1064,8 +1114,10 @@ export class Game {
         p.troops = Math.min(p.troops, max);
         continue;
       }
+      // Ground mastery: +20% troop growth empire-wide.
+      const masteryGrowthMult = p.mastery === 'ground' ? 1.20 : 1.0;
       const next = p.troops
-        + owned * growth
+        + owned * growth * masteryGrowthMult
         + settlementCount[id]! * settlementBonus
         + fullRegions[id]! * fullRegionBonus;
       p.troops = next > max ? max : next;
@@ -2028,6 +2080,7 @@ export class Game {
     if (!this.territory.inBounds(x, y)) return 'oob';
     const owner = this.players[ownerId];
     if (!owner || !owner.alive) return 'dead';
+    if (!this.isUnlocked(ownerId, 'ships')) return 'locked';
     if (this.territory.getOwner(x, y) !== ownerId) return 'not-coastal';
     if (this.territory.isPassable(x, y) === false) return 'not-coastal';
     // Find adjacent water tile to spawn on.
@@ -2038,7 +2091,9 @@ export class Game {
     }
     if (sx < 0) return 'no-water';
     const myShips = this.ships.reduce((n, s) => s.owner === ownerId ? n + 1 : n, 0);
-    if (myShips >= this.config.SHIP_PLAYER_CAP) return 'cap';
+    // Naval mastery: +2 ship cap (e.g. 8 → 10).
+    const cap = this.config.SHIP_PLAYER_CAP + (owner.mastery === 'naval' ? 2 : 0);
+    if (myShips >= cap) return 'cap';
     if (owner.gold < cost) return 'gold';
     owner.gold -= cost;
     const ship: Ship = {
@@ -2183,7 +2238,10 @@ export class Game {
         this.tryCapture(bestX, bestY, s.owner);
       }
     }
-    s.fireCooldown = this.config.SHIP_FIRE_TICKS[s.kind];
+    // Naval mastery: ships reload 25% faster.
+    const owner = this.players[s.owner];
+    const reloadMult = owner?.mastery === 'naval' ? 0.75 : 1.0;
+    s.fireCooldown = Math.max(1, Math.floor(this.config.SHIP_FIRE_TICKS[s.kind] * reloadMult));
     void W;
   }
 

@@ -1,5 +1,5 @@
-import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId } from '@territorygame/shared';
-import { DECREES, ABILITIES } from '@territorygame/shared';
+import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId, Mastery } from '@territorygame/shared';
+import { DECREES, ABILITIES, MASTERIES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa'];
@@ -16,6 +16,7 @@ export class HUD {
     troops:       this._byId('my-troops'),
     gold:         this._byId('my-gold'),
     treasury:     this._byId('my-treasury'),
+    masteryBadge: this._byId('my-mastery'),
     dot:          this._byId('my-dot'),
     enemies:      this._byId('enemies'),
     hint:         this._byId('hint'),
@@ -53,6 +54,11 @@ export class HUD {
     cmdTabs:      this._byId('cmd-tabs'),
     cmdTree:      this._byId('cmd-tree'),
     cmdCancel:    this._byId('commander-cancel'),
+    masteryPanel: this._byId('mastery'),
+    masteryGrid:  this._byId('mastery-grid'),
+    masteryTitle: this._byId('mastery-title'),
+    masteryBlurb: this._byId('mastery-blurb'),
+    masteryCancel:this._byId('mastery-cancel'),
     diploBtn:     this._byId('diplo-btn'),
     diploPanel:   this._byId('diplomacy'),
     diploList:    this._byId('diplo-list'),
@@ -110,10 +116,18 @@ export class HUD {
     this._wireTutorial();
     this._wireCommander();
     this._wireDiplomacy();
+    this._wireMastery();
     // Show the welcome tutorial automatically on first launch.
     try {
       if (!localStorage.getItem('territory:tutorial-seen')) this.showTutorial();
     } catch { /* ignore */ }
+    // Mastery picker is shown automatically when the human hasn't picked
+    // yet — fresh game = fresh choice. Re-openable via the crown panel
+    // (read-only / re-pick for 3000 ♛).
+    if (this.game.human().mastery == null) {
+      // Defer one frame so the tutorial overlay (if any) sits underneath.
+      setTimeout(() => this.showMastery(), 100);
+    }
   }
 
   // --- callbacks set from main.ts ---
@@ -341,6 +355,17 @@ export class HUD {
     if (this.el.troops) this.el.troops.textContent = formatTroops(me.troops);
     if (this.el.gold)     this.el.gold.textContent     = String(Math.floor(me.gold));
     if (this.el.treasury) this.el.treasury.textContent = String(Math.floor(me.treasury));
+    if (this.el.masteryBadge) {
+      const mb = this.el.masteryBadge;
+      mb.classList.remove('ground', 'air', 'naval', 'unset');
+      if (me.mastery == null) {
+        mb.classList.add('unset');
+        mb.textContent = 'PICK PATH';
+      } else {
+        mb.classList.add(me.mastery);
+        mb.textContent = me.mastery.toUpperCase();
+      }
+    }
     if (this.el.pct) {
       const pct = this.game.totalLand > 0 ? owned / this.game.totalLand : 0;
       // 1 decimal until close to the win threshold, then 2 for tension.
@@ -576,6 +601,7 @@ export class HUD {
       'not-coastal':  'Tap your own coastal land',
       'no-water':     'No adjacent water',
       'cap':          'Fleet at capacity',
+      'locked':       'Naval mastery required',
     };
     return msgs[err];
   }
@@ -583,13 +609,14 @@ export class HUD {
   private _refreshFleetSheetButtons(): void {
     if (!this.el.fleetSheet) return;
     const me = this.game.human();
+    const navalLocked = !this.game.isUnlocked(1, 'ships');
     this.el.fleetSheet.querySelectorAll<HTMLButtonElement>('.sb-btn').forEach((btn) => {
       const kind = btn.dataset['ship'] as ShipKind | undefined;
       if (!kind) return;
       const cost = this.game.config.SHIP_COSTS[kind];
       const costEl = btn.querySelector('.bs-cost');
-      if (costEl) costEl.textContent = String(cost);
-      btn.classList.toggle('disabled', me.gold < cost);
+      if (costEl) costEl.textContent = navalLocked ? '🔒' : String(cost);
+      btn.classList.toggle('disabled', navalLocked || me.gold < cost);
     });
   }
 
@@ -599,9 +626,15 @@ export class HUD {
       this.el.fleetBtn.classList.add('hidden');
       return;
     }
+    // Hide entirely when naval is locked — keeps the right rail clean
+    // for ground/air players who can't use ships.
+    if (!this.game.isUnlocked(1, 'ships')) {
+      this.el.fleetBtn.classList.add('hidden');
+      return;
+    }
     this.el.fleetBtn.classList.remove('hidden');
     const myShips = this.game.ships.reduce((n, s) => s.owner === 1 ? n + 1 : n, 0);
-    const cap = this.game.config.SHIP_PLAYER_CAP;
+    const cap = this.game.config.SHIP_PLAYER_CAP + (this.game.human().mastery === 'naval' ? 2 : 0);
     if (this.el.fleetCount) this.el.fleetCount.textContent = `${myShips}/${cap}`;
     this.el.fleetBtn.classList.toggle('aiming', !!this.shipBuildMode);
   }
@@ -1243,6 +1276,108 @@ export class HUD {
     else this.toast('Cannot trade');
   }
 
+  // --- Mastery picker ---------------------------------------------------
+
+  private _wireMastery(): void {
+    this.el.masteryBadge?.addEventListener('click', () => this.showMastery());
+    this.el.masteryCancel?.addEventListener('click', () => this.hideMastery());
+    this.el.masteryPanel?.addEventListener('click', (e) => {
+      // Only allow tap-out-to-dismiss after mastery has been chosen — on
+      // the first launch they must commit.
+      if (e.target === this.el.masteryPanel && this.game.human().mastery != null) {
+        this.hideMastery();
+      }
+    });
+    this.el.masteryGrid?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('.mastery-card-opt');
+      if (!btn || btn.disabled) return;
+      const id = btn.dataset['mastery'] as Mastery | undefined;
+      if (!id) return;
+      this._chooseMastery(id);
+    });
+  }
+
+  showMastery(): void {
+    this._renderMastery();
+    this.el.masteryPanel?.classList.add('show');
+  }
+
+  hideMastery(): void {
+    // Block dismissal if the human hasn't chosen yet — first-launch
+    // commitment.
+    if (this.game.human().mastery == null) return;
+    this.el.masteryPanel?.classList.remove('show');
+  }
+
+  private _renderMastery(): void {
+    const grid = this.el.masteryGrid;
+    if (!grid) return;
+    const me = this.game.human();
+    const current = me.mastery;
+    const isReroll = current != null;
+
+    if (this.el.masteryTitle) {
+      this.el.masteryTitle.textContent = isReroll ? 'YOUR MASTERY' : 'CHOOSE YOUR MASTERY';
+    }
+    if (this.el.masteryBlurb) {
+      this.el.masteryBlurb.textContent = isReroll
+        ? `Currently: ${current!.toUpperCase()}. Switching costs 3000 ♛ (you have ${Math.floor(me.treasury)}).`
+        : 'One path per game. Sets up rock-paper-scissors with the AIs.';
+    }
+    if (this.el.masteryCancel) {
+      this.el.masteryCancel.style.display = isReroll ? '' : 'none';
+    }
+
+    grid.innerHTML = '';
+    const colorByMastery: Record<Mastery, string> = {
+      ground: '#6db86d',
+      air:    '#9bd9ea',
+      naval:  '#7aa3e8',
+    };
+    for (const m of MASTERIES) {
+      const isCurrent = m.id === current;
+      const canAfford = !isReroll || isCurrent || me.treasury >= 3000;
+      const opt = document.createElement('button');
+      opt.type = 'button';
+      opt.className = 'mastery-card-opt';
+      if (isCurrent) opt.classList.add('chosen');
+      if (!canAfford) opt.classList.add('locked-no-funds');
+      opt.disabled = isCurrent || !canAfford;
+      opt.dataset['mastery'] = m.id;
+      opt.style.setProperty('--mc', colorByMastery[m.id]);
+      const tag = isCurrent
+        ? 'CURRENT'
+        : (isReroll ? 'SWITCH · 3000 ♛' : 'COMMIT');
+      opt.innerHTML = `
+        <div class="mc-head">
+          <span class="mc-name">${m.name}</span>
+          <span class="mc-tag">${tag}</span>
+        </div>
+        <div class="mc-tagline">${m.tagline}</div>
+        <ul class="mc-perks">
+          ${m.perks.map(p => `<li>${p}</li>`).join('')}
+        </ul>
+      `;
+      grid.appendChild(opt);
+    }
+  }
+
+  private _chooseMastery(id: Mastery): void {
+    const err = this.game.chooseMastery(1, id);
+    if (err === null) {
+      this.toast(`Mastery: ${id.toUpperCase()}`);
+      this._renderMastery();
+      // Auto-close on first commit — but stay open after a re-pick so
+      // the player sees the new "current" state.
+      if (this.el.masteryPanel?.classList.contains('show')) {
+        // Close after a short delay so the toast is visible.
+        setTimeout(() => this.hideMastery(), 350);
+      }
+    } else if (err === 'gold') this.toast('Need 3000 ♛ to switch path');
+    else if (err === 'unknown') this.toast('Unknown mastery');
+    else this.toast('Cannot pick');
+  }
+
   showTutorial(): void {
     this.el.tutorial?.classList.add('show');
   }
@@ -1252,6 +1387,12 @@ export class HUD {
     try { localStorage.setItem('territory:tutorial-seen', '1'); } catch { /* ignore */ }
   }
 
+  private _isLockedForHuman(type: BuildingType): boolean {
+    if (type === 'airstrip') return !this.game.isUnlocked(1, 'airstrip');
+    if (type === 'aa')       return !this.game.isUnlocked(1, 'aa');
+    return false;
+  }
+
   private _refreshHotbar(): void {
     if (!this.el.hotbar) return;
     const me = this.game.human();
@@ -1259,10 +1400,15 @@ export class HUD {
       const type = btn.dataset['type'] as BuildingType | undefined;
       if (!type) return;
       const cost = this.game.config.BUILDING_COSTS[type];
+      const locked = this._isLockedForHuman(type);
       btn.classList.toggle('active', this.placeMode === type);
       btn.classList.toggle('cant-afford', me.gold < cost);
+      btn.classList.toggle('locked', locked);
+      btn.title = locked
+        ? `${type[0]!.toUpperCase()}${type.slice(1)} — locked. Choose AIR mastery.`
+        : `${type[0]!.toUpperCase()}${type.slice(1)}`;
       const costEl = btn.querySelector('.hb-cost');
-      if (costEl) costEl.textContent = String(cost);
+      if (costEl) costEl.textContent = locked ? '🔒' : String(cost);
     });
   }
 
@@ -1273,9 +1419,11 @@ export class HUD {
       const type = btn.dataset['type'] as BuildingType | undefined;
       if (!type) return;
       const cost = this.game.config.BUILDING_COSTS[type];
-      btn.classList.toggle('disabled', me.gold < cost);
+      const locked = this._isLockedForHuman(type);
+      btn.classList.toggle('disabled', locked || me.gold < cost);
+      btn.classList.toggle('locked', locked);
       const costEl = btn.querySelector('.bs-cost');
-      if (costEl) costEl.textContent = String(cost);
+      if (costEl) costEl.textContent = locked ? '🔒' : String(cost);
     });
   }
 
@@ -1408,6 +1556,7 @@ export class HUD {
       'bad-type':     'Unknown building',
       'no-building':  'Nothing to upgrade here',
       'max-level':    'Already max tier',
+      'locked':       'Locked — wrong mastery',
     };
     return msgs[err];
   }
@@ -1419,6 +1568,7 @@ export class HUD {
       'gold':        'Not enough gold',
       'oob':         'Out of bounds',
       'dead':        'You are eliminated',
+      'locked':      'Air mastery required',
       'bad-type':    'Unknown bomb',
     };
     return msgs[err];

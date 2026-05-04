@@ -460,6 +460,73 @@ html, body {
 .ab-fire:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Diplomacy panel */
+.mastery-badge {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #d6dee8;
+  font-family: inherit; font-weight: 800; font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 4px 8px; border-radius: 12px;
+  cursor: pointer;
+}
+.mastery-badge.ground { color: #6db86d; border-color: rgba(109, 184, 109, 0.45); }
+.mastery-badge.air    { color: #9bd9ea; border-color: rgba(155, 217, 234, 0.45); }
+.mastery-badge.naval  { color: #7aa3e8; border-color: rgba(122, 163, 232, 0.45); }
+.mastery-badge.unset  { color: #e8c04a; border-color: rgba(232, 192, 74, 0.5); animation: pulse-mastery 1.4s infinite; }
+@keyframes pulse-mastery {
+  0%,100% { opacity: 0.85; }
+  50%     { opacity: 1; }
+}
+
+/* Building hotbar/sheet locked state — distinct from cant-afford so the
+ * player understands the difference between "no gold" and "no path". */
+.hb-btn.locked,
+.bs-btn.locked,
+.sb-btn.locked {
+  filter: grayscale(0.7);
+  opacity: 0.55;
+  border-color: rgba(255, 255, 255, 0.04);
+}
+.hb-btn.locked .hb-cost { color: #e8c04a; }
+
+/* Mastery picker — one-time path choice modal */
+#mastery {
+  position: absolute; inset: 0;
+  background: rgba(8, 10, 12, 0.85);
+  display: none; align-items: center; justify-content: center;
+  pointer-events: auto;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 24;
+}
+#mastery.show { display: flex; }
+.mastery-card { width: min(440px, 94vw); }
+.mastery-grid { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
+.mastery-card-opt {
+  background: #1f2730;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-left: 4px solid var(--mc, #888);
+  border-radius: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.mastery-card-opt:active { transform: scale(0.99); background: #283036; }
+.mastery-card-opt.chosen {
+  background: #243042;
+  border-color: rgba(85, 200, 110, 0.65);
+  border-left-color: #55c86e;
+}
+.mastery-card-opt.locked-no-funds { opacity: 0.55; }
+.mc-head { display: flex; justify-content: space-between; align-items: baseline; }
+.mc-name { font-size: 14px; font-weight: 800; letter-spacing: 1px; color: var(--mc, #e6e6e6); }
+.mc-tag { font-size: 11px; opacity: 0.55; }
+.mc-tagline { font-size: 12px; opacity: 0.85; }
+.mc-perks { margin: 4px 0 0; padding: 0 0 0 16px; font-size: 11px; opacity: 0.75; line-height: 1.5; }
+.mc-perks li { list-style: disc; }
+
 #diplomacy {
   position: absolute; inset: 0;
   background: rgba(8, 10, 12, 0.78);

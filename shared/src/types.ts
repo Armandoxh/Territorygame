@@ -32,7 +32,7 @@ export interface Ship {
 }
 
 export type ShipBuildError =
-  | 'gold' | 'dead' | 'oob' | 'bad-type' | 'not-coastal' | 'no-water' | 'cap';
+  | 'gold' | 'dead' | 'oob' | 'bad-type' | 'not-coastal' | 'no-water' | 'cap' | 'locked';
 
 /** A bomber in flight. Spawned by dropBomb; flies from an airstrip toward
  *  the target tile at PLANE_SPEED tiles/tick. On arrival it detonates
@@ -83,6 +83,9 @@ export interface Player {
   abilityCooldowns: Record<string, number>;
   /** tickCount when each active buff/debuff expires. */
   activeBuffs: Record<string, number>;
+  /** Strategic specialization. null = unchosen (humans get prompted on
+   *  first launch; AIs are picked at spawn). One of 'ground'|'air'|'naval'. */
+  mastery: 'ground' | 'air' | 'naval' | null;
   expanding: boolean;
 }
 
@@ -129,7 +132,7 @@ export type RGBA = readonly [number, number, number, number];
 
 export type BuildError =
   | 'gold' | 'not-yours' | 'occupied' | 'on-capital'
-  | 'oob' | 'dead' | 'bad-type' | 'no-building' | 'max-level';
+  | 'oob' | 'dead' | 'bad-type' | 'no-building' | 'max-level' | 'locked';
 
 export type BombError =
-  | 'no-airstrip' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type';
+  | 'no-airstrip' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type' | 'locked';
