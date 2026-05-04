@@ -3,10 +3,15 @@ import { Territory, TERRAIN_LAND, TERRAIN_WATER, TERRAIN_DEEP } from '@territory
 import type { GameConfig } from '@territorygame/shared';
 
 // GPU-driven territory rendering. The territory texture stores per-tile
-// state in two channels:
+// state in three channels:
 //
 //   R = owner id (0 = unclaimed, 1..254 = player)
 //   G = terrain kind (0 = land, 1 = shallow water, 2 = deep water)
+//   B = tick stamp byte (tickCount & 0xFF) — written every time a tile is
+//       repainted from the dirty set. The shader compares this against the
+//       current uTickByte uniform to fade in a pulse highlight on tiles
+//       that were just claimed (or lost). Wraps every 256 ticks (~25.6s
+//       at 10 Hz) — fine since the pulse duration is ~1.5s.
 //
 // A custom fragment shader reads those bytes plus a player-color palette
 // uniform and renders the gritty parchment / ink-border / water look without
@@ -48,6 +53,8 @@ uniform sampler2D uTexture;
 uniform vec4 uInputSize;        // (w, h, 1/w, 1/h)
 
 uniform float uTime;
+uniform float uTickByte;
+uniform float uPulseDuration;
 uniform float uPlayerCount;
 uniform vec3 uPalette[64];
 uniform vec3 uParchment;
@@ -161,6 +168,24 @@ void main() {
     }
   }
 
+  // Frontier-claim pulse — recently-stamped tiles glow briefly. Sample
+  // self + 4 neighbors and use the freshest age so the pulse softens
+  // across an edge instead of being boxy. Wrap-safe via mod(..., 256).
+  float ageSelf = mod(uTickByte - src.b * 255.0 + 256.0, 256.0);
+  float ageN    = mod(uTickByte - sN.b  * 255.0 + 256.0, 256.0);
+  float ageS    = mod(uTickByte - sS.b  * 255.0 + 256.0, 256.0);
+  float ageE    = mod(uTickByte - sE.b  * 255.0 + 256.0, 256.0);
+  float ageW    = mod(uTickByte - sW.b  * 255.0 + 256.0, 256.0);
+  float age = min(ageSelf, min(min(ageN, ageS), min(ageE, ageW)));
+  if (age < uPulseDuration && uPulseDuration > 0.0) {
+    float t = 1.0 - age / uPulseDuration;
+    t *= t; // ease-out
+    // Warm highlight; lighter near the freshly-claimed tile, falls off on
+    // neighbors because the min-age above pulls the freshest stamp in.
+    vec3 pulseTint = vec3(1.0, 0.92, 0.70);
+    col = mix(col, col + pulseTint * 0.55, t * 0.55);
+  }
+
   finalColor = vec4(col, 1.0);
 }
 `;
@@ -191,6 +216,12 @@ export class TerritoryShaderLayer {
 
     this._fillFromGrid();
     this.ctx.putImageData(this.imageData, 0, 0);
+    // Drop dirty entries that fired while the simulation was being set up
+    // (spawn radii, capitals). _fillFromGrid already painted them with
+    // stamp=0, so we don't want a second flush re-stamping them with the
+    // current tick byte and triggering a "everything just got claimed"
+    // pulse on the very first frame.
+    this.territory.dirty.clear();
 
     this.texture = Texture.from(this.canvas);
     // Nearest filtering preserves the per-tile encoded values (owner-id in R)
@@ -212,6 +243,8 @@ export class TerritoryShaderLayer {
 
     this.uniforms = new UniformGroup({
       uTime:          { value: 0, type: 'f32' },
+      uTickByte:      { value: 0, type: 'f32' },
+      uPulseDuration: { value: 15, type: 'f32' }, // ~1.5s at 10Hz
       uPlayerCount:   { value: Math.max(1, this.config.PLAYER_COLORS.length - 1), type: 'f32' },
       uPalette:       { value: this.palette, type: 'vec3<f32>', size: 64 },
       uParchment:     { value: parchment, type: 'vec3<f32>' },
@@ -227,9 +260,11 @@ export class TerritoryShaderLayer {
     this.sprite.filters = [this.filter];
   }
 
-  /** Push the canvas owner/terrain bytes for any dirty tile, then bump
-   *  the texture so the GPU re-uploads. Same shape as the old layer. */
-  flushDirty(): void {
+  /** Push the canvas owner/terrain/stamp bytes for any dirty tile, then
+   *  bump the texture so the GPU re-uploads. The stamp byte (B channel)
+   *  is the current tickCount mod 256 — the shader reads it to fade in
+   *  the frontier-claim pulse on freshly-flipped tiles. */
+  flushDirty(tickByte: number): void {
     const dirty = this.territory.dirty;
     if (dirty.size === 0) return;
     const data = this.imageData.data;
@@ -239,7 +274,7 @@ export class TerritoryShaderLayer {
       const di = i * 4;
       data[di]     = owners[i]!;
       data[di + 1] = terrain[i]!;
-      data[di + 2] = 0;
+      data[di + 2] = tickByte;
       data[di + 3] = 255;
     }
     this.ctx.putImageData(this.imageData, 0, 0);
@@ -247,10 +282,11 @@ export class TerritoryShaderLayer {
     dirty.clear();
   }
 
-  /** Tick the time uniform for the water drift animation. */
-  tickTime(now: number): void {
+  /** Tick the time + tick uniforms each frame (water drift animation
+   *  + claim-pulse decay). */
+  tickTime(now: number, tickCount: number): void {
     this.uniforms.uniforms['uTime'] = now * 0.001;
-    // Pixi only re-uploads on dirty bump.
+    this.uniforms.uniforms['uTickByte'] = tickCount & 0xFF;
     (this.uniforms as { _dirtyId: number })._dirtyId++;
   }
 

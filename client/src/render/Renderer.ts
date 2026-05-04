@@ -198,8 +198,9 @@ export class Renderer {
 
   // Called every frame from the host loop. Pixi's auto-render after this draws.
   draw(now: number): void {
-    this.territoryLayer.flushDirty();
-    this.territoryLayer.tickTime(now);
+    const tick = this.game.tickCount;
+    this.territoryLayer.flushDirty(tick & 0xFF);
+    this.territoryLayer.tickTime(now, tick);
     this._stageGrade.tickTime(now);
     this._maybeRebuildOutlines();
     this._maybeRebuildFortifications();
