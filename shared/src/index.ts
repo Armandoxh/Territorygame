@@ -8,4 +8,5 @@ export * from './territory.js';
 export * from './regions.js';
 export * from './names.js';
 export * from './decrees.js';
+export * from './abilities.js';
 export * from './game.js';

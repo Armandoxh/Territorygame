@@ -402,6 +402,144 @@ html, body {
   font-weight: 700;
   font-size: 22px;
 }
+.icon-btn-diplo {
+  bottom: calc(180px + env(safe-area-inset-bottom, 0));
+  background: rgba(180, 130, 220, 0.92);
+  color: #170822;
+  font-weight: 700;
+  font-size: 22px;
+}
+
+/* Treasury stat in the topbar */
+#topbar .stat.treasury b { color: #e8c04a; }
+#topbar .stat.treasury i::after { content: ' ♛'; }
+
+/* Commander mode toggle (Abilities / Doctrines) */
+.cmd-mode-tabs {
+  display: flex; gap: 4px; margin-bottom: 10px;
+  background: rgba(0,0,0,0.25);
+  padding: 3px; border-radius: 10px;
+}
+.cmd-mode {
+  flex: 1; padding: 8px 0;
+  background: transparent; border: 0;
+  color: #9aa3ad; font-size: 12px; font-weight: 800;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  cursor: pointer; font-family: inherit;
+  border-radius: 7px;
+}
+.cmd-mode.active { background: rgba(232,192,74,0.18); color: #e8c04a; }
+
+/* Active-ability list */
+.ability-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; max-height: 50vh; overflow-y: auto; }
+.ability-node {
+  background: #20262e;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-left: 3px solid rgba(232, 74, 74, 0.55);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ability-node.cooling { border-left-color: rgba(120,130,140,0.6); opacity: 0.78; }
+.ability-node.active  { border-left-color: rgba(85,200,110,0.85); background: #243042; }
+.ability-node.cant-afford { opacity: 0.6; }
+.an-head { display: flex; justify-content: space-between; align-items: center; }
+.an-name { font-size: 13px; font-weight: 800; color: #e6e6e6; letter-spacing: 0.4px; }
+.an-cd { font-size: 10px; font-weight: 800; opacity: 0.7; letter-spacing: 1px; text-transform: uppercase; }
+.an-desc { font-size: 11px; opacity: 0.72; line-height: 1.4; }
+.an-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
+.an-cost { font-size: 13px; font-weight: 800; color: #e8c04a; font-variant-numeric: tabular-nums; }
+.ab-fire {
+  background: #2a3440; color: #ffb0b0;
+  border: 1px solid rgba(232,74,74,0.45);
+  border-radius: 8px; padding: 6px 14px;
+  font-size: 11px; font-weight: 800; letter-spacing: 1px;
+  cursor: pointer; font-family: inherit;
+}
+.ab-fire:active:not(:disabled) { transform: scale(0.96); background: #364252; }
+.ab-fire:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Diplomacy panel */
+#diplomacy {
+  position: absolute; inset: 0;
+  background: rgba(8, 10, 12, 0.78);
+  display: none; align-items: center; justify-content: center;
+  pointer-events: auto;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 22;
+}
+#diplomacy.show { display: flex; }
+.diplo-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; max-height: 60vh; overflow-y: auto; }
+.diplo-node {
+  background: #20262e;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.diplo-node .dn-head { display: flex; align-items: center; gap: 6px; }
+.diplo-node .dn-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.diplo-node .dn-name { font-weight: 800; font-size: 13px; flex: 1; }
+.diplo-tag {
+  font-size: 9px; font-weight: 800; letter-spacing: 1px;
+  padding: 2px 6px; border-radius: 999px;
+}
+.diplo-tag.ally { background: rgba(85,200,110,0.18); color: #55c86e; }
+.diplo-tag.embargo { background: rgba(232,74,74,0.18); color: #e84a4a; }
+.diplo-node .dn-intel { font-style: normal; font-size: 11px; opacity: 0.6; }
+.dn-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.diplo-act {
+  flex: 1 1 auto; min-width: 90px;
+  background: #2a3440; color: #d6dee8;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; padding: 7px 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+  cursor: pointer; font-family: inherit;
+}
+.diplo-act:active:not(:disabled) { transform: scale(0.97); background: #364252; }
+.diplo-act:disabled { opacity: 0.42; cursor: not-allowed; }
+.diplo-empty { text-align: center; opacity: 0.6; font-size: 12px; padding: 20px; }
+#diplomacy .secondary {
+  display: block; width: 100%;
+  background: transparent; color: #9aa3ad;
+  border: 0; padding: 10px;
+  font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
+  cursor: pointer; font-family: inherit;
+}
+
+/* Trade sheet */
+#trade-sheet {
+  position: absolute; inset: 0;
+  background: rgba(8, 10, 12, 0.82);
+  display: none; align-items: center; justify-content: center;
+  pointer-events: auto;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 23;
+}
+#trade-sheet.show { display: flex; }
+.trade-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.trade-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; opacity: 0.75; }
+.trade-row { display: flex; align-items: center; gap: 8px; }
+.trade-row input[type="range"] { flex: 1; }
+.trade-row b { font-size: 16px; font-weight: 800; color: #e8c04a; min-width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+.trade-row i { font-style: normal; font-size: 10px; opacity: 0.55; text-transform: uppercase; letter-spacing: 1px; }
+.trade-rate { text-align: center; font-size: 11px; opacity: 0.65; }
+.trade-actions { display: flex; gap: 8px; }
+.trade-actions button { flex: 1; }
+#trade-sheet .primary {
+  background: rgba(232,192,74,0.95); color: #1a1206;
+  border: 0; padding: 10px;
+  font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
+  cursor: pointer; font-family: inherit; font-weight: 800;
+  border-radius: 8px;
+}
+#trade-sheet .secondary {
+  background: transparent; color: #9aa3ad;
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 10px; border-radius: 8px;
+  font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
+  cursor: pointer; font-family: inherit;
+}
 
 #commander {
   position: absolute; inset: 0;

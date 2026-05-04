@@ -7,8 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-  <script type="module" crossorigin src="/Territorygame/assets/index-zpKcU96C.js"></script>
-  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-CBZFih6_.css">
+  <script type="module" crossorigin src="/Territorygame/assets/index-Wt5BmoV8.js"></script>
+  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-B_VfkXih.css">
 </head>
 <body>
   <div id="app"></div>
@@ -19,6 +19,7 @@
       <span class="stat"><b id="my-pct">0%</b><i>of map</i></span>
       <span class="stat"><b id="my-troops">0</b><i>troops</i></span>
       <span class="stat"><b id="my-gold">0</b><i>gold</i></span>
+      <span class="stat treasury"><b id="my-treasury">0</b><i>treasury</i></span>
       <span class="stat compact"><b id="my-tiles">0</b><i>tiles</i></span>
     </div>
     <div id="enemies"></div>
@@ -55,24 +56,63 @@
     <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu">≡</button>
     <button id="help-btn" class="icon-btn icon-btn-help" type="button" aria-label="How to play">?</button>
     <button id="crown-btn" class="icon-btn icon-btn-crown" type="button" aria-label="Commander">♛</button>
+    <button id="diplo-btn" class="icon-btn icon-btn-diplo" type="button" aria-label="Diplomacy">⚑</button>
     <div id="commander">
       <div class="card cmd-card">
         <h2>COMMANDER</h2>
-        <p class="commander-blurb">Spend tribute on the decree tree. Tier 1 unlocks Tier 2.</p>
+        <p class="commander-blurb">Treasury fed by 10% vassal tribute. Spent on abilities and doctrines.</p>
         <div class="commander-stats">
-          <span><b id="cmd-gold">0</b><i>treasury</i></span>
+          <span><b id="cmd-treasury">0</b><i>treasury</i></span>
           <span><b id="cmd-prod">+0%</b><i>production</i></span>
           <span><b id="cmd-troops">0</b><i>troops</i></span>
         </div>
-        <div class="cmd-tabs" id="cmd-tabs">
+        <div class="cmd-mode-tabs" id="cmd-mode-tabs">
+          <button class="cmd-mode active" data-mode="abilities" type="button">Abilities</button>
+          <button class="cmd-mode"        data-mode="doctrines" type="button">Doctrines</button>
+        </div>
+        <div class="ability-list" id="ability-list"></div>
+        <div class="cmd-tabs" id="cmd-tabs" style="display:none">
           <button class="cmd-tab active" data-branch="economy"   type="button">Economy</button>
           <button class="cmd-tab"        data-branch="defense"   type="button">Defense</button>
           <button class="cmd-tab"        data-branch="military"  type="button">Military</button>
           <button class="cmd-tab"        data-branch="offense"   type="button">Offense</button>
           <button class="cmd-tab"        data-branch="espionage" type="button">Espionage</button>
         </div>
-        <div class="cmd-tree" id="cmd-tree"></div>
+        <div class="cmd-tree" id="cmd-tree" style="display:none"></div>
         <button id="commander-cancel" class="secondary" type="button">CLOSE</button>
+      </div>
+    </div>
+    <div id="diplomacy">
+      <div class="card cmd-card">
+        <h2>DIPLOMACY</h2>
+        <p class="commander-blurb">Trade troops for gold. Form non-aggression pacts. Cripple income with embargoes.</p>
+        <div class="diplo-list" id="diplo-list"></div>
+        <button id="diplo-cancel" class="secondary" type="button">CLOSE</button>
+      </div>
+    </div>
+    <div id="trade-sheet">
+      <div class="card cmd-card">
+        <h2 id="trade-title">TRADE</h2>
+        <p class="commander-blurb">Pay gold to receive troops. Their treasury grows; their army shrinks.</p>
+        <div class="trade-grid">
+          <label>You pay
+            <span class="trade-row">
+              <input id="trade-gold" type="range" min="50" max="2000" step="10" value="200">
+              <b id="trade-gold-val">200</b><i>gold</i>
+            </span>
+          </label>
+          <label>You receive
+            <span class="trade-row">
+              <input id="trade-troops" type="range" min="50" max="4000" step="10" value="400">
+              <b id="trade-troops-val">400</b><i>troops</i>
+            </span>
+          </label>
+          <p class="trade-rate" id="trade-rate">rate: 0.5 g/troop</p>
+        </div>
+        <div class="trade-actions">
+          <button id="trade-confirm" class="primary" type="button">PROPOSE</button>
+          <button id="trade-cancel" class="secondary" type="button">CANCEL</button>
+        </div>
       </div>
     </div>
     <div id="buildsheet">

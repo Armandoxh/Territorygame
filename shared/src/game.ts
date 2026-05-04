@@ -10,6 +10,8 @@ import { generateTerrain } from './terrain.js';
 import { generateRegions } from './regions.js';
 import { generateRegionNames } from './names.js';
 import { decreeById } from './decrees.js';
+import { abilityById } from './abilities.js';
+import type { AbilityError } from './abilities.js';
 
 interface ExpansionCandidate {
   x: number; y: number;
@@ -653,6 +655,9 @@ export class Game {
   tryCapture(x: number, y: number, attackerId: PlayerId): boolean {
     const defender = this.territory.getOwner(x, y);
     if (defender < 0 || defender === attackerId) return false;
+    // Allied players cannot capture each other's tiles via any path
+    // (expansion, ships, bombs are still allowed since bombs only neutralise).
+    if (defender > 0 && this.areAllied(attackerId, defender)) return false;
     const capIdx = this._capitalIndexAt(x, y);
     const capOwner = capIdx >= 0 ? this.capitals[capIdx]!.owner : -1;
     // Turret retaliation: BEFORE the claim, count defending turrets in range
@@ -681,10 +686,13 @@ export class Game {
     return {
       id, name, isHuman,
       gold: this.config.STARTING_GOLD,
+      treasury: 0,
       troops: this.config.STARTING_TROOPS,
       alive: true,
       targetRegions: [],
       decreeStacks: {},
+      abilityCooldowns: {},
+      activeBuffs: {},
       expanding: !isHuman,
     };
   }
@@ -716,11 +724,12 @@ export class Game {
     const d = decreeById(decreeId);
     if (!d) return 'unknown';
     if (!this.decreeAvailable(playerId, decreeId)) return 'locked';
-    // War Bonds: cost is 30% of current gold (configurable in registry as 0).
+    // War Bonds: cost is 30% of current treasury.
     let cost = d.cost;
-    if (decreeId === 'war-bonds') cost = Math.floor(p.gold * 0.30);
-    if (p.gold < cost) return 'gold';
-    p.gold -= cost;
+    if (decreeId === 'war-bonds') cost = Math.floor(p.treasury * 0.30);
+    // Doctrines pay from the commander treasury, not operational gold.
+    if (p.treasury < cost) return 'gold';
+    p.treasury -= cost;
     p.decreeStacks[decreeId] = (p.decreeStacks[decreeId] ?? 0) + 1;
     // Border Patrol changes effective turret radius — invalidate cache.
     if (decreeId === 'border-patrol') this._turretCacheDirty = true;
@@ -765,6 +774,179 @@ export class Game {
   /** Bomb-cooldown multiplier from Air Supremacy. */
   private _bombCooldownMult(p: Player): number {
     return (p.decreeStacks['air-supremacy'] ?? 0) > 0 ? 0.5 : 1;
+  }
+
+  // --- Active commander abilities ---------------------------------------
+
+  private _abilityActive(p: Player, id: string): boolean {
+    return (p.activeBuffs[id] ?? 0) > this.tickCount;
+  }
+
+  /** Attack-rate multiplier from Rally (1.5× while active). */
+  private _rallyMult(p: Player): number {
+    return this._abilityActive(p, 'rally') ? 1.5 : 1;
+  }
+
+  /** Income multiplier from Trade Embargo against the *target* player.
+   *  When this player is currently embargoed by anyone, their gold income
+   *  is multiplied by 0.6. */
+  private _embargoMult(p: Player): number {
+    return this._abilityActive(p, 'embargoed') ? 0.6 : 1;
+  }
+
+  /** Returns true if the human has Spy Report active and so should see
+   *  enemy troop counts / targets in the HUD. */
+  spyActive(playerId: PlayerId): boolean {
+    const p = this.players[playerId];
+    if (!p) return false;
+    return this._abilityActive(p, 'spy-report')
+        || (p.decreeStacks['spy-network'] ?? 0) > 0;
+  }
+
+  /** Tick count at which an ability is next ready (or 0 = ready now). */
+  abilityReadyAt(playerId: PlayerId, abilityId: string): number {
+    const p = this.players[playerId];
+    return p?.abilityCooldowns?.[abilityId] ?? 0;
+  }
+
+  /** Tick count at which a buff/debuff expires (or 0 = inactive). */
+  buffExpireAt(playerId: PlayerId, abilityId: string): number {
+    const p = this.players[playerId];
+    return p?.activeBuffs?.[abilityId] ?? 0;
+  }
+
+  /** Fire an active ability. targetId required for enemy-targeted abilities
+   *  (currently just Embargo). Returns null on success, error code otherwise. */
+  activateAbility(playerId: PlayerId, abilityId: string, targetId?: PlayerId): AbilityError | null {
+    const p = this.players[playerId];
+    if (!p || !p.alive) return 'dead';
+    const a = abilityById(abilityId);
+    if (!a) return 'unknown';
+    if (this.abilityReadyAt(playerId, abilityId) > this.tickCount) return 'cooldown';
+    if (a.needsEnemy) {
+      if (!targetId) return 'no-target';
+      const t = this.players[targetId];
+      if (!t || !t.alive || t.id === playerId) return 'bad-target';
+    }
+    if (p.treasury < a.cost) return 'gold';
+    p.treasury -= a.cost;
+    p.abilityCooldowns[abilityId] = this.tickCount + a.cooldown;
+
+    // Effect application
+    if (abilityId === 'rally') {
+      p.activeBuffs['rally'] = this.tickCount + a.duration;
+    } else if (abilityId === 'reinforcements') {
+      p.troops += 3000;
+      // Halt empire-wide growth for the duration (read in _growTroops).
+      p.activeBuffs['no-growth'] = this.tickCount + a.duration;
+    } else if (abilityId === 'spy-report') {
+      p.activeBuffs['spy-report'] = this.tickCount + a.duration;
+    } else if (abilityId === 'embargo') {
+      const t = this.players[targetId!];
+      if (t) t.activeBuffs['embargoed'] = this.tickCount + a.duration;
+    }
+
+    this.events.push({ type: 'ability-fired', abilityId, ownerId: playerId, targetId });
+    return null;
+  }
+
+  // --- Alliances --------------------------------------------------------
+
+  private _allianceKey(a: PlayerId, b: PlayerId): string {
+    return a < b ? `${a}-${b}` : `${b}-${a}`;
+  }
+  private _alliances = new Map<string, number>();
+
+  /** True iff the two players currently share an active alliance. */
+  areAllied(a: PlayerId, b: PlayerId): boolean {
+    if (a === b) return false;
+    const exp = this._alliances.get(this._allianceKey(a, b));
+    return exp != null && exp > this.tickCount;
+  }
+
+  /** Tick count at which a current alliance expires, or 0 if none. */
+  allianceExpireAt(a: PlayerId, b: PlayerId): number {
+    return this._alliances.get(this._allianceKey(a, b)) ?? 0;
+  }
+
+  /** Pure-AI accept rule for alliance proposals. */
+  private _aiAcceptsAlliance(proposer: Player, target: Player): boolean {
+    // Don't ally with the dominant leader (they don't need it).
+    const total = this.totalLand;
+    const propShare = total > 0 ? (this.territory.counts[proposer.id] ?? 0) / total : 0;
+    const targShare = total > 0 ? (this.territory.counts[target.id] ?? 0) / total : 0;
+    if (propShare > targShare * 1.6) return false;
+    // Otherwise probability scales with how much the target is being squeezed.
+    const threat = this._findGreatestThreatTo(target.id);
+    if (threat === proposer.id) return false; // can't ally with your bully
+    return true;
+  }
+
+  /** Propose an alliance from `fromId` to `toId`. Default 60s (600 ticks).
+   *  Returns 'accepted' on success or a reason string. */
+  proposeAlliance(fromId: PlayerId, toId: PlayerId, durationTicks = 600):
+    'accepted' | 'rejected' | 'invalid' | 'already' {
+    if (fromId === toId) return 'invalid';
+    const a = this.players[fromId];
+    const b = this.players[toId];
+    if (!a || !a.alive || !b || !b.alive) return 'invalid';
+    if (this.areAllied(fromId, toId)) return 'already';
+    if (b.isHuman) return 'rejected';
+    if (!this._aiAcceptsAlliance(a, b)) return 'rejected';
+    this._alliances.set(this._allianceKey(fromId, toId), this.tickCount + durationTicks);
+    this.events.push({ type: 'alliance-formed', a: fromId, b: toId });
+    return 'accepted';
+  }
+
+  /** End an alliance early. */
+  breakAlliance(byId: PlayerId, otherId: PlayerId): boolean {
+    const key = this._allianceKey(byId, otherId);
+    if (!this._alliances.has(key)) return false;
+    this._alliances.delete(key);
+    this.events.push({ type: 'alliance-broken', a: byId, b: otherId, brokenBy: byId });
+    return true;
+  }
+
+  /** Returns the list of player ids currently allied with `playerId`. */
+  alliesOf(playerId: PlayerId): PlayerId[] {
+    const out: PlayerId[] = [];
+    for (const [key, exp] of this._alliances) {
+      if (exp <= this.tickCount) continue;
+      const [aStr, bStr] = key.split('-');
+      const a = parseInt(aStr!, 10);
+      const b = parseInt(bStr!, 10);
+      if (a === playerId) out.push(b);
+      else if (b === playerId) out.push(a);
+    }
+    return out;
+  }
+
+  // --- Trade ------------------------------------------------------------
+
+  /** One-shot exchange: `fromId` pays `gold`, `toId` sends `troops`. AI
+   *  accepts if the offered gold/troop ratio meets a fair-market rate AND
+   *  they have the troops to spare. Returns null on success. */
+  proposeTrade(fromId: PlayerId, toId: PlayerId, gold: number, troops: number):
+    'accepted' | 'rejected' | 'gold' | 'invalid' | null {
+    if (fromId === toId || gold <= 0 || troops <= 0) return 'invalid';
+    const a = this.players[fromId];
+    const b = this.players[toId];
+    if (!a || !a.alive || !b || !b.alive) return 'invalid';
+    if (a.gold < gold) return 'gold';
+    // AI accept rule: rate must be at least 0.4 g/troop, and the seller
+    // can't drop below 30% of their cap.
+    const rate = gold / Math.max(1, troops);
+    const minRate = 0.4;
+    if (rate < minRate && !b.isHuman) return 'rejected';
+    const owned = this.territory.counts[b.id] ?? 0;
+    const minTroops = owned * this._troopCapFor(b) * 0.3;
+    if (b.troops - troops < minTroops && !b.isHuman) return 'rejected';
+    a.gold -= gold;
+    b.gold += gold;
+    b.troops = Math.max(0, b.troops - troops);
+    a.troops += troops;
+    this.events.push({ type: 'trade-completed', fromId, toId, gold, troops });
+    return 'accepted';
   }
 
   private _spawnRadius(): number {
@@ -839,6 +1021,12 @@ export class Game {
       if (!p || !p.alive) continue;
       const owned = this.territory.counts[id]!;
       const max = owned * this._troopCapFor(p);
+      // Reinforcements decree halts growth for its duration — instant
+      // troop spike now, but you live off that pile until the buff ends.
+      if (this._abilityActive(p, 'no-growth')) {
+        p.troops = Math.min(p.troops, max);
+        continue;
+      }
       const next = p.troops
         + owned * growth
         + settlementCount[id]! * settlementBonus
@@ -897,14 +1085,17 @@ export class Game {
       if (id === 0) continue;
       const p = players[id];
       if (!p || !p.alive) continue;
-      const decreeMult = this._productionMult(p);
+      const decreeMult = this._productionMult(p) * this._embargoMult(p);
       const tileGold = base * (1 + mult[i]!) * decreeMult;
       const net = siphon(id, tileGold);
       const r = regions[i]!;
       if (p.isHuman && r > 0 && dominant[r] === id) {
+        // Vassal tribute flows to the leader's TREASURY (commander pool),
+        // separate from operational gold. Vassals keep the rest in their
+        // own per-region pool for builds/expansion.
         const tribute = net * this._tributeFractionFor(p);
         vGold[r]! += net - tribute;
-        p.gold += tribute;
+        p.treasury += tribute;
       } else {
         p.gold += net;
       }
@@ -917,13 +1108,13 @@ export class Game {
         if (b.type !== 'settlement') continue;
         const p = players[b.owner];
         if (!p || !p.alive) continue;
-        const tierGold = flatGold * (b.level ?? 1);
+        const tierGold = flatGold * (b.level ?? 1) * this._embargoMult(p);
         const net = siphon(b.owner, tierGold);
         const r = regions[b.y * W + b.x]!;
         if (p.isHuman && r > 0 && dominant[r] === b.owner) {
           const tribute = net * this._tributeFractionFor(p);
           vGold[r]! += net - tribute;
-          p.gold += tribute;
+          p.treasury += tribute;
         } else {
           p.gold += net;
         }
@@ -1497,6 +1688,8 @@ export class Game {
 
   // Region IDs touching the player's frontier (incl. tiles currently owned by
   // someone else) — i.e. regions the player can push into right now.
+  // Allied players' regions are filtered out so AI doesn't waste a target
+  // on someone it can't actually attack.
   private _adjacentRegions(playerId: PlayerId): Set<number> {
     const out = new Set<number>();
     const W = this.territory.width;
@@ -1510,6 +1703,7 @@ export class Game {
         if (!this.territory.inBounds(nx, ny)) continue;
         const own = this.territory.getOwner(nx, ny);
         if (own === playerId) continue;
+        if (own > 0 && this.areAllied(playerId, own)) continue;
         const r = this.regions[ny * W + nx]!;
         if (r > 0) out.add(r);
       }
@@ -1599,6 +1793,9 @@ export class Game {
       const chosen = pool[(Math.random() * pool.length) | 0]!;
 
       const targetOwner = this.territory.getOwner(chosen.x, chosen.y);
+      // Allies don't fight: skip every attack into an allied player's
+      // territory. Idle expansion into unclaimed land still works.
+      if (targetOwner > 0 && targetOwner !== p.id && this.areAllied(p.id, targetOwner)) continue;
       if (targetOwner === 0) {
         if (Math.random() > tileChance) continue;
         if (goldPool() < this.config.EXPANSION_COST_PER_CLAIM) continue;
@@ -1620,7 +1817,8 @@ export class Game {
             Math.pow(ratio, this.config.ATTACK_RATIO_EXP),
           ),
         );
-        const rate = tileChance * this.config.ATTACK_RATE_MULT * ratioFactor / (1 + def);
+        // Rally buff applies a 1.5× multiplier to combat rate for its duration.
+        const rate = tileChance * this.config.ATTACK_RATE_MULT * ratioFactor * this._rallyMult(p) / (1 + def);
         if (Math.random() > rate) continue;
         if (goldPool() < cost) continue;
         if (p.troops < this.config.TROOP_COST_PER_ATTACK) continue;

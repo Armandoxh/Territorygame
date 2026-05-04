@@ -1,11 +1,12 @@
-import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player, DecreeBranch, ShipKind, ShipBuildError } from '@territorygame/shared';
-import { DECREES } from '@territorygame/shared';
+import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId } from '@territorygame/shared';
+import { DECREES, ABILITIES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip'];
 const BOMB_TYPES: BombType[] = ['small', 'large'];
 const SHIP_TYPES: ShipKind[] = ['scout', 'skirmisher', 'warship'];
 const DECREE_BRANCHES: DecreeBranch[] = ['economy', 'defense', 'military', 'offense', 'espionage'];
+type CmdMode = 'abilities' | 'doctrines';
 
 export class HUD {
   private readonly game: Game;
@@ -14,6 +15,7 @@ export class HUD {
     pct:          this._byId('my-pct'),
     troops:       this._byId('my-troops'),
     gold:         this._byId('my-gold'),
+    treasury:     this._byId('my-treasury'),
     dot:          this._byId('my-dot'),
     enemies:      this._byId('enemies'),
     hint:         this._byId('hint'),
@@ -43,12 +45,27 @@ export class HUD {
     vassalLog:    this._byId('vassal-log'),
     commander:    this._byId('commander'),
     crownBtn:     this._byId('crown-btn'),
-    cmdGold:      this._byId('cmd-gold'),
+    cmdTreasury:  this._byId('cmd-treasury'),
     cmdProd:      this._byId('cmd-prod'),
     cmdTroops:    this._byId('cmd-troops'),
+    cmdModeTabs:  this._byId('cmd-mode-tabs'),
+    cmdAbilities: this._byId('ability-list'),
     cmdTabs:      this._byId('cmd-tabs'),
     cmdTree:      this._byId('cmd-tree'),
     cmdCancel:    this._byId('commander-cancel'),
+    diploBtn:     this._byId('diplo-btn'),
+    diploPanel:   this._byId('diplomacy'),
+    diploList:    this._byId('diplo-list'),
+    diploCancel:  this._byId('diplo-cancel'),
+    tradeSheet:   this._byId('trade-sheet'),
+    tradeTitle:   this._byId('trade-title'),
+    tradeGold:    this._byId<HTMLInputElement>('trade-gold'),
+    tradeGoldVal: this._byId('trade-gold-val'),
+    tradeTroops:  this._byId<HTMLInputElement>('trade-troops'),
+    tradeTroopsVal: this._byId('trade-troops-val'),
+    tradeRate:    this._byId('trade-rate'),
+    tradeConfirm: this._byId('trade-confirm'),
+    tradeCancel:  this._byId('trade-cancel'),
     tutorial:     this._byId('tutorial'),
     helpBtn:      this._byId('help-btn'),
     tutorialBtn:  this._byId('tutorial-start'),
@@ -65,8 +82,10 @@ export class HUD {
   private buildSheetCoord: { x: number; y: number } | null = null;
   private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement; intel: HTMLElement }>();
   private cmdActiveBranch: DecreeBranch = 'economy';
+  private cmdMode: CmdMode = 'abilities';
   private _cmdLastSig = '';
   private _lastBuyAt = 0;
+  private _tradeTargetId: PlayerId = 0;
 
   // Debug HUD live stats — set by main.ts loop
   fps = 0;
@@ -90,6 +109,7 @@ export class HUD {
     this._wireGameOver();
     this._wireTutorial();
     this._wireCommander();
+    this._wireDiplomacy();
     // Show the welcome tutorial automatically on first launch.
     try {
       if (!localStorage.getItem('territory:tutorial-seen')) this.showTutorial();
@@ -312,7 +332,8 @@ export class HUD {
     const owned = this.game.territory.counts[me.id]!;
     if (this.el.tiles)  this.el.tiles.textContent  = String(owned);
     if (this.el.troops) this.el.troops.textContent = formatTroops(me.troops);
-    if (this.el.gold)   this.el.gold.textContent   = String(Math.floor(me.gold));
+    if (this.el.gold)     this.el.gold.textContent     = String(Math.floor(me.gold));
+    if (this.el.treasury) this.el.treasury.textContent = String(Math.floor(me.treasury));
     if (this.el.pct) {
       const pct = this.game.totalLand > 0 ? owned / this.game.totalLand : 0;
       // 1 decimal until close to the win threshold, then 2 for tension.
@@ -349,6 +370,7 @@ export class HUD {
     if (this.el.bombSheet?.classList.contains('show')) this._refreshBombSheetButtons();
     if (this.el.fleetSheet?.classList.contains('show')) this._refreshFleetSheetButtons();
     if (this.el.commander?.classList.contains('show')) this._refreshCommander();
+    if (this.el.diploPanel?.classList.contains('show')) this._renderDiplomacy();
     this._refreshLeaderBar();
     const spy = (me.decreeStacks['spy-network'] ?? 0) > 0;
     for (const [id, ref] of this.enemyEls) {
@@ -705,6 +727,15 @@ export class HUD {
     this.el.commander?.addEventListener('click', (e) => {
       if (e.target === this.el.commander) this.hideCommander();
     });
+    this.el.cmdModeTabs?.querySelectorAll<HTMLButtonElement>('.cmd-mode').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset['mode'] as CmdMode | undefined;
+        if (!mode) return;
+        this.cmdMode = mode;
+        this._cmdLastSig = '';
+        this._refreshCommander();
+      });
+    });
     this.el.cmdTabs?.querySelectorAll<HTMLButtonElement>('.cmd-tab').forEach((btn) => {
       btn.addEventListener('click', () => {
         const branch = btn.dataset['branch'] as DecreeBranch | undefined;
@@ -714,13 +745,17 @@ export class HUD {
         this._refreshCommander();
       });
     });
-    // Event delegation: a single click handler on the tree container so the
-    // listener survives re-renders. Buy buttons carry data-decree-id.
     this.el.cmdTree?.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('.dn-buy');
       if (!btn || btn.disabled) return;
       const id = btn.dataset['decree'];
       if (id) this._buyDecree(id);
+    });
+    this.el.cmdAbilities?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('.ab-fire');
+      if (!btn || btn.disabled) return;
+      const id = btn.dataset['ability'];
+      if (id) this._fireAbility(id);
     });
   }
 
@@ -736,19 +771,119 @@ export class HUD {
 
   private _refreshCommander(): void {
     const me = this.game.human();
-    if (this.el.cmdGold)   this.el.cmdGold.textContent   = String(Math.floor(me.gold));
-    if (this.el.cmdTroops) this.el.cmdTroops.textContent = formatTroops(me.troops);
+    if (this.el.cmdTreasury) this.el.cmdTreasury.textContent = String(Math.floor(me.treasury));
+    if (this.el.cmdTroops)   this.el.cmdTroops.textContent   = formatTroops(me.troops);
     if (this.el.cmdProd) {
       const stacks = me.decreeStacks['production'] ?? 0;
       const pct = stacks * this.game.config.DECREE_PRODUCTION_BOOST * 100;
       this.el.cmdProd.textContent = pct === 0 ? '+0%' : `+${pct.toFixed(0)}%`;
     }
-    if (this.el.cmdTabs) {
-      this.el.cmdTabs.querySelectorAll<HTMLButtonElement>('.cmd-tab').forEach((btn) => {
-        btn.classList.toggle('active', btn.dataset['branch'] === this.cmdActiveBranch);
+    if (this.el.cmdModeTabs) {
+      this.el.cmdModeTabs.querySelectorAll<HTMLButtonElement>('.cmd-mode').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset['mode'] === this.cmdMode);
       });
     }
-    if (this.el.cmdTree) this._renderDecreeTree();
+    const showAbilities = this.cmdMode === 'abilities';
+    if (this.el.cmdAbilities) this.el.cmdAbilities.style.display = showAbilities ? '' : 'none';
+    if (this.el.cmdTabs) this.el.cmdTabs.style.display = showAbilities ? 'none' : '';
+    if (this.el.cmdTree) this.el.cmdTree.style.display = showAbilities ? 'none' : '';
+
+    if (showAbilities) {
+      this._renderAbilities();
+    } else {
+      if (this.el.cmdTabs) {
+        this.el.cmdTabs.querySelectorAll<HTMLButtonElement>('.cmd-tab').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset['branch'] === this.cmdActiveBranch);
+        });
+      }
+      this._renderDecreeTree();
+    }
+  }
+
+  private _renderAbilities(): void {
+    const list = this.el.cmdAbilities;
+    if (!list) return;
+    const me = this.game.human();
+    const tick = this.game.tickCount;
+    // Build/refresh node-per-ability so the DOM stays stable across frames
+    // and clicks survive re-renders. Existing nodes' state is updated; new
+    // ones are created on first render.
+    if (list.childElementCount !== ABILITIES.length) {
+      list.innerHTML = '';
+      for (const a of ABILITIES) {
+        const row = document.createElement('div');
+        row.className = 'ability-node';
+        row.dataset['ability'] = a.id;
+        row.innerHTML = `
+          <div class="an-head">
+            <span class="an-name"></span>
+            <span class="an-cd"></span>
+          </div>
+          <div class="an-desc"></div>
+          <div class="an-foot">
+            <span class="an-cost"></span>
+            <button class="ab-fire" type="button" data-ability="${a.id}">FIRE</button>
+          </div>
+        `;
+        list.appendChild(row);
+      }
+    }
+    list.querySelectorAll<HTMLElement>('.ability-node').forEach((row) => {
+      const id = row.dataset['ability']!;
+      const a = ABILITIES.find(x => x.id === id);
+      if (!a) return;
+      const ready = this.game.abilityReadyAt(1, id);
+      const cooling = ready > tick;
+      const expires = this.game.buffExpireAt(1, id);
+      const active = expires > tick;
+      const canAfford = me.treasury >= a.cost;
+      const needsTarget = a.needsEnemy;
+
+      row.classList.toggle('cooling', cooling);
+      row.classList.toggle('active', active);
+      row.classList.toggle('cant-afford', !cooling && !canAfford);
+
+      const name = row.querySelector<HTMLElement>('.an-name');
+      if (name) name.textContent = a.name;
+      const cd = row.querySelector<HTMLElement>('.an-cd');
+      if (cd) {
+        if (active) {
+          const remain = Math.max(0, Math.ceil((expires - tick) / this.game.config.SIM_HZ));
+          cd.textContent = `ACTIVE · ${remain}s`;
+        } else if (cooling) {
+          const remain = Math.max(0, Math.ceil((ready - tick) / this.game.config.SIM_HZ));
+          cd.textContent = `${remain}s`;
+        } else {
+          cd.textContent = 'READY';
+        }
+      }
+      const desc = row.querySelector<HTMLElement>('.an-desc');
+      if (desc) desc.textContent = a.desc + (needsTarget ? ' · pick target in Diplomacy' : '');
+      const cost = row.querySelector<HTMLElement>('.an-cost');
+      if (cost) cost.textContent = `${a.cost}♛`;
+      const fire = row.querySelector<HTMLButtonElement>('.ab-fire');
+      if (fire) {
+        fire.disabled = cooling || !canAfford || needsTarget;
+        fire.textContent = needsTarget ? 'IN DIPLOMACY' : 'FIRE';
+      }
+    });
+  }
+
+  private _fireAbility(id: string, targetId?: PlayerId): void {
+    const now = performance.now();
+    if (now - this._lastBuyAt < 250) return;
+    this._lastBuyAt = now;
+    const err = this.game.activateAbility(1, id, targetId);
+    if (err === null) {
+      this.toast('Ability fired');
+      this._cmdLastSig = '';
+      this._refreshCommander();
+      return;
+    }
+    if (err === 'gold') this.toast('Treasury too low');
+    else if (err === 'cooldown') this.toast('On cooldown');
+    else if (err === 'no-target' || err === 'bad-target') this.toast('Pick a valid target');
+    else this.toast('Cannot fire');
   }
 
   // Tree rendering is split in two so the DOM stays stable during a tap:
@@ -843,8 +978,8 @@ export class HUD {
       const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
       const owned = stacks > 0;
       const locked = !!d.comingSoon || !prereqMet || (!d.stackable && owned);
-      const cost = d.id === 'war-bonds' ? Math.floor(me.gold * 0.30) : d.cost;
-      const canAfford = me.gold >= cost;
+      const cost = d.id === 'war-bonds' ? Math.floor(me.treasury * 0.30) : d.cost;
+      const canAfford = me.treasury >= cost;
 
       row.classList.toggle('cant-afford', !locked && !canAfford);
 
@@ -887,6 +1022,163 @@ export class HUD {
     else if (err === 'locked') this.toast('Locked — buy prereq first');
     else if (err === 'dead')   this.toast('You are eliminated');
     else this.toast('Cannot decree');
+  }
+
+  // --- Diplomacy --------------------------------------------------------
+
+  private _wireDiplomacy(): void {
+    this.el.diploBtn?.addEventListener('click', () => this.showDiplomacy());
+    this.el.diploCancel?.addEventListener('click', () => this.hideDiplomacy());
+    this.el.diploPanel?.addEventListener('click', (e) => {
+      if (e.target === this.el.diploPanel) this.hideDiplomacy();
+    });
+    this.el.diploList?.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('.diplo-act');
+      if (!target || target.disabled) return;
+      const idStr = target.dataset['target'];
+      const action = target.dataset['action'];
+      if (!idStr || !action) return;
+      const pid = parseInt(idStr, 10);
+      if (action === 'trade')          this._openTrade(pid);
+      else if (action === 'alliance')  this._proposeAlliance(pid);
+      else if (action === 'break')     this._breakAlliance(pid);
+      else if (action === 'embargo')   this._fireAbility('embargo', pid);
+    });
+
+    // Trade sheet wiring
+    this.el.tradeCancel?.addEventListener('click', () => this.hideTrade());
+    this.el.tradeSheet?.addEventListener('click', (e) => {
+      if (e.target === this.el.tradeSheet) this.hideTrade();
+    });
+    this.el.tradeGold?.addEventListener('input', () => this._refreshTradeRate());
+    this.el.tradeTroops?.addEventListener('input', () => this._refreshTradeRate());
+    this.el.tradeConfirm?.addEventListener('click', () => this._confirmTrade());
+  }
+
+  showDiplomacy(): void {
+    this._renderDiplomacy();
+    this.el.diploPanel?.classList.add('show');
+  }
+
+  hideDiplomacy(): void {
+    this.el.diploPanel?.classList.remove('show');
+  }
+
+  private _renderDiplomacy(): void {
+    const list = this.el.diploList;
+    if (!list) return;
+    list.innerHTML = '';
+    const me = this.game.human();
+    const tick = this.game.tickCount;
+    const palette = this.game.config.PLAYER_COLORS;
+    const spy = this.game.spyActive(1);
+    for (let id = 2; id < this.game.players.length; id++) {
+      const p = this.game.players[id];
+      if (!p || !p.alive) continue;
+      const owned = this.game.territory.counts[id] ?? 0;
+      if (owned === 0) continue;
+      const allied = this.game.areAllied(1, id);
+      const allianceExpire = this.game.allianceExpireAt(1, id);
+      const embExp = this.game.buffExpireAt(id, 'embargoed');
+      const embargoed = embExp > tick;
+
+      const c = palette[id];
+      const tint = c ? `rgb(${c[0]},${c[1]},${c[2]})` : '#888';
+      const row = document.createElement('div');
+      row.className = 'diplo-node';
+      const intel = spy ? `<i class="dn-intel">${formatTroops(p.troops)} troops · ${owned} tiles</i>` : `<i class="dn-intel">${owned} tiles</i>`;
+      const allyTag = allied ? `<span class="diplo-tag ally">ALLY · ${Math.max(0, Math.ceil((allianceExpire - tick) / this.game.config.SIM_HZ))}s</span>` : '';
+      const embargoTag = embargoed ? `<span class="diplo-tag embargo">EMBARGOED · ${Math.max(0, Math.ceil((embExp - tick) / this.game.config.SIM_HZ))}s</span>` : '';
+      row.innerHTML = `
+        <div class="dn-head">
+          <span class="dn-dot" style="background:${tint}"></span>
+          <span class="dn-name">${p.name}</span>
+          ${allyTag}
+          ${embargoTag}
+        </div>
+        ${intel}
+        <div class="dn-actions">
+          <button class="diplo-act" data-action="trade"    data-target="${id}" type="button">Trade</button>
+          ${allied
+            ? `<button class="diplo-act" data-action="break"    data-target="${id}" type="button">Break Alliance</button>`
+            : `<button class="diplo-act" data-action="alliance" data-target="${id}" type="button">Propose Alliance</button>`}
+          <button class="diplo-act" data-action="embargo"  data-target="${id}" type="button">Embargo</button>
+        </div>
+      `;
+      list.appendChild(row);
+      // Disable Embargo when on cooldown, treasury too low, or already active.
+      const emb = ABILITIES.find(a => a.id === 'embargo')!;
+      const ready = this.game.abilityReadyAt(1, 'embargo');
+      const cooling = ready > tick;
+      const canAfford = me.treasury >= emb.cost;
+      const eBtn = row.querySelector<HTMLButtonElement>('[data-action="embargo"]');
+      if (eBtn) {
+        eBtn.disabled = cooling || !canAfford || embargoed || allied;
+        if (cooling) eBtn.textContent = `Embargo · ${Math.ceil((ready - tick) / this.game.config.SIM_HZ)}s`;
+        else if (embargoed) eBtn.textContent = 'Embargo · active';
+        else eBtn.textContent = `Embargo · ${emb.cost}♛`;
+      }
+      const aBtn = row.querySelector<HTMLButtonElement>('[data-action="alliance"]');
+      if (aBtn && allied) aBtn.disabled = true;
+      const tBtn = row.querySelector<HTMLButtonElement>('[data-action="trade"]');
+      if (tBtn) tBtn.disabled = false;
+    }
+    if (list.childElementCount === 0) {
+      list.innerHTML = '<p class="diplo-empty">No alive enemies to negotiate with.</p>';
+    }
+  }
+
+  private _proposeAlliance(targetId: PlayerId): void {
+    const r = this.game.proposeAlliance(1, targetId);
+    if (r === 'accepted')      this.toast('Alliance formed · 60s');
+    else if (r === 'rejected') this.toast('They rejected your proposal');
+    else if (r === 'already')  this.toast('Already allied');
+    else this.toast('Cannot propose');
+    this._renderDiplomacy();
+  }
+
+  private _breakAlliance(targetId: PlayerId): void {
+    if (this.game.breakAlliance(1, targetId)) this.toast('Alliance broken');
+    this._renderDiplomacy();
+  }
+
+  private _openTrade(targetId: PlayerId): void {
+    this._tradeTargetId = targetId;
+    const target = this.game.players[targetId];
+    if (this.el.tradeTitle && target) this.el.tradeTitle.textContent = `TRADE WITH ${target.name.toUpperCase()}`;
+    if (this.el.tradeGold)   this.el.tradeGold.value   = '200';
+    if (this.el.tradeTroops) this.el.tradeTroops.value = '400';
+    this._refreshTradeRate();
+    this.el.tradeSheet?.classList.add('show');
+  }
+
+  hideTrade(): void {
+    this.el.tradeSheet?.classList.remove('show');
+    this._tradeTargetId = 0;
+  }
+
+  private _refreshTradeRate(): void {
+    const g = parseInt(this.el.tradeGold?.value ?? '0', 10) || 0;
+    const t = parseInt(this.el.tradeTroops?.value ?? '0', 10) || 0;
+    if (this.el.tradeGoldVal)   this.el.tradeGoldVal.textContent   = String(g);
+    if (this.el.tradeTroopsVal) this.el.tradeTroopsVal.textContent = String(t);
+    if (this.el.tradeRate) {
+      const rate = t > 0 ? (g / t).toFixed(2) : '—';
+      const fair = (parseFloat(rate) >= 0.4) ? 'fair' : 'low';
+      this.el.tradeRate.textContent = `rate: ${rate} g/troop · ${fair} (AI accepts ≥ 0.40)`;
+    }
+  }
+
+  private _confirmTrade(): void {
+    if (this._tradeTargetId <= 0) return;
+    const g = parseInt(this.el.tradeGold?.value ?? '0', 10) || 0;
+    const t = parseInt(this.el.tradeTroops?.value ?? '0', 10) || 0;
+    const r = this.game.proposeTrade(1, this._tradeTargetId, g, t);
+    if (r === 'accepted')      { this.toast(`Traded ${g}g for ${t} troops`); this.hideTrade(); this._renderDiplomacy(); }
+    else if (r === 'rejected') this.toast('They rejected the trade');
+    else if (r === 'gold')     this.toast('Not enough gold');
+    else if (r === 'invalid')  this.toast('Invalid trade');
+    else this.toast('Cannot trade');
   }
 
   showTutorial(): void {

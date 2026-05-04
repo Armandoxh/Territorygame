@@ -43,7 +43,13 @@ export interface Player {
   id: PlayerId;
   name: string;
   isHuman: boolean;
+  /** Operational gold — funds builds, manual attacks, bombs, ships.
+   *  Fed by your own non-vassal land + AI base income. */
   gold: number;
+  /** Commander treasury — funds doctrines and active abilities. Fed by
+   *  vassal tribute. Strictly separate from `gold`: never drains except
+   *  by clicking a commander action. */
+  treasury: number;
   /** Army strength. Grows passively from owned land, consumed on attacks. */
   troops: number;
   alive: boolean;
@@ -54,6 +60,10 @@ export interface Player {
    *  Stackable nodes accumulate; one-shot purchases also increment so
    *  the UI can show how many times an action was issued. */
   decreeStacks: Record<string, number>;
+  /** tickCount when this ability becomes ready again. Missing/0 = ready. */
+  abilityCooldowns: Record<string, number>;
+  /** tickCount when each active buff/debuff expires. */
+  activeBuffs: Record<string, number>;
   expanding: boolean;
 }
 
@@ -88,7 +98,11 @@ export type GameEvent =
   | { type: 'vassal-built';     regionId: number; ownerId: PlayerId; buildingType: BuildingType }
   | { type: 'vassal-bombed';    regionId: number; ownerId: PlayerId; bombType: BombType; x: number; y: number }
   | { type: 'ship-built';       shipKind: ShipKind; ownerId: PlayerId }
-  | { type: 'ship-sunk';        shipKind: ShipKind; ownerId: PlayerId; x: number; y: number };
+  | { type: 'ship-sunk';        shipKind: ShipKind; ownerId: PlayerId; x: number; y: number }
+  | { type: 'ability-fired';    abilityId: string; ownerId: PlayerId; targetId?: PlayerId }
+  | { type: 'alliance-formed';  a: PlayerId; b: PlayerId }
+  | { type: 'alliance-broken';  a: PlayerId; b: PlayerId; brokenBy: PlayerId }
+  | { type: 'trade-completed';  fromId: PlayerId; toId: PlayerId; gold: number; troops: number };
 
 export type RGBA = readonly [number, number, number, number];
 
