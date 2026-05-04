@@ -133,12 +133,12 @@ export const DEFAULT_CONFIG: GameConfig = {
   GOLD_PER_TILE_PER_TICK: 0.028,
   EXPANSION_COST_PER_CLAIM: 1,
   EXPANSION_TROOP_COST: 3, // troops drained per unclaimed claim — settling new land needs people
-  EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.13,
+  EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.05,
   EXPANSION_TARGET_BIAS: 0.95,
   EXPANSION_DIRECTIONAL_EXP: 1.5,
 
   ATTACK_COST_PER_CLAIM: 4,
-  ATTACK_RATE_MULT: 0.40,
+  ATTACK_RATE_MULT: 0.18,
 
   STARTING_TROOPS: 100,
   TROOP_GROWTH_PER_TILE_PER_TICK: 0.38, // ~3.8/sec per tile
@@ -163,7 +163,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   VASSAL_LOYALTY_THRESHOLD: 0.5,
   /** Multiplier on per-tile expansion chance when expansion is driven by a
    *  vassal target (no manual override). > 1.0 makes vassals push faster. */
-  VASSAL_EXPANSION_BOOST: 2.0,
+  VASSAL_EXPANSION_BOOST: 1.4,
   /** Fraction of vassal income forwarded to the leader as tribute each tick. */
   VASSAL_TRIBUTE_FRACTION: 0.10,
 
