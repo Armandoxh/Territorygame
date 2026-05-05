@@ -588,9 +588,12 @@ export class Game {
     }
     const b: Building = { x, y, owner: ownerId, type, level: 1 };
     this.buildings.push(b);
-    if (type === 'settlement') this._applySettlement(x, y, +1);
+    if (type === 'settlement') this._applySettlement(x, y, +1, this._settlementRadius(1));
     if (type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: type, ownerId });
+    // A new L1 won't trigger consolidation (we need 5 of same tier+),
+    // but call anyway to keep the code path uniform with tryUpgrade.
+    this._tryConsolidate(b);
     return null;
   }
 
@@ -618,10 +621,11 @@ export class Game {
     }
     b.level++;
     // Settlement gold-multiplier accounting: each tier adds one full
-    // SETTLEMENT_BONUS unit to its radius.
-    if (b.type === 'settlement') this._applySettlement(b.x, b.y, +1);
+    // SETTLEMENT_BONUS unit at the level's current radius.
+    if (b.type === 'settlement') this._applySettlement(b.x, b.y, +1, this._settlementRadius(b.level));
     if (b.type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: b.type, ownerId });
+    this._tryConsolidate(b);
     return null;
   }
 
@@ -2289,7 +2293,12 @@ export class Game {
       if (b.type !== 'turret') continue;
       const owner = b.owner;
       const lvl = b.level ?? 1;
-      const r = baseRBy[owner]! + (lvl - 1);
+      // L1-3: gentle +1 radius per tier. L4-6 (bronze/silver/diamond
+      // consolidations): much wider coverage so the consolidated tower
+      // visibly replaces the cluster it absorbed.
+      const r = lvl <= 3
+        ? baseRBy[owner]! + (lvl - 1)
+        : baseRBy[owner]! + 2 + (lvl - 3) * 4; // L4=base+6, L5=+10, L6=+14
       const r2 = r * r;
       const defAdd = this.config.TURRET_DEFENSE_BONUS * lvl;
       const retAdd = this.config.TURRET_RETALIATION_DAMAGE * lvl;
@@ -2327,7 +2336,12 @@ export class Game {
     for (let i = this.buildings.length - 1; i >= 0; i--) {
       const b = this.buildings[i]!;
       if (b.x === x && b.y === y) {
-        if (b.type === 'settlement') this._applySettlement(b.x, b.y, -(b.level ?? 1));
+        if (b.type === 'settlement') {
+          // Use the settlement's actual level radius — tiers 4-6 paint a
+          // bigger circle than L1-3, so destruction must mirror that.
+          const lvl = b.level ?? 1;
+          this._applySettlement(b.x, b.y, -lvl, this._settlementRadius(lvl));
+        }
         if (b.type === 'turret') this._turretCacheDirty = true;
         this.buildings.splice(i, 1);
         this.events.push({ type: 'destroyed', buildingType: b.type, ownerId: b.owner });
@@ -2335,8 +2349,88 @@ export class Game {
     }
   }
 
-  private _applySettlement(cx: number, cy: number, sign: number): void {
-    const r = this.config.SETTLEMENT_RADIUS;
+  /** Radius for a settlement at a given level. Levels 1-3 use the
+   *  config base; bronze/silver/diamond (4/5/6) cover much larger
+   *  areas because they consolidate 5 lower-tier settlements each. */
+  private _settlementRadius(level: number): number {
+    if (level <= 3) return this.config.SETTLEMENT_RADIUS;
+    return this.config.SETTLEMENT_RADIUS + (level - 3) * 4; // L4=10, L5=14, L6=18
+  }
+
+  /** Tier-promotion: when 5 same-type same-level (≥3) buildings of the
+   *  same owner are clustered tightly, fold them into one bronze (L4),
+   *  silver (L5), or diamond (L6). Drastically reduces visual clutter
+   *  while expanding the cluster's effective range.
+   *
+   *  Triggered by tryBuild and tryUpgrade after success. Recurses on
+   *  the promoted building so 5 bronze can chain into silver, etc. */
+  private _tryConsolidate(b: Building): void {
+    if (b.type !== 'settlement' && b.type !== 'turret') return;
+    const lvl = b.level ?? 1;
+    if (lvl < 3 || lvl >= 6) return; // promote only from L3-5 → L4-6
+
+    const detectR = lvl === 3 ? 12 : lvl === 4 ? 16 : 20;
+    const detectR2 = detectR * detectR;
+    const cluster: Building[] = [];
+    for (const c of this.buildings) {
+      if (c.type !== b.type) continue;
+      if ((c.level ?? 1) !== lvl) continue;
+      if (c.owner !== b.owner) continue;
+      const dx = c.x - b.x, dy = c.y - b.y;
+      if (dx * dx + dy * dy > detectR2) continue;
+      cluster.push(c);
+    }
+    if (cluster.length < 5) return;
+    // Closest 5 to the trigger building.
+    cluster.sort((a, c) =>
+      ((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y))
+      - ((c.x - b.x) * (c.x - b.x) + (c.y - b.y) * (c.y - b.y)));
+    const toMerge = cluster.slice(0, 5);
+
+    // Centroid → snap to a non-water owned tile if the rounded centroid
+    // is unsuitable. Falls back to the trigger building's tile so we
+    // never end up on water or on someone else's land.
+    let sx = 0, sy = 0;
+    for (const c of toMerge) { sx += c.x; sy += c.y; }
+    let cx = Math.round(sx / 5);
+    let cy = Math.round(sy / 5);
+    const tileOK = (x: number, y: number): boolean =>
+      this.territory.inBounds(x, y)
+      && this.territory.isPassable(x, y)
+      && this.territory.getOwner(x, y) === b.owner;
+    if (!tileOK(cx, cy)) { cx = b.x; cy = b.y; }
+    // Avoid colliding with a non-merged building at that tile.
+    const blocking = this.buildings.find(c => c.x === cx && c.y === cy && !toMerge.includes(c));
+    if (blocking) { cx = b.x; cy = b.y; }
+
+    // Remove the 5 originals (paint-out their effects, drop them).
+    for (const c of toMerge) {
+      if (c.type === 'settlement') {
+        const cl = c.level ?? 1;
+        this._applySettlement(c.x, c.y, -cl, this._settlementRadius(cl));
+      }
+      if (c.type === 'turret') this._turretCacheDirty = true;
+      const idx = this.buildings.indexOf(c);
+      if (idx >= 0) this.buildings.splice(idx, 1);
+    }
+
+    // Add the promoted building at the centroid.
+    const promoted: Building = { x: cx, y: cy, owner: b.owner, type: b.type, level: lvl + 1 };
+    this.buildings.push(promoted);
+    if (b.type === 'settlement') {
+      this._applySettlement(cx, cy, lvl + 1, this._settlementRadius(lvl + 1));
+    }
+    if (b.type === 'turret') this._turretCacheDirty = true;
+    this.events.push({ type: 'built', buildingType: b.type, ownerId: b.owner });
+
+    // Chain: 5 bronze → silver, 5 silver → diamond.
+    this._tryConsolidate(promoted);
+  }
+
+  /** Apply a settlement's gold-multiplier paint at the supplied radius
+   *  (defaults to the L1-3 base if omitted). `sign` is added per tile. */
+  private _applySettlement(cx: number, cy: number, sign: number, radius?: number): void {
+    const r = radius ?? this.config.SETTLEMENT_RADIUS;
     const r2 = r * r;
     const W = this.territory.width, H = this.territory.height;
     for (let dy = -r; dy <= r; dy++) {

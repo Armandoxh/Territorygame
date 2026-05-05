@@ -410,11 +410,24 @@ export class OverlayLayer {
       if (!c) continue;
       const color = (c[0] << 16) | (c[1] << 8) | c[2];
       const lvl = b.level ?? 1;
-      const tierScale = 1 + 0.25 * (lvl - 1);
+      // Per-tier scale steps:
+      //   L1=1.00, L2=1.25, L3=1.50 (existing manual upgrades)
+      //   Bronze L4=2.00, Silver L5=2.50, Diamond L6=3.10
+      // Bigger jumps at the consolidation tiers so a bronze visibly
+      // dominates its surroundings the way 5 L3s used to.
+      const tierScale = lvl <= 3
+        ? 1 + 0.25 * (lvl - 1)
+        : lvl === 4 ? 2.00 : lvl === 5 ? 2.50 : 3.10;
       const r = Math.max(6, Math.min(18, this.renderer.zoom * 1.1)) * tierScale;
       const cx = s.x, cy = s.y;
       // Drop shadow ellipse beneath every building.
       g.ellipse(cx + 1, cy + r * 0.55, r * 0.85, r * 0.35).fill({ color: 0x000000, alpha: 0.32 });
+      // Tier ring for bronze/silver/diamond — sits behind the icon as
+      // a metallic halo so the consolidation tier reads at a glance.
+      if (lvl >= 4) {
+        const ringColor = lvl === 4 ? 0xcd7f32 : lvl === 5 ? 0xd6d6d6 : 0xb9f2ff;
+        g.circle(cx, cy, r * 1.15).fill({ color: ringColor, alpha: 0.18 }).stroke({ color: ringColor, width: 2.2, alpha: 0.95 });
+      }
       const fillStroke = (): void => {
         g.fill({ color });
         g.stroke({ color: 0xffffff, alpha: 0.95, width: 1.2 });
@@ -459,15 +472,32 @@ export class OverlayLayer {
           cx - r * 0.05, cy - r * 0.10,
         ]).fill({ color: 0x222426 }).stroke({ color: 0xffffff, alpha: 0.85, width: 0.9 });
       }
-      // Tier dots: small gold pips above the icon — one per tier above L1.
-      // L2 = 1 dot, L3 = 2 dots. Skipped at L1 to keep low-tier buildings clean.
-      const dots = lvl - 1;
-      if (dots > 0) {
-        const spacing = 4;
-        const startX = cx - ((dots - 1) * spacing) / 2;
-        const dotY = cy - r - 4;
-        for (let d = 0; d < dots; d++) {
-          g.circle(startX + d * spacing, dotY, 1.8).fill({ color: 0xffd66b });
+      // Tier dots above L1. L1-L3 use small gold pips (1, 2 pips for L2/L3).
+      // L4-L6 (bronze/silver/diamond) get a colored gem cluster that
+      // matches the halo ring — readable at a glance even when zoomed out.
+      if (lvl >= 4) {
+        const gem = lvl === 4 ? 0xcd7f32 : lvl === 5 ? 0xd6d6d6 : 0xb9f2ff;
+        const gems = lvl - 3; // bronze=1, silver=2, diamond=3
+        const spacing = 6;
+        const startX = cx - ((gems - 1) * spacing) / 2;
+        const gemY = cy - r - 6;
+        for (let d = 0; d < gems; d++) {
+          g.poly([
+            startX + d * spacing,         gemY - 3,
+            startX + d * spacing + 2.6,   gemY,
+            startX + d * spacing,         gemY + 3,
+            startX + d * spacing - 2.6,   gemY,
+          ]).fill({ color: gem }).stroke({ color: 0x1a0f08, width: 0.7, alpha: 0.7 });
+        }
+      } else {
+        const dots = lvl - 1;
+        if (dots > 0) {
+          const spacing = 4;
+          const startX = cx - ((dots - 1) * spacing) / 2;
+          const dotY = cy - r - 4;
+          for (let d = 0; d < dots; d++) {
+            g.circle(startX + d * spacing, dotY, 1.8).fill({ color: 0xffd66b });
+          }
         }
       }
     }
