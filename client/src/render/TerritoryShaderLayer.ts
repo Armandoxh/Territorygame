@@ -50,7 +50,6 @@ in vec2 vTextureCoord;
 out vec4 finalColor;
 
 uniform sampler2D uTexture;
-uniform sampler2D uFog;         // fog overlay alpha (0 visible, 1 hidden)
 uniform vec4 uInputSize;        // (w, h, 1/w, 1/h)
 
 uniform float uTime;
@@ -91,18 +90,6 @@ float fbm(vec2 p) {
 void main() {
   vec2 uv = vTextureCoord;
   vec2 texel = uInputSize.zw;
-
-  // FOG OF WAR — short-circuit. If this pixel sits under opaque fog
-  // (hidden region), skip every fbm / wave / border / pulse / coastline
-  // computation and emit a flat dark base. The FogLayer paints on top
-  // so it ends up matching the fog colour visually anyway. Drops the
-  // per-pixel cost on fogged tiles to a single texture sample + return,
-  // which is the bulk of the late-game framerate win on mobile.
-  vec4 fogSample = texture(uFog, uv);
-  if (fogSample.a > 0.6) {
-    finalColor = vec4(0.05, 0.05, 0.07, 1.0);
-    return;
-  }
 
   vec4 src = texture(uTexture, uv);
   float ownerF   = src.r * 255.0;
@@ -235,13 +222,11 @@ export class TerritoryShaderLayer {
   private readonly texture: Texture;
   private readonly filter: Filter;
   private readonly uniforms: UniformGroup;
-  private readonly _fogTexture: Texture;
   private readonly palette: Float32Array;
 
-  constructor(territory: Territory, config: GameConfig, fogTexture: Texture) {
+  constructor(territory: Territory, config: GameConfig) {
     this.territory = territory;
     this.config = config;
-    this._fogTexture = fogTexture;
 
     this.canvas = document.createElement('canvas');
     this.canvas.width = territory.width;
@@ -292,12 +277,7 @@ export class TerritoryShaderLayer {
 
     this.filter = new Filter({
       glProgram: GlProgram.from({ vertex: VERT, fragment: FRAG }),
-      resources: {
-        territoryUniforms: this.uniforms,
-        // uFog is sampled in the fragment shader to short-circuit
-        // expensive math on hidden-fog tiles.
-        uFog: this._fogTexture.source,
-      },
+      resources: { territoryUniforms: this.uniforms },
     });
     this.sprite.filters = [this.filter];
   }
