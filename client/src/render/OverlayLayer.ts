@@ -376,10 +376,18 @@ export class OverlayLayer {
     const settleR = this.game.config.SETTLEMENT_RADIUS;
     const turretR = this.game.config.TURRET_RADIUS;
     const aaR     = this.game.config.AA_RADIUS;
+    // Late-game perf gate: when there are lots of buildings AND the
+    // player is zoomed far out, skip the per-icon work for L1-L3
+    // settlements (the bulk of the count). Bronze/silver/diamond stay
+    // visible since they're consolidated and few. Threshold tuned so
+    // the cull only kicks in when it actually matters.
+    const z = this.renderer.zoom;
+    const cullSettlements = this.game.buildings.length > 300 && z < 1.6;
 
     // Pass 1: faint coverage rings under the icons so players see what
     // their settlements / turrets / AA actually cover.
     for (const b of this.game.buildings) {
+      if (cullSettlements && b.type === 'settlement' && (b.level ?? 1) <= 3) continue;
       const s = this._toScreen(b.x + 0.5, b.y + 0.5);
       const c = palette[b.owner];
       if (!c) continue;
@@ -405,6 +413,10 @@ export class OverlayLayer {
     // buildings render slightly larger and get gold dots above them so the
     // upgrade tier reads at a glance.
     for (const b of this.game.buildings) {
+      // Same low-zoom cull as the coverage pass — skip L1-3 settlement
+      // icons in late-game/zoomed-out scenes. Keeps frame work bounded
+      // when there are thousands of them.
+      if (cullSettlements && b.type === 'settlement' && (b.level ?? 1) <= 3) continue;
       const s = this._toScreen(b.x + 0.5, b.y + 0.5);
       const c = palette[b.owner];
       if (!c) continue;

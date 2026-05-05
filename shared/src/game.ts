@@ -101,6 +101,13 @@ export class Game {
    *  Drives the stalemate-breaker: sieged regions stop recovering
    *  morale and start bleeding it once the siege passes a grace period. */
   private _regionSiegeTicks!: Uint16Array;
+  /** Sum of settlement levels per owner. Updated incrementally on
+   *  build/upgrade/destroy/consolidate so per-tick troop growth and
+   *  combat-power math don't have to scan all buildings. */
+  private _settlementLevelsByOwner = new Float32Array(256);
+  /** Sum of settlement levels per (region * 256 + ownerId). Same idea
+   *  but per-region for the settlement-garrison combat multiplier. */
+  private _settlementLevelsByRegion!: Float32Array;
 
   /** Per-tile cached turret defense bonus per defender. Allocated lazily
    *  per active defender (full 256-player buffer would be 150 MB on a
@@ -273,6 +280,8 @@ export class Game {
     this._vassalGold = new Float32Array(this.regionCount + 1);
     this._regionMorale = new Float32Array(this.regionCount + 1).fill(1.0);
     this._regionSiegeTicks = new Uint16Array(this.regionCount + 1);
+    this._settlementLevelsByRegion = new Float32Array((this.regionCount + 1) * 256);
+    this._settlementLevelsByOwner.fill(0);
     this.regionNames = generateRegionNames(this.regionCount);
     // One empire-name per player (1..N); index 0 unused.
     this.playerEmpireNames = generateRegionNames(this.players.length - 1);
@@ -593,7 +602,10 @@ export class Game {
     }
     const b: Building = { x, y, owner: ownerId, type, level: 1 };
     this.buildings.push(b);
-    if (type === 'settlement') this._applySettlement(x, y, +1, this._settlementRadius(1));
+    if (type === 'settlement') {
+      this._applySettlement(x, y, +1, this._settlementRadius(1));
+      this._adjSettlementLevels(x, y, ownerId, +1);
+    }
     if (type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: type, ownerId });
     // A new L1 won't trigger consolidation (we need 5 of same tier+),
@@ -627,7 +639,10 @@ export class Game {
     b.level++;
     // Settlement gold-multiplier accounting: each tier adds one full
     // SETTLEMENT_BONUS unit at the level's current radius.
-    if (b.type === 'settlement') this._applySettlement(b.x, b.y, +1, this._settlementRadius(b.level));
+    if (b.type === 'settlement') {
+      this._applySettlement(b.x, b.y, +1, this._settlementRadius(b.level));
+      this._adjSettlementLevels(b.x, b.y, ownerId, +1);
+    }
     if (b.type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: b.type, ownerId });
     this._tryConsolidate(b);
@@ -1252,13 +1267,10 @@ export class Game {
     const growth = this.config.TROOP_GROWTH_PER_TILE_PER_TICK;
     const settlementBonus = this.config.SETTLEMENT_TROOP_BONUS;
     const fullRegionBonus = this.config.FULL_REGION_TROOP_BONUS;
-    // Pre-count settlements per owner — reuse scratch arrays so we don't
-    // allocate every tick.
-    const settlementCount = this._scratch256b;
-    settlementCount.fill(0);
-    for (const b of this.buildings) {
-      if (b.type === 'settlement') settlementCount[b.owner]! += (b.level ?? 1);
-    }
+    // Settlement count comes from the incremental cache — no per-tick
+    // O(buildings) scan. With thousands of late-game settlements that
+    // scan was a real cost.
+    const settlementCount = this._settlementLevelsByOwner;
     const fullRegions = this._scratch256c;
     fullRegions.fill(0);
     for (let r = 1; r <= this.regionCount; r++) {
@@ -1878,18 +1890,29 @@ export class Game {
    *  the region buffs that region's combat power. Stacks by level
    *  (4% per level), capped at +40%. So a vassal with one bronze (L4)
    *  gets +16%; a vassal with several settlements maxes out at +40%.
-   *  Applied multiplicatively on top of regional troop share + morale. */
+   *  Applied multiplicatively on top of regional troop share + morale.
+   *
+   *  O(1) cache lookup — _settlementLevelsByRegion is maintained
+   *  incrementally on build/upgrade/destroy/consolidate. */
   private _settlementGarrison(regionId: number, ownerId: PlayerId): number {
     if (regionId <= 0) return 1.0;
-    const W = this.territory.width;
-    let levels = 0;
-    for (const b of this.buildings) {
-      if (b.type !== 'settlement') continue;
-      if (b.owner !== ownerId) continue;
-      if (this.regions[b.y * W + b.x] !== regionId) continue;
-      levels += (b.level ?? 1);
-    }
+    const levels = this._settlementLevelsByRegion[regionId * 256 + ownerId] ?? 0;
     return 1 + Math.min(0.40, levels * 0.04);
+  }
+
+  /** Increment-or-decrement the cached settlement-level totals for the
+   *  given tile. Called on every settlement build, upgrade, destroy,
+   *  and consolidation event. */
+  private _adjSettlementLevels(x: number, y: number, ownerId: PlayerId, delta: number): void {
+    if (delta === 0) return;
+    this._settlementLevelsByOwner[ownerId] = (this._settlementLevelsByOwner[ownerId] ?? 0) + delta;
+    const W = this.territory.width;
+    if (x < 0 || x >= W) return;
+    const r = this.regions[y * W + x] ?? 0;
+    if (r > 0) {
+      const idx = r * 256 + ownerId;
+      this._settlementLevelsByRegion[idx] = (this._settlementLevelsByRegion[idx] ?? 0) + delta;
+    }
   }
 
   /** Apply morale damage to a region based on lost-tile fraction.
@@ -2468,6 +2491,7 @@ export class Game {
           // bigger circle than L1-3, so destruction must mirror that.
           const lvl = b.level ?? 1;
           this._applySettlement(b.x, b.y, -lvl, this._settlementRadius(lvl));
+          this._adjSettlementLevels(b.x, b.y, b.owner, -lvl);
         }
         if (b.type === 'turret') this._turretCacheDirty = true;
         this.buildings.splice(i, 1);
@@ -2535,6 +2559,7 @@ export class Game {
       if (c.type === 'settlement') {
         const cl = c.level ?? 1;
         this._applySettlement(c.x, c.y, -cl, this._settlementRadius(cl));
+        this._adjSettlementLevels(c.x, c.y, c.owner, -cl);
       }
       if (c.type === 'turret') this._turretCacheDirty = true;
       const idx = this.buildings.indexOf(c);
@@ -2546,6 +2571,7 @@ export class Game {
     this.buildings.push(promoted);
     if (b.type === 'settlement') {
       this._applySettlement(cx, cy, lvl + 1, this._settlementRadius(lvl + 1));
+      this._adjSettlementLevels(cx, cy, b.owner, lvl + 1);
     }
     if (b.type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: b.type, ownerId: b.owner });
