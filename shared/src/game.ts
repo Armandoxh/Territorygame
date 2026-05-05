@@ -469,8 +469,18 @@ export class Game {
     const r = this.regionAt(x, y);
     if (r <= 0) return 0;
     const idx = p.targetRegions.indexOf(r);
-    if (idx >= 0) p.targetRegions.splice(idx, 1);
-    else p.targetRegions.push(r);
+    if (idx >= 0) {
+      // Toggle off — also clear the timer so re-tapping resets cleanly.
+      p.targetRegions.splice(idx, 1);
+      this._humanTargetSetAt.delete(r);
+    } else {
+      // Cooldown gate — can't re-target a region the human just lost
+      // dominance of for REGION_LOSS_COOLDOWN_TICKS.
+      const cd = this._regionLossCooldown.get(`${r}.${p.id}`) ?? 0;
+      if (cd > this.tickCount) return 0;
+      p.targetRegions.push(r);
+      this._humanTargetSetAt.set(r, this.tickCount);
+    }
     p.expanding = p.targetRegions.length > 0;
     return r;
   }
@@ -479,6 +489,15 @@ export class Game {
     const p = this.human();
     p.targetRegions = [];
     p.expanding = false;
+    this._humanTargetSetAt.clear();
+  }
+
+  /** Tick count remaining (≥0) before the human can target a region
+   *  they recently lost dominance over. 0 = ready. UI uses this to
+   *  grey out the region-tap-target. */
+  regionCooldownFor(playerId: PlayerId, regionId: number): number {
+    const t = this._regionLossCooldown.get(`${regionId}.${playerId}`) ?? 0;
+    return Math.max(0, t - this.tickCount);
   }
 
   // --- Tick ---
@@ -486,6 +505,7 @@ export class Game {
   tick(): void {
     if (this.outcome) return;
     this.tickCount++;
+    this._expireHumanTargets();
     this._recoverMorale();
     this._earnGoldAll();
     this._growTroops();
@@ -1176,6 +1196,15 @@ export class Game {
   }
   private _alliances = new Map<string, number>();
 
+  /** When each manual human target was set, by region id. Targets older
+   *  than HUMAN_TARGET_EXPIRY_TICKS are auto-cleared each tick — kills
+   *  the "tap once and walk away" drift that made attacks feel passive. */
+  private _humanTargetSetAt = new Map<number, number>();
+  /** When a player lost dominance over a region, they can't re-target
+   *  it until this tick. Keyed `${regionId}.${playerId}`. Prevents
+   *  yo-yo border thrashing. */
+  private _regionLossCooldown = new Map<string, number>();
+
   /** True iff the two players currently share an active alliance. */
   areAllied(a: PlayerId, b: PlayerId): boolean {
     if (a === b) return false;
@@ -1436,6 +1465,22 @@ export class Game {
         } else {
           p.gold += net;
         }
+      }
+    }
+    // Empire upkeep — every owned tile beyond UPKEEP_TILE_THRESHOLD costs
+    // gold per tick. Forces consolidation over endless growth, and drives
+    // the strategic shift from "bigger empire wins" to "denser network
+    // of vassals + trade routes wins".
+    const upkeepStart = this.config.UPKEEP_TILE_THRESHOLD;
+    const upkeepRate  = this.config.UPKEEP_PER_EXCESS_TILE;
+    if (upkeepStart > 0 && upkeepRate > 0) {
+      for (let id = 1; id < players.length; id++) {
+        const p = players[id];
+        if (!p || !p.alive) continue;
+        const owned = this.territory.counts[id] ?? 0;
+        if (owned <= upkeepStart) continue;
+        const drain = (owned - upkeepStart) * upkeepRate;
+        p.gold = Math.max(0, p.gold - drain);
       }
     }
   }
@@ -1850,9 +1895,32 @@ export class Game {
     const newDom: PlayerId = (bestCount * 2 > total) ? bestOwner : 0;
     const oldDom = this._regionDominant[regionId]!;
     this._regionDominant[regionId] = newDom;
-    if (newDom !== oldDom && newDom > 0) {
-      const player = this.players[newDom];
-      if (player && player.isHuman) this._vassalTickFor(regionId, player);
+    if (newDom !== oldDom) {
+      // Region-loss cooldown: when a player loses dominance over a
+      // region, they can't re-target it for REGION_LOSS_COOLDOWN_TICKS.
+      // Stops yo-yo border thrashing and lets the new owner set up
+      // defenses without an immediate counter-flip.
+      if (oldDom > 0) {
+        const cdTicks = this.config.REGION_LOSS_COOLDOWN_TICKS;
+        if (cdTicks > 0) {
+          this._regionLossCooldown.set(
+            `${regionId}.${oldDom}`,
+            this.tickCount + cdTicks,
+          );
+        }
+        // Drop expired human target if it points at the region we just
+        // lost dominance of — UX feels weird if it lingers.
+        const human = this.human();
+        if (human.id === oldDom) {
+          const idx = human.targetRegions.indexOf(regionId);
+          if (idx >= 0) human.targetRegions.splice(idx, 1);
+          this._humanTargetSetAt.delete(regionId);
+        }
+      }
+      if (newDom > 0) {
+        const player = this.players[newDom];
+        if (player && player.isHuman) this._vassalTickFor(regionId, player);
+      }
     }
   }
 
@@ -1896,6 +1964,23 @@ export class Game {
    *  Per-tick siege detection iterates the dominant owner's tiles in
    *  each region looking for an enemy neighbor. Throttled to every
    *  other tick so per-tick cost stays manageable on big maps. */
+  private _expireHumanTargets(): void {
+    const expiry = this.config.HUMAN_TARGET_EXPIRY_TICKS;
+    if (expiry <= 0) return;
+    const human = this.human();
+    if (human.targetRegions.length === 0) return;
+    const cutoff = this.tickCount - expiry;
+    for (let i = human.targetRegions.length - 1; i >= 0; i--) {
+      const r = human.targetRegions[i]!;
+      const setAt = this._humanTargetSetAt.get(r) ?? 0;
+      if (setAt < cutoff) {
+        human.targetRegions.splice(i, 1);
+        this._humanTargetSetAt.delete(r);
+      }
+    }
+    human.expanding = human.targetRegions.length > 0;
+  }
+
   private _recoverMorale(): void {
     const m = this._regionMorale;
     if (!m) return;

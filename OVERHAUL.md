@@ -155,15 +155,15 @@ Each step is shippable on its own; we don't touch the next one until the previou
 
 ---
 
-## Open questions
+## Open questions — resolved
 
-These need a call before phase 2 starts:
+These were called out before phase 2 and are now locked in.
 
-- **Path detection cost.** Connected components over ~50 regions per player every 3s = cheap. But if we want path *length* (not just "are they connected"), a BFS per pair is O(n²) BFS = O(n² × tiles). At 50 regions × 50 = 2500 BFS × maybe 200 tiles each = 500k ops every 3s. Probably fine on phones. Confirm before writing.
-- **Route limit per player.** Unlimited = late-game spaghetti map. Cap at, say, 20 routes per player? Or render-cull at low zoom (already a pattern).
-- **Cargo vessel interception.** Implementing as an invisible "ghost ship" that moves tile-by-tile is heavy. Cheaper alternative: just check whether *any enemy ship* is within N tiles of the *line segment* between the two anchors. Pick this unless you want the visible cargo ship.
-- **External routes and alliances.** Should two allied players auto-have a trade route? Or always opt-in?
-- **Backwards compat.** Old saves don't have `_tradeRoutes`. They'll just initialise empty — no migration needed since this is single-player. Confirm.
+- **Path detection cost.** Skip BFS. Use union-find for connectivity + centroid distance for the "length" input. Centroids are O(1) from existing data and the income formula uses `sqrt(distance)` anyway, so exact-pathfinding precision would be wasted. Trade-off: a route that winds 80 tiles around a mountain reads short on the map; we accept that.
+- **Route limit per player.** Minimum spanning tree per connected component. ~N-1 routes per N vassals. Visually clean, semantically meaningful (the route IS the trade road, not "every theoretical pair"), and cutting a single MST edge can split your network — exactly the strategic flavour we want.
+- **Cargo-vessel interception.** No ghost ships. Line-segment proximity check: each tick, distance from each enemy ship to the segment between the two coastal anchors; within 5 tiles → route interrupted this tick. Visualised by the dashed cargo line flickering red. Polish to a real cargo ship sprite later if it adds anything.
+- **Auto trade routes between allies.** Always opt-in. Alliance is non-aggression; trade is a permanent income commitment with skin in the game. Keeping these as separate decisions preserves more strategic levers and one extra tap is cheap UX.
+- **Backwards compat.** Single-player only, no save format. New fields default-init empty. No migration logic.
 
 ---
 

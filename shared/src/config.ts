@@ -19,6 +19,19 @@ export interface GameConfig {
   EXPANSION_CHANCE_PER_FRONTIER_TILE: number;
   EXPANSION_TARGET_BIAS: number;
   EXPANSION_DIRECTIONAL_EXP: number;
+  /** Tile count above which the empire pays maintenance gold per excess
+   *  tile per tick. Bloated empires bleed cash. 0 = no upkeep. */
+  UPKEEP_TILE_THRESHOLD: number;
+  /** Cost per excess tile per tick. Stacks with the income from those
+   *  tiles, so a 1000-tile empire still earns net positive but at a
+   *  reduced rate. */
+  UPKEEP_PER_EXCESS_TILE: number;
+  /** Ticks a manual region target stays active before auto-clearing.
+   *  Removes the "tap once and walk away" drift. 0 = no expiry. */
+  HUMAN_TARGET_EXPIRY_TICKS: number;
+  /** Ticks a player must wait before re-attacking a region they just
+   *  lost dominance over. Stops yo-yo border thrashing. */
+  REGION_LOSS_COOLDOWN_TICKS: number;
 
   // Combat
   ATTACK_COST_PER_CLAIM: number;
@@ -146,18 +159,22 @@ export const DEFAULT_CONFIG: GameConfig = {
   CAPITALS_PER_PLAYER: 2,
 
   STARTING_GOLD: 120,
-  GOLD_PER_TILE_PER_TICK: 0.018,
+  GOLD_PER_TILE_PER_TICK: 0.010,
   EXPANSION_COST_PER_CLAIM: 1,
   EXPANSION_TROOP_COST: 3, // troops drained per unclaimed claim — settling new land needs people
-  EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.05,
+  EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.025,
   EXPANSION_TARGET_BIAS: 0.95,
   EXPANSION_DIRECTIONAL_EXP: 1.5,
+  UPKEEP_TILE_THRESHOLD: 400,
+  UPKEEP_PER_EXCESS_TILE: 0.005,
+  HUMAN_TARGET_EXPIRY_TICKS: 300,    // 30s
+  REGION_LOSS_COOLDOWN_TICKS: 150,   // 15s
 
   ATTACK_COST_PER_CLAIM: 4,
-  ATTACK_RATE_MULT: 0.18,
+  ATTACK_RATE_MULT: 0.10,
 
   STARTING_TROOPS: 100,
-  TROOP_GROWTH_PER_TILE_PER_TICK: 0.38, // ~3.8/sec per tile
+  TROOP_GROWTH_PER_TILE_PER_TICK: 0.25, // ~2.5/sec per tile
   TROOP_CAP_PER_TILE: 100,
   TROOP_COST_PER_ATTACK: 5,
   TROOP_DAMAGE_PER_ATTACK: 3,
@@ -179,7 +196,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   VASSAL_LOYALTY_THRESHOLD: 0.5,
   /** Multiplier on per-tile expansion chance when expansion is driven by a
    *  vassal target (no manual override). > 1.0 makes vassals push faster. */
-  VASSAL_EXPANSION_BOOST: 1.4,
+  VASSAL_EXPANSION_BOOST: 1.2,
   /** Fraction of vassal income forwarded to the leader as tribute each tick. */
   VASSAL_TRIBUTE_FRACTION: 0.10,
 
