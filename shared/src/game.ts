@@ -957,8 +957,63 @@ export class Game {
       if (p.treasury < cost) return 'gold';
       p.treasury -= cost;
     }
+    const wasUnchosen = p.mastery == null;
     p.mastery = mastery;
+    // Naval mastery + first-time pick: relocate the player to a coastal
+    // spawn so they can actually use ships from tick 1. We only do this
+    // on the very first pick (not re-picks) because by then the player
+    // has already expanded and a respawn would be disruptive.
+    if (mastery === 'naval' && wasUnchosen) this._relocateToCoast(playerId);
     return null;
+  }
+
+  /** Wipe the player's existing tiles + capitals and re-spawn them on a
+   *  coastal patch. Called when a player picks NAVAL mastery on the
+   *  first-time picker so they actually start near water. */
+  private _relocateToCoast(playerId: PlayerId): void {
+    const W = this.territory.width;
+    const H = this.territory.height;
+    // Wipe existing claims for this player.
+    const owners = this.territory.owners;
+    for (let i = 0; i < owners.length; i++) {
+      if (owners[i] === playerId) this._claim(i % W, (i / W) | 0, 0);
+    }
+    // Wipe their capitals.
+    for (let i = this.capitals.length - 1; i >= 0; i--) {
+      if (this.capitals[i]!.owner === playerId) this.capitals.splice(i, 1);
+    }
+    // Find a coastal land tile (any land tile with a water neighbour)
+    // far enough from other players' spawns that we don't overlap.
+    const minSeparation = 30 * 30;
+    const others: Array<{ x: number; y: number }> = [];
+    for (const c of this.capitals) others.push({ x: c.x, y: c.y });
+    let best = { x: -1, y: -1, score: -Infinity };
+    // Sample a chunk of coastal tiles, pick the one furthest from other spawns.
+    for (let attempt = 0; attempt < 800; attempt++) {
+      const rx = (Math.random() * W) | 0;
+      const ry = (Math.random() * H) | 0;
+      if (!this.territory.isPassable(rx, ry)) continue;
+      // Coastal check: any 4-neighbor is water
+      let coastal = false;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const nx = rx + dx, ny = ry + dy;
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        if (!this.territory.isPassable(nx, ny)) { coastal = true; break; }
+      }
+      if (!coastal) continue;
+      // Distance from nearest other spawn (further is better).
+      let nearestD2 = Infinity;
+      for (const o of others) {
+        const ddx = o.x - rx, ddy = o.y - ry;
+        const d2 = ddx * ddx + ddy * ddy;
+        if (d2 < nearestD2) nearestD2 = d2;
+      }
+      if (nearestD2 < minSeparation) continue;
+      // Score = nearestD2 (further from rivals = better).
+      if (nearestD2 > best.score) best = { x: rx, y: ry, score: nearestD2 };
+    }
+    if (best.x < 0) return; // no good spot found; leave player wiped
+    this._spawnPlayerAt(playerId, best.x, best.y);
   }
 
   // --- Commander decrees ---
@@ -2824,6 +2879,112 @@ export class Game {
       return;
     }
 
+    // WARSHIP: dedicated battery + beachhead path. Fires in a 3x3 pattern
+    // for area damage, then attempts a cluster landfall (primary + up to
+    // 4 adjacent enemy tiles) so the beachhead survives the immediate
+    // counter-push. If no enemy in range, fall back to claiming neutral
+    // coastal land — a warship with no fight nearby still expands the
+    // empire instead of idling.
+    if (s.kind === 'warship') {
+      // Find the closest enemy land tile in range.
+      let bestEX = -1, bestEY = -1, bestED = Infinity;
+      for (let dy = -range; dy <= range; dy++) {
+        for (let dx = -range; dx <= range; dx++) {
+          const d2 = dx * dx + dy * dy;
+          if (d2 > r2) continue;
+          const tx = s.x + dx, ty = s.y + dy;
+          if (!this.territory.inBounds(tx, ty)) continue;
+          if (!this.territory.isPassable(tx, ty)) continue;
+          const o = this.territory.getOwner(tx, ty);
+          if (o <= 0 || o === s.owner) continue;
+          if (this.areAllied(s.owner, o)) continue;
+          if (d2 < bestED) { bestED = d2; bestEX = tx; bestEY = ty; }
+        }
+      }
+
+      if (bestEX >= 0) {
+        // BATTERY — 3×3 area shell. Primary tile takes full damage
+        // (50 hp drained from owner), adjacent enemy tiles take 60%
+        // (30 hp). Diagonals included unlike the old cross splash.
+        const primaryDmg = 50;
+        const splashDmg  = 30;
+        for (let ddy = -1; ddy <= 1; ddy++) {
+          for (let ddx = -1; ddx <= 1; ddx++) {
+            const ax = bestEX + ddx, ay = bestEY + ddy;
+            if (!this.territory.inBounds(ax, ay)) continue;
+            if (!this.territory.isPassable(ax, ay)) continue;
+            const ao = this.territory.getOwner(ax, ay);
+            if (ao <= 0 || ao === s.owner) continue;
+            if (this.areAllied(s.owner, ao)) continue;
+            const ap = this.players[ao];
+            const isPrimary = (ddx === 0 && ddy === 0);
+            const d = isPrimary ? primaryDmg : splashDmg;
+            if (ap) ap.troops = Math.max(0, ap.troops - d);
+          }
+        }
+        // CLUSTER LANDFALL — primary + adjacent enemy tiles flip if the
+        // primary is within reach (md <= 3). Means each volley plants a
+        // 2-5 tile beachhead instead of 1 lonely tile that gets re-flipped
+        // immediately. Capitals still immune.
+        const md = Math.abs(bestEX - s.x) + Math.abs(bestEY - s.y);
+        if (md <= 3 && this._capitalIndexAt(bestEX, bestEY) < 0) {
+          this.tryCapture(bestEX, bestEY, s.owner);
+          // 4-direction adjacents
+          for (const [adx, ady] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+            const ax = bestEX + adx, ay = bestEY + ady;
+            if (!this.territory.inBounds(ax, ay)) continue;
+            if (this._capitalIndexAt(ax, ay) >= 0) continue;
+            if (!this.territory.isPassable(ax, ay)) continue;
+            const ao = this.territory.getOwner(ax, ay);
+            if (ao > 0 && ao !== s.owner && !this.areAllied(s.owner, ao)) {
+              this.tryCapture(ax, ay, s.owner);
+            }
+          }
+        }
+      } else {
+        // No enemy in range — claim nearest neutral coastal land instead
+        // (warships expand the empire when not fighting).
+        let bestNX = -1, bestNY = -1, bestND = Infinity;
+        for (let dy = -range; dy <= range; dy++) {
+          for (let dx = -range; dx <= range; dx++) {
+            const d2 = dx * dx + dy * dy;
+            if (d2 > r2) continue;
+            const tx = s.x + dx, ty = s.y + dy;
+            if (!this.territory.inBounds(tx, ty)) continue;
+            if (!this.territory.isPassable(tx, ty)) continue;
+            if (this.territory.getOwner(tx, ty) !== 0) continue;
+            // Prefer coastal (water-adjacent) tiles for beach landings.
+            let coastal = false;
+            for (const [cdx, cdy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+              if (this.territory.inBounds(tx + cdx, ty + cdy)
+                  && !this.territory.isPassable(tx + cdx, ty + cdy)) {
+                coastal = true; break;
+              }
+            }
+            const score = d2 + (coastal ? 0 : 50); // bias toward coast
+            if (score < bestND) { bestND = score; bestNX = tx; bestNY = ty; }
+          }
+        }
+        if (bestNX >= 0) {
+          this._claim(bestNX, bestNY, s.owner);
+          // Also claim 1-2 adjacent neutrals so the beachhead is real.
+          let extra = 0;
+          for (const [adx, ady] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+            if (extra >= 2) break;
+            const ax = bestNX + adx, ay = bestNY + ady;
+            if (!this.territory.inBounds(ax, ay)) continue;
+            if (!this.territory.isPassable(ax, ay)) continue;
+            if (this.territory.getOwner(ax, ay) !== 0) continue;
+            if (this._claim(ax, ay, s.owner)) extra++;
+          }
+        }
+      }
+
+      const reloadMult = owner?.mastery === 'naval' ? 0.75 : 1.0;
+      s.fireCooldown = Math.max(1, Math.floor(this.config.SHIP_FIRE_TICKS[s.kind] * reloadMult));
+      return;
+    }
+
     // STANDARD ship fire (scout / skirmisher / warship — and destroyers
     // that found no ships in range).
     const dmg = s.kind === 'destroyer' ? 6 : this.config.SHIP_DAMAGE[s.kind];
@@ -2845,29 +3006,8 @@ export class Game {
     if (bestX < 0) return;
     const defender = this.players[this.territory.getOwner(bestX, bestY)];
     if (defender) defender.troops = Math.max(0, defender.troops - dmg);
-    // Warship dreadnought treatment:
-    //   - Splash damage to adjacent enemy tiles (50% of primary dmg).
-    //     A single 14" shell scuffs a small radius — feels like a real
-    //     battleship volley vs a destroyer's pinpoint hit.
-    //   - Landfall reach extended 2 → 3 tiles, so the ship can
-    //     genuinely punch holes in coastal defences.
-    if (s.kind === 'warship') {
-      const splashDmg = (dmg * 0.5) | 0;
-      for (const [adx, ady] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-        const ax = bestX + adx, ay = bestY + ady;
-        if (!this.territory.inBounds(ax, ay)) continue;
-        if (!this.territory.isPassable(ax, ay)) continue;
-        const ao = this.territory.getOwner(ax, ay);
-        if (ao <= 0 || ao === s.owner) continue;
-        if (this.areAllied(s.owner, ao)) continue;
-        const ap = this.players[ao];
-        if (ap) ap.troops = Math.max(0, ap.troops - splashDmg);
-      }
-      const md = Math.abs(bestX - s.x) + Math.abs(bestY - s.y);
-      if (md <= 3 && this._capitalIndexAt(bestX, bestY) < 0) {
-        this.tryCapture(bestX, bestY, s.owner);
-      }
-    }
+    // Warship has its own dedicated branch above; this path is for
+    // scout / skirmisher / destroyer (no-ships fallback) only.
     // Naval mastery: ships reload 25% faster.
     const reloadMult = owner?.mastery === 'naval' ? 0.75 : 1.0;
     s.fireCooldown = Math.max(1, Math.floor(this.config.SHIP_FIRE_TICKS[s.kind] * reloadMult));
