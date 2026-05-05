@@ -1570,8 +1570,11 @@ export class Game {
     const targetRegion = this._vassalTarget[regionId] ?? 0;
     const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
     const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== leader.id;
+    // Vassal airfield cap also scales with empire size now (was flat 4).
+    const leaderTiles = this.territory.counts[leader.id] ?? 0;
+    const vassalAirCap = Math.max(4, Math.floor(leaderTiles / 80));
     if (targetIsEnemy && airstripCount < airstripCap &&
-        this.countBuildings(leader.id, 'airstrip') < 4 &&
+        this.countBuildings(leader.id, 'airstrip') < vassalAirCap &&
         safe.length > 0 && vGold >= reserve + airCost) {
       const spot = this._pickAirstripSpot(safe, targetRegion, leader.id);
       if (spot >= 0) {
@@ -1895,11 +1898,50 @@ export class Game {
       if (p.gold < reserve) break;
     }
 
+    // Naval mastery: try to build a ship on a coastal tile if under cap.
+    if (this.isUnlocked(p.id, 'ships')) this._aiMaybeBuildShip(p);
+
     // Bombs: try once per think against the AI's current target region.
     const targetRegion = p.targetRegions[0] ?? 0;
     const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
     const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== p.id;
     if (targetIsEnemy && this.hasAirstrip(p.id)) this._aiMaybeBomb(p, targetRegion);
+  }
+
+  /** Naval-mastery AIs build ships when under their cap. Picks the
+   *  most expensive ship they can afford given the budget — bigger
+   *  fleets prefer warships, smaller starts pick scouts to ramp. */
+  private _aiMaybeBuildShip(p: Player): void {
+    const myShips = this.ships.reduce((n, s) => s.owner === p.id ? n + 1 : n, 0);
+    const cap = this.config.SHIP_PLAYER_CAP + (p.mastery === 'naval' ? 2 : 0);
+    if (myShips >= cap) return;
+    const reserve = this.config.VASSAL_GOLD_RESERVE;
+    // Pick the most expensive ship we can afford (with reserve buffer).
+    let kind: ShipKind | null = null;
+    for (const k of ['warship', 'skirmisher', 'scout'] as const) {
+      if (p.gold >= reserve + this.config.SHIP_COSTS[k]) { kind = k; break; }
+    }
+    if (!kind) return;
+    // Find a coastal tile we own. Sample a frontier-ish tile that touches
+    // water — buildShip handles the rest (spawns the ship on adjacent water).
+    const W = this.territory.width;
+    const H = this.territory.height;
+    const owners = this.territory.owners;
+    // Light sampling — at most 64 tries
+    for (let attempt = 0; attempt < 64; attempt++) {
+      const i = (Math.random() * owners.length) | 0;
+      if (owners[i] !== p.id) continue;
+      const x = i % W, y = (i - x) / W;
+      // Quick water-adjacency check
+      let coastal = false;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        if (this.territory.isPassable(nx, ny) === false) { coastal = true; break; }
+      }
+      if (!coastal) continue;
+      if (this.buildShip(kind, x, y, p.id) === null) return;
+    }
   }
 
   private _aiBuildRegion(p: Player, regionId: number): void {
@@ -1970,8 +2012,13 @@ export class Game {
     const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== p.id;
     const airCost = this.config.BUILDING_COSTS.airstrip;
     const wantAirstrip = targetIsEnemy || this.countBuildings(p.id, 'airstrip') === 0;
+    // Airfield cap scales with empire size — was a flat 3, which made
+    // big AIs anemic on air projection. Now: 1 per ~80 owned tiles,
+    // floor 3, so a 400-tile empire can run 5 fields.
+    const ownedTiles = this.territory.counts[p.id] ?? 0;
+    const airstripGlobalCap = Math.max(3, Math.floor(ownedTiles / 80));
     if (wantAirstrip && airstripCount < airstripCap &&
-        this.countBuildings(p.id, 'airstrip') < 3 &&
+        this.countBuildings(p.id, 'airstrip') < airstripGlobalCap &&
         safe.length > 0 && p.gold >= reserve + airCost) {
       const spot = this._pickAirstripSpot(safe, targetRegion || regionId, p.id);
       if (spot >= 0) {
@@ -2134,10 +2181,13 @@ export class Game {
       if (goldPool() < this.config.EXPANSION_COST_PER_CLAIM) continue;
 
       // Vassals push more eagerly than the player's manual orders. Forced
-      // March decree adds further boost on top.
-      const tileChance = isVassalDriven
+      // March decree adds further boost on top. Rich AIs (gold > 1500)
+      // burn through their stockpile by pushing 60% harder — keeps the
+      // AI from sitting on a giant idle treasury.
+      let tileChance = isVassalDriven
         ? baseChance * this._expansionBoostFor(p)
         : baseChance;
+      if (!p.isHuman && p.gold > 1500) tileChance *= 1.6;
 
       const cands = this._validTargets(x, y, p.id);
       if (cands.length === 0) continue;
