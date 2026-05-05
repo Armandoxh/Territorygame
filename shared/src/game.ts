@@ -2819,11 +2819,26 @@ export class Game {
     if (bestX < 0) return;
     const defender = this.players[this.territory.getOwner(bestX, bestY)];
     if (defender) defender.troops = Math.max(0, defender.troops - dmg);
-    // Warship landfall: if the hit tile is within 2 tiles AND not a capital,
-    // attempt to flip it to the ship's owner.
+    // Warship dreadnought treatment:
+    //   - Splash damage to adjacent enemy tiles (50% of primary dmg).
+    //     A single 14" shell scuffs a small radius — feels like a real
+    //     battleship volley vs a destroyer's pinpoint hit.
+    //   - Landfall reach extended 2 → 3 tiles, so the ship can
+    //     genuinely punch holes in coastal defences.
     if (s.kind === 'warship') {
+      const splashDmg = (dmg * 0.5) | 0;
+      for (const [adx, ady] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const ax = bestX + adx, ay = bestY + ady;
+        if (!this.territory.inBounds(ax, ay)) continue;
+        if (!this.territory.isPassable(ax, ay)) continue;
+        const ao = this.territory.getOwner(ax, ay);
+        if (ao <= 0 || ao === s.owner) continue;
+        if (this.areAllied(s.owner, ao)) continue;
+        const ap = this.players[ao];
+        if (ap) ap.troops = Math.max(0, ap.troops - splashDmg);
+      }
       const md = Math.abs(bestX - s.x) + Math.abs(bestY - s.y);
-      if (md <= 2 && this._capitalIndexAt(bestX, bestY) < 0) {
+      if (md <= 3 && this._capitalIndexAt(bestX, bestY) < 0) {
         this.tryCapture(bestX, bestY, s.owner);
       }
     }
