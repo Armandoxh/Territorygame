@@ -97,6 +97,10 @@ export class Game {
    *  region, recovers slowly each tick. Multiplies into per-region
    *  combat power so a bombed-out vassal genuinely fights weaker. */
   private _regionMorale!: Float32Array;
+  /** Per-region siege counter (ticks of continuous enemy adjacency).
+   *  Drives the stalemate-breaker: sieged regions stop recovering
+   *  morale and start bleeding it once the siege passes a grace period. */
+  private _regionSiegeTicks!: Uint16Array;
 
   /** Per-tile cached turret defense bonus per defender. Allocated lazily
    *  per active defender (full 256-player buffer would be 150 MB on a
@@ -268,6 +272,7 @@ export class Game {
     this._vassalTarget = new Uint16Array(this.regionCount + 1);
     this._vassalGold = new Float32Array(this.regionCount + 1);
     this._regionMorale = new Float32Array(this.regionCount + 1).fill(1.0);
+    this._regionSiegeTicks = new Uint16Array(this.regionCount + 1);
     this.regionNames = generateRegionNames(this.regionCount);
     // One empire-name per player (1..N); index 0 unused.
     this.playerEmpireNames = generateRegionNames(this.players.length - 1);
@@ -1808,17 +1813,64 @@ export class Game {
     return false;
   }
 
-  /** Slow morale recovery — every region nudges back toward 1.0 by a
-   *  small amount each tick. ~1% per tick = full recovery in ~10s from
-   *  any drop, so a bombed-out vassal genuinely feels weakened for a
-   *  meaningful window of time before bouncing back. */
+  /** Morale recovery + siege fatigue — the late-game stalemate breaker.
+   *
+   *  - Regions with no enemy adjacency recover morale toward 1.0.
+   *  - Regions under continuous siege (any enemy bordering an owned
+   *    tile in the region) accumulate siege ticks. After a grace
+   *    period morale starts BLEEDING — sustained pressure cracks
+   *    fortified borders on its own clock. Floor stays at 0.20 so
+   *    sieged regions never go fully impotent.
+   *
+   *  Net effect on stalemates: persistent pressure now matters more
+   *  than spam attacks. A defender that holds for 30s is cracking;
+   *  a defender that holds for 60s is at ~50% effectiveness.
+   *
+   *  Per-tick siege detection iterates the dominant owner's tiles in
+   *  each region looking for an enemy neighbor. Throttled to every
+   *  other tick so per-tick cost stays manageable on big maps. */
   private _recoverMorale(): void {
     const m = this._regionMorale;
     if (!m) return;
-    const RECOVER = 0.005; // 0.5% per tick → ~20s for a 0→1 climb
+    const sieges = this._regionSiegeTicks;
+    const RECOVER         = 0.005; // 0.5%/tick when peaceful → ~20s 0→1
+    const SIEGE_GRACE     = 200;   // 20s of siege before drain begins
+    const SIEGE_RAMP      = 400;   // by 40s sieged: full drain rate
+    const SIEGE_DRAIN_MAX = 0.0012; // peak drain — ~0.07/sec at 10Hz
+
+    // Update siege ticks every other tick to amortise the per-tile scan.
+    if ((this.tickCount & 1) === 0) {
+      const W = this.territory.width;
+      const owners = this.territory.owners;
+      for (let r = 1; r <= this.regionCount; r++) {
+        const dom = this._regionDominant[r] ?? 0;
+        if (dom <= 0) { sieges[r] = 0; continue; }
+        const tiles = this._tilesByRegion[r];
+        let sieged = false;
+        if (tiles) {
+          for (const i of tiles) {
+            if (owners[i] !== dom) continue;
+            const x = i % W, y = (i - x) / W;
+            if (this._hasEnemyNeighbor(x, y, dom)) { sieged = true; break; }
+          }
+        }
+        if (sieged) sieges[r] = Math.min(0xffff, sieges[r]! + 2);
+        else        sieges[r] = sieges[r]! >= 4 ? sieges[r]! - 4 : 0;
+      }
+    }
+
     for (let r = 1; r <= this.regionCount; r++) {
-      const v = m[r]!;
-      if (v < 1.0) m[r] = v + RECOVER > 1.0 ? 1.0 : v + RECOVER;
+      const sieged = sieges[r]!;
+      let v = m[r]!;
+      if (sieged > SIEGE_GRACE) {
+        // Bleed morale; intensity ramps with siege duration.
+        const intensity = Math.min(1, (sieged - SIEGE_GRACE) / SIEGE_RAMP);
+        v -= SIEGE_DRAIN_MAX * intensity;
+        if (v < 0.20) v = 0.20;
+        m[r] = v;
+      } else {
+        if (v < 1.0) m[r] = v + RECOVER > 1.0 ? 1.0 : v + RECOVER;
+      }
     }
   }
 
