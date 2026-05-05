@@ -1819,6 +1819,24 @@ export class Game {
     }
   }
 
+  /** Settlement garrison multiplier — every settlement physically inside
+   *  the region buffs that region's combat power. Stacks by level
+   *  (4% per level), capped at +40%. So a vassal with one bronze (L4)
+   *  gets +16%; a vassal with several settlements maxes out at +40%.
+   *  Applied multiplicatively on top of regional troop share + morale. */
+  private _settlementGarrison(regionId: number, ownerId: PlayerId): number {
+    if (regionId <= 0) return 1.0;
+    const W = this.territory.width;
+    let levels = 0;
+    for (const b of this.buildings) {
+      if (b.type !== 'settlement') continue;
+      if (b.owner !== ownerId) continue;
+      if (this.regions[b.y * W + b.x] !== regionId) continue;
+      levels += (b.level ?? 1);
+    }
+    return 1 + Math.min(0.40, levels * 0.04);
+  }
+
   /** Apply morale damage to a region based on lost-tile fraction.
    *  Called by bombs and strafes when tiles in a region are wiped. */
   private _drainMoraleForRegion(regionId: number, lostTiles: number): void {
@@ -2161,25 +2179,32 @@ export class Game {
         // Vassal-driven attacks now resolve at the REGIONAL level: each
         // side's effective troop strength is its leader's pool times the
         // attacker/defender region's share of that leader's empire,
-        // times that region's morale. So a small wiped-out vassal
-        // genuinely fights weaker than a big intact vassal of the same
-        // empire. Manual / AI attacks still use raw player.troops.
+        // times that region's morale, times a settlement garrison
+        // multiplier (so a heavily-settled vassal genuinely defends
+        // harder than an empty one).
+        //
+        // - DEFENDER side ALWAYS uses regional math: a fortified vassal
+        //   feels fortified no matter who attacks (manual / vassal / AI).
+        // - ATTACKER side uses regional math only on vassal-driven
+        //   pushes; manual / AI attacks command the empire's full pool.
         let attackerPower = p.troops;
         let defenderPower = Math.max(1, defender?.troops ?? 1);
+        const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
+        if (defender) {
+          const ownedD = this.territory.counts[defender.id] || 1;
+          const tilesD = defR > 0 ? (this._tilesByRegion[defR]?.length ?? 1) : ownedD;
+          const fracD = ownedD > 0 ? Math.min(1, tilesD / ownedD) : 1;
+          const moraleD = defR > 0 ? (this._regionMorale[defR] ?? 1) : 1;
+          const garrisonD = this._settlementGarrison(defR, defender.id);
+          defenderPower = Math.max(1, defender.troops * fracD * moraleD * garrisonD);
+        }
         if (isVassalDriven) {
           const ownedA = this.territory.counts[p.id] || 1;
           const tilesA = (tileRegion > 0 ? this._tilesByRegion[tileRegion]?.length : 0) || 1;
           const fracA = ownedA > 0 ? Math.min(1, tilesA / ownedA) : 1;
           const moraleA = tileRegion > 0 ? (this._regionMorale[tileRegion] ?? 1) : 1;
-          attackerPower = p.troops * fracA * moraleA;
-          if (defender) {
-            const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
-            const ownedD = this.territory.counts[defender.id] || 1;
-            const tilesD = defR > 0 ? (this._tilesByRegion[defR]?.length ?? 1) : ownedD;
-            const fracD = ownedD > 0 ? Math.min(1, tilesD / ownedD) : 1;
-            const moraleD = defR > 0 ? (this._regionMorale[defR] ?? 1) : 1;
-            defenderPower = Math.max(1, defender.troops * fracD * moraleD);
-          }
+          const garrisonA = this._settlementGarrison(tileRegion, p.id);
+          attackerPower = p.troops * fracA * moraleA * garrisonA;
         }
         const ratio = attackerPower / defenderPower;
         const ratioFactor = Math.max(
