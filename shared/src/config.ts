@@ -146,7 +146,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   CAPITALS_PER_PLAYER: 2,
 
   STARTING_GOLD: 120,
-  GOLD_PER_TILE_PER_TICK: 0.028,
+  GOLD_PER_TILE_PER_TICK: 0.018,
   EXPANSION_COST_PER_CLAIM: 1,
   EXPANSION_TROOP_COST: 3, // troops drained per unclaimed claim — settling new land needs people
   EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.05,
@@ -198,9 +198,9 @@ export const DEFAULT_CONFIG: GameConfig = {
     aa:         110,
   },
   SETTLEMENT_RADIUS: 6,
-  SETTLEMENT_BONUS: 0.7,        // +70% gold in radius
+  SETTLEMENT_BONUS: 0.5,        // +50% gold in radius
   SETTLEMENT_TROOP_BONUS: 5,    // +50 troops/sec per settlement (flat)
-  SETTLEMENT_GOLD_BONUS: 0.35,  // +3.5 gold/sec flat per settlement
+  SETTLEMENT_GOLD_BONUS: 0.20,  // +2.0 gold/sec flat per settlement
   TURRET_RADIUS: 5,             // covers ~78 tiles (was 28)
   TURRET_DEFENSE_BONUS: 4,      // (1 + 4) = 5x cost / 1/5 rate per stacked turret
   TURRET_RETALIATION_DAMAGE: 8, // attacker troops lost per turret on successful capture in radius
