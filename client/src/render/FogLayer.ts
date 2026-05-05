@@ -15,17 +15,23 @@ import type { Renderer } from './Renderer.js';
 // Water tiles never get fog — the ocean is always known terrain — only
 // land tiles tint. This keeps coastlines readable.
 
-const ALPHA_HIDDEN  = 0.78;
-const ALPHA_PARTIAL = 0.40;
+// Hidden tiles fully hidden — the territory shader also short-circuits
+// its fbm/wave/border math when fog is opaque, so this isn't just a
+// visual cover; it's the trigger for skipping shader work too. Partial
+// is dark enough to read as "you saw this once" without exposing detail.
+const ALPHA_HIDDEN  = 1.00;
+const ALPHA_PARTIAL = 0.65;
 const TINT_R = 4, TINT_G = 6, TINT_B = 12;
 
 export class FogLayer {
   readonly sprite: Sprite;
+  /** The fog canvas as a texture — exposed so the territory shader can
+   *  sample it and skip expensive math on hidden pixels. */
+  readonly texture: Texture;
   private readonly game: Game;
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly imageData: ImageData;
-  private readonly texture: Texture;
   private _lastSig = '';
 
   constructor(game: Game, _renderer: Renderer) {

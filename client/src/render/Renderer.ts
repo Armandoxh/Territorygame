@@ -64,8 +64,16 @@ export class Renderer {
     this.world = new Container();
     this.app.stage.addChild(this.world);
 
-    this.territoryLayer = new TerritoryShaderLayer(game.territory, game.config);
+    // FogLayer is constructed BEFORE the territory shader so we can hand
+    // its texture into the shader as a sampler resource — the shader
+    // short-circuits its expensive math on hidden tiles, which is the
+    // big late-game/mobile framerate win.
+    (this as { fog: FogLayer }).fog = new FogLayer(game, this);
+
+    this.territoryLayer = new TerritoryShaderLayer(game.territory, game.config, this.fog.texture);
     this.world.addChild(this.territoryLayer.sprite);
+    // Fog sprite paints over the territory so the dark colour is uniform.
+    this.world.addChild(this.fog.sprite);
 
     // Region outlines as VECTOR polylines instead of a pixel sprite. Each
     // grid edge between two different region IDs becomes a Pixi line segment
@@ -121,11 +129,6 @@ export class Renderer {
     this.cameraX = game.territory.width / 2;
     this.cameraY = game.territory.height / 2;
     this.zoom = this.opts.defaultZoom;
-
-    // Fog of war overlay sits in world space directly on top of the
-    // territory sprite — pans and zooms with the camera.
-    (this as { fog: FogLayer }).fog = new FogLayer(game, this);
-    this.world.addChild(this.fog.sprite);
 
     this.overlay = new OverlayLayer(game, this);
     // World-space layers (target-region highlight) pan + zoom with the camera.
