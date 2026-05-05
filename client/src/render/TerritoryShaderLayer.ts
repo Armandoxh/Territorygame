@@ -188,19 +188,24 @@ void main() {
   // Frontier-claim pulse — recently-stamped tiles glow briefly. Sample
   // self + 4 neighbors and use the freshest age so the pulse softens
   // across an edge instead of being boxy. Wrap-safe via mod(..., 256).
-  float ageSelf = mod(uTickByte - src.b * 255.0 + 256.0, 256.0);
-  float ageN    = mod(uTickByte - sN.b  * 255.0 + 256.0, 256.0);
-  float ageS    = mod(uTickByte - sS.b  * 255.0 + 256.0, 256.0);
-  float ageE    = mod(uTickByte - sE.b  * 255.0 + 256.0, 256.0);
-  float ageW    = mod(uTickByte - sW.b  * 255.0 + 256.0, 256.0);
-  float age = min(ageSelf, min(min(ageN, ageS), min(ageE, ageW)));
-  if (age < uPulseDuration && uPulseDuration > 0.0) {
-    float t = 1.0 - age / uPulseDuration;
-    t *= t; // ease-out
-    // Warm highlight; lighter near the freshly-claimed tile, falls off on
-    // neighbors because the min-age above pulls the freshest stamp in.
-    vec3 pulseTint = vec3(1.0, 0.92, 0.70);
-    col = mix(col, col + pulseTint * 0.55, t * 0.55);
+  // The whole block is gated by uPulseDuration > 0 so the cost is zero
+  // when the effect is disabled (it's currently off by default —
+  // looked like sparkles flowing across the map and was eating fps).
+  if (uPulseDuration > 0.0) {
+    float ageSelf = mod(uTickByte - src.b * 255.0 + 256.0, 256.0);
+    float ageN    = mod(uTickByte - sN.b  * 255.0 + 256.0, 256.0);
+    float ageS    = mod(uTickByte - sS.b  * 255.0 + 256.0, 256.0);
+    float ageE    = mod(uTickByte - sE.b  * 255.0 + 256.0, 256.0);
+    float ageW    = mod(uTickByte - sW.b  * 255.0 + 256.0, 256.0);
+    float age = min(ageSelf, min(min(ageN, ageS), min(ageE, ageW)));
+    if (age < uPulseDuration) {
+      float t = 1.0 - age / uPulseDuration;
+      t *= t; // ease-out
+      // Warm highlight; lighter near the freshly-claimed tile, falls off on
+      // neighbors because the min-age above pulls the freshest stamp in.
+      vec3 pulseTint = vec3(1.0, 0.92, 0.70);
+      col = mix(col, col + pulseTint * 0.55, t * 0.55);
+    }
   }
 
   finalColor = vec4(col, 1.0);
@@ -261,7 +266,7 @@ export class TerritoryShaderLayer {
     this.uniforms = new UniformGroup({
       uTime:          { value: 0, type: 'f32' },
       uTickByte:      { value: 0, type: 'f32' },
-      uPulseDuration: { value: 15, type: 'f32' }, // ~1.5s at 10Hz
+      uPulseDuration: { value: 0, type: 'f32' }, // disabled — was a sparkle effect that ate fps
       uPlayerCount:   { value: Math.max(1, this.config.PLAYER_COLORS.length - 1), type: 'f32' },
       uPalette:       { value: this.palette, type: 'vec3<f32>', size: 64 },
       uParchment:     { value: parchment, type: 'vec3<f32>' },
