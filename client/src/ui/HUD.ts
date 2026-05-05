@@ -4,7 +4,7 @@ import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa'];
 const BOMB_TYPES: BombType[] = ['small', 'large', 'ac130'];
-const SHIP_TYPES: ShipKind[] = ['scout', 'skirmisher', 'warship'];
+const SHIP_TYPES: ShipKind[] = ['scout', 'skirmisher', 'warship', 'submarine', 'destroyer'];
 const DECREE_BRANCHES: DecreeBranch[] = ['economy', 'defense', 'military', 'offense', 'espionage'];
 type CmdMode = 'abilities' | 'doctrines';
 

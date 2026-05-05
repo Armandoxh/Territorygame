@@ -83,6 +83,19 @@ function drawHull(g: Graphics, kind: ShipKind, tint: number): void {
   } else if (kind === 'skirmisher') {
     // Larger triangle with a notch
     g.poly([0, -7, 6, 5, 0, 3, -6, 5]).fill({ color: tint, alpha: 0.95 }).stroke({ color: 0x000000, width: 1, alpha: 0.6 });
+  } else if (kind === 'destroyer') {
+    // Long sleek hull, two deck guns. Reads as anti-ship platform.
+    g.poly([-8, -3, 8, -3, 10, 0, 8, 3, -8, 3]).fill({ color: tint, alpha: 0.95 }).stroke({ color: 0x000000, width: 1.1, alpha: 0.7 });
+    g.circle(-3, 0, 1.4).fill({ color: 0x222426 }).stroke({ color: 0x000000, width: 0.5, alpha: 0.6 });
+    g.circle( 3, 0, 1.4).fill({ color: 0x222426 }).stroke({ color: 0x000000, width: 0.5, alpha: 0.6 });
+  } else if (kind === 'submarine') {
+    // Low slim cigar-hull with a small conning tower. Lower opacity to
+    // suggest "mostly underwater".
+    g.poly([-7, -1.6, 7, -1.6, 9, 0, 7, 1.6, -7, 1.6]).fill({ color: tint, alpha: 0.78 }).stroke({ color: 0x000000, width: 1, alpha: 0.55 });
+    // Conning tower (small box on top)
+    g.rect(-1.5, -3.2, 3, 1.6).fill({ color: tint, alpha: 0.95 }).stroke({ color: 0x000000, width: 0.7, alpha: 0.6 });
+    // Periscope dot
+    g.circle(0, -3.7, 0.5).fill({ color: 0x000000 });
   } else {
     // Warship: rectangle with prow
     g.poly([-7, -4, 7, -4, 9, 0, 7, 4, -7, 4]).fill({ color: tint, alpha: 0.95 }).stroke({ color: 0x000000, width: 1.2, alpha: 0.7 });

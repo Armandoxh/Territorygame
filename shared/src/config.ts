@@ -218,12 +218,12 @@ export const DEFAULT_CONFIG: GameConfig = {
   /** AC-130 only. Ticks between strafes during orbit. */
   AC130_STRAFE_INTERVAL: 14,  // ~1.4s
 
-  SHIP_COSTS:      { scout: 80,  skirmisher: 200, warship: 500 },
-  SHIP_HP:         { scout: 30,  skirmisher: 80,  warship: 200 },
-  SHIP_RANGE:      { scout: 3,   skirmisher: 5,   warship: 7   },
-  SHIP_DAMAGE:     { scout: 4,   skirmisher: 10,  warship: 20  },
-  SHIP_MOVE_TICKS: { scout: 1,   skirmisher: 2,   warship: 3   },
-  SHIP_FIRE_TICKS: { scout: 25,  skirmisher: 18,  warship: 14  },
+  SHIP_COSTS:      { scout: 80,  skirmisher: 200, warship: 500, submarine: 350, destroyer: 280 },
+  SHIP_HP:         { scout: 30,  skirmisher: 80,  warship: 200, submarine: 60,  destroyer: 110 },
+  SHIP_RANGE:      { scout: 3,   skirmisher: 5,   warship: 7,   submarine: 9,   destroyer: 6   },
+  SHIP_DAMAGE:     { scout: 4,   skirmisher: 10,  warship: 20,  submarine: 0,   destroyer: 12  },
+  SHIP_MOVE_TICKS: { scout: 1,   skirmisher: 2,   warship: 3,   submarine: 2,   destroyer: 2   },
+  SHIP_FIRE_TICKS: { scout: 25,  skirmisher: 18,  warship: 14,  submarine: 35,  destroyer: 14  },
   SHIP_PLAYER_CAP: 8,
 
   AI_RETARGET_TICKS: 120,

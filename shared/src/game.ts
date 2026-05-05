@@ -2668,8 +2668,87 @@ export class Game {
   private _shipFire(s: Ship): void {
     if (s.fireCooldown > 0) return;
     const range = this.config.SHIP_RANGE[s.kind];
-    const dmg = this.config.SHIP_DAMAGE[s.kind];
     const r2 = range * range;
+    const owner = this.players[s.owner];
+
+    // DESTROYER: prioritises enemy ships in range. If any are present
+    // it shoots at the closest one for heavy damage; otherwise falls
+    // back to the standard land-bombardment behavior at half damage
+    // (it's an anti-ship hull, not a coast cracker).
+    if (s.kind === 'destroyer') {
+      let bestShip: Ship | null = null;
+      let bestShipD = Infinity;
+      for (const o of this.ships) {
+        if (o.id === s.id) continue;
+        if (o.owner === s.owner) continue;
+        if (this.areAllied(s.owner, o.owner)) continue;
+        const dx = o.x - s.x, dy = o.y - s.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > r2) continue;
+        if (d2 < bestShipD) { bestShipD = d2; bestShip = o; }
+      }
+      if (bestShip) {
+        bestShip.hp -= 50; // big anti-ship payload
+        if (bestShip.hp <= 0) {
+          this.events.push({ type: 'ship-sunk', shipKind: bestShip.kind, ownerId: bestShip.owner, x: bestShip.x, y: bestShip.y });
+          const idx = this.ships.indexOf(bestShip);
+          if (idx >= 0) this.ships.splice(idx, 1);
+        }
+        const reloadMult = owner?.mastery === 'naval' ? 0.75 : 1.0;
+        s.fireCooldown = Math.max(1, Math.floor(this.config.SHIP_FIRE_TICKS[s.kind] * reloadMult));
+        return;
+      }
+      // No ships in range — fall through to land bombardment below.
+    }
+
+    // SUBMARINE: doesn't direct-fire. Launches a missile (a Plane
+    // configured as a small bomb) toward the nearest enemy land tile
+    // in range. The missile flies, can be hit by AA en route, and
+    // detonates as a small bomb on arrival. Means subs project power
+    // inland from far offshore.
+    if (s.kind === 'submarine') {
+      let tx = -1, ty = -1, bestD = Infinity;
+      const W2 = this.territory.width;
+      for (let dy = -range; dy <= range; dy++) {
+        for (let dx = -range; dx <= range; dx++) {
+          const d2 = dx * dx + dy * dy;
+          if (d2 > r2) continue;
+          const cx = Math.floor(s.x + dx), cy = Math.floor(s.y + dy);
+          if (!this.territory.inBounds(cx, cy)) continue;
+          if (!this.territory.isPassable(cx, cy)) continue;
+          const o = this.territory.getOwner(cx, cy);
+          if (o <= 0 || o === s.owner) continue;
+          if (this.areAllied(s.owner, o)) continue;
+          if (d2 < bestD) { bestD = d2; tx = cx; ty = cy; }
+        }
+      }
+      void W2;
+      if (tx < 0) return;
+      // Spawn a missile (plane) from the sub's tile flying to the target.
+      const missile: Plane = {
+        id: this._planeNextId++,
+        owner: s.owner,
+        bombType: 'small',
+        x: s.x, y: s.y,
+        destX: tx + 0.5, destY: ty + 0.5,
+        speed: this.config.PLANE_SPEED.small,
+        rolledAA: new Set<number>(),
+        orbitUntilTick: 0,
+        nextStrafeTick: 0,
+      };
+      this.planes.push(missile);
+      this.events.push({
+        type: 'plane-launched', bombType: 'small', ownerId: s.owner,
+        x: s.x, y: s.y, destX: missile.destX, destY: missile.destY,
+      });
+      const reloadMult = owner?.mastery === 'naval' ? 0.75 : 1.0;
+      s.fireCooldown = Math.max(1, Math.floor(this.config.SHIP_FIRE_TICKS[s.kind] * reloadMult));
+      return;
+    }
+
+    // STANDARD ship fire (scout / skirmisher / warship — and destroyers
+    // that found no ships in range).
+    const dmg = s.kind === 'destroyer' ? 6 : this.config.SHIP_DAMAGE[s.kind];
     let bestX = -1, bestY = -1, bestD = Infinity;
     const W = this.territory.width;
     for (let dy = -range; dy <= range; dy++) {
@@ -2681,6 +2760,7 @@ export class Game {
         if (!this.territory.isPassable(tx, ty)) continue;
         const o = this.territory.getOwner(tx, ty);
         if (o <= 0 || o === s.owner) continue;
+        if (this.areAllied(s.owner, o)) continue;
         if (d2 < bestD) { bestD = d2; bestX = tx; bestY = ty; }
       }
     }
@@ -2696,7 +2776,6 @@ export class Game {
       }
     }
     // Naval mastery: ships reload 25% faster.
-    const owner = this.players[s.owner];
     const reloadMult = owner?.mastery === 'naval' ? 0.75 : 1.0;
     s.fireCooldown = Math.max(1, Math.floor(this.config.SHIP_FIRE_TICKS[s.kind] * reloadMult));
     void W;

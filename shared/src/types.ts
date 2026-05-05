@@ -11,7 +11,7 @@ export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'aa';
 
 export type BombType = 'small' | 'large' | 'ac130';
 
-export type ShipKind = 'scout' | 'skirmisher' | 'warship';
+export type ShipKind = 'scout' | 'skirmisher' | 'warship' | 'submarine' | 'destroyer';
 
 export interface Ship {
   id: number;
