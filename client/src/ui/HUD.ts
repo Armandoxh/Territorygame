@@ -30,6 +30,9 @@ export class HUD {
     placeBannerType: this._byId('pb-type'),
     sheet:        this._byId('buildsheet'),
     sheetCoords:  this._byId('bs-coords'),
+    sheetEmpireGold: this._byId('bs-empire-gold'),
+    fleetEmpireGold: this._byId('fs-empire-gold'),
+    bombEmpireGold:  this._byId('bb-empire-gold'),
     upgradeBtn:   this._byId<HTMLButtonElement>('upgrade-button'),
     upgradeIcon:  this._byId('upgrade-icon'),
     upgradeName:  this._byId('upgrade-name'),
@@ -625,6 +628,7 @@ export class HUD {
     if (!this.el.fleetSheet) return;
     const me = this.game.human();
     const navalLocked = !this.game.isUnlocked(1, 'ships');
+    if (this.el.fleetEmpireGold) this.el.fleetEmpireGold.textContent = String(Math.floor(me.gold));
     this.el.fleetSheet.querySelectorAll<HTMLButtonElement>('.sb-btn').forEach((btn) => {
       const kind = btn.dataset['ship'] as ShipKind | undefined;
       if (!kind) return;
@@ -724,6 +728,7 @@ export class HUD {
     const me = this.game.human();
     const ready = this.game.airstripReadyAt(1);
     const cooling = ready > this.game.tickCount;
+    if (this.el.bombEmpireGold) this.el.bombEmpireGold.textContent = String(Math.floor(me.gold));
     this.el.bombSheet.querySelectorAll<HTMLButtonElement>('.bb-btn').forEach((btn) => {
       const type = btn.dataset['bomb'] as BombType | undefined;
       if (!type) return;
@@ -1432,6 +1437,7 @@ export class HUD {
   private _refreshSheetButtons(): void {
     if (!this.el.sheet) return;
     const me = this.game.human();
+    if (this.el.sheetEmpireGold) this.el.sheetEmpireGold.textContent = String(Math.floor(me.gold));
     this.el.sheet.querySelectorAll<HTMLButtonElement>('.bs-btn').forEach((btn) => {
       const type = btn.dataset['type'] as BuildingType | undefined;
       if (!type) return;
