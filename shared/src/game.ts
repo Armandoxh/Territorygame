@@ -667,8 +667,9 @@ export class Game {
       if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
       this._vassalGold[fromVassalRegion]! -= cost;
     } else {
-      if (owner.gold < cost) return 'gold';
-      owner.gold -= cost;
+      // Manual builds drain gold first, fall back to treasury for any
+      // remainder. Treasury still can't be drained passively.
+      if (!this._chargeOps(owner, cost)) return 'gold';
     }
     const b: Building = { x, y, owner: ownerId, type, level: 1 };
     this.buildings.push(b);
@@ -703,8 +704,7 @@ export class Game {
       if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
       this._vassalGold[fromVassalRegion]! -= cost;
     } else {
-      if (owner.gold < cost) return 'gold';
-      owner.gold -= cost;
+      if (!this._chargeOps(owner, cost)) return 'gold';
     }
     b.level++;
     // Settlement gold-multiplier accounting: each tier adds one full
@@ -766,8 +766,7 @@ export class Game {
       if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
       this._vassalGold[fromVassalRegion]! -= cost;
     } else {
-      if (owner.gold < cost) return 'gold';
-      owner.gold -= cost;
+      if (!this._chargeOps(owner, cost)) return 'gold';
     }
     // Higher-tier airstrips reload faster and throw bombs slightly farther.
     // Air Supremacy decree halves cooldown empire-wide on top of tier bonus.
@@ -1006,6 +1005,36 @@ export class Game {
   /** Returns true if a building/unit category is unlocked for this player.
    *  Humans with no chosen mastery yet are treated as 'ground' so they can
    *  still build settlements/turrets while the picker is open. */
+  /** Charge a player for an explicit ops action (build, upgrade, bomb,
+   *  ship). Drains gold first; falls back to treasury for any
+   *  remainder. The treasury "passive-drain" guarantee is preserved
+   *  because this is only called from click-driven code paths.
+   *  Returns true on success (full cost paid); false if pooled total
+   *  was insufficient (no partial deduction). */
+  private _chargeOps(p: Player, cost: number): boolean {
+    if (cost <= 0) return true;
+    const total = p.gold + p.treasury;
+    if (total < cost) return false;
+    if (p.gold >= cost) {
+      p.gold -= cost;
+    } else {
+      const fromGold = p.gold;
+      const fromTreasury = cost - fromGold;
+      p.gold = 0;
+      p.treasury -= fromTreasury;
+    }
+    return true;
+  }
+
+  /** Combined ops budget — gold + treasury. Used by HUD affordability
+   *  checks so the build sheet greys out only when both pools combined
+   *  can't cover the cost. */
+  combinedFundsFor(playerId: PlayerId): number {
+    const p = this.players[playerId];
+    if (!p) return 0;
+    return p.gold + p.treasury;
+  }
+
   isUnlocked(playerId: PlayerId, category: 'airstrip' | 'aa' | 'bombs' | 'ships'): boolean {
     const p = this.players[playerId];
     if (!p) return false;
@@ -2962,8 +2991,7 @@ export class Game {
     // Naval mastery: +2 ship cap (e.g. 8 → 10).
     const cap = this.config.SHIP_PLAYER_CAP + (owner.mastery === 'naval' ? 2 : 0);
     if (myShips >= cap) return 'cap';
-    if (owner.gold < cost) return 'gold';
-    owner.gold -= cost;
+    if (!this._chargeOps(owner, cost)) return 'gold';
     const ship: Ship = {
       id: this._shipNextId++,
       owner: ownerId,

@@ -307,7 +307,10 @@ export class HUD {
     if (this.el.upgradeName) this.el.upgradeName.textContent = `Upgrade ${b.type} → Lv ${next}`;
     if (this.el.upgradeDesc) this.el.upgradeDesc.textContent = this._upgradeDescription(b.type, next);
     if (this.el.upgradeCost) this.el.upgradeCost.textContent = String(cost);
-    if (this.el.upgradeBtn) this.el.upgradeBtn.classList.toggle('disabled', me.gold < cost);
+    if (this.el.upgradeBtn) {
+      const combined = this.game.combinedFundsFor(me.id);
+      this.el.upgradeBtn.classList.toggle('disabled', combined < cost);
+    }
   }
 
   private _upgradeDescription(type: BuildingType, lvl: number): string {
@@ -628,14 +631,15 @@ export class HUD {
     if (!this.el.fleetSheet) return;
     const me = this.game.human();
     const navalLocked = !this.game.isUnlocked(1, 'ships');
-    if (this.el.fleetEmpireGold) this.el.fleetEmpireGold.textContent = String(Math.floor(me.gold));
+    const combined = this.game.combinedFundsFor(me.id);
+    if (this.el.fleetEmpireGold) this.el.fleetEmpireGold.textContent = String(Math.floor(combined));
     this.el.fleetSheet.querySelectorAll<HTMLButtonElement>('.sb-btn').forEach((btn) => {
       const kind = btn.dataset['ship'] as ShipKind | undefined;
       if (!kind) return;
       const cost = this.game.config.SHIP_COSTS[kind];
       const costEl = btn.querySelector('.bs-cost');
       if (costEl) costEl.textContent = navalLocked ? '🔒' : String(cost);
-      btn.classList.toggle('disabled', navalLocked || me.gold < cost);
+      btn.classList.toggle('disabled', navalLocked || combined < cost);
     });
   }
 
@@ -728,14 +732,15 @@ export class HUD {
     const me = this.game.human();
     const ready = this.game.airstripReadyAt(1);
     const cooling = ready > this.game.tickCount;
-    if (this.el.bombEmpireGold) this.el.bombEmpireGold.textContent = String(Math.floor(me.gold));
+    const combined = this.game.combinedFundsFor(me.id);
+    if (this.el.bombEmpireGold) this.el.bombEmpireGold.textContent = String(Math.floor(combined));
     this.el.bombSheet.querySelectorAll<HTMLButtonElement>('.bb-btn').forEach((btn) => {
       const type = btn.dataset['bomb'] as BombType | undefined;
       if (!type) return;
       const cost = this.game.config.BOMB_COSTS[type];
       const costEl = btn.querySelector('.bs-cost');
       if (costEl) costEl.textContent = String(cost);
-      btn.classList.toggle('disabled', cooling || me.gold < cost);
+      btn.classList.toggle('disabled', cooling || combined < cost);
     });
   }
 
@@ -1418,13 +1423,14 @@ export class HUD {
   private _refreshHotbar(): void {
     if (!this.el.hotbar) return;
     const me = this.game.human();
+    const combined = this.game.combinedFundsFor(me.id);
     this.el.hotbar.querySelectorAll<HTMLButtonElement>('.hb-btn').forEach((btn) => {
       const type = btn.dataset['type'] as BuildingType | undefined;
       if (!type) return;
       const cost = this.game.config.BUILDING_COSTS[type];
       const locked = this._isLockedForHuman(type);
       btn.classList.toggle('active', this.placeMode === type);
-      btn.classList.toggle('cant-afford', me.gold < cost);
+      btn.classList.toggle('cant-afford', combined < cost);
       btn.classList.toggle('locked', locked);
       btn.title = locked
         ? `${type[0]!.toUpperCase()}${type.slice(1)} — locked. Choose AIR mastery.`
@@ -1437,13 +1443,14 @@ export class HUD {
   private _refreshSheetButtons(): void {
     if (!this.el.sheet) return;
     const me = this.game.human();
-    if (this.el.sheetEmpireGold) this.el.sheetEmpireGold.textContent = String(Math.floor(me.gold));
+    const combined = this.game.combinedFundsFor(me.id);
+    if (this.el.sheetEmpireGold) this.el.sheetEmpireGold.textContent = String(Math.floor(combined));
     this.el.sheet.querySelectorAll<HTMLButtonElement>('.bs-btn').forEach((btn) => {
       const type = btn.dataset['type'] as BuildingType | undefined;
       if (!type) return;
       const cost = this.game.config.BUILDING_COSTS[type];
       const locked = this._isLockedForHuman(type);
-      btn.classList.toggle('disabled', locked || me.gold < cost);
+      btn.classList.toggle('disabled', locked || combined < cost);
       btn.classList.toggle('locked', locked);
       const costEl = btn.querySelector('.bs-cost');
       if (costEl) costEl.textContent = locked ? '🔒' : String(cost);
