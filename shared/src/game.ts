@@ -4,6 +4,7 @@ import type {
   GameOutcome, BuildError, BombError, Point,
   Ship, ShipKind, ShipBuildError,
   Plane,
+  TradeRoute,
 } from './types.js';
 import { TERRAIN_LAND } from './types.js';
 import { Territory } from './territory.js';
@@ -33,6 +34,14 @@ export class Game {
   readonly ships: Ship[] = [];
   private _shipNextId = 1;
   readonly planes: Plane[] = [];
+  /** Active trade routes (Phase 2 — internal vassal-to-vassal). Rebuilt
+   *  every TRADE_RESCAN_TICKS via union-find connectivity + MST per
+   *  component. Each route adds `flow` to its owner's treasury per tick. */
+  readonly tradeRoutes: TradeRoute[] = [];
+  private _tradeRouteRescanAt = 0;
+  /** Centroid cache: `_regionCentroids[r*2 + 0/1]` = x/y in tile-space.
+   *  Computed once at terrain init since regions are static partitions. */
+  private _regionCentroids = new Float32Array(0);
   private _planeNextId = 1;
   readonly goldMultiplier: Float32Array;
   tickCount: number;
@@ -230,6 +239,27 @@ export class Game {
     return this._regionMorale?.[regionId] ?? 1;
   }
 
+  /** Centroid x in tile-space for a region (0 if missing). Used by the
+   *  TradeLayer to draw routes between vassal hubs. */
+  regionCentroidX(regionId: number): number {
+    return this._regionCentroids[regionId * 2] ?? 0;
+  }
+  /** Centroid y in tile-space for a region. */
+  regionCentroidY(regionId: number): number {
+    return this._regionCentroids[regionId * 2 + 1] ?? 0;
+  }
+
+  /** Sum of trade-route flows owned by this player per tick. UI uses
+   *  this to display the player's net trade income (treasury delta/sec
+   *  is `flow × SIM_HZ`). */
+  tradeFlowFor(playerId: PlayerId): number {
+    let sum = 0;
+    for (const r of this.tradeRoutes) {
+      if (r.ownerId === playerId) sum += r.flow;
+    }
+    return sum;
+  }
+
   // --- Setup ---
 
   generateTerrain(seed?: number): void {
@@ -293,6 +323,21 @@ export class Game {
         this._regionTotal[r]!++;
         this._tilesByRegion[r]!.push(i);
       }
+    }
+    // Region centroid cache — averaged tile coords per region. Static
+    // since regions are a fixed partition of the map.
+    this._regionCentroids = new Float32Array((this.regionCount + 1) * 2);
+    for (let r = 1; r <= this.regionCount; r++) {
+      const tiles = this._tilesByRegion[r]!;
+      if (tiles.length === 0) continue;
+      let sx = 0, sy = 0;
+      for (const i of tiles) {
+        const x = i % W;
+        sx += x;
+        sy += (i - x) / W;
+      }
+      this._regionCentroids[r * 2]     = sx / tiles.length;
+      this._regionCentroids[r * 2 + 1] = sy / tiles.length;
     }
     // Region adjacency: which regions touch which. One scan, check left/up
     // neighbours so each pair is added once (we still add both directions
@@ -507,6 +552,11 @@ export class Game {
     this.tickCount++;
     this._expireHumanTargets();
     this._recoverMorale();
+    if (this.tickCount >= this._tradeRouteRescanAt) {
+      this._rescanTradeRoutes();
+      this._tradeRouteRescanAt = this.tickCount + 30; // every 3s
+    }
+    this._applyTradeFlow();
     this._earnGoldAll();
     this._growTroops();
     this._vassalsThink();
@@ -1964,6 +2014,149 @@ export class Game {
    *  Per-tick siege detection iterates the dominant owner's tiles in
    *  each region looking for an enemy neighbor. Throttled to every
    *  other tick so per-tick cost stays manageable on big maps. */
+
+  /** Rebuild the trade-route set for every player. Per the locked-in
+   *  design (OVERHAUL.md):
+   *
+   *    1. Union-find over each player's dominant regions via the static
+   *       region adjacency graph → connected components.
+   *    2. For each component, build a complete-graph edge list weighted
+   *       by centroid distance, sort, run Kruskal's MST → exactly N-1
+   *       edges per N-region component.
+   *    3. Each MST edge becomes a TradeRoute with snapshotted centroids
+   *       and a flow value derived from region sizes + distance.
+   *
+   *  Throttled to once every 30 ticks (~3s); per-scan cost is
+   *  dominated by the O(n²) edge list and trivial in practice. */
+  private _rescanTradeRoutes(): void {
+    this.tradeRoutes.length = 0;
+
+    for (let pid = 1; pid < this.players.length; pid++) {
+      const p = this.players[pid];
+      if (!p || !p.alive) continue;
+
+      // Collect dominant regions for this player.
+      const myRegions: number[] = [];
+      for (let r = 1; r <= this.regionCount; r++) {
+        if (this._regionDominant[r] === pid) myRegions.push(r);
+      }
+      if (myRegions.length < 2) continue;
+
+      // Cap at 50 by tile count so a runaway empire doesn't pay O(n²)
+      // edges on every scan. Below that limit it's a no-op.
+      if (myRegions.length > 50) {
+        myRegions.sort((a, b) =>
+          (this._tilesByRegion[b]?.length ?? 0) - (this._tilesByRegion[a]?.length ?? 0));
+        myRegions.length = 50;
+      }
+
+      // Connectivity: union-find via the static region-adjacency graph
+      // restricted to this player's dominant regions.
+      const parent = new Map<number, number>();
+      const find = (x: number): number => {
+        let cur = x;
+        while (parent.get(cur)! !== cur) cur = parent.get(cur)!;
+        // Path compression
+        let n = x;
+        while (parent.get(n)! !== cur) { const p2 = parent.get(n)!; parent.set(n, cur); n = p2; }
+        return cur;
+      };
+      for (const r of myRegions) parent.set(r, r);
+      for (const r of myRegions) {
+        const adj = this._regionAdjacency[r];
+        if (!adj) continue;
+        for (const nr of adj) {
+          if (parent.has(nr)) {
+            const ra = find(r), rb = find(nr);
+            if (ra !== rb) parent.set(ra, rb);
+          }
+        }
+      }
+
+      // Bucket regions into components.
+      const components = new Map<number, number[]>();
+      for (const r of myRegions) {
+        const root = find(r);
+        let bucket = components.get(root);
+        if (!bucket) { bucket = []; components.set(root, bucket); }
+        bucket.push(r);
+      }
+
+      // For each component with ≥2 regions, build the MST.
+      for (const component of components.values()) {
+        if (component.length < 2) continue;
+
+        // Edge list: all pairs, weighted by centroid distance.
+        const edges: { a: number; b: number; w: number }[] = [];
+        for (let i = 0; i < component.length; i++) {
+          for (let j = i + 1; j < component.length; j++) {
+            const a = component[i]!;
+            const b = component[j]!;
+            const ax = this._regionCentroids[a * 2]!;
+            const ay = this._regionCentroids[a * 2 + 1]!;
+            const bx = this._regionCentroids[b * 2]!;
+            const by = this._regionCentroids[b * 2 + 1]!;
+            const dx = ax - bx, dy = ay - by;
+            edges.push({ a, b, w: Math.sqrt(dx * dx + dy * dy) });
+          }
+        }
+        edges.sort((p, q) => p.w - q.w);
+
+        // Kruskal: separate union-find for the MST being built.
+        const mstParent = new Map<number, number>();
+        const mstFind = (x: number): number => {
+          let cur = x;
+          while (mstParent.get(cur)! !== cur) cur = mstParent.get(cur)!;
+          return cur;
+        };
+        for (const r of component) mstParent.set(r, r);
+        let added = 0;
+        const target = component.length - 1;
+        for (const e of edges) {
+          if (added >= target) break;
+          const ra = mstFind(e.a), rb = mstFind(e.b);
+          if (ra === rb) continue;
+          mstParent.set(ra, rb);
+          // Snapshot the route.
+          const tilesA = this._tilesByRegion[e.a]?.length ?? 1;
+          const tilesB = this._tilesByRegion[e.b]?.length ?? 1;
+          const baseFlow = Math.sqrt(tilesA * tilesB) * 0.002;
+          const distBonus = Math.sqrt(e.w) * 0.05;
+          this.tradeRoutes.push({
+            ownerId: pid,
+            regionA: e.a, regionB: e.b,
+            flow: baseFlow + distBonus,
+            distance: e.w,
+            ax: this._regionCentroids[e.a * 2]!,
+            ay: this._regionCentroids[e.a * 2 + 1]!,
+            bx: this._regionCentroids[e.b * 2]!,
+            by: this._regionCentroids[e.b * 2 + 1]!,
+          });
+          added++;
+        }
+      }
+    }
+  }
+
+  /** Per-tick: pour each trade route's flow into its owner's treasury,
+   *  but validate the route is still live first — if a region has lost
+   *  dominance to someone else since the last rescan, the route silently
+   *  prunes itself instead of paying the wrong player. */
+  private _applyTradeFlow(): void {
+    const routes = this.tradeRoutes;
+    for (let i = routes.length - 1; i >= 0; i--) {
+      const route = routes[i]!;
+      const owner = this.players[route.ownerId];
+      if (!owner || !owner.alive) { routes.splice(i, 1); continue; }
+      if (this._regionDominant[route.regionA] !== route.ownerId
+       || this._regionDominant[route.regionB] !== route.ownerId) {
+        routes.splice(i, 1);
+        continue;
+      }
+      owner.treasury += route.flow;
+    }
+  }
+
   private _expireHumanTargets(): void {
     const expiry = this.config.HUMAN_TARGET_EXPIRY_TICKS;
     if (expiry <= 0) return;

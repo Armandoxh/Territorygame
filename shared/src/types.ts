@@ -34,6 +34,26 @@ export interface Ship {
 export type ShipBuildError =
   | 'gold' | 'dead' | 'oob' | 'bad-type' | 'not-coastal' | 'no-water' | 'cap' | 'locked';
 
+/** Internal vassal-to-vassal trade route (Phase 2 of the trade empire
+ *  overhaul). Auto-established between any two of an owner's connected
+ *  dominant regions, picked as the MST edges of the connected component
+ *  so the count stays bounded (~N-1 routes per N vassals).
+ *
+ *  Centroid coords are snapshotted at scan time so the renderer doesn't
+ *  have to look them up per frame. Treasury flow is added per tick to
+ *  the route's owner. */
+export interface TradeRoute {
+  ownerId: PlayerId;
+  regionA: number;
+  regionB: number;
+  /** Treasury gold per tick this route generates. */
+  flow: number;
+  /** Cached centroid distance for the visualisation + diagnostics. */
+  distance: number;
+  ax: number; ay: number;
+  bx: number; by: number;
+}
+
 /** A bomber in flight. Spawned by dropBomb; flies from an airstrip toward
  *  the target tile at PLANE_SPEED tiles/tick. On arrival it detonates
  *  (radius damage); along the way enemy AA buildings can shoot it down. */

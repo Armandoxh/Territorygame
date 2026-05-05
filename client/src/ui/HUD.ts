@@ -16,6 +16,8 @@ export class HUD {
     troops:       this._byId('my-troops'),
     gold:         this._byId('my-gold'),
     treasury:     this._byId('my-treasury'),
+    routes:       this._byId('my-routes'),
+    tradeFlow:    this._byId('my-trade-flow'),
     masteryBadge: this._byId('my-mastery'),
     dot:          this._byId('my-dot'),
     enemies:      this._byId('enemies'),
@@ -356,6 +358,18 @@ export class HUD {
     if (this.el.troops) this.el.troops.textContent = formatTroops(me.troops);
     if (this.el.gold)     this.el.gold.textContent     = String(Math.floor(me.gold));
     if (this.el.treasury) this.el.treasury.textContent = String(Math.floor(me.treasury));
+    if (this.el.routes) {
+      let n = 0;
+      for (const r of this.game.tradeRoutes) if (r.ownerId === me.id) n++;
+      this.el.routes.textContent = String(n);
+    }
+    if (this.el.tradeFlow) {
+      const flowPerTick = this.game.tradeFlowFor(me.id);
+      const flowPerSec = flowPerTick * this.game.config.SIM_HZ;
+      this.el.tradeFlow.textContent = flowPerSec >= 0.05
+        ? `+${flowPerSec.toFixed(1)}/s`
+        : 'routes';
+    }
     if (this.el.masteryBadge) {
       const mb = this.el.masteryBadge;
       mb.classList.remove('ground', 'air', 'naval', 'unset');

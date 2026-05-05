@@ -5,6 +5,7 @@ import { OverlayLayer } from './OverlayLayer.js';
 import { ShipsLayer } from './ShipsLayer.js';
 import { PlanesLayer } from './PlanesLayer.js';
 import { FogLayer } from './FogLayer.js';
+import { TradeLayer } from './TradeLayer.js';
 import { StageGradeFilter } from './StageGradeFilter.js';
 
 export interface RendererOptions {
@@ -32,6 +33,7 @@ export class Renderer {
   readonly ships!: ShipsLayer;
   readonly planes!: PlanesLayer;
   readonly fog!: FogLayer;
+  readonly trade!: TradeLayer;
   private readonly _stageGrade: StageGradeFilter;
   readonly opts: RendererOptions;
 
@@ -127,6 +129,12 @@ export class Renderer {
     (this as { fog: FogLayer }).fog = new FogLayer(game, this);
     this.world.addChild(this.fog.sprite);
 
+    // Trade route lines live in world space above the fog so they
+    // remain visible across owned territory. Hidden enemy routes also
+    // draw but get clipped by the fog overlay above the territory layer.
+    (this as { trade: TradeLayer }).trade = new TradeLayer(game);
+    this.world.addChild(this.trade.container);
+
     this.overlay = new OverlayLayer(game, this);
     // World-space layers (target-region highlight) pan + zoom with the camera.
     this.world.addChild(this.overlay.worldContainer);
@@ -218,6 +226,7 @@ export class Renderer {
     this._maybeRebuildOutlines();
     this._maybeRebuildFortifications();
     this.fog.update();
+    this.trade.update(now);
     this.overlay.update(now);
     this.ships.update(now);
     this.planes.update(now);
