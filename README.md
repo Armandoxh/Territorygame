@@ -42,3 +42,7 @@ GitHub Pages is configured to serve from this branch's `/docs` folder. Each `npm
 | `?ai=N`     | Number of AI opponents (1–254)          |
 | `?seed=N`   | Fixed terrain seed                      |
 | `?w=N&h=N`  | Map size (default 384×384)              |
+
+## Roadmap
+
+A trade-empire overhaul is planned. See [`OVERHAUL.md`](./OVERHAUL.md) for the design doc — slowed pacing, auto vassal-to-vassal trade routes, cross-continent sea trade, and naval interception as economic warfare.
