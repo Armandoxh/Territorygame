@@ -98,6 +98,11 @@ export class HUD {
   private buildSheetCoord: { x: number; y: number } | null = null;
   private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement; intel: HTMLElement }>();
   private cmdActiveBranch: DecreeBranch = 'economy';
+  /** Diplomacy panel: hide "Other Nations" (peaceful, no relationship)
+   *  by default so the panel reads as "your active relationships and
+   *  requests" without scrolling past 50 names of strangers. Toggle
+   *  via the "Show all" button at the bottom. */
+  private diploShowAll = false;
   private cmdMode: CmdMode = 'abilities';
   private _cmdLastSig = '';
   private _lastBuyAt = 0;
@@ -1197,7 +1202,8 @@ export class HUD {
     // Signature includes section assignment so the DOM rebuilds when
     // a player switches buckets (alliance formed/broken, war declared,
     // peace signed). Per-frame field updates handle the rest.
-    const sig = `a:${allies.join(',')}|w:${wars.join(',')}|o:${others.join(',')}`;
+    // Show-all toggle also goes in the sig so flipping it rebuilds.
+    const sig = `a:${allies.join(',')}|w:${wars.join(',')}|o:${others.join(',')}|all:${this.diploShowAll ? 1 : 0}`;
     if (list.dataset['sig'] !== sig) {
       list.dataset['sig'] = sig;
       list.innerHTML = '';
@@ -1246,9 +1252,34 @@ export class HUD {
         addHeader('AT WAR', wars.length, 'wars');
         for (const id of wars) renderRow(id, 'war');
       }
+      if (allies.length === 0 && wars.length === 0 && !this.diploShowAll) {
+        const empty = document.createElement('p');
+        empty.className = 'diplo-empty';
+        empty.textContent = 'No active alliances or wars yet. Long-press an enemy region to propose a trade alliance.';
+        list.appendChild(empty);
+      }
+      // "Other Nations" section — peace neighbors with no active deals.
+      // Hidden by default to keep the panel focused on your real
+      // relationships; toggleable so you can still find someone to
+      // propose an alliance to from inside the panel.
       if (others.length > 0) {
-        addHeader('OTHER NATIONS', others.length, 'others');
-        for (const id of others) renderRow(id, 'other');
+        if (this.diploShowAll) {
+          addHeader('OTHER NATIONS', others.length, 'others');
+          for (const id of others) renderRow(id, 'other');
+        }
+        const toggle = document.createElement('button');
+        toggle.className = 'diplo-act diplo-show-all';
+        toggle.type = 'button';
+        toggle.textContent = this.diploShowAll
+          ? `Hide Other Nations`
+          : `Show ${others.length} Other Nation${others.length === 1 ? '' : 's'}`;
+        toggle.addEventListener('click', () => {
+          this.diploShowAll = !this.diploShowAll;
+          // Force DOM rebuild on next render.
+          if (this.el.diploList) this.el.diploList.dataset['sig'] = '';
+          this._renderDiplomacy();
+        });
+        list.appendChild(toggle);
       }
     }
 
