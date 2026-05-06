@@ -552,6 +552,7 @@ html, body {
   padding: 2px 6px; border-radius: 999px;
 }
 .diplo-tag.ally { background: rgba(85,200,110,0.18); color: #55c86e; }
+.diplo-tag.route { background: rgba(234,199,104,0.18); color: #eac768; }
 .diplo-tag.embargo { background: rgba(232,74,74,0.18); color: #e84a4a; }
 .diplo-node .dn-intel { font-style: normal; font-size: 11px; opacity: 0.6; }
 .dn-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }

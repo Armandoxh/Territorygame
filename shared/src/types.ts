@@ -54,6 +54,20 @@ export interface TradeRoute {
   bx: number; by: number;
 }
 
+/** External trade route (Phase 3) — a deal between two ALLIED players.
+ *  Both sides earn `flow` gold per tick into their treasury. Hard-gated
+ *  on alliance: the route is auto-broken the moment the alliance ends.
+ *  Endpoints snapshot each player's largest dominant region centroid
+ *  (re-snapshotted on the same cadence as internal routes). */
+export interface ExternalTradeRoute {
+  a: PlayerId;
+  b: PlayerId;
+  /** Per-tick gold flow added to BOTH sides' treasury. */
+  flow: number;
+  ax: number; ay: number;
+  bx: number; by: number;
+}
+
 /** A bomber in flight. Spawned by dropBomb; flies from an airstrip toward
  *  the target tile at PLANE_SPEED tiles/tick. On arrival it detonates
  *  (radius damage); along the way enemy AA buildings can shoot it down. */
@@ -152,7 +166,9 @@ export type GameEvent =
   | { type: 'ability-fired';    abilityId: string; ownerId: PlayerId; targetId?: PlayerId }
   | { type: 'alliance-formed';  a: PlayerId; b: PlayerId }
   | { type: 'alliance-broken';  a: PlayerId; b: PlayerId; brokenBy: PlayerId }
-  | { type: 'trade-completed';  fromId: PlayerId; toId: PlayerId; gold: number; troops: number };
+  | { type: 'trade-completed';  fromId: PlayerId; toId: PlayerId; gold: number; troops: number }
+  | { type: 'trade-route-formed'; a: PlayerId; b: PlayerId }
+  | { type: 'trade-route-broken'; a: PlayerId; b: PlayerId; brokenBy: PlayerId };
 
 export type RGBA = readonly [number, number, number, number];
 

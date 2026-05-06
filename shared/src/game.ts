@@ -4,7 +4,7 @@ import type {
   GameOutcome, BuildError, BombError, Point,
   Ship, ShipKind, ShipBuildError,
   Plane,
-  TradeRoute,
+  TradeRoute, ExternalTradeRoute,
 } from './types.js';
 import { TERRAIN_LAND } from './types.js';
 import { Territory } from './territory.js';
@@ -38,6 +38,13 @@ export class Game {
    *  every TRADE_RESCAN_TICKS via union-find connectivity + MST per
    *  component. Each route adds `flow` to its owner's treasury per tick. */
   readonly tradeRoutes: TradeRoute[] = [];
+  /** Active external trade routes between allied players (Phase 3). Both
+   *  sides earn `flow` per tick. Pruned automatically when either side
+   *  dies or the alliance ends. */
+  readonly externalTradeRoutes: ExternalTradeRoute[] = [];
+  /** When each AI last considered proposing a trade route. Tick-throttled
+   *  so AI doesn't hammer accept logic every tick. */
+  private _aiTradeProposeAt = new Map<PlayerId, number>();
   private _tradeRouteRescanAt = 0;
   /** Centroid cache: `_regionCentroids[r*2 + 0/1]` = x/y in tile-space.
    *  Computed once at terrain init since regions are static partitions. */
@@ -569,6 +576,7 @@ export class Game {
       this._rescanTradeRoutes();
       this._tradeRouteRescanAt = this.tickCount + 30; // every 3s
     }
+    this._aiOfferTradeRoutes();
     this._applyTradeFlow();
     this._earnGoldAll();
     this._growTroops();
@@ -1340,12 +1348,14 @@ export class Game {
     return 'accepted';
   }
 
-  /** End an alliance early. */
+  /** End an alliance early. Auto-cancels any external trade route the
+   *  pair shared, since trade is hard-gated on alliance. */
   breakAlliance(byId: PlayerId, otherId: PlayerId): boolean {
     const key = this._allianceKey(byId, otherId);
     if (!this._alliances.has(key)) return false;
     this._alliances.delete(key);
     this.events.push({ type: 'alliance-broken', a: byId, b: otherId, brokenBy: byId });
+    this._dropTradeRouteBetween(byId, otherId, byId);
     return true;
   }
 
@@ -1361,6 +1371,116 @@ export class Game {
       else if (b === playerId) out.push(a);
     }
     return out;
+  }
+
+  /** Per-tick AI diplomacy: every 50 ticks (~5s), each alive AI looks at
+   *  its allies and proposes a trade route to any it doesn't already
+   *  share one with. The other side auto-accepts (allies always accept;
+   *  it's mutual income with the alliance gating the downside). */
+  private _aiOfferTradeRoutes(): void {
+    if ((this.tickCount % 50) !== 0) return;
+    for (let pid = 2; pid < this.players.length; pid++) {
+      const p = this.players[pid];
+      if (!p || !p.alive) continue;
+      const last = this._aiTradeProposeAt.get(pid) ?? 0;
+      if (this.tickCount - last < 50) continue;
+      this._aiTradeProposeAt.set(pid, this.tickCount);
+      const allies = this.alliesOf(pid);
+      if (allies.length === 0) continue;
+      for (const otherId of allies) {
+        // Skip if we already have a route or the other side is the human
+        // (humans must explicitly accept via the diplomacy panel — but
+        // the human side proposes, AI accepts, so this branch is just
+        // AI-AI proposal). For AI→human, we just leave it for the
+        // human to propose.
+        if (this.externalTradeRouteBetween(pid, otherId)) continue;
+        const other = this.players[otherId];
+        if (!other || other.isHuman) continue;
+        this.proposeTradeRoute(pid, otherId);
+      }
+    }
+  }
+
+  // --- External trade routes (Phase 3) ---------------------------------
+
+  /** Returns the active external trade route between two players, or null. */
+  externalTradeRouteBetween(a: PlayerId, b: PlayerId): ExternalTradeRoute | null {
+    if (a === b) return null;
+    for (const r of this.externalTradeRoutes) {
+      if ((r.a === a && r.b === b) || (r.a === b && r.b === a)) return r;
+    }
+    return null;
+  }
+
+  /** Anchor centroid for a player's trade route — picks their largest
+   *  dominant region's centroid. Returns null if the player has no
+   *  dominant regions (rare, basically dead). */
+  private _tradeAnchorFor(playerId: PlayerId): { x: number; y: number } | null {
+    let bestR = 0, bestSize = 0;
+    for (let r = 1; r <= this.regionCount; r++) {
+      if (this._regionDominant[r] !== playerId) continue;
+      const sz = this._tilesByRegion[r]?.length ?? 0;
+      if (sz > bestSize) { bestSize = sz; bestR = r; }
+    }
+    if (bestR === 0) return null;
+    return {
+      x: this._regionCentroids[bestR * 2]!,
+      y: this._regionCentroids[bestR * 2 + 1]!,
+    };
+  }
+
+  /** Per-tick income for an external route. Spec: 0.005 × min(tilesA, tilesB).
+   *  Capped at 5g/tick so a runaway empire doesn't print money via routes. */
+  private _externalTradeFlow(a: PlayerId, b: PlayerId): number {
+    const ta = this.territory.counts[a] ?? 0;
+    const tb = this.territory.counts[b] ?? 0;
+    const raw = 0.005 * Math.min(ta, tb);
+    return Math.min(5, raw);
+  }
+
+  /** Propose an external trade route from `fromId` to `toId`. Hard-gated
+   *  on alliance — if the two aren't allied, returns 'no-alliance'. AI
+   *  always accepts (mutual benefit). Returns 'accepted' on success. */
+  proposeTradeRoute(fromId: PlayerId, toId: PlayerId):
+    'accepted' | 'rejected' | 'invalid' | 'already' | 'no-alliance' {
+    if (fromId === toId) return 'invalid';
+    const a = this.players[fromId];
+    const b = this.players[toId];
+    if (!a || !a.alive || !b || !b.alive) return 'invalid';
+    if (!this.areAllied(fromId, toId)) return 'no-alliance';
+    if (this.externalTradeRouteBetween(fromId, toId)) return 'already';
+    const anchorA = this._tradeAnchorFor(fromId);
+    const anchorB = this._tradeAnchorFor(toId);
+    if (!anchorA || !anchorB) return 'invalid';
+    // AI always accepts: it's strictly mutual income with no downside
+    // beyond being tied to the alliance, which both already agreed to.
+    if (b.isHuman) return 'rejected';
+    this.externalTradeRoutes.push({
+      a: fromId, b: toId,
+      flow: this._externalTradeFlow(fromId, toId),
+      ax: anchorA.x, ay: anchorA.y,
+      bx: anchorB.x, by: anchorB.y,
+    });
+    this.events.push({ type: 'trade-route-formed', a: fromId, b: toId });
+    return 'accepted';
+  }
+
+  /** End a trade route early (alliance stays). */
+  breakTradeRoute(byId: PlayerId, otherId: PlayerId): boolean {
+    return this._dropTradeRouteBetween(byId, otherId, byId);
+  }
+
+  private _dropTradeRouteBetween(a: PlayerId, b: PlayerId, brokenBy: PlayerId): boolean {
+    let dropped = false;
+    for (let i = this.externalTradeRoutes.length - 1; i >= 0; i--) {
+      const r = this.externalTradeRoutes[i]!;
+      if ((r.a === a && r.b === b) || (r.a === b && r.b === a)) {
+        this.externalTradeRoutes.splice(i, 1);
+        this.events.push({ type: 'trade-route-broken', a, b, brokenBy });
+        dropped = true;
+      }
+    }
+    return dropped;
   }
 
   // --- Trade ------------------------------------------------------------
@@ -2074,6 +2194,23 @@ export class Game {
    *  dominated by the O(n²) edge list and trivial in practice. */
   private _rescanTradeRoutes(): void {
     this.tradeRoutes.length = 0;
+    // Re-snapshot external routes' anchor centroids + flow. Cheap —
+    // there are at most a handful of routes — and it keeps the line
+    // attached to each side's current largest region rather than the
+    // one they had at proposal time.
+    for (let i = this.externalTradeRoutes.length - 1; i >= 0; i--) {
+      const r = this.externalTradeRoutes[i]!;
+      const aA = this._tradeAnchorFor(r.a);
+      const aB = this._tradeAnchorFor(r.b);
+      if (!aA || !aB) {
+        this.externalTradeRoutes.splice(i, 1);
+        this.events.push({ type: 'trade-route-broken', a: r.a, b: r.b, brokenBy: 0 });
+        continue;
+      }
+      r.ax = aA.x; r.ay = aA.y;
+      r.bx = aB.x; r.by = aB.y;
+      r.flow = this._externalTradeFlow(r.a, r.b);
+    }
 
     for (let pid = 1; pid < this.players.length; pid++) {
       const p = this.players[pid];
@@ -2185,7 +2322,11 @@ export class Game {
   /** Per-tick: pour each trade route's flow into its owner's treasury,
    *  but validate the route is still live first — if a region has lost
    *  dominance to someone else since the last rescan, the route silently
-   *  prunes itself instead of paying the wrong player. */
+   *  prunes itself instead of paying the wrong player.
+   *
+   *  Also handles external (cross-player) trade routes: both sides earn
+   *  flow; routes prune themselves if the alliance has ended or either
+   *  side is dead. */
   private _applyTradeFlow(): void {
     const routes = this.tradeRoutes;
     for (let i = routes.length - 1; i >= 0; i--) {
@@ -2198,6 +2339,25 @@ export class Game {
         continue;
       }
       owner.treasury += route.flow;
+    }
+
+    const ext = this.externalTradeRoutes;
+    for (let i = ext.length - 1; i >= 0; i--) {
+      const r = ext[i]!;
+      const a = this.players[r.a];
+      const b = this.players[r.b];
+      if (!a || !a.alive || !b || !b.alive) {
+        ext.splice(i, 1);
+        this.events.push({ type: 'trade-route-broken', a: r.a, b: r.b, brokenBy: 0 });
+        continue;
+      }
+      if (!this.areAllied(r.a, r.b)) {
+        ext.splice(i, 1);
+        this.events.push({ type: 'trade-route-broken', a: r.a, b: r.b, brokenBy: 0 });
+        continue;
+      }
+      a.treasury += r.flow;
+      b.treasury += r.flow;
     }
   }
 

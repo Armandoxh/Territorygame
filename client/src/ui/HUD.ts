@@ -1108,6 +1108,8 @@ export class HUD {
       else if (action === 'alliance')  this._proposeAlliance(pid);
       else if (action === 'break')     this._breakAlliance(pid);
       else if (action === 'embargo')   this._fireAbility('embargo', pid);
+      else if (action === 'route')     this._proposeTradeRoute(pid);
+      else if (action === 'route-end') this._breakTradeRoute(pid);
     });
 
     // Trade sheet wiring
@@ -1178,12 +1180,14 @@ export class HUD {
             <span class="dn-name">${p.name}</span>
             <span class="mastery-badge ${m}" style="margin-left:auto">${m.toUpperCase()}</span>
             <span class="diplo-tag ally" style="display:none"></span>
+            <span class="diplo-tag route" style="display:none"></span>
             <span class="diplo-tag embargo" style="display:none"></span>
           </div>
           <i class="dn-intel"></i>
           <div class="dn-actions">
             <button class="diplo-act" data-action="trade"    data-target="${id}" type="button">Trade</button>
             <button class="diplo-act ally-btn" data-action="alliance" data-target="${id}" type="button">Propose Alliance</button>
+            <button class="diplo-act route-btn" data-action="route" data-target="${id}" type="button" style="display:none">Trade Route</button>
             <button class="diplo-act embargo-btn" data-action="embargo" data-target="${id}" type="button">Embargo</button>
           </div>
         `;
@@ -1240,6 +1244,38 @@ export class HUD {
           allyBtn.disabled = false;
         }
       }
+      // Trade route: only available between allies. Shows current
+      // per-tick flow when active so the player sees the income.
+      const route = this.game.externalTradeRouteBetween(1, id);
+      const routeTag = row.querySelector<HTMLElement>('.diplo-tag.route');
+      if (routeTag) {
+        if (route) {
+          routeTag.style.display = '';
+          // flow is per-tick; ×SIM_HZ → per-second readout. Both sides
+          // earn this independently, so the tag shows the per-second
+          // figure for the human side.
+          const perSec = route.flow * this.game.config.SIM_HZ;
+          routeTag.textContent = `ROUTE · +${perSec.toFixed(1)}♛/s`;
+        } else {
+          routeTag.style.display = 'none';
+        }
+      }
+      const routeBtn = row.querySelector<HTMLButtonElement>('.route-btn');
+      if (routeBtn) {
+        if (allied && route) {
+          routeBtn.style.display = '';
+          routeBtn.dataset['action'] = 'route-end';
+          routeBtn.textContent = 'End Trade Route';
+          routeBtn.disabled = false;
+        } else if (allied) {
+          routeBtn.style.display = '';
+          routeBtn.dataset['action'] = 'route';
+          routeBtn.textContent = 'Open Trade Route';
+          routeBtn.disabled = false;
+        } else {
+          routeBtn.style.display = 'none';
+        }
+      }
       const embBtn = row.querySelector<HTMLButtonElement>('.embargo-btn');
       if (embBtn) {
         embBtn.disabled = embCooling || !canAffordEmb || embargoed || allied;
@@ -1261,6 +1297,24 @@ export class HUD {
 
   private _breakAlliance(targetId: PlayerId): void {
     if (this.game.breakAlliance(1, targetId)) this.toast('Alliance broken');
+    this._renderDiplomacy();
+  }
+
+  private _proposeTradeRoute(targetId: PlayerId): void {
+    const r = this.game.proposeTradeRoute(1, targetId);
+    if (r === 'accepted') {
+      const route = this.game.externalTradeRouteBetween(1, targetId);
+      const perSec = route ? route.flow * this.game.config.SIM_HZ : 0;
+      this.toast(`Trade route opened · +${perSec.toFixed(1)}♛/s`);
+    } else if (r === 'rejected')   this.toast('They rejected the route');
+    else if (r === 'no-alliance')  this.toast('Need an alliance first');
+    else if (r === 'already')      this.toast('Route already active');
+    else                           this.toast('Cannot open route');
+    this._renderDiplomacy();
+  }
+
+  private _breakTradeRoute(targetId: PlayerId): void {
+    if (this.game.breakTradeRoute(1, targetId)) this.toast('Trade route closed');
     this._renderDiplomacy();
   }
 
