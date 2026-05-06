@@ -112,6 +112,17 @@ async function boot(): Promise<void> {
     onLongPress: (wx, wy) => {
       if (game.outcome) return;
       if (!game.territory.inBounds(wx, wy)) return;
+      // If the long-press lands on enemy territory, treat it as a quick
+      // trade-alliance gesture: propose alliance + open trade route in
+      // one action. Long-press on your own / neutral land still opens
+      // the build sheet.
+      const tx = Math.floor(wx);
+      const ty = Math.floor(wy);
+      const owner = game.territory.getOwner(tx, ty);
+      if (owner > 0 && owner !== 1) {
+        hud.quickProposeTradeAlliance(owner);
+        return;
+      }
       hud.showBuildSheet(wx, wy);
     },
     onTripleTapCorner: () => hud.toggleDebug(),

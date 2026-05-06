@@ -1450,13 +1450,26 @@ export class Game {
     };
   }
 
-  /** Per-tick income for an external route. Spec: 0.005 × min(tilesA, tilesB).
-   *  Capped at 5g/tick so a runaway empire doesn't print money via routes. */
+  /** Per-tick income for an external route. Spec: 100g per 20s per
+   *  "land block" — interpreted as a region. Both sides earn equally
+   *  (mutual benefit), scaled by the smaller side's dominant-region
+   *  count so trading partners must each commit some land. At SIM_HZ=10
+   *  that's 0.5 g/tick per region. Capped so a runaway empire can't
+   *  print absurd amounts via one route. */
   private _externalTradeFlow(a: PlayerId, b: PlayerId): number {
-    const ta = this.territory.counts[a] ?? 0;
-    const tb = this.territory.counts[b] ?? 0;
-    const raw = 0.005 * Math.min(ta, tb);
-    return Math.min(5, raw);
+    let regA = 0, regB = 0;
+    for (let r = 1; r <= this.regionCount; r++) {
+      const dom = this._regionDominant[r];
+      if (dom === a) regA++;
+      else if (dom === b) regB++;
+    }
+    const minRegions = Math.min(regA, regB);
+    if (minRegions <= 0) return 0;
+    // 100g / 20s / region = 5g/s/region. At SIM_HZ ticks per second
+    // that's 0.5 / SIM_HZ × 10 = 0.5 g/tick/region (when SIM_HZ=10).
+    const perTickPerRegion = 5 / this.config.SIM_HZ;
+    const flow = perTickPerRegion * minRegions;
+    return Math.min(15, flow); // hard cap = 15g/tick = 150g/s
   }
 
   /** Propose an external trade route from `fromId` to `toId`. Hard-gated

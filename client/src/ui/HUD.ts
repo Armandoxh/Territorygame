@@ -1328,6 +1328,56 @@ export class HUD {
     this._renderDiplomacy();
   }
 
+  /** Long-press shortcut: propose alliance + open trade route in one
+   *  action. If the target is already an ally we just open the route;
+   *  if both already exist we no-op with a friendly toast. Triggered by
+   *  long-pressing on enemy land. */
+  quickProposeTradeAlliance(targetId: PlayerId): void {
+    if (targetId === 1 || targetId <= 0) return;
+    const target = this.game.players[targetId];
+    if (!target || !target.alive) return;
+
+    const alreadyAllied = this.game.areAllied(1, targetId);
+    const route = this.game.externalTradeRouteBetween(1, targetId);
+
+    if (alreadyAllied && route) {
+      const perSec = route.flow * this.game.config.SIM_HZ;
+      this.toast(`Already trading with ${target.name} · +${perSec.toFixed(1)}♛/s`);
+      this.showDiplomacy();
+      return;
+    }
+
+    if (!alreadyAllied) {
+      const ally = this.game.proposeAlliance(1, targetId);
+      if (ally === 'rejected') {
+        this.toast(`${target.name} rejected the alliance`);
+        return;
+      }
+      if (ally !== 'accepted' && ally !== 'already') {
+        this.toast('Cannot propose alliance');
+        return;
+      }
+    }
+
+    // Alliance is in place. Open the trade route.
+    if (!route) {
+      const tr = this.game.proposeTradeRoute(1, targetId);
+      if (tr === 'accepted') {
+        const r2 = this.game.externalTradeRouteBetween(1, targetId);
+        const perSec = r2 ? r2.flow * this.game.config.SIM_HZ : 0;
+        this.toast(`Trade alliance with ${target.name} · +${perSec.toFixed(1)}♛/s both sides`);
+        if (navigator.vibrate) try { navigator.vibrate(20); } catch { /* ignore */ }
+      } else if (tr === 'rejected') {
+        this.toast(`Allied with ${target.name} but they declined the route`);
+      } else {
+        this.toast('Could not open trade route');
+      }
+    } else {
+      this.toast(`Alliance with ${target.name} formed (route already open)`);
+    }
+    if (this.el.diploPanel?.classList.contains('show')) this._renderDiplomacy();
+  }
+
   private _openTrade(targetId: PlayerId): void {
     this._tradeTargetId = targetId;
     const target = this.game.players[targetId];
