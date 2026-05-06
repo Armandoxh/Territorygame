@@ -121,6 +121,12 @@ export class Game {
    *  Drives the stalemate-breaker: sieged regions stop recovering
    *  morale and start bleeding it once the siege passes a grace period. */
   private _regionSiegeTicks!: Uint16Array;
+  /** Per-region "morale at floor" counter — increments while morale is
+   *  pinned at the 0.20 floor. Once this exceeds MORALE_COLLAPSE_GRACE,
+   *  the region starts defecting tiles to the strongest besieger every
+   *  few ticks. The endgame stalemate breaker: fortify all you want,
+   *  but a sustained siege eventually cracks the region. */
+  private _regionFloorTicks!: Uint16Array;
   /** Sum of settlement levels per owner. Updated incrementally on
    *  build/upgrade/destroy/consolidate so per-tick troop growth and
    *  combat-power math don't have to scan all buildings. */
@@ -321,6 +327,7 @@ export class Game {
     this._vassalGold = new Float32Array(this.regionCount + 1);
     this._regionMorale = new Float32Array(this.regionCount + 1).fill(1.0);
     this._regionSiegeTicks = new Uint16Array(this.regionCount + 1);
+    this._regionFloorTicks = new Uint16Array(this.regionCount + 1);
     this._settlementLevelsByRegion = new Float32Array((this.regionCount + 1) * 256);
     this._settlementLevelsByOwner.fill(0);
     this.regionNames = generateRegionNames(this.regionCount);
@@ -572,6 +579,7 @@ export class Game {
     this.tickCount++;
     this._expireHumanTargets();
     this._recoverMorale();
+    this._applyMoraleCollapse();
     if (this.tickCount >= this._tradeRouteRescanAt) {
       this._rescanTradeRoutes();
       this._tradeRouteRescanAt = this.tickCount + 30; // every 3s
@@ -1200,7 +1208,12 @@ export class Game {
     return (p.decreeStacks['free-market'] ?? 0) > 0 ? base * 0.5 : base;
   }
 
-  /** Vassal expansion boost taking Forced March into account. */
+  /** Expansion-rate boost from decrees + buffs that applies to BOTH
+   *  vassal-driven and leader-driven (manual) expansion. Forced March
+   *  stacks here are the player's primary expansion-power investment —
+   *  they should buff every push, not just autonomous ones, otherwise
+   *  the moment a player takes direct command their decree investment
+   *  silently turns off. */
   private _expansionBoostFor(p: Player): number {
     const stacks = p.decreeStacks['forced-march'] ?? 0;
     return this.config.VASSAL_EXPANSION_BOOST + 0.20 * stacks;
@@ -2408,6 +2421,7 @@ export class Game {
       }
     }
 
+    const floor = this._regionFloorTicks;
     for (let r = 1; r <= this.regionCount; r++) {
       const sieged = sieges[r]!;
       let v = m[r]!;
@@ -2420,6 +2434,78 @@ export class Game {
       } else {
         if (v < 1.0) m[r] = v + RECOVER > 1.0 ? 1.0 : v + RECOVER;
       }
+      // Track time spent pinned at floor morale. Drives the morale-
+      // collapse defection mechanic.
+      if (floor) {
+        if (m[r]! <= 0.22 && sieged > SIEGE_GRACE) {
+          floor[r] = floor[r]! >= 0xfffe ? 0xfffe : floor[r]! + 1;
+        } else if (floor[r]! > 0) {
+          // Recover floor-time twice as fast as it accumulates so a
+          // brief reprieve actually resets the collapse clock.
+          floor[r] = floor[r]! >= 2 ? floor[r]! - 2 : 0;
+        }
+      }
+    }
+  }
+
+  /** Stalemate breaker: once a region's morale has been pinned at the
+   *  0.20 floor for MORALE_COLLAPSE_GRACE ticks, its dominant defender
+   *  starts losing tiles to the strongest besieger on a regular cadence
+   *  — without anyone needing to win an expansion roll. The cracked
+   *  region literally hemorrhages soldiers to whoever's pressing hardest.
+   *
+   *  Picks a defender-owned frontier tile (adjacent to the besieger's
+   *  land) when possible so the bleed feels like the line being pushed
+   *  in, not random interior teleporting. */
+  private _applyMoraleCollapse(): void {
+    const MORALE_COLLAPSE_GRACE = 300;  // 30s of floor morale before defection
+    const DEFECT_INTERVAL       = 4;    // one tile per 4 ticks once collapsing
+    if ((this.tickCount % DEFECT_INTERVAL) !== 0) return;
+    const floor = this._regionFloorTicks;
+    if (!floor) return;
+    const W = this.territory.width;
+    const owners = this.territory.owners;
+    for (let r = 1; r <= this.regionCount; r++) {
+      if (floor[r]! < MORALE_COLLAPSE_GRACE) continue;
+      const dom = this._regionDominant[r] ?? 0;
+      if (dom <= 0) continue;
+
+      // Find the strongest besieger — the non-dominant owner with the
+      // most tiles in this region. They reap the defection.
+      const base = r * 256;
+      let bestId: PlayerId = 0, bestCount = 0;
+      for (let o = 1; o < 256; o++) {
+        if (o === dom) continue;
+        if (this.areAllied(dom, o)) continue;
+        const c = this._regionOwnedTiles[base + o] ?? 0;
+        if (c > bestCount) { bestCount = c; bestId = o; }
+      }
+      if (bestId === 0 || bestCount === 0) continue;
+
+      // Pick a defender-owned tile adjacent to the besieger so the flip
+      // looks like a frontline collapse, not a teleport. Fall back to
+      // any defender-owned tile if no clear frontline exists.
+      const tiles = this._tilesByRegion[r];
+      if (!tiles) continue;
+      let chosen = -1;
+      for (const i of tiles) {
+        if (owners[i] !== dom) continue;
+        const x = i % W, y = (i - x) / W;
+        if (
+          this.territory.getOwner(x - 1, y) === bestId ||
+          this.territory.getOwner(x + 1, y) === bestId ||
+          this.territory.getOwner(x, y - 1) === bestId ||
+          this.territory.getOwner(x, y + 1) === bestId
+        ) { chosen = i; break; }
+      }
+      if (chosen < 0) {
+        for (const i of tiles) {
+          if (owners[i] === dom) { chosen = i; break; }
+        }
+      }
+      if (chosen < 0) continue;
+      const cx = chosen % W, cy = (chosen - cx) / W;
+      this._claim(cx, cy, bestId);
     }
   }
 
@@ -2801,17 +2887,31 @@ export class Game {
       }
       if (effectiveTarget == null) continue;
 
-      // Gold for vassal-driven expansion comes out of the vassal region's
-      // own pool, not the leader's. Manual / leader-driven expansion pays
-      // from p.gold first, then falls back to treasury — same combined-
-      // ops budget builds use, so a direct command never stalls when the
-      // leader has gold sitting in treasury.
+      // Gold routing:
+      //   - Manual / leader-driven (incl. AI): pays from p.gold first,
+      //     falls back to treasury. Same combined-ops budget builds use.
+      //   - Vassal-driven (humans only): pays from the vassal's own pool
+      //     first, but if that's dry, drains a small amount from the
+      //     leader's TREASURY so a fortified vassal whose pool got eaten
+      //     by builds doesn't just stop pushing. Treasury fallback per
+      //     claim is capped at EXPANSION_COST_PER_CLAIM so this can't
+      //     drain the leader faster than direct manual pushes would.
       const useVassalGold = isVassalDriven && p.isHuman && tileRegion > 0;
-      const goldPool = (): number => useVassalGold
-        ? this._vassalGold[tileRegion]!
-        : p.gold + p.treasury;
+      const goldPool = (): number => {
+        if (useVassalGold) {
+          return (this._vassalGold[tileRegion] ?? 0) + p.treasury;
+        }
+        return p.gold + p.treasury;
+      };
       const spend = (n: number): void => {
-        if (useVassalGold) { this._vassalGold[tileRegion]! -= n; return; }
+        if (useVassalGold) {
+          const pool = this._vassalGold[tileRegion] ?? 0;
+          if (pool >= n) { this._vassalGold[tileRegion]! = pool - n; return; }
+          this._vassalGold[tileRegion]! = 0;
+          const remainder = n - pool;
+          p.treasury = Math.max(0, p.treasury - remainder);
+          return;
+        }
         if (p.gold >= n) { p.gold -= n; return; }
         const remainder = n - p.gold;
         p.gold = 0;
@@ -2820,17 +2920,17 @@ export class Game {
 
       if (goldPool() < this.config.EXPANSION_COST_PER_CLAIM) continue;
 
-      // Vassals push more eagerly than the player's manual orders. Forced
-      // March decree adds further boost on top. Rich AIs (gold > 1500)
-      // burn through their stockpile by pushing 60% harder — keeps the
-      // AI from sitting on a giant idle treasury.
-      let tileChance = isVassalDriven
-        ? baseChance * this._expansionBoostFor(p)
-        : baseChance;
+      // Decree-driven expansion boost (Forced March etc.) applies to
+      // BOTH vassal-driven and leader-driven pushes. The player's
+      // investment should pay off whether they're hands-off or actively
+      // commanding — otherwise 30 stacks of forced-march feels invisible
+      // the moment they tap a target.
+      let tileChance = baseChance * this._expansionBoostFor(p);
       // Focus mechanic (humans only): a single manual target gets the
-      // full FOCUS_BOOST applied; spreading across N targets divides
-      // the boost by N. Concentrating all attention on one front pushes
-      // ~3× faster than baseline, splitting it 3 ways pushes at baseline.
+      // full FOCUS_BOOST multiplier on top of the decree boost; spreading
+      // across N targets divides the boost by N. Stacks multiplicatively
+      // with forced-march — 30 stacks (7.2×) × focus (3×) = ~22× single-
+      // target push when the player commits everything to one front.
       if (!isVassalDriven && p.isHuman && manualTargets.length > 0) {
         tileChance *= this.config.MANUAL_FOCUS_BOOST / manualTargets.length;
       }
