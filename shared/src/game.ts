@@ -47,6 +47,10 @@ export class Game {
   tickCount: number;
   outcome: GameOutcome;
   private events: GameEvent[];
+  /** Monotonic counter bumped on any building add/remove/upgrade. Render
+   *  layers gate redraw signatures off this so they don't have to scan
+   *  `buildings` to detect change. */
+  buildingsVersion = 0;
 
   constructor(config: GameConfig) {
     this.config = config;
@@ -673,6 +677,7 @@ export class Game {
     }
     const b: Building = { x, y, owner: ownerId, type, level: 1 };
     this.buildings.push(b);
+    this.buildingsVersion++;
     if (type === 'settlement') {
       this._applySettlement(x, y, +1, this._settlementRadius(1));
       this._adjSettlementLevels(x, y, ownerId, +1);
@@ -707,6 +712,7 @@ export class Game {
       if (!this._chargeOps(owner, cost)) return 'gold';
     }
     b.level++;
+    this.buildingsVersion++;
     // Settlement gold-multiplier accounting: each tier adds one full
     // SETTLEMENT_BONUS unit at the level's current radius.
     if (b.type === 'settlement') {
@@ -2857,6 +2863,7 @@ export class Game {
         }
         if (b.type === 'turret') this._turretCacheDirty = true;
         this.buildings.splice(i, 1);
+        this.buildingsVersion++;
         this.events.push({ type: 'destroyed', buildingType: b.type, ownerId: b.owner });
       }
     }
@@ -2927,10 +2934,12 @@ export class Game {
       const idx = this.buildings.indexOf(c);
       if (idx >= 0) this.buildings.splice(idx, 1);
     }
+    this.buildingsVersion++;
 
     // Add the promoted building at the centroid.
     const promoted: Building = { x: cx, y: cy, owner: b.owner, type: b.type, level: lvl + 1 };
     this.buildings.push(promoted);
+    this.buildingsVersion++;
     if (b.type === 'settlement') {
       this._applySettlement(cx, cy, lvl + 1, this._settlementRadius(lvl + 1));
       this._adjSettlementLevels(cx, cy, b.owner, lvl + 1);

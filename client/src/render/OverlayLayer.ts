@@ -359,14 +359,18 @@ export class OverlayLayer {
   }
 
   private _drawBuildings(_now: number): void {
-    // Skip the redraw entirely when nothing visible has changed. Building
-    // icons live in screen space, so they need a redraw on camera/zoom
-    // change OR when the buildings array changes (length / level / owner).
-    // Without this gate we paint ~50 buildings × ~5 shapes every frame
-    // even when the player is sitting still — measurable on phones.
-    let levelSum = 0;
-    for (const b of this.game.buildings) levelSum += (b.level ?? 1) * 31 + b.owner;
-    const sig = `${this.game.buildings.length}.${levelSum}.${this.renderer.cameraX | 0}.${this.renderer.cameraY | 0}.${this.renderer.zoom.toFixed(2)}`;
+    // Per-region fog of war: hide every building whose region the human
+    // can't see. The shared visibility map already encodes the user's
+    // "tree depth" rule — own/border = full, one further hop = partial,
+    // beyond that = hidden. We skip hidden buildings entirely so late-game
+    // maps with thousands of distant settlements stop costing draw time.
+    const vis = this.game.visibilityForPlayer(1);
+    let visSum = 0;
+    for (let r = 1; r <= this.game.regionCount; r++) visSum += vis[r]!;
+    // Cheap O(1) change-detection: buildingsVersion bumps on every
+    // build/upgrade/destroy/consolidate, so we no longer need to scan
+    // `buildings` every frame just to detect "did anything change".
+    const sig = `${this.game.buildingsVersion}.${visSum}.${this.renderer.cameraX | 0}.${this.renderer.cameraY | 0}.${this.renderer.zoom.toFixed(2)}`;
     if (sig === this._bldsLastSig) return;
     this._bldsLastSig = sig;
 
@@ -376,6 +380,8 @@ export class OverlayLayer {
     const settleR = this.game.config.SETTLEMENT_RADIUS;
     const turretR = this.game.config.TURRET_RADIUS;
     const aaR     = this.game.config.AA_RADIUS;
+    const regions = this.game.regions;
+    const W = this.game.territory.width;
     // Late-game perf gate: when there are lots of buildings AND the
     // player is zoomed far out, skip the per-icon work for L1-L3
     // settlements (the bulk of the count). Bronze/silver/diamond stay
@@ -387,6 +393,8 @@ export class OverlayLayer {
     // Pass 1: faint coverage rings under the icons so players see what
     // their settlements / turrets / AA actually cover.
     for (const b of this.game.buildings) {
+      const r = regions[b.y * W + b.x]!;
+      if (vis[r] === 0) continue;
       if (cullSettlements && b.type === 'settlement' && (b.level ?? 1) <= 3) continue;
       const s = this._toScreen(b.x + 0.5, b.y + 0.5);
       const c = palette[b.owner];
@@ -413,6 +421,8 @@ export class OverlayLayer {
     // buildings render slightly larger and get gold dots above them so the
     // upgrade tier reads at a glance.
     for (const b of this.game.buildings) {
+      const reg = regions[b.y * W + b.x]!;
+      if (vis[reg] === 0) continue;
       // Same low-zoom cull as the coverage pass — skip L1-3 settlement
       // icons in late-game/zoomed-out scenes. Keeps frame work bounded
       // when there are thousands of them.
