@@ -524,9 +524,18 @@ export class Game {
       this._humanTargetSetAt.delete(r);
     } else {
       // Cooldown gate — can't re-target a region the human just lost
-      // dominance of for REGION_LOSS_COOLDOWN_TICKS.
+      // dominance of for REGION_LOSS_COOLDOWN_TICKS, but ONLY when an
+      // enemy actually holds the region now. If a bomb wiped us below
+      // dominance and the region is currently no-owner or back to us,
+      // the cooldown is a false positive (no yo-yo to prevent) — drop
+      // it and accept the tap.
       const cd = this._regionLossCooldown.get(`${r}.${p.id}`) ?? 0;
-      if (cd > this.tickCount) return 0;
+      if (cd > this.tickCount) {
+        const dom = this._regionDominant[r] ?? 0;
+        const enemyHolds = dom > 0 && dom !== p.id && !this.areAllied(p.id, dom);
+        if (enemyHolds) return 0;
+        this._regionLossCooldown.delete(`${r}.${p.id}`);
+      }
       p.targetRegions.push(r);
       this._humanTargetSetAt.set(r, this.tickCount);
     }
