@@ -69,6 +69,7 @@ export class HUD {
     masteryBlurb: this._byId('mastery-blurb'),
     masteryCancel:this._byId('mastery-cancel'),
     diploBtn:     this._byId('diplo-btn'),
+    diploBadge:   this._byId('diplo-badge'),
     diploPanel:   this._byId('diplomacy'),
     diploList:    this._byId('diplo-list'),
     diploCancel:  this._byId('diplo-cancel'),
@@ -441,6 +442,7 @@ export class HUD {
     if (this.el.diploPanel?.classList.contains('show')) this._renderDiplomacy();
     this._refreshLeaderBar();
     this._refreshWarInvite();
+    this._refreshDiploBadge();
     const spy = (me.decreeStacks['spy-network'] ?? 0) > 0;
     for (const [id, ref] of this.enemyEls) {
       const p = this.game.players[id];
@@ -1178,20 +1180,34 @@ export class HUD {
       list.dataset['empty'] = '0';
     }
 
-    // Structural rebuild only when the enemy set changes (rare). After
-    // that we mutate text/disabled/tag classes on existing nodes — keeps
-    // taps reliable and the DOM tree small per frame.
-    const sig = enemyIds.join(',');
+    // Bucket players by relationship so the panel reads at a glance:
+    // allies on top (you actually want to manage these), then anyone
+    // at war, then peace-and-neutral collapsed at the bottom. Without
+    // this the panel was just "AI 1 / AI 2 / AI 3..." with no way to
+    // tell who's who.
+    const allies: number[] = [];
+    const wars: number[] = [];
+    const others: number[] = [];
+    for (const id of enemyIds) {
+      if (this.game.areAllied(1, id))   allies.push(id);
+      else if (this.game.areAtWar(1, id)) wars.push(id);
+      else others.push(id);
+    }
+
+    // Signature includes section assignment so the DOM rebuilds when
+    // a player switches buckets (alliance formed/broken, war declared,
+    // peace signed). Per-frame field updates handle the rest.
+    const sig = `a:${allies.join(',')}|w:${wars.join(',')}|o:${others.join(',')}`;
     if (list.dataset['sig'] !== sig) {
       list.dataset['sig'] = sig;
       list.innerHTML = '';
-      for (const id of enemyIds) {
+      const renderRow = (id: number, kind: 'ally' | 'war' | 'other'): void => {
         const p = this.game.players[id]!;
         const c = palette[id];
         const tint = c ? `rgb(${c[0]},${c[1]},${c[2]})` : '#888';
         const m = p.mastery ?? 'ground';
         const row = document.createElement('div');
-        row.className = 'diplo-node';
+        row.className = `diplo-node section-${kind}`;
         row.dataset['enemy'] = String(id);
         row.innerHTML = `
           <div class="dn-head">
@@ -1214,6 +1230,25 @@ export class HUD {
           </div>
         `;
         list.appendChild(row);
+      };
+      const addHeader = (text: string, count: number, cls: string): void => {
+        const h = document.createElement('div');
+        h.className = `diplo-section-h ${cls}`;
+        h.textContent = `${text} · ${count}`;
+        list.appendChild(h);
+      };
+
+      if (allies.length > 0) {
+        addHeader('YOUR ALLIES', allies.length, 'allies');
+        for (const id of allies) renderRow(id, 'ally');
+      }
+      if (wars.length > 0) {
+        addHeader('AT WAR', wars.length, 'wars');
+        for (const id of wars) renderRow(id, 'war');
+      }
+      if (others.length > 0) {
+        addHeader('OTHER NATIONS', others.length, 'others');
+        for (const id of others) renderRow(id, 'other');
       }
     }
 
@@ -1430,23 +1465,48 @@ export class HUD {
 
   private _refreshWarInvite(): void {
     if (!this.el.warInvite) return;
+    // Drop any stale invites — inviter must currently be an ally and
+    // not already at war/allied with the target. Without this, a
+    // pending invite can outlive the alliance that produced it.
+    while (this.game.pendingWarInvites.length > 0) {
+      const inv = this.game.pendingWarInvites[0]!;
+      const inviter = this.game.players[inv.from];
+      const target = this.game.players[inv.target];
+      const stillAllied = this.game.areAllied(1, inv.from);
+      const validTarget = target && target.alive
+        && !this.game.areAllied(1, inv.target)
+        && !this.game.areAtWar(1, inv.target);
+      if (!inviter || !inviter.alive || !stillAllied || !validTarget) {
+        this.game.declineWarInvite(0);
+        continue;
+      }
+      break;
+    }
     const inv = this.game.pendingWarInvites[0];
     if (!inv) {
       this.el.warInvite.classList.add('hidden');
       return;
     }
-    const inviter = this.game.players[inv.from];
-    const target = this.game.players[inv.target];
-    if (!inviter || !target) {
-      // Stale invite, drop it.
-      this.game.declineWarInvite(0);
-      this.el.warInvite.classList.add('hidden');
-      return;
-    }
+    const inviter = this.game.players[inv.from]!;
+    const target = this.game.players[inv.target]!;
     this.el.warInvite.classList.remove('hidden');
     if (this.el.warInviteMsg) {
       this.el.warInviteMsg.innerHTML = `<span class="wi-name">${inviter.name}</span> asks you to join their war against <span class="wi-target">${target.name}</span>.`;
     }
+  }
+
+  private _refreshDiploBadge(): void {
+    if (!this.el.diploBadge) return;
+    // Notification count = pending war invites (the only async incoming
+    // event right now). Doubles as a "you should look at the panel" cue
+    // for new allied/at-war shifts in the future.
+    const n = this.game.pendingWarInvites.length;
+    if (n <= 0) {
+      this.el.diploBadge.classList.add('hidden');
+      return;
+    }
+    this.el.diploBadge.classList.remove('hidden');
+    this.el.diploBadge.textContent = n > 9 ? '9+' : String(n);
   }
 
   private _coerceAlly(allyId: PlayerId): void {

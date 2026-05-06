@@ -608,6 +608,54 @@ html, body {
 .diplo-act:active:not(:disabled) { transform: scale(0.97); background: #364252; }
 .diplo-act:disabled { opacity: 0.42; cursor: not-allowed; }
 .diplo-empty { text-align: center; opacity: 0.6; font-size: 12px; padding: 20px; }
+.diplo-section-h {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #9aa3ad;
+  margin: 8px 4px 2px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.diplo-section-h.allies { color: #55c86e; }
+.diplo-section-h.wars   { color: #ff6b6b; }
+.diplo-section-h.others { color: #8a92a0; }
+.diplo-node.section-ally { border-left: 3px solid rgba(85,200,110,0.65); }
+.diplo-node.section-war  { border-left: 3px solid rgba(232,74,74,0.65); }
+/* "Break Alliance" button — destructive styling so it pops out, since
+ * a player surrounded by allies needs to find this fast. */
+.diplo-act.ally-btn[data-action="break"] {
+  background: rgba(232,74,74,0.16);
+  color: #ff8c8c;
+  border-color: rgba(232,74,74,0.55);
+}
+.diplo-act.ally-btn[data-action="break"]:active { background: rgba(232,74,74,0.28); }
+.diplo-act.war-btn[data-action="war"] {
+  background: rgba(232,74,74,0.16);
+  color: #ff8c8c;
+  border-color: rgba(232,74,74,0.55);
+}
+.diplo-act.war-btn[data-action="peace"] {
+  background: rgba(85,200,110,0.16);
+  color: #7adf8e;
+  border-color: rgba(85,200,110,0.55);
+}
+/* Notification badge on the diplomacy button. */
+#diplo-btn { position: relative; }
+#diplo-btn .diplo-badge {
+  position: absolute;
+  top: -4px; right: -4px;
+  background: #ff4747;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+#diplo-btn .diplo-badge.hidden { display: none; }
 #diplomacy .secondary {
   display: block; width: 100%;
   background: transparent; color: #9aa3ad;

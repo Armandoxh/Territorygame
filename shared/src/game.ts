@@ -1512,13 +1512,22 @@ export class Game {
   }
 
   /** End an alliance early. Auto-cancels any external trade route the
-   *  pair shared, since trade is hard-gated on alliance. */
+   *  pair shared, since trade is hard-gated on alliance. Also drops
+   *  any pending war invites between the two so a stale invite doesn't
+   *  haunt the player after they break the alliance. */
   breakAlliance(byId: PlayerId, otherId: PlayerId): boolean {
     const key = this._allianceKey(byId, otherId);
     if (!this._alliances.has(key)) return false;
     this._alliances.delete(key);
     this.events.push({ type: 'alliance-broken', a: byId, b: otherId, brokenBy: byId });
     this._dropTradeRouteBetween(byId, otherId, byId);
+    // Drop any pending war invites either direction between this pair.
+    this.pendingWarInvites = this.pendingWarInvites.filter(
+      (inv) => !((inv.from === byId && inv.target === otherId)
+              || (inv.from === otherId && inv.target === byId)
+              || inv.from === byId   // also drop invites FROM the broken-with party
+              || inv.from === otherId),
+    );
     return true;
   }
 
@@ -3155,10 +3164,14 @@ export class Game {
     }
     if (bestId === 0) return;
     this.declareWar(p.id, bestId, 'ai');
-    // Invite human allies to join the fight.
+    // Invite human allies to join the fight. Only humans currently
+    // allied with the AI receive an invite — never strangers. We also
+    // double-check the alliance bit here even though alliesOf already
+    // filters, so the invariant is enforced at the push site.
     for (const ally of this.alliesOf(p.id)) {
       const allyP = this.players[ally];
       if (!allyP || !allyP.alive || !allyP.isHuman) continue;
+      if (!this.areAllied(p.id, ally)) continue;
       if (this.areAtWar(ally, bestId)) continue;
       if (this.areAllied(ally, bestId)) continue;
       this.pendingWarInvites.push({ from: p.id, target: bestId });
