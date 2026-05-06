@@ -2827,6 +2827,13 @@ export class Game {
       let tileChance = isVassalDriven
         ? baseChance * this._expansionBoostFor(p)
         : baseChance;
+      // Focus mechanic (humans only): a single manual target gets the
+      // full FOCUS_BOOST applied; spreading across N targets divides
+      // the boost by N. Concentrating all attention on one front pushes
+      // ~3× faster than baseline, splitting it 3 ways pushes at baseline.
+      if (!isVassalDriven && p.isHuman && manualTargets.length > 0) {
+        tileChance *= this.config.MANUAL_FOCUS_BOOST / manualTargets.length;
+      }
       if (!p.isHuman && p.gold > 1500) tileChance *= 1.6;
 
       const cands = this._validTargets(x, y, p.id);

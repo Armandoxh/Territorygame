@@ -19,6 +19,12 @@ export interface GameConfig {
   EXPANSION_CHANCE_PER_FRONTIER_TILE: number;
   EXPANSION_TARGET_BIAS: number;
   EXPANSION_DIRECTIONAL_EXP: number;
+  /** Single-target focus boost. When the human has exactly 1 manual
+   *  target, every leader-driven (non-vassal) frontier tile rolls at
+   *  `MANUAL_FOCUS_BOOST × baseRate`. With N manual targets the boost
+   *  divides by N — splitting attention across many fronts dilutes the
+   *  push, focusing all troops on one front concentrates them. */
+  MANUAL_FOCUS_BOOST: number;
   /** Tile count above which the empire pays maintenance gold per excess
    *  tile per tick. Bloated empires bleed cash. 0 = no upkeep. */
   UPKEEP_TILE_THRESHOLD: number;
@@ -165,6 +171,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   EXPANSION_CHANCE_PER_FRONTIER_TILE: 0.025,
   EXPANSION_TARGET_BIAS: 0.95,
   EXPANSION_DIRECTIONAL_EXP: 1.5,
+  MANUAL_FOCUS_BOOST: 3.0,
   UPKEEP_TILE_THRESHOLD: 400,
   UPKEEP_PER_EXCESS_TILE: 0.005,
   HUMAN_TARGET_EXPIRY_TICKS: 300,    // 30s

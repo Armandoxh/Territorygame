@@ -396,6 +396,16 @@ export class HUD {
     if (this.el.stop) {
       const showStop = me.alive && me.expanding && !this.game.outcome;
       this.el.stop.classList.toggle('hidden', !showStop);
+      // Focus readout — shows the manual-target multiplier so the
+      // player feels how concentrated their push is. 1 target = 3×,
+      // 3 = 1× (baseline), more dilutes further.
+      const n = me.targetRegions.length;
+      if (n > 0) {
+        const mult = this.game.config.MANUAL_FOCUS_BOOST / n;
+        this.el.stop.textContent = `STOP · ${mult.toFixed(mult >= 1 ? 1 : 2)}×`;
+      } else {
+        this.el.stop.textContent = 'STOP';
+      }
     }
     if (this.el.hint) {
       // Hint stays visible (and pulses) any time the player has nothing
