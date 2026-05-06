@@ -640,8 +640,10 @@ html, body {
   color: #7adf8e;
   border-color: rgba(85,200,110,0.55);
 }
-/* Notification badge on the diplomacy button. */
-#diplo-btn { position: relative; }
+/* Notification badge on the diplomacy button. The button itself
+ * already has position: absolute from .icon-btn, which makes it a
+ * positioned ancestor — no need to set position: relative here
+ * (doing so would reset its bottom/left anchoring and hide it). */
 #diplo-btn .diplo-badge {
   position: absolute;
   top: -4px; right: -4px;
