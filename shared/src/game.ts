@@ -688,8 +688,8 @@ export class Game {
    * the cost is paid from the player's main gold pool (manual builds).
    */
   tryBuild(type: BuildingType, x: number, y: number, ownerId: PlayerId, fromVassalRegion = 0): BuildError | null {
-    const cost = this.config.BUILDING_COSTS[type];
-    if (cost == null) return 'bad-type';
+    const baseCost = this.config.BUILDING_COSTS[type];
+    if (baseCost == null) return 'bad-type';
     if (!this.territory.inBounds(x, y)) return 'oob';
     const owner = this.players[ownerId];
     if (!owner || !owner.alive) return 'dead';
@@ -700,6 +700,10 @@ export class Game {
     // and AA require the AIR mastery.
     if (type === 'airstrip' && !this.isUnlocked(ownerId, 'airstrip')) return 'locked';
     if (type === 'aa' && !this.isUnlocked(ownerId, 'aa')) return 'locked';
+    // Master Builder discount applies to leader-paid builds only —
+    // vassal-funded builds use their own pool at face value (the
+    // discount is a leader-side investment).
+    const cost = fromVassalRegion > 0 ? baseCost : Math.ceil(baseCost * this._buildCostMult(owner));
     if (fromVassalRegion > 0) {
       if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
       this._vassalGold[fromVassalRegion]! -= cost;
@@ -737,7 +741,8 @@ export class Game {
     if (!b) return 'no-building';
     if (b.owner !== ownerId) return 'not-yours';
     if (b.level >= this.config.BUILDING_MAX_LEVEL) return 'max-level';
-    const cost = this._upgradeCost(b.type, b.level);
+    const baseCost = this._upgradeCost(b.type, b.level);
+    const cost = fromVassalRegion > 0 ? baseCost : Math.ceil(baseCost * this._buildCostMult(owner));
     if (fromVassalRegion > 0) {
       if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
       this._vassalGold[fromVassalRegion]! -= cost;
@@ -1238,6 +1243,38 @@ export class Game {
     return (p.decreeStacks['air-supremacy'] ?? 0) > 0 ? 0.5 : 1;
   }
 
+  /** Build-cost multiplier from Master Builder. Each stack is –10%,
+   *  capped at –50% so we don't free-build at 5+ stacks. */
+  private _buildCostMult(p: Player): number {
+    const stacks = p.decreeStacks['master-builder'] ?? 0;
+    return Math.max(0.5, 1 - 0.10 * stacks);
+  }
+
+  /** Combat-power multiplier from Veterans (attacker side). +5% per
+   *  stack. Capped so 30+ stacks doesn't double DPS by itself. */
+  private _veteransMult(p: Player): number {
+    const stacks = p.decreeStacks['veterans'] ?? 0;
+    return Math.min(2.0, 1 + 0.05 * stacks);
+  }
+
+  /** Turret-defense bonus multiplier from Reinforced Bunkers. */
+  private _reinforcedBunkersMult(p: Player): number {
+    const stacks = p.decreeStacks['reinforced-bunkers'] ?? 0;
+    return Math.min(2.0, 1 + 0.50 * stacks);
+  }
+
+  /** Ship-speed multiplier from Admiralty (lower move-ticks = faster). */
+  private _admiraltySpeedDivisor(p: Player): number {
+    const stacks = p.decreeStacks['admiralty'] ?? 0;
+    return Math.min(2.5, 1 + 0.20 * stacks);
+  }
+
+  /** Ship-cost multiplier from Admiralty. */
+  private _admiraltyCostMult(p: Player): number {
+    const stacks = p.decreeStacks['admiralty'] ?? 0;
+    return Math.max(0.4, 1 - 0.20 * stacks);
+  }
+
   // --- Active commander abilities ---------------------------------------
 
   private _abilityActive(p: Player, id: string): boolean {
@@ -1340,16 +1377,20 @@ export class Game {
     return this._alliances.get(this._allianceKey(a, b)) ?? 0;
   }
 
-  /** Pure-AI accept rule for alliance proposals. */
+  /** Pure-AI accept rule for alliance proposals.
+   *  Embassy stacks loosen the dominance threshold: each stack lets the
+   *  proposer be 25% more dominant before being rejected, so a player
+   *  invested in diplomacy can ally even when they're outsized. Also
+   *  lets the AI overlook the "you're my bully" reflex once stacks ≥ 2. */
   private _aiAcceptsAlliance(proposer: Player, target: Player): boolean {
-    // Don't ally with the dominant leader (they don't need it).
+    const embassy = proposer.decreeStacks['embassy'] ?? 0;
     const total = this.totalLand;
     const propShare = total > 0 ? (this.territory.counts[proposer.id] ?? 0) / total : 0;
     const targShare = total > 0 ? (this.territory.counts[target.id] ?? 0) / total : 0;
-    if (propShare > targShare * 1.6) return false;
-    // Otherwise probability scales with how much the target is being squeezed.
+    const dominanceThreshold = 1.6 * (1 + 0.25 * embassy);
+    if (propShare > targShare * dominanceThreshold) return false;
     const threat = this._findGreatestThreatTo(target.id);
-    if (threat === proposer.id) return false; // can't ally with your bully
+    if (threat === proposer.id && embassy < 2) return false;
     return true;
   }
 
@@ -1450,12 +1491,20 @@ export class Game {
     };
   }
 
-  /** Per-tick income for an external route. Spec: 100g per 20s per
-   *  "land block" — interpreted as a region. Both sides earn equally
-   *  (mutual benefit), scaled by the smaller side's dominant-region
-   *  count so trading partners must each commit some land. At SIM_HZ=10
-   *  that's 0.5 g/tick per region. Capped so a runaway empire can't
-   *  print absurd amounts via one route. */
+  /** Per-tick income for an external route. Spec: 30g per 20s per
+   *  "land block" (region) — 1.5g/s/region. Both sides earn equally,
+   *  scaled by the smaller side's dominant-region count.
+   *
+   *  Diminishing returns by alliance count: each additional active
+   *  trade route a player has multiplies that route's income by
+   *  successively smaller factors (1.0 / 0.7 / 0.5 / 0.35 / 0.25),
+   *  so stacking many alliances doesn't snowball linearly. We use the
+   *  HIGHER of the two sides' route counts (worst case for the route
+   *  about to be added) so the diminishing kicks in symmetrically.
+   *
+   *  Per-side multipliers from Cartel decree are applied at flow-pour
+   *  time in `_applyTradeFlow`, not here, so each side's own stacks
+   *  buff their own income only. */
   private _externalTradeFlow(a: PlayerId, b: PlayerId): number {
     let regA = 0, regB = 0;
     for (let r = 1; r <= this.regionCount; r++) {
@@ -1465,11 +1514,17 @@ export class Game {
     }
     const minRegions = Math.min(regA, regB);
     if (minRegions <= 0) return 0;
-    // 100g / 20s / region = 5g/s/region. At SIM_HZ ticks per second
-    // that's 0.5 / SIM_HZ × 10 = 0.5 g/tick/region (when SIM_HZ=10).
-    const perTickPerRegion = 5 / this.config.SIM_HZ;
-    const flow = perTickPerRegion * minRegions;
-    return Math.min(15, flow); // hard cap = 15g/tick = 150g/s
+    // Count active routes per side, including the one we're computing
+    // for (so the first route is "1st", not "0th").
+    let routesA = 1, routesB = 1;
+    for (const r of this.externalTradeRoutes) {
+      if ((r.a === a && r.b !== b) || (r.b === a && r.a !== b)) routesA++;
+      if ((r.a === b && r.b !== a) || (r.b === b && r.a !== a)) routesB++;
+    }
+    const dimFactors = [1.0, 0.7, 0.5, 0.35, 0.25];
+    const dim = dimFactors[Math.min(dimFactors.length - 1, Math.max(routesA, routesB) - 1)]!;
+    const perTickPerRegion = 1.5 / this.config.SIM_HZ;
+    return perTickPerRegion * minRegions * dim;
   }
 
   /** Propose an external trade route from `fromId` to `toId`. Hard-gated
@@ -2394,8 +2449,13 @@ export class Game {
         this.events.push({ type: 'trade-route-broken', a: r.a, b: r.b, brokenBy: 0 });
         continue;
       }
-      a.treasury += r.flow;
-      b.treasury += r.flow;
+      // Each side's Cartel decree stacks buff their OWN income from
+      // the route. Route flow stays the same; the multiplier just
+      // scales how much each side keeps.
+      const cartelA = 1 + 0.20 * (a.decreeStacks['cartel'] ?? 0);
+      const cartelB = 1 + 0.20 * (b.decreeStacks['cartel'] ?? 0);
+      a.treasury += r.flow * cartelA;
+      b.treasury += r.flow * cartelB;
     }
   }
 
@@ -3009,7 +3069,11 @@ export class Game {
         //   feels fortified no matter who attacks (manual / vassal / AI).
         // - ATTACKER side uses regional math only on vassal-driven
         //   pushes; manual / AI attacks command the empire's full pool.
-        let attackerPower = p.troops;
+        // Veterans decree multiplies attacker power. Stacks with
+        // regional math (vassal-driven path multiplies its own
+        // attackerPower below) and rally buffs.
+        const veteransMult = this._veteransMult(p);
+        let attackerPower = p.troops * veteransMult;
         let defenderPower = Math.max(1, defender?.troops ?? 1);
         const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
         if (defender) {
@@ -3026,7 +3090,7 @@ export class Game {
           const fracA = ownedA > 0 ? Math.min(1, tilesA / ownedA) : 1;
           const moraleA = tileRegion > 0 ? (this._regionMorale[tileRegion] ?? 1) : 1;
           const garrisonA = this._settlementGarrison(tileRegion, p.id);
-          attackerPower = p.troops * fracA * moraleA * garrisonA;
+          attackerPower = p.troops * fracA * moraleA * garrisonA * veteransMult;
         }
         const ratio = attackerPower / defenderPower;
         const ratioFactor = Math.max(
@@ -3073,6 +3137,10 @@ export class Game {
     const i = y * W + x;
     const grid = this._turretBonus.get(defenderId);
     let bonus = grid ? grid[i]! : 0;
+    // Reinforced Bunkers buffs the turret bonus specifically (not the
+    // full-region or mastery components). +50%/stack capped at +100%,
+    // so a defender invested in turrets+bunkers gets a hardened ring.
+    if (defender) bonus *= this._reinforcedBunkersMult(defender);
     if (ironDoctrine > 0) bonus = (bonus + 1) * 1.2 - 1;
     if (this.regionCount > 0) {
       const r = this.regions[i]!;
@@ -3310,11 +3378,12 @@ export class Game {
    *  land tile owned by the player; the ship spawns on the closest water
    *  tile adjacent to it. */
   buildShip(kind: ShipKind, x: number, y: number, ownerId: PlayerId): ShipBuildError | null {
-    const cost = this.config.SHIP_COSTS[kind];
-    if (cost == null) return 'bad-type';
+    const baseCost = this.config.SHIP_COSTS[kind];
+    if (baseCost == null) return 'bad-type';
     if (!this.territory.inBounds(x, y)) return 'oob';
     const owner = this.players[ownerId];
     if (!owner || !owner.alive) return 'dead';
+    const cost = Math.ceil(baseCost * this._admiraltyCostMult(owner));
     if (!this.isUnlocked(ownerId, 'ships')) return 'locked';
     if (this.territory.getOwner(x, y) !== ownerId) return 'not-coastal';
     if (this.territory.isPassable(x, y) === false) return 'not-coastal';
@@ -3410,7 +3479,11 @@ export class Game {
   }
 
   private _shipMove(s: Ship): void {
-    const moveTicks = this.config.SHIP_MOVE_TICKS[s.kind];
+    const owner = this.players[s.owner];
+    const baseMoveTicks = this.config.SHIP_MOVE_TICKS[s.kind];
+    // Admiralty stacks divide the move-ticks (lower = faster).
+    const speedDiv = owner ? this._admiraltySpeedDivisor(owner) : 1;
+    const moveTicks = Math.max(1, Math.round(baseMoveTicks / speedDiv));
     if (this.tickCount % moveTicks !== 0) return;
     if (s.destX < 0 || s.destY < 0) {
       // Pick a patrol target near an enemy coast (or random water).
