@@ -166,6 +166,9 @@ export type GameEvent =
   | { type: 'ability-fired';    abilityId: string; ownerId: PlayerId; targetId?: PlayerId }
   | { type: 'alliance-formed';  a: PlayerId; b: PlayerId }
   | { type: 'alliance-broken';  a: PlayerId; b: PlayerId; brokenBy: PlayerId }
+  | { type: 'war-declared';     declarer: PlayerId; target: PlayerId; reason: 'manual' | 'aggression' | 'bandwagon' | 'ai' }
+  | { type: 'war-ended';        a: PlayerId; b: PlayerId }
+  | { type: 'war-invite';       from: PlayerId; target: PlayerId }
   | { type: 'trade-completed';  fromId: PlayerId; toId: PlayerId; gold: number; troops: number }
   | { type: 'trade-route-formed'; a: PlayerId; b: PlayerId }
   | { type: 'trade-route-broken'; a: PlayerId; b: PlayerId; brokenBy: PlayerId };

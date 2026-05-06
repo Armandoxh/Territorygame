@@ -179,6 +179,46 @@ html, body {
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+#war-invite {
+  position: absolute;
+  top: 80px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 8, 8, 0.92);
+  border: 1px solid rgba(232, 74, 74, 0.65);
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  max-width: 320px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+  z-index: 50;
+}
+#war-invite.hidden { display: none; }
+#war-invite .wi-msg { font-weight: 600; margin-bottom: 10px; line-height: 1.35; }
+#war-invite .wi-msg .wi-name { color: #ffb867; }
+#war-invite .wi-msg .wi-target { color: #ff6b6b; }
+#war-invite .wi-actions { display: flex; gap: 8px; }
+#war-invite .wi-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid transparent;
+}
+#war-invite .wi-btn.primary {
+  background: rgba(232, 74, 74, 0.85);
+  color: #fff;
+  border-color: rgba(232, 74, 74, 1);
+}
+#war-invite .wi-btn.secondary {
+  background: rgba(255,255,255,0.08);
+  color: #cdd2d6;
+  border-color: rgba(255,255,255,0.12);
+}
+#war-invite .wi-btn:active { transform: scale(0.97); }
+
 #vassal-log {
   position: absolute;
   bottom: calc(80px + env(safe-area-inset-bottom, 0));
@@ -553,6 +593,7 @@ html, body {
 }
 .diplo-tag.ally { background: rgba(85,200,110,0.18); color: #55c86e; }
 .diplo-tag.route { background: rgba(234,199,104,0.18); color: #eac768; }
+.diplo-tag.war { background: rgba(232,74,74,0.22); color: #ff6b6b; }
 .diplo-tag.embargo { background: rgba(232,74,74,0.18); color: #e84a4a; }
 .diplo-node .dn-intel { font-style: normal; font-size: 11px; opacity: 0.6; }
 .dn-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }

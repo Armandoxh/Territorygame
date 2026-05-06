@@ -560,6 +560,14 @@ export class Game {
       }
       p.targetRegions.push(r);
       this._humanTargetSetAt.set(r, this.tickCount);
+      // Aggression auto-declares war on the region's dominant owner if
+      // they're a non-allied player at peace with us. Targeting a
+      // neutral region or a region you already have war/alliance
+      // status with skips the declaration.
+      const dom = this._regionDominant[r] ?? 0;
+      if (dom > 0 && dom !== p.id && !this.areAllied(p.id, dom) && !this.areAtWar(p.id, dom)) {
+        this.declareWar(p.id, dom, 'aggression');
+      }
     }
     p.expanding = p.targetRegions.length > 0;
     return r;
@@ -601,6 +609,7 @@ export class Game {
       const p = this.players[id];
       if (!p || !p.alive) continue;
       if (!p.isHuman) {
+        this._aiConsiderWar(p);
         this._aiThink(p);
         this._aiBuild(p);
         this._aiBuyDecrees(p);
@@ -791,6 +800,14 @@ export class Game {
     if (!this.isUnlocked(ownerId, 'bombs')) return 'locked';
     const cost = this.config.BOMB_COSTS[type];
     if (cost == null) return 'bad-type';
+    // Bombing an enemy's land is an act of war. Auto-declare against
+    // the target tile's owner if peace is currently in effect.
+    const targetOwner = this.territory.getOwner(x, y);
+    if (targetOwner > 0 && targetOwner !== ownerId
+        && !this.areAllied(ownerId, targetOwner)
+        && !this.areAtWar(ownerId, targetOwner)) {
+      this.declareWar(ownerId, targetOwner, 'aggression');
+    }
 
     // Find the soonest-ready airstrip belonging to ownerId.
     let chosen: Building | null = null;
@@ -995,6 +1012,9 @@ export class Game {
     // Allied players cannot capture each other's tiles via any path
     // (expansion, ships, bombs are still allowed since bombs only neutralise).
     if (defender > 0 && this.areAllied(attackerId, defender)) return false;
+    // Peace is the default state — only attack other players when
+    // formally at war. Neutral (defender = 0) is always claimable.
+    if (defender > 0 && !this.areAtWar(attackerId, defender)) return false;
     const capIdx = this._capitalIndexAt(x, y);
     const capOwner = capIdx >= 0 ? this.capitals[capIdx]!.owner : -1;
     // Turret retaliation: BEFORE the claim, count defending turrets in range
@@ -1409,7 +1429,25 @@ export class Game {
   private _allianceKey(a: PlayerId, b: PlayerId): string {
     return a < b ? `${a}-${b}` : `${b}-${a}`;
   }
+  /** Active alliances. Keyed `min-max` of player IDs. Value is the
+   *  tickCount at which the alliance expires, or `Infinity` for
+   *  permanent alliances (the new default — alliances last until
+   *  manually broken). The legacy expiry path is preserved for any
+   *  proposeAlliance call that explicitly passes a duration. */
   private _alliances = new Map<string, number>();
+  /** Active wars. Keyed `min-max` of player IDs. Membership = at war.
+   *  Default state for any pair is PEACE — the engine only allows
+   *  inter-player attacks when this set contains the pair. Aggression
+   *  (manual taps on enemy land, bombs on enemy tiles, etc.) auto-
+   *  declares war so the player doesn't have to navigate menus to
+   *  start fighting; the new peace-as-default just means stuff doesn't
+   *  start fighting on its own. */
+  private _wars = new Set<string>();
+  /** Pending war-join invitations from AI allies to the human. Each
+   *  entry is the inviter and target of the war they're asking us to
+   *  join. The HUD shows a toast/prompt for each, and accept/decline
+   *  is wired via acceptWarInvite / declineWarInvite. */
+  pendingWarInvites: Array<{ from: PlayerId; target: PlayerId }> = [];
 
   /** When each manual human target was set, by region id. Targets older
    *  than HUMAN_TARGET_EXPIRY_TICKS are auto-cleared each tick — kills
@@ -1449,9 +1487,11 @@ export class Game {
     return true;
   }
 
-  /** Propose an alliance from `fromId` to `toId`. Default 60s (600 ticks).
+  /** Propose an alliance from `fromId` to `toId`. Permanent by default —
+   *  alliances last until one side breaks them. Pass an explicit
+   *  durationTicks to time-limit if needed (legacy use only).
    *  Returns 'accepted' on success or a reason string. */
-  proposeAlliance(fromId: PlayerId, toId: PlayerId, durationTicks = 600):
+  proposeAlliance(fromId: PlayerId, toId: PlayerId, durationTicks = 0):
     'accepted' | 'rejected' | 'invalid' | 'already' {
     if (fromId === toId) return 'invalid';
     const a = this.players[fromId];
@@ -1460,8 +1500,14 @@ export class Game {
     if (this.areAllied(fromId, toId)) return 'already';
     if (b.isHuman) return 'rejected';
     if (!this._aiAcceptsAlliance(a, b)) return 'rejected';
-    this._alliances.set(this._allianceKey(fromId, toId), this.tickCount + durationTicks);
+    const expiry = durationTicks > 0
+      ? this.tickCount + durationTicks
+      : Number.POSITIVE_INFINITY;
+    this._alliances.set(this._allianceKey(fromId, toId), expiry);
     this.events.push({ type: 'alliance-formed', a: fromId, b: toId });
+    // Forming an alliance ends any active war between them — peace
+    // through diplomacy.
+    this._endWarBetween(fromId, toId);
     return 'accepted';
   }
 
@@ -1475,6 +1521,104 @@ export class Game {
     this._dropTradeRouteBetween(byId, otherId, byId);
     return true;
   }
+
+  // --- Wars -------------------------------------------------------------
+
+  private _warKey(a: PlayerId, b: PlayerId): string {
+    return a < b ? `w:${a}-${b}` : `w:${b}-${a}`;
+  }
+
+  /** True iff the two players are currently at war. Default for any
+   *  pair is PEACE — only set to war via `declareWar` (manual or
+   *  triggered by aggression). Allies cannot be at war. */
+  areAtWar(a: PlayerId, b: PlayerId): boolean {
+    if (a === b) return false;
+    return this._wars.has(this._warKey(a, b));
+  }
+
+  /** All player IDs `playerId` is currently at war with. */
+  enemiesOf(playerId: PlayerId): PlayerId[] {
+    const out: PlayerId[] = [];
+    for (const key of this._wars) {
+      // key format: "w:min-max"
+      const m = key.slice(2);
+      const dash = m.indexOf('-');
+      const a = parseInt(m.slice(0, dash), 10);
+      const b = parseInt(m.slice(dash + 1), 10);
+      if (a === playerId) out.push(b);
+      else if (b === playerId) out.push(a);
+    }
+    return out;
+  }
+
+  /** Declare war on `target` from `declarer`. Idempotent if already at
+   *  war. Bandwagons: target's allies (other than declarer) are pulled
+   *  into the war on target's side, so attacking a player with allies
+   *  has real diplomatic cost. The `reason` flag short-circuits the
+   *  bandwagon recursion so the cascade only fires one level deep. */
+  declareWar(declarer: PlayerId, target: PlayerId, reason: 'manual' | 'aggression' | 'bandwagon' | 'ai' = 'manual'): void {
+    if (declarer === target || declarer <= 0 || target <= 0) return;
+    const a = this.players[declarer];
+    const b = this.players[target];
+    if (!a || !a.alive || !b || !b.alive) return;
+    // Allies cannot be at war. (You can break the alliance first if you
+    // really mean it — that's a deliberate two-step.)
+    if (this.areAllied(declarer, target)) return;
+    const key = this._warKey(declarer, target);
+    if (this._wars.has(key)) return;
+    this._wars.add(key);
+    this.events.push({ type: 'war-declared', declarer, target, reason });
+    if (reason !== 'bandwagon') {
+      // Bandwagon: pull target's allies into the war (one level deep).
+      for (const ally of this.alliesOf(target)) {
+        if (ally === declarer) continue;
+        if (this.areAllied(declarer, ally)) continue;
+        this.declareWar(declarer, ally, 'bandwagon');
+      }
+    }
+  }
+
+  /** End a war (peace treaty). Either side can initiate. */
+  endWar(byId: PlayerId, otherId: PlayerId): boolean {
+    return this._endWarBetween(byId, otherId);
+  }
+
+  private _endWarBetween(a: PlayerId, b: PlayerId): boolean {
+    const key = this._warKey(a, b);
+    if (!this._wars.has(key)) return false;
+    this._wars.delete(key);
+    this.events.push({ type: 'war-ended', a, b });
+    return true;
+  }
+
+  /** Coerce an ally into declaring war on a target. Only your own
+   *  allies can be coerced. The ally accepts based on a simple AI
+   *  rule: stronger ally = more likely to comply. Returns 'accepted'
+   *  on success. */
+  coerceAllyToWar(byId: PlayerId, allyId: PlayerId, targetId: PlayerId):
+    'accepted' | 'declined' | 'invalid' | 'no-ally' | 'already' {
+    if (byId === allyId || byId === targetId || allyId === targetId) return 'invalid';
+    if (!this.areAllied(byId, allyId)) return 'no-ally';
+    const ally = this.players[allyId];
+    const target = this.players[targetId];
+    if (!ally || !ally.alive || !target || !target.alive) return 'invalid';
+    if (this.areAllied(allyId, targetId)) return 'invalid';
+    if (this.areAtWar(allyId, targetId)) return 'already';
+    // Acceptance rule: ally agrees if its share of the world is at
+    // least 0.6× the target's (i.e. it's strong enough to feel safe
+    // jumping in). Embassy stacks of the requester loosen this.
+    const total = this.totalLand;
+    const allyShare = total > 0 ? (this.territory.counts[allyId] ?? 0) / total : 0;
+    const targShare = total > 0 ? (this.territory.counts[targetId] ?? 0) / total : 0;
+    const requester = this.players[byId];
+    const embassy = requester ? (requester.decreeStacks['embassy'] ?? 0) : 0;
+    const threshold = 0.6 / (1 + 0.20 * embassy);
+    if (targShare > 0 && allyShare < targShare * threshold) return 'declined';
+    this.declareWar(allyId, targetId, 'manual');
+    return 'accepted';
+  }
+
+  // --- Alliances (cont.) ------------------------------------------------
 
   /** Returns the list of player ids currently allied with `playerId`. */
   alliesOf(playerId: PlayerId): PlayerId[] {
@@ -2939,10 +3083,10 @@ export class Game {
     return arr[(Math.random() * arr.length) | 0]!;
   }
 
-  // Region IDs touching the player's frontier (incl. tiles currently owned by
-  // someone else) — i.e. regions the player can push into right now.
-  // Allied players' regions are filtered out so AI doesn't waste a target
-  // on someone it can't actually attack.
+  // Region IDs touching the player's frontier — regions the player
+  // can push into right now (peace-aware). Allied players' regions
+  // are filtered out (can't attack); enemy regions are filtered out
+  // unless we're at war with that player (peace = no attack).
   private _adjacentRegions(playerId: PlayerId): Set<number> {
     const out = new Set<number>();
     const W = this.territory.width;
@@ -2957,11 +3101,107 @@ export class Game {
         const own = this.territory.getOwner(nx, ny);
         if (own === playerId) continue;
         if (own > 0 && this.areAllied(playerId, own)) continue;
+        if (own > 0 && !this.areAtWar(playerId, own)) continue;
         const r = this.regions[ny * W + nx]!;
         if (r > 0) out.add(r);
       }
     }
     return out;
+  }
+
+  /** AI war-declaration logic. Runs every ~10s per AI. If the AI has
+   *  no peaceful expansion options (all adjacent land is owned by
+   *  non-war non-ally players) AND it has a strength advantage over
+   *  one of those neighbors, declare war on the weakest one. AI
+   *  players also pull their human allies into the conflict via the
+   *  pendingWarInvites queue (human gets to accept or decline). */
+  private _aiConsiderWar(p: Player): void {
+    if (p.isHuman || !p.alive) return;
+    if (((this.tickCount + p.id * 17) % 100) !== 0) return;
+    // If we have neutral expansion available, no need to declare war.
+    if (this._hasNeutralExpansion(p.id)) return;
+    // Find adjacent non-war non-ally players we COULD attack.
+    const W = this.territory.width;
+    const frontier = this.territory.getFrontier(p.id);
+    const dirs: ReadonlyArray<readonly [number, number]> = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    const candidates = new Set<PlayerId>();
+    for (const i of frontier) {
+      const x = i % W;
+      const y = (i - x) / W;
+      for (const [dx, dy] of dirs) {
+        const nx = x + dx, ny = y + dy;
+        if (!this.territory.inBounds(nx, ny)) continue;
+        const o = this.territory.getOwner(nx, ny);
+        if (o <= 0 || o === p.id) continue;
+        if (this.areAllied(p.id, o)) continue;
+        if (this.areAtWar(p.id, o)) continue;
+        candidates.add(o);
+      }
+    }
+    if (candidates.size === 0) return;
+    // Pick the weakest candidate by tile count where we have strength
+    // advantage. Strength = troops × tile-count.
+    let bestId: PlayerId = 0;
+    let bestStrength = Infinity;
+    const myStrength = p.troops * Math.max(1, this.territory.counts[p.id] ?? 1);
+    for (const id of candidates) {
+      const e = this.players[id];
+      if (!e || !e.alive) continue;
+      const eStrength = e.troops * Math.max(1, this.territory.counts[id] ?? 1);
+      // Need at least 1.3× our strength advantage to commit. Embargo
+      // / sabotage decree-stack situations not factored in for v1.
+      if (myStrength < eStrength * 1.3) continue;
+      if (eStrength < bestStrength) { bestStrength = eStrength; bestId = id; }
+    }
+    if (bestId === 0) return;
+    this.declareWar(p.id, bestId, 'ai');
+    // Invite human allies to join the fight.
+    for (const ally of this.alliesOf(p.id)) {
+      const allyP = this.players[ally];
+      if (!allyP || !allyP.alive || !allyP.isHuman) continue;
+      if (this.areAtWar(ally, bestId)) continue;
+      if (this.areAllied(ally, bestId)) continue;
+      this.pendingWarInvites.push({ from: p.id, target: bestId });
+      this.events.push({ type: 'war-invite', from: p.id, target: bestId });
+    }
+  }
+
+  /** True if the player has at least one neutral tile adjacent to their
+   *  frontier — i.e. they can expand peacefully without needing war. */
+  private _hasNeutralExpansion(playerId: PlayerId): boolean {
+    const W = this.territory.width;
+    const frontier = this.territory.getFrontier(playerId);
+    const dirs: ReadonlyArray<readonly [number, number]> = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    for (const i of frontier) {
+      const x = i % W;
+      const y = (i - x) / W;
+      for (const [dx, dy] of dirs) {
+        const nx = x + dx, ny = y + dy;
+        if (!this.territory.inBounds(nx, ny)) continue;
+        if (!this.territory.isPassable(nx, ny)) continue;
+        if (this.territory.getOwner(nx, ny) === 0) return true;
+      }
+    }
+    return false;
+  }
+
+  /** Human accepts an AI's invitation to join their war. Returns true
+   *  if a war was actually opened. Removes the invite from the queue
+   *  whether accepted or declined. */
+  acceptWarInvite(idx: number): boolean {
+    const inv = this.pendingWarInvites[idx];
+    if (!inv) return false;
+    this.pendingWarInvites.splice(idx, 1);
+    if (this.areAllied(1, inv.target)) return false;
+    if (this.areAtWar(1, inv.target)) return false;
+    this.declareWar(1, inv.target, 'manual');
+    return true;
+  }
+
+  declineWarInvite(idx: number): boolean {
+    if (idx < 0 || idx >= this.pendingWarInvites.length) return false;
+    this.pendingWarInvites.splice(idx, 1);
+    return true;
   }
 
   // Region-bounded expansion. Each frontier tile picks its own effective
@@ -3587,6 +3827,7 @@ export class Game {
         if (o.id === s.id) continue;
         if (o.owner === s.owner) continue;
         if (this.areAllied(s.owner, o.owner)) continue;
+        if (!this.areAtWar(s.owner, o.owner)) continue;
         const dx = o.x - s.x, dy = o.y - s.y;
         const d2 = dx * dx + dy * dy;
         if (d2 > r2) continue;
@@ -3624,6 +3865,7 @@ export class Game {
           const o = this.territory.getOwner(cx, cy);
           if (o <= 0 || o === s.owner) continue;
           if (this.areAllied(s.owner, o)) continue;
+          if (!this.areAtWar(s.owner, o)) continue;
           if (d2 < bestD) { bestD = d2; tx = cx; ty = cy; }
         }
       }
@@ -3670,6 +3912,11 @@ export class Game {
           const o = this.territory.getOwner(tx, ty);
           if (o <= 0 || o === s.owner) continue;
           if (this.areAllied(s.owner, o)) continue;
+          // Peace gate — ships only fire on at-war players, not on
+          // every non-allied neighbor. Without this they'd open fire
+          // on peaceful neighbors and lose every shot to the war
+          // gate inside tryCapture.
+          if (!this.areAtWar(s.owner, o)) continue;
           if (d2 < bestED) { bestED = d2; bestEX = tx; bestEY = ty; }
         }
       }
@@ -3772,6 +4019,7 @@ export class Game {
         const o = this.territory.getOwner(tx, ty);
         if (o <= 0 || o === s.owner) continue;
         if (this.areAllied(s.owner, o)) continue;
+        if (!this.areAtWar(s.owner, o)) continue;
         if (d2 < bestD) { bestD = d2; bestX = tx; bestY = ty; }
       }
     }

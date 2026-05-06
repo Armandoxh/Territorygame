@@ -47,7 +47,14 @@
     </div>
     <div id="debug"></div>
     <div id="toast"></div>
-    <div id="hint">tap regions to attack &middot; long-press own land to build &middot; long-press enemy land for a trade alliance</div>
+    <div id="war-invite" class="hidden">
+      <div class="wi-msg" id="wi-msg"></div>
+      <div class="wi-actions">
+        <button id="wi-accept"  class="wi-btn primary" type="button">Join War</button>
+        <button id="wi-decline" class="wi-btn secondary" type="button">Decline</button>
+      </div>
+    </div>
+    <div id="hint">tap regions to attack (declares war) &middot; long-press own land to build &middot; long-press enemy land for a trade alliance</div>
     <div id="vassal-log" aria-live="polite"></div>
     <button id="stop-btn" class="fab hidden" type="button">STOP</button>
     <button id="bomb-btn" class="fab fab-bomb hidden" type="button" aria-label="Bombs">

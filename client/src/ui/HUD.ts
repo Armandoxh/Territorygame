@@ -23,6 +23,10 @@ export class HUD {
     enemies:      this._byId('enemies'),
     hint:         this._byId('hint'),
     toast:        this._byId('toast'),
+    warInvite:    this._byId('war-invite'),
+    warInviteMsg: this._byId('wi-msg'),
+    warInviteAccept:  this._byId('wi-accept'),
+    warInviteDecline: this._byId('wi-decline'),
     debug:        this._byId('debug'),
     stop:         this._byId('stop-btn'),
     hotbar:       this._byId('hotbar'),
@@ -121,6 +125,7 @@ export class HUD {
     this._wireTutorial();
     this._wireCommander();
     this._wireDiplomacy();
+    this._wireWarInvite();
     this._wireMastery();
     // Show the welcome tutorial automatically on first launch.
     try {
@@ -435,6 +440,7 @@ export class HUD {
     if (this.el.commander?.classList.contains('show')) this._refreshCommander();
     if (this.el.diploPanel?.classList.contains('show')) this._renderDiplomacy();
     this._refreshLeaderBar();
+    this._refreshWarInvite();
     const spy = (me.decreeStacks['spy-network'] ?? 0) > 0;
     for (const [id, ref] of this.enemyEls) {
       const p = this.game.players[id];
@@ -1120,6 +1126,9 @@ export class HUD {
       else if (action === 'embargo')   this._fireAbility('embargo', pid);
       else if (action === 'route')     this._proposeTradeRoute(pid);
       else if (action === 'route-end') this._breakTradeRoute(pid);
+      else if (action === 'war')       this._declareWar(pid);
+      else if (action === 'peace')     this._suePeace(pid);
+      else if (action === 'coerce')    this._coerceAlly(pid);
     });
 
     // Trade sheet wiring
@@ -1189,6 +1198,7 @@ export class HUD {
             <span class="dn-dot" style="background:${tint}"></span>
             <span class="dn-name">${p.name}</span>
             <span class="mastery-badge ${m}" style="margin-left:auto">${m.toUpperCase()}</span>
+            <span class="diplo-tag war" style="display:none">WAR</span>
             <span class="diplo-tag ally" style="display:none"></span>
             <span class="diplo-tag route" style="display:none"></span>
             <span class="diplo-tag embargo" style="display:none"></span>
@@ -1198,6 +1208,8 @@ export class HUD {
             <button class="diplo-act" data-action="trade"    data-target="${id}" type="button">Trade</button>
             <button class="diplo-act ally-btn" data-action="alliance" data-target="${id}" type="button">Propose Alliance</button>
             <button class="diplo-act route-btn" data-action="route" data-target="${id}" type="button" style="display:none">Trade Route</button>
+            <button class="diplo-act war-btn" data-action="war" data-target="${id}" type="button" style="display:none">Declare War</button>
+            <button class="diplo-act coerce-btn" data-action="coerce" data-target="${id}" type="button" style="display:none">Make Them Fight</button>
             <button class="diplo-act embargo-btn" data-action="embargo" data-target="${id}" type="button">Embargo</button>
           </div>
         `;
@@ -1227,11 +1239,21 @@ export class HUD {
       if (allyTag) {
         if (allied) {
           allyTag.style.display = '';
-          allyTag.textContent = `ALLY · ${Math.max(0, Math.ceil((allianceExpire - tick) / this.game.config.SIM_HZ))}s`;
+          // Permanent alliances show "ALLY" without a countdown; legacy
+          // time-limited ones still show seconds remaining.
+          if (allianceExpire >= Number.MAX_SAFE_INTEGER || !isFinite(allianceExpire)) {
+            allyTag.textContent = 'ALLY';
+          } else {
+            allyTag.textContent = `ALLY · ${Math.max(0, Math.ceil((allianceExpire - tick) / this.game.config.SIM_HZ))}s`;
+          }
         } else {
           allyTag.style.display = 'none';
         }
       }
+      // War status tag.
+      const atWar = this.game.areAtWar(1, id);
+      const warTag = row.querySelector<HTMLElement>('.diplo-tag.war');
+      if (warTag) warTag.style.display = atWar ? '' : 'none';
       const embTag = row.querySelector<HTMLElement>('.diplo-tag.embargo');
       if (embTag) {
         if (embargoed) {
@@ -1252,6 +1274,40 @@ export class HUD {
           allyBtn.dataset['action'] = 'alliance';
           allyBtn.textContent = 'Propose Alliance';
           allyBtn.disabled = false;
+        }
+      }
+      // War / Peace button. Only show on non-allied rows (you can't war
+      // an ally without breaking the alliance first).
+      const warBtn = row.querySelector<HTMLButtonElement>('.war-btn');
+      if (warBtn) {
+        if (allied) {
+          warBtn.style.display = 'none';
+        } else if (atWar) {
+          warBtn.style.display = '';
+          warBtn.dataset['action'] = 'peace';
+          warBtn.textContent = 'Sue for Peace';
+          warBtn.disabled = false;
+        } else {
+          warBtn.style.display = '';
+          warBtn.dataset['action'] = 'war';
+          warBtn.textContent = 'Declare War';
+          warBtn.disabled = false;
+        }
+      }
+      // Coerce: only show on allies, only enabled if the human is
+      // currently at war with someone — clicking asks the ally to
+      // declare war on every player you're fighting.
+      const coerceBtn = row.querySelector<HTMLButtonElement>('.coerce-btn');
+      if (coerceBtn) {
+        if (allied) {
+          coerceBtn.style.display = '';
+          const myEnemies = this.game.enemiesOf(1);
+          coerceBtn.disabled = myEnemies.length === 0;
+          coerceBtn.textContent = myEnemies.length === 0
+            ? 'Coerce (no war active)'
+            : `Make Them Fight (${myEnemies.length})`;
+        } else {
+          coerceBtn.style.display = 'none';
         }
       }
       // Trade route: only available between allies. Shows current
@@ -1325,6 +1381,97 @@ export class HUD {
 
   private _breakTradeRoute(targetId: PlayerId): void {
     if (this.game.breakTradeRoute(1, targetId)) this.toast('Trade route closed');
+    this._renderDiplomacy();
+  }
+
+  private _declareWar(targetId: PlayerId): void {
+    const target = this.game.players[targetId];
+    if (!target) return;
+    this.game.declareWar(1, targetId, 'manual');
+    const allies = this.game.alliesOf(targetId);
+    if (allies.length > 0) {
+      this.toast(`War declared on ${target.name} (their ${allies.length} ally${allies.length > 1 ? 'ies' : ''} joined them)`);
+    } else {
+      this.toast(`War declared on ${target.name}`);
+    }
+    if (navigator.vibrate) try { navigator.vibrate(40); } catch { /* ignore */ }
+    this._renderDiplomacy();
+  }
+
+  private _suePeace(targetId: PlayerId): void {
+    const target = this.game.players[targetId];
+    if (this.game.endWar(1, targetId)) {
+      this.toast(`Peace with ${target?.name ?? 'enemy'}`);
+    } else {
+      this.toast('Not at war');
+    }
+    this._renderDiplomacy();
+  }
+
+  private _wireWarInvite(): void {
+    this.el.warInviteAccept?.addEventListener('click', () => {
+      const inv = this.game.pendingWarInvites[0];
+      if (!inv) return;
+      const target = this.game.players[inv.target];
+      if (this.game.acceptWarInvite(0)) {
+        this.toast(`Joined the war against ${target?.name ?? 'enemy'}`);
+      }
+      this._refreshWarInvite();
+    });
+    this.el.warInviteDecline?.addEventListener('click', () => {
+      const inv = this.game.pendingWarInvites[0];
+      if (!inv) return;
+      const inviter = this.game.players[inv.from];
+      this.game.declineWarInvite(0);
+      this.toast(`Declined ${inviter?.name ?? 'ally'}'s war invitation`);
+      this._refreshWarInvite();
+    });
+  }
+
+  private _refreshWarInvite(): void {
+    if (!this.el.warInvite) return;
+    const inv = this.game.pendingWarInvites[0];
+    if (!inv) {
+      this.el.warInvite.classList.add('hidden');
+      return;
+    }
+    const inviter = this.game.players[inv.from];
+    const target = this.game.players[inv.target];
+    if (!inviter || !target) {
+      // Stale invite, drop it.
+      this.game.declineWarInvite(0);
+      this.el.warInvite.classList.add('hidden');
+      return;
+    }
+    this.el.warInvite.classList.remove('hidden');
+    if (this.el.warInviteMsg) {
+      this.el.warInviteMsg.innerHTML = `<span class="wi-name">${inviter.name}</span> asks you to join their war against <span class="wi-target">${target.name}</span>.`;
+    }
+  }
+
+  private _coerceAlly(allyId: PlayerId): void {
+    const ally = this.game.players[allyId];
+    if (!ally) return;
+    const myEnemies = this.game.enemiesOf(1);
+    if (myEnemies.length === 0) {
+      this.toast('You are not at war with anyone');
+      return;
+    }
+    let accepted = 0, declined = 0;
+    for (const enemyId of myEnemies) {
+      const r = this.game.coerceAllyToWar(1, allyId, enemyId);
+      if (r === 'accepted') accepted++;
+      else if (r === 'declined') declined++;
+    }
+    if (accepted > 0 && declined === 0) {
+      this.toast(`${ally.name} joined ${accepted} of your wars`);
+    } else if (accepted > 0 && declined > 0) {
+      this.toast(`${ally.name} joined ${accepted}, declined ${declined}`);
+    } else if (declined > 0) {
+      this.toast(`${ally.name} declined — they don't feel strong enough`);
+    } else {
+      this.toast('No wars to join');
+    }
     this._renderDiplomacy();
   }
 

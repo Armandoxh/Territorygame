@@ -105,8 +105,28 @@ async function boot(): Promise<void> {
         }
       }
 
+      // If the tapped region is enemy-dominated and we're at peace,
+      // setHumanTargetRegion will auto-declare war. Toast the player
+      // before the engine call so the message reads as cause→effect.
+      const tappedRegion = game.regionAt(Math.floor(wx), Math.floor(wy));
+      const dom = tappedRegion > 0 ? game.regionDominantOwnerOf(tappedRegion) : 0;
+      const willDeclareWar = dom > 0 && dom !== 1
+        && !game.areAllied(1, dom)
+        && !game.areAtWar(1, dom);
       const region = game.setHumanTargetRegion(wx, wy);
       if (region <= 0) { hud.toast('No region here'); return; }
+      if (willDeclareWar) {
+        const target = game.players[dom];
+        const allies = game.alliesOf(dom);
+        if (target) {
+          if (allies.length > 0) {
+            hud.toast(`War on ${target.name} — ${allies.length} of their allies joined`);
+          } else {
+            hud.toast(`War declared on ${target.name}`);
+          }
+          if (navigator.vibrate) try { navigator.vibrate(40); } catch { /* ignore */ }
+        }
+      }
       if (firstTap) { hud.hideHint(); firstTap = false; }
     },
     onLongPress: (wx, wy) => {

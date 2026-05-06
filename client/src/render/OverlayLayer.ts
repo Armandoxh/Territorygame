@@ -347,10 +347,22 @@ export class OverlayLayer {
       if (!c) continue;
       const r = Math.max(7, Math.min(22, this.renderer.zoom * 1.6));
       const color = (c[0] << 16) | (c[1] << 8) | c[2];
+      const isHuman = cap.owner === 1;
+      const isAlly = !isHuman && this.game.areAllied(1, cap.owner);
+      const atWar = !isHuman && !isAlly && this.game.areAtWar(1, cap.owner);
       // Offset shadow blob behind, so capitals "lift" off the map.
       g.circle(s.x + 1.5, s.y + 2, r * 1.05).fill({ color: 0x000000, alpha: 0.35 });
-      // Outer pulse ring
-      g.circle(s.x, s.y, r * 1.55).stroke({ color: 0xffffff, alpha: 0.35 + 0.4 * pulse, width: 1.5 });
+      // Outer pulse ring — color-coded by relationship so allies vs
+      // enemies vs neutral nations read at a glance from the map.
+      let ringColor = 0xffffff;
+      let ringAlpha = 0.35 + 0.4 * pulse;
+      if (isAlly) { ringColor = 0x55c86e; ringAlpha = 0.55 + 0.45 * pulse; }
+      else if (atWar) { ringColor = 0xff6b6b; ringAlpha = 0.55 + 0.45 * pulse; }
+      g.circle(s.x, s.y, r * 1.55).stroke({ color: ringColor, alpha: ringAlpha, width: 1.5 });
+      // Allies get an extra inner halo for clarity.
+      if (isAlly) {
+        g.circle(s.x, s.y, r * 1.85).stroke({ color: 0x55c86e, alpha: 0.30 + 0.30 * pulse, width: 2 });
+      }
       // Diamond body
       g.poly([s.x, s.y - r, s.x + r, s.y, s.x, s.y + r, s.x - r, s.y]);
       g.fill({ color });
