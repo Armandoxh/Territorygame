@@ -2765,7 +2765,29 @@ export class Game {
       let isVassalDriven = false;
       const tileRegion = this.regions[i]!;
       const isVassal = tileRegion > 0 && this._regionDominant[tileRegion] === p.id;
-      if (isVassal) {
+
+      // Manual override: if the leader has explicitly targeted a region
+      // that this frontier tile can directly contribute to (the manual
+      // target IS this tile's region, or borders it), the leader's
+      // command outranks the vassal's autonomous target. Without this,
+      // vassal tiles silently ignore direct taps because their own
+      // autonomous target wins — which makes "I just bombed the enemy,
+      // why won't my units push in?" a real bug.
+      let manualReachable = false;
+      if (manualTargets.length > 0 && tileRegion > 0) {
+        const adj = this._regionAdjacency[tileRegion];
+        for (const mt of manualTargets) {
+          if (mt === tileRegion || (adj && adj.has(mt))) { manualReachable = true; break; }
+        }
+      }
+
+      if (manualReachable) {
+        effectiveTarget = manualTargets.length === 1
+          ? manualTargets[0]!
+          : this._pickClosestTarget(x, y, manualTargets);
+        // isVassalDriven stays false — leader's command, leader pays
+        // from p.gold (with treasury fallback below).
+      } else if (isVassal) {
         const vt = this._vassalTarget[tileRegion];
         if (vt && vt > 0) {
           effectiveTarget = vt;
@@ -2780,14 +2802,20 @@ export class Game {
       if (effectiveTarget == null) continue;
 
       // Gold for vassal-driven expansion comes out of the vassal region's
-      // own pool, not the leader's. Manual / leader-driven expansion still
-      // pays from p.gold. This matches the per-vassal economy contract:
-      // commander treasury is fed by tribute, not drained by vassal moves.
+      // own pool, not the leader's. Manual / leader-driven expansion pays
+      // from p.gold first, then falls back to treasury — same combined-
+      // ops budget builds use, so a direct command never stalls when the
+      // leader has gold sitting in treasury.
       const useVassalGold = isVassalDriven && p.isHuman && tileRegion > 0;
-      const goldPool = (): number => useVassalGold ? this._vassalGold[tileRegion]! : p.gold;
+      const goldPool = (): number => useVassalGold
+        ? this._vassalGold[tileRegion]!
+        : p.gold + p.treasury;
       const spend = (n: number): void => {
-        if (useVassalGold) this._vassalGold[tileRegion]! -= n;
-        else p.gold -= n;
+        if (useVassalGold) { this._vassalGold[tileRegion]! -= n; return; }
+        if (p.gold >= n) { p.gold -= n; return; }
+        const remainder = n - p.gold;
+        p.gold = 0;
+        p.treasury = Math.max(0, p.treasury - remainder);
       };
 
       if (goldPool() < this.config.EXPANSION_COST_PER_CLAIM) continue;
