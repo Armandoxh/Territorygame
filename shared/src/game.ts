@@ -404,6 +404,14 @@ export class Game {
     const W = this.territory.width;
     const oldOwner = this.territory.getOwner(x, y);
     if (!this.territory.claim(x, y, newOwner)) return false;
+    // Whenever a tile flips away from a real owner, the loser's
+    // building on that tile falls. Without this, paths that skip
+    // tryCapture (morale collapse, ship landings, etc.) leave
+    // turrets/settlements stuck on enemy land — the building keeps
+    // buffing the original owner who no longer holds the tile.
+    if (oldOwner > 0 && oldOwner !== newOwner) {
+      this._destroyBuildingsAt(x, y);
+    }
     if (this.regionCount > 0) {
       const r = this.regions[y * W + x]!;
       if (r > 0) {
@@ -1682,7 +1690,11 @@ export class Game {
         if (b.type !== 'settlement') continue;
         const p = players[b.owner];
         if (!p || !p.alive) continue;
-        const tierGold = flatGold * (b.level ?? 1) * this._embargoMult(p);
+        // Production decree applies here too — without this, "+10% gold
+        // empire-wide" silently exempted settlement flat income, so a
+        // settlement-heavy economy got half the boost the player paid for.
+        const decreeMult = this._productionMult(p) * this._embargoMult(p);
+        const tierGold = flatGold * (b.level ?? 1) * decreeMult;
         const net = siphon(b.owner, tierGold);
         const r = regions[b.y * W + b.x]!;
         if (p.isHuman && r > 0 && dominant[r] === b.owner) {

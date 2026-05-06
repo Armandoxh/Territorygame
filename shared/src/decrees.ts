@@ -53,7 +53,7 @@ export const DECREES: readonly Decree[] = [
 
   // OFFENSE
   { id: 'forced-march',   branch: 'offense', tier: 1, name: 'Forced March',
-    desc: '+20% vassal expansion rate per stack.', cost: 600, stackable: true },
+    desc: '+20% expansion rate per stack — applies to direct attacks AND vassal autonomous pushes.', cost: 600, stackable: true },
   { id: 'air-supremacy',  branch: 'offense', tier: 2, name: 'Air Supremacy',
     desc: 'Empire-wide bomb cooldowns ×0.5.', cost: 1800, prereq: 'forced-march' },
   { id: 'nuclear-program', branch: 'offense', tier: 3, name: 'Nuclear Program',
