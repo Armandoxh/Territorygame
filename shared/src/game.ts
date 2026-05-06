@@ -603,6 +603,7 @@ export class Game {
       if (!p.isHuman) {
         this._aiThink(p);
         this._aiBuild(p);
+        this._aiBuyDecrees(p);
       }
       // Always attempt expansion. _expand falls through tile-by-tile and
       // skips tiles with no effective target (no override + non-vassal).
@@ -1205,6 +1206,60 @@ export class Game {
       p.troops += this.config.DECREE_CONSCRIPT_TROOPS;
     } else if (id === 'war-bonds') {
       p.troops += 5000;
+    }
+  }
+
+  /** AI commander logic: spend treasury on decrees periodically so the
+   *  AI actually benefits from the commander tree instead of leaving
+   *  it unused. Without this, decree investments give the human a
+   *  one-sided advantage that compounds late-game.
+   *
+   *  Priority list is keyed off the AI's mastery so a naval AI tilts
+   *  toward admiralty/embassy/cartel, ground tilts toward defense, etc.
+   *  Universal picks (production, master-builder, conscription) sit at
+   *  the top of every list because they're always good. */
+  private _aiBuyDecrees(p: Player): void {
+    if (p.isHuman || !p.alive) return;
+    // Throttle: each AI considers a purchase every ~10s (offset per-id
+    // so ticks stay deterministic but spread out across players).
+    if (((this.tickCount + p.id * 13) % 100) !== 0) return;
+    if (p.treasury < 300) return;
+
+    const masteryPicks: Record<'ground' | 'air' | 'naval', string[]> = {
+      ground: [
+        'production', 'master-builder', 'iron-doctrine', 'border-patrol',
+        'reinforced-bunkers', 'veterans', 'standing-army', 'conscription',
+        'forced-march', 'free-market', 'spy-network', 'sabotage',
+      ],
+      air: [
+        'production', 'master-builder', 'forced-march', 'air-supremacy',
+        'veterans', 'standing-army', 'conscription', 'iron-doctrine',
+        'free-market', 'spy-network', 'embassy', 'cartel',
+      ],
+      naval: [
+        'production', 'master-builder', 'admiralty', 'embassy', 'cartel',
+        'forced-march', 'veterans', 'standing-army', 'conscription',
+        'iron-doctrine', 'free-market', 'spy-network',
+      ],
+    };
+    const list = masteryPicks[p.mastery ?? 'ground'];
+
+    // Pick the FIRST affordable + available decree on the list. Stops
+    // after one purchase per tick so a wealthy AI doesn't blow its
+    // entire treasury on a single tick (still makes progress over time).
+    for (const id of list) {
+      const d = decreeById(id);
+      if (!d || d.comingSoon) continue;
+      if (!this.decreeAvailable(p.id, id)) continue;
+      // Skip non-stackable decrees we already own.
+      if (!d.stackable && (p.decreeStacks[id] ?? 0) > 0) continue;
+      // Don't endlessly stack — soft cap at 8 stacks per decree so the
+      // AI diversifies instead of dumping 30 forced-march.
+      if ((p.decreeStacks[id] ?? 0) >= 8) continue;
+      const cost = id === 'war-bonds' ? Math.floor(p.treasury * 0.30) : d.cost;
+      if (p.treasury < cost) continue;
+      this.buyDecree(p.id, id);
+      return;
     }
   }
 
