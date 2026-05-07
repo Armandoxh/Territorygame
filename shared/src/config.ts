@@ -102,6 +102,9 @@ export interface GameConfig {
   STARVING_DECAY_TICKS: number;
   SETTLEMENT_RADIUS: number;
   SETTLEMENT_BONUS: number;
+  /** Flat per-tile gold added to every owned tile in the same
+   *  region as the settlement, per settlement-level. */
+  SETTLEMENT_REGION_GOLD_PER_TILE: number;
   /** Flat troops/tick added per owned settlement (independent of radius). */
   SETTLEMENT_TROOP_BONUS: number;
   /** Flat gold/tick added per owned settlement (in addition to multiplier). */
@@ -274,10 +277,16 @@ export const DEFAULT_CONFIG: GameConfig = {
     barracks:   { wood: 0.0015, food: 0.0010 },
   },
   STARVING_DECAY_TICKS: 300, // 30s — sustained starvation destructs the building
-  SETTLEMENT_RADIUS: 6,
-  SETTLEMENT_BONUS: 0.5,        // +50% gold in radius
+  SETTLEMENT_RADIUS: 6,         // legacy — kept for OverlayLayer compat, not used in income calc
+  SETTLEMENT_BONUS: 0,          // legacy — radius multiplier removed, replaced by per-region per-tile bonus
   SETTLEMENT_TROOP_BONUS: 5,    // +50 troops/sec per settlement (flat)
   SETTLEMENT_GOLD_BONUS: 0.20,  // +2.0 gold/sec flat per settlement
+  /** Per-tile income bonus added to every owned tile in the SAME
+   *  region as a settlement, per settlement-level present. So a
+   *  region with 2 L1 settlements grants `2 × SETTLEMENT_REGION_GOLD_PER_TILE`
+   *  to each owned tile, every tick. Replaces the old radius
+   *  paint — no more huge circles cluttering the map. */
+  SETTLEMENT_REGION_GOLD_PER_TILE: 0.005,
   TURRET_RADIUS: 5,             // covers ~78 tiles (was 28)
   TURRET_DEFENSE_BONUS: 4,      // (1 + 4) = 5x cost / 1/5 rate per stacked turret
   TURRET_RETALIATION_DAMAGE: 8, // attacker troops lost per turret on successful capture in radius

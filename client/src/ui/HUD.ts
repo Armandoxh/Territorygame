@@ -2695,6 +2695,7 @@ export class HUD {
       'occupied':     'Tile already built on',
       'on-capital':   'Cannot build on capital',
       'not-coastal':  'Defense Port needs a coastal tile (adjacent to water)',
+      'not-frontier': 'Turrets must sit on the edge of your territory',
       'oob':          'Out of bounds',
       'dead':         'You are eliminated',
       'bad-type':     'Unknown building',

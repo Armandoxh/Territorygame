@@ -469,8 +469,10 @@ export class OverlayLayer {
     const g = this.buildings;
     g.clear();
     const palette = this.game.config.PLAYER_COLORS;
-    const settleR = this.game.config.SETTLEMENT_RADIUS;
-    const turretR = this.game.config.TURRET_RADIUS;
+    // Settlements and turrets no longer have visible radius rings:
+    // settlements give flat per-region income (no on-map area effect)
+    // and turrets reinforce the entire frontier of their region (also
+    // not a circle). AA / port still have radii.
     const aaR     = this.game.config.AA_RADIUS;
     const portR   = this.game.config.PORT_RADIUS;
     const regions = this.game.regions;
@@ -493,15 +495,7 @@ export class OverlayLayer {
       const c = palette[b.owner];
       if (!c) continue;
       const color = (c[0] << 16) | (c[1] << 8) | c[2];
-      if (b.type === 'settlement') {
-        g.circle(s.x, s.y, settleR * this.renderer.zoom)
-         .fill({ color, alpha: 0.06 })
-         .stroke({ color, alpha: 0.28, width: 1 });
-      } else if (b.type === 'turret') {
-        g.circle(s.x, s.y, turretR * this.renderer.zoom)
-         .fill({ color, alpha: 0.05 })
-         .stroke({ color, alpha: 0.32, width: 1 });
-      } else if (b.type === 'aa') {
+      if (b.type === 'aa') {
         // Distinct dashed-look ring (drawn as a stroked circle in cyan-tinted
         // owner color so the AA umbrella is visually different from turrets).
         g.circle(s.x, s.y, aaR * this.renderer.zoom)

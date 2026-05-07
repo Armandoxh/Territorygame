@@ -860,3 +860,38 @@ WHY: User asked "I want to add a teams mode where you can play
 in teams of 2, 4, 8, 16 and it splits the map with teammates."
 Picked random-anchor clustering (vs pie slices) per their choice
 and locked alliances forever (no betrayal) per their choice.
+
+---
+
+[pending] gameplay: settlements go region-flat; turrets are
+frontier-only walls
+
+WHAT: Two big rebalances to building footprint.
+
+Settlement: dropped the +50% gold radius paint. Replaced with
+SETTLEMENT_REGION_GOLD_PER_TILE (0.005/tile/tick per
+settlement-level). Every owned tile in the same region as the
+settlement gets that flat per-tile bump; multiple settlements
+stack. Gold scales with how much of the region you actually
+hold (not a fixed disc), so claiming more of a settlement-region
+matters. Visual radius rings removed from the renderer.
+
+Turret: now must be placed on a frontier tile — tile must touch
+at least one non-self tile (enemy / neutral / water). New
+'not-frontier' BuildError. Effect: every frontier tile of the
+turret's region gets the defense + retaliation bonus, no more
+per-tile radius. So a single turret reinforces the entire
+border of its region. Multiple turrets in a region stack
+(2 turrets = 2× defense bonus on every wall tile). Bombs,
+blitzkrieg, artillery, and tank push all bypass _defenseAt as
+before, so air strikes / ground deployments are the natural
+counter to a turret-walled region. Per-tile turret cache
+collapsed to a region-keyed Float32Array.
+
+WHY: User said "I dont want settlements to be this massive
+thing on the map that takes up so much space and has a range.
+Why doesnt the settlement now give a flat tile income boost to
+all tiles in that land. Also, i want towers to be on the edges
+of a territory — reinforce the walls along that edge so enemies
+need a crazy offence, or air strikes, or blitzkrieg." Direct
+implementation of both asks.

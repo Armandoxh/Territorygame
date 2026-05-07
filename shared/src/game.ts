@@ -158,13 +158,12 @@ export class Game {
    *  but per-region for the settlement-garrison combat multiplier. */
   private _settlementLevelsByRegion!: Float32Array;
 
-  /** Per-tile cached turret defense bonus per defender. Allocated lazily
-   *  per active defender (full 256-player buffer would be 150 MB on a
-   *  384×384 map). Rebuilt only when buildings/decrees change. */
-  private _turretBonus = new Map<PlayerId, Float32Array>();
-  /** Per-tile cached turret retaliation per defender. */
-  private _turretRetal = new Map<PlayerId, Float32Array>();
-  /** Set when buildings change; we rebuild the caches lazily on next read. */
+  /** Per-region per-owner turret-level count. Indexed
+   *  `regionId * 256 + ownerId`. Drives the region-wall defense
+   *  + retaliation model — turrets reinforce every frontier tile
+   *  of the region they sit in, no per-tile radius. */
+  private _regionTurretLevels!: Float32Array;
+  /** Set when buildings change; we rebuild the cache lazily on next read. */
   private _turretCacheDirty = true;
   /** Reusable scratch arrays so tick paths don't allocate. */
   private readonly _scratch256a = new Float32Array(256);
@@ -407,6 +406,7 @@ export class Game {
     this._regionSiegeTicks = new Uint16Array(this.regionCount + 1);
     this._regionFloorTicks = new Uint16Array(this.regionCount + 1);
     this._settlementLevelsByRegion = new Float32Array((this.regionCount + 1) * 256);
+    this._regionTurretLevels = new Float32Array((this.regionCount + 1) * 256);
     this._settlementLevelsByOwner.fill(0);
     this.regionNames = generateRegionNames(this.regionCount);
     this._assignRegionResources();
@@ -1363,6 +1363,13 @@ export class Game {
         if (this._isWaterTile(x + dx, y + dy)) { coastal = true; break; }
       }
       if (!coastal) return 'not-coastal';
+    }
+    // Turret must sit on a frontier tile — a tile of yours that
+    // touches at least one tile not owned by you (enemy, neutral,
+    // or water). The turret's job is wall-defense, so building one
+    // in the deep interior is a waste of material.
+    if (type === 'turret') {
+      if (!this._isFrontierTile(x, y, ownerId)) return 'not-frontier';
     }
     // Master Builder discount applies to leader-paid builds only —
     // vassal-funded builds use their own pool at face value (the
@@ -2737,15 +2744,23 @@ export class Game {
       return kept;
     };
 
+    const regionSettlement = this.config.SETTLEMENT_REGION_GOLD_PER_TILE;
+    const settLevels = this._settlementLevelsByRegion;
     for (let i = 0; i < N; i++) {
       const id = owners[i]!;
       if (id === 0) continue;
       const p = players[id];
       if (!p || !p.alive) continue;
       const decreeMult = this._productionMult(p) * this._embargoMult(p);
-      const tileGold = base * (1 + mult[i]!) * decreeMult;
-      const net = siphon(id, tileGold);
+      // Per-region settlement bonus — replaces the old radius paint.
+      // Every settlement-level the owner has in this tile's region
+      // adds a flat per-tile income, so the boost coverage equals
+      // the region's owned area without any visual clutter.
       const r = regions[i]!;
+      const settlementLvls = r > 0 ? (settLevels[r * 256 + id] ?? 0) : 0;
+      const settlementBonus = settlementLvls * regionSettlement;
+      const tileGold = (base * (1 + mult[i]!) + settlementBonus) * decreeMult;
+      const net = siphon(id, tileGold);
       if (p.isHuman && r > 0 && dominant[r] === id) {
         // Vassal tribute flows to the leader's TREASURY (commander pool),
         // separate from operational gold. Vassals keep the rest in their
@@ -4770,8 +4785,22 @@ export class Game {
     const ironDoctrine = defender ? (defender.decreeStacks['iron-doctrine'] ?? 0) : 0;
     const W = this.territory.width;
     const i = y * W + x;
-    const grid = this._turretBonus.get(defenderId);
-    let bonus = grid ? grid[i]! : 0;
+    // Region-wall turret bonus: turrets reinforce every frontier
+    // tile in their region. A turret in the deep interior is
+    // impossible to build (gated in tryBuild), and an enemy
+    // attacking has to grind through every frontier tile of a
+    // turret-reinforced region — or use bombs / blitzkrieg / tank
+    // push, all of which bypass _defenseAt.
+    let bonus = 0;
+    if (this.regionCount > 0) {
+      const r = this.regions[i]!;
+      if (r > 0) {
+        const turretLvls = this._regionTurretLevels[r * 256 + defenderId] ?? 0;
+        if (turretLvls > 0 && this._isFrontierTile(x, y, defenderId)) {
+          bonus = turretLvls * this.config.TURRET_DEFENSE_BONUS;
+        }
+      }
+    }
     // Reinforced Bunkers buffs the turret bonus specifically (not the
     // full-region or mastery components). +50%/stack capped at +100%,
     // so a defender invested in turrets+bunkers gets a hardened ring.
@@ -4792,81 +4821,42 @@ export class Game {
     return bonus;
   }
 
-  /** Returns total turret retaliation damage at (x, y) against attackerId. */
+  /** Returns total turret retaliation damage at (x, y) against attackerId.
+   *  Frontier tiles of turret-reinforced regions deal damage; interior
+   *  tiles do nothing (no turret can cover them since they can't be
+   *  built there). */
   private _turretRetaliationAt(x: number, y: number, defenderId: PlayerId): number {
     if (this._turretCacheDirty) this._rebuildTurretCache();
-    const grid = this._turretRetal.get(defenderId);
-    if (!grid) return 0;
+    if (this.regionCount === 0) return 0;
     const W = this.territory.width;
-    const i = y * W + x;
-    let val = grid[i]!;
+    const r = this.regions[y * W + x]!;
+    if (r <= 0) return 0;
+    const turretLvls = this._regionTurretLevels[r * 256 + defenderId] ?? 0;
+    if (turretLvls === 0) return 0;
+    if (!this._isFrontierTile(x, y, defenderId)) return 0;
+    let val = turretLvls * this.config.TURRET_RETALIATION_DAMAGE;
     const defender = this.players[defenderId];
     const borderPatrol = defender ? (defender.decreeStacks['border-patrol'] ?? 0) : 0;
     if (borderPatrol > 0) val *= 1.5;
-    // Ground mastery: +50% turret retaliation (the bite-back damage when
-    // attackers successfully capture inside a turret radius).
     if (defender?.mastery === 'ground') val *= 1.5;
     return val;
   }
 
-  /** Stamps every turret's defense + retaliation onto a per-defender tile
-   *  grid (one Float32Array per active defender). After this, _defenseAt /
-   *  retaliation lookups are O(1). Border Patrol's +1 radius is baked in;
-   *  the +50% retaliation is applied at lookup time so the cache doesn't
-   *  invalidate as decrees stack. */
+  /** Recompute `_regionTurretLevels` from the current building list.
+   *  Region-wall model: a turret in region R counts its level toward
+   *  every frontier tile of R for its owner. No per-tile radius —
+   *  the region IS the wall. */
   private _rebuildTurretCache(): void {
+    const grid = this._regionTurretLevels;
+    if (!grid) { this._turretCacheDirty = false; return; }
+    grid.fill(0);
     const W = this.territory.width;
-    const H = this.territory.height;
-    const tiles = W * H;
-    // Reuse existing buffers; zero them in place. Owners that no longer have
-    // turrets keep the zeroed buffer (cheap to leave; freed when player dies).
-    for (const arr of this._turretBonus.values()) arr.fill(0);
-    for (const arr of this._turretRetal.values()) arr.fill(0);
-
-    const ensureGrid = (id: PlayerId): { def: Float32Array; ret: Float32Array } => {
-      let def = this._turretBonus.get(id);
-      let ret = this._turretRetal.get(id);
-      if (!def) { def = new Float32Array(tiles); this._turretBonus.set(id, def); }
-      if (!ret) { ret = new Float32Array(tiles); this._turretRetal.set(id, ret); }
-      return { def, ret };
-    };
-
-    const baseRBy = this._scratch256b;
-    baseRBy.fill(this.config.TURRET_RADIUS);
-    for (let id = 1; id < this.players.length; id++) {
-      const p = this.players[id];
-      if (p && (p.decreeStacks['border-patrol'] ?? 0) > 0) {
-        baseRBy[id]! = this.config.TURRET_RADIUS + 1;
-      }
-    }
     for (const b of this.buildings) {
       if (b.type !== 'turret') continue;
-      const owner = b.owner;
+      const r = this.regions[b.y * W + b.x] ?? 0;
+      if (r <= 0) continue;
       const lvl = b.level ?? 1;
-      const r = lvl <= 3
-        ? baseRBy[owner]! + (lvl - 1)
-        : baseRBy[owner]! + 2 + (lvl - 3) * 4;
-      const r2 = r * r;
-      const defAdd = this.config.TURRET_DEFENSE_BONUS * lvl;
-      const retAdd = this.config.TURRET_RETALIATION_DAMAGE * lvl;
-      const grids = ensureGrid(owner);
-      const def = grids.def, ret = grids.ret;
-      const x0 = Math.max(0, b.x - r);
-      const x1 = Math.min(W - 1, b.x + r);
-      const y0 = Math.max(0, b.y - r);
-      const y1 = Math.min(H - 1, b.y + r);
-      for (let y = y0; y <= y1; y++) {
-        const dy = y - b.y;
-        const dy2 = dy * dy;
-        const row = y * W;
-        for (let x = x0; x <= x1; x++) {
-          const dx = x - b.x;
-          if (dx * dx + dy2 <= r2) {
-            def[row + x]! += defAdd;
-            ret[row + x]! += retAdd;
-          }
-        }
-      }
+      grid[r * 256 + b.owner]! += lvl;
     }
     this._turretCacheDirty = false;
   }
@@ -4981,22 +4971,12 @@ export class Game {
     this._tryConsolidate(promoted);
   }
 
-  /** Apply a settlement's gold-multiplier paint at the supplied radius
-   *  (defaults to the L1-3 base if omitted). `sign` is added per tile. */
+  /** No-op. Settlement income is delivered per-region inside
+   *  `_earnGoldAll` via `_settlementLevelsByRegion`, not via a
+   *  per-tile multiplier. Kept around so consolidation/destruction
+   *  paths don't need to branch on the model change. */
   private _applySettlement(cx: number, cy: number, sign: number, radius?: number): void {
-    const r = radius ?? this.config.SETTLEMENT_RADIUS;
-    const r2 = r * r;
-    const W = this.territory.width, H = this.territory.height;
-    for (let dy = -r; dy <= r; dy++) {
-      const y = cy + dy;
-      if (y < 0 || y >= H) continue;
-      for (let dx = -r; dx <= r; dx++) {
-        if (dx * dx + dy * dy > r2) continue;
-        const x = cx + dx;
-        if (x < 0 || x >= W) continue;
-        this.goldMultiplier[y * W + x]! += sign * this.config.SETTLEMENT_BONUS;
-      }
-    }
+    void cx; void cy; void sign; void radius;
   }
 
   // --- Ships -------------------------------------------------------------
@@ -5005,6 +4985,21 @@ export class Game {
   private _isWaterTile(x: number, y: number): boolean {
     if (!this.territory.inBounds(x, y)) return false;
     return !this.territory.isPassable(x, y);
+  }
+
+  /** Frontier check: is (x, y) on the edge of `ownerId`'s territory?
+   *  Returns true when at least one of the 4 cardinal neighbors is
+   *  out-of-bounds, water, or owned by someone other than ownerId.
+   *  (Coast tiles count as frontier — the sea is "the other side".) */
+  private _isFrontierTile(x: number, y: number, ownerId: PlayerId): boolean {
+    if (this.territory.getOwner(x, y) !== ownerId) return false;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+      const nx = x + dx, ny = y + dy;
+      if (!this.territory.inBounds(nx, ny)) return true;
+      if (!this.territory.isPassable(nx, ny)) return true;
+      if (this.territory.getOwner(nx, ny) !== ownerId) return true;
+    }
+    return false;
   }
 
   /** Build a ship of the given kind. The build origin must be a coastal
