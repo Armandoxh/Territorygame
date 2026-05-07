@@ -1925,36 +1925,59 @@ export class HUD {
     if (!this.el.hotbar) return;
     const me = this.game.human();
     const combined = this.game.combinedFundsFor(me.id);
-    // Mastery-aware third slot: air → Airstrip (A), naval → Port (P),
-    // ground → Barracks (G). The deployment-enabler matches the
-    // mastery the player picked, so naval/ground players don't see a
-    // locked Airstrip taking up the slot.
     const masterySlot = this.el.hotbar.querySelector<HTMLButtonElement>('#hb-mastery');
     if (masterySlot) {
       const m = me.mastery ?? 'air';
-      const cfg: { type: BuildingType; key: string; title: string } = m === 'naval'
-        ? { type: 'port',     key: 'P', title: 'Defense Port (P)' }
+      const cfg: { type: BuildingType; key: string; title: string; name: string } = m === 'naval'
+        ? { type: 'port',     key: 'P', title: 'Defense Port (P)', name: 'Defense Port' }
         : m === 'ground'
-        ? { type: 'barracks', key: 'G', title: 'Barracks (G)' }
-        : { type: 'airstrip', key: 'A', title: 'Airstrip (A)' };
+        ? { type: 'barracks', key: 'G', title: 'Barracks (G)', name: 'Barracks' }
+        : { type: 'airstrip', key: 'A', title: 'Airstrip (A)', name: 'Airstrip' };
       masterySlot.dataset['type'] = cfg.type;
       masterySlot.title = cfg.title;
       const keyEl = masterySlot.querySelector('.hb-key');
       if (keyEl) keyEl.textContent = cfg.key;
+      const nameEl = masterySlot.querySelector('.hb-name');
+      if (nameEl) nameEl.textContent = cfg.name;
     }
     this.el.hotbar.querySelectorAll<HTMLButtonElement>('.hb-btn').forEach((btn) => {
       const type = btn.dataset['type'] as BuildingType | undefined;
       if (!type) return;
       const cost = this.game.config.BUILDING_COSTS[type];
+      const resCost = this.game.config.BUILDING_RESOURCE_COSTS[type] ?? {};
       const locked = this._isLockedForHuman(type);
+      // Affordability: gold + every required resource.
+      let resOk = true;
+      for (const [kind, need] of Object.entries(resCost)) {
+        if ((need ?? 0) <= 0) continue;
+        if ((me.resources[kind as keyof typeof me.resources] ?? 0) < (need ?? 0)) {
+          resOk = false; break;
+        }
+      }
       btn.classList.toggle('active', this.placeMode === type);
-      btn.classList.toggle('cant-afford', combined < cost);
+      btn.classList.toggle('cant-afford', !locked && (combined < cost || !resOk));
       btn.classList.toggle('locked', locked);
       btn.title = locked
         ? `${type[0]!.toUpperCase()}${type.slice(1)} — locked. Choose AIR mastery.`
         : `${type[0]!.toUpperCase()}${type.slice(1)}`;
       const costEl = btn.querySelector('.hb-cost');
-      if (costEl) costEl.textContent = locked ? '🔒' : String(cost);
+      if (costEl) costEl.textContent = locked ? '🔒 Locked' : `${cost}g`;
+      const resEl = btn.querySelector('.hb-res');
+      if (resEl) {
+        if (locked) {
+          resEl.innerHTML = '';
+        } else {
+          // Build "25 food · 15 wood" with per-resource colored spans
+          const parts: string[] = [];
+          for (const [kind, need] of Object.entries(resCost)) {
+            if ((need ?? 0) <= 0) continue;
+            parts.push(
+              `<span class="r-${kind}"><b>${need}</b><span class="r-short"> ${kind}</span></span>`,
+            );
+          }
+          resEl.innerHTML = parts.join(' · ');
+        }
+      }
     });
   }
 
