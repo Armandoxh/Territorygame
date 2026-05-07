@@ -1915,6 +1915,23 @@ export class HUD {
     if (!this.el.hotbar) return;
     const me = this.game.human();
     const combined = this.game.combinedFundsFor(me.id);
+    // Mastery-aware third slot: air → Airstrip (A), naval → Port (P),
+    // ground → Barracks (G). The deployment-enabler matches the
+    // mastery the player picked, so naval/ground players don't see a
+    // locked Airstrip taking up the slot.
+    const masterySlot = this.el.hotbar.querySelector<HTMLButtonElement>('#hb-mastery');
+    if (masterySlot) {
+      const m = me.mastery ?? 'air';
+      const cfg: { type: BuildingType; key: string; title: string } = m === 'naval'
+        ? { type: 'port',     key: 'P', title: 'Defense Port (P)' }
+        : m === 'ground'
+        ? { type: 'barracks', key: 'G', title: 'Barracks (G)' }
+        : { type: 'airstrip', key: 'A', title: 'Airstrip (A)' };
+      masterySlot.dataset['type'] = cfg.type;
+      masterySlot.title = cfg.title;
+      const keyEl = masterySlot.querySelector('.hb-key');
+      if (keyEl) keyEl.textContent = cfg.key;
+    }
     this.el.hotbar.querySelectorAll<HTMLButtonElement>('.hb-btn').forEach((btn) => {
       const type = btn.dataset['type'] as BuildingType | undefined;
       if (!type) return;
