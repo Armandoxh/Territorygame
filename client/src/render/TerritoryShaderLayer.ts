@@ -220,7 +220,9 @@ void main() {
       vec4 s10 = texture(uTexture, t10);
       vec4 s01 = texture(uTexture, t01);
       vec4 s11 = texture(uTexture, t11);
-      // Per-corner tint: parchment if water/unowned, else parchment×palette.
+      // Per-corner tint: parchment if water/unowned, else owner-color
+      // dominant with biome reduced to a subtle texture so the same
+      // owner reads the same regardless of biome underneath.
       vec3 c00 = parchmentCol;
       vec3 c10 = parchmentCol;
       vec3 c01 = parchmentCol;
@@ -233,34 +235,41 @@ void main() {
       int t10t = int(s10.g * 255.0 + 0.5);
       int t01t = int(s01.g * 255.0 + 0.5);
       int t11t = int(s11.g * 255.0 + 0.5);
+      // Flatten biome variance under claimed tiles so owner color
+      // dominates. Biome still tints the result by ~25% so wheat
+      // fields look slightly different from forests, but the
+      // dominant signal is "whose flag is on this land".
+      vec3 underlay = mix(vec3(dot(parchmentCol, vec3(0.33))), parchmentCol, 0.45);
       if (o00 > 0 && t00t == 0 && float(o00) <= uPlayerCount + 0.5) {
         vec3 tint = uPalette[o00 - 1];
-        c00 = mix(parchmentCol, parchmentCol * (tint * 1.5 + 0.05), 0.88);
+        c00 = mix(underlay, tint, 0.78) * (0.92 + grain * 0.18);
       }
       if (o10 > 0 && t10t == 0 && float(o10) <= uPlayerCount + 0.5) {
         vec3 tint = uPalette[o10 - 1];
-        c10 = mix(parchmentCol, parchmentCol * (tint * 1.5 + 0.05), 0.88);
+        c10 = mix(underlay, tint, 0.78) * (0.92 + grain * 0.18);
       }
       if (o01 > 0 && t01t == 0 && float(o01) <= uPlayerCount + 0.5) {
         vec3 tint = uPalette[o01 - 1];
-        c01 = mix(parchmentCol, parchmentCol * (tint * 1.5 + 0.05), 0.88);
+        c01 = mix(underlay, tint, 0.78) * (0.92 + grain * 0.18);
       }
       if (o11 > 0 && t11t == 0 && float(o11) <= uPlayerCount + 0.5) {
         vec3 tint = uPalette[o11 - 1];
-        c11 = mix(parchmentCol, parchmentCol * (tint * 1.5 + 0.05), 0.88);
+        c11 = mix(underlay, tint, 0.78) * (0.92 + grain * 0.18);
       }
       vec3 top = mix(c00, c10, frac.x);
       vec3 bot = mix(c01, c11, frac.x);
       col = mix(top, bot, frac.y);
-      col *= 0.85 + grain * 0.30;
+      col *= 0.92 + grain * 0.16;
     } else {
       col = parchmentCol;
       if (owner > 0 && float(owner) <= uPlayerCount + 0.5) {
         vec3 tint = uPalette[owner - 1];
-        // Multiply tint over parchment, keep grain alive
-        vec3 wash = col * (tint * 1.5 + 0.05);
-        col = mix(col, wash, 0.88);
-        col *= 0.85 + grain * 0.30;
+        // Owner color dominates; biome reduced to a near-monochrome
+        // underlay so different biomes don't repaint the same player
+        // a different color in each region.
+        vec3 underlay = mix(vec3(dot(parchmentCol, vec3(0.33))), parchmentCol, 0.45);
+        col = mix(underlay, tint, 0.78);
+        col *= 0.92 + grain * 0.18;
       }
     }
   }
