@@ -258,6 +258,7 @@ html, body {
   max-width: 320px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.45);
   z-index: 50;
+  pointer-events: auto;
 }
 #war-invite.hidden { display: none; }
 #war-invite .wi-msg { font-weight: 600; margin-bottom: 10px; line-height: 1.35; }
@@ -297,6 +298,7 @@ html, body {
   width: min(380px, 90vw);
   box-shadow: 0 12px 48px rgba(0,0,0,0.6);
   z-index: 60;
+  pointer-events: auto;
 }
 #trade-prompt.hidden { display: none; }
 #trade-prompt .tp-title {
@@ -372,6 +374,7 @@ html, body {
   max-width: 340px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.45);
   z-index: 50;
+  pointer-events: auto;
 }
 #resource-offer.hidden { display: none; }
 #resource-offer .ro-msg { font-weight: 600; margin-bottom: 10px; line-height: 1.4; }
