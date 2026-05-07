@@ -940,14 +940,17 @@ export class Game {
     }
   }
 
-  /** One artillery shell impact: tight radius-2 AOE. Drains 30 troops
-   *  per hit tile from each enemy owner, 25hp ship damage. Doesn't claim. */
+  /** One artillery shell impact: tight radius-2 AOE. Wipes enemy tiles
+   *  to neutral (and destroys buildings on them) — same effect a Small
+   *  bomb has but with a smaller blast. Drains 30 troops per hit tile
+   *  per enemy owner, 25hp ship damage. */
   private _fireArtilleryShell(ownerId: PlayerId, tx: number, ty: number): void {
     const r = 2;
     const r2 = r * r;
     const W = this.territory.width;
     const H = this.territory.height;
     const drainPerOwner = new Map<PlayerId, number>();
+    const wipedByRegion = new Map<number, number>();
     for (let dy = -r; dy <= r; dy++) {
       const y = ty + dy;
       if (y < 0 || y >= H) continue;
@@ -955,11 +958,23 @@ export class Game {
         if (dx * dx + dy * dy > r2) continue;
         const x = tx + dx;
         if (x < 0 || x >= W) continue;
+        if (this._capitalIndexAt(x, y) >= 0) continue;
         if (!this.territory.isPassable(x, y)) continue;
         const o = this.territory.getOwner(x, y);
-        if (o <= 0 || o === ownerId) continue;
-        if (this.areAllied(ownerId, o)) continue;
-        drainPerOwner.set(o, (drainPerOwner.get(o) ?? 0) + 1);
+        if (o === ownerId) continue;
+        if (o > 0 && this.areAllied(ownerId, o)) continue;
+        if (o > 0) {
+          // Track for troop drain.
+          drainPerOwner.set(o, (drainPerOwner.get(o) ?? 0) + 1);
+          // Wipe to neutral. Buildings come down with the tile via _claim.
+          if (this._claim(x, y, 0)) {
+            const reg = this.regions[y * W + x]!;
+            if (reg > 0) wipedByRegion.set(reg, (wipedByRegion.get(reg) ?? 0) + 1);
+          }
+        } else {
+          // Already neutral — still destroy any building sitting there.
+          if (this.buildingAt(x, y)) this._destroyBuildingsAt(x, y);
+        }
       }
     }
     for (const [oid, hits] of drainPerOwner) {
@@ -967,6 +982,7 @@ export class Game {
       if (!enemy) continue;
       enemy.troops = Math.max(0, enemy.troops - hits * 30);
     }
+    for (const [reg, n] of wipedByRegion) this._drainMoraleForRegion(reg, n);
     for (let i = this.ships.length - 1; i >= 0; i--) {
       const s = this.ships[i]!;
       if (s.owner === ownerId) continue;
@@ -980,23 +996,24 @@ export class Game {
         this.ships.splice(i, 1);
       }
     }
-    // Reuse 'bomb' event so the renderer flashes an explosion.
     this.events.push({ type: 'bomb', bombType: 'small', x: tx, y: ty, radius: r, ownerId });
   }
 
   /** Tank Push: from the closest frontier tile to target, claim every
-   *  tile inside a V-cone (60° wedge) of LEN-deep toward target.
-   *  Ignores defense. The wedge widens as it goes — the further from
-   *  the origin, the broader the steamroll, so a single push covers
-   *  ~25-35 tiles depending on map and obstacles. */
+   *  tile inside a wide V-cone (90° wedge) up to DEPTH+50% deep toward
+   *  target. Ignores defense. Each enemy tile claimed also drains 50
+   *  troops from its owner — armor visibly grinds infantry as it
+   *  rolls, not just paints territory. Steamroll. */
   private _fireTankPush(p: Player, tx: number, ty: number): void {
-    const DEPTH = this.config.GROUND_OP_RADII['tanks'];
-    const HALF_ANGLE_COS = Math.cos(Math.PI / 6); // 30° half-angle → 60° cone
+    // Beefed up per playtest: cone widened to 90° (45° half-angle) and
+    // depth boosted +50%, claim cap doubled. Single push now visibly
+    // sweeps a chunk of the map.
+    const DEPTH = Math.floor(this.config.GROUND_OP_RADII['tanks'] * 1.5);
+    const HALF_ANGLE_COS = Math.cos(Math.PI / 4); // 45° half-angle → 90° cone
     const W = this.territory.width;
     const territory = this.territory;
     const frontier = territory.getFrontier(p.id);
     if (frontier.size === 0) return;
-    // Origin: closest frontier tile to target.
     let bestI = -1, bestD = Infinity;
     for (const i of frontier) {
       const x = i % W, y = (i - x) / W;
@@ -1007,23 +1024,19 @@ export class Game {
     if (bestI < 0) return;
     const sx = bestI % W;
     const sy = (bestI - sx) / W;
-    // Direction from origin to target.
     const ddx = tx - sx, ddy = ty - sy;
     const dlen = Math.hypot(ddx, ddy);
     if (dlen < 0.001) return;
     const nx = ddx / dlen, ny = ddy / dlen;
-    // Sweep all tiles within DEPTH of origin; keep those whose direction
-    // vector falls inside the cone. Cap claims so a single push doesn't
-    // runaway-conquer in dense neutral zones.
-    const MAX_CLAIMS = 32;
+    const MAX_CLAIMS = 70;
     let claimed = 0;
+    const drainPerOwner = new Map<PlayerId, number>();
     for (let yy = -DEPTH; yy <= DEPTH; yy++) {
       for (let xx = -DEPTH; xx <= DEPTH; xx++) {
         if (claimed >= MAX_CLAIMS) break;
         const dist2 = xx * xx + yy * yy;
         if (dist2 === 0 || dist2 > DEPTH * DEPTH) continue;
         const dist = Math.sqrt(dist2);
-        // Cone test: dot(direction, normalized(xx,yy)) >= cos(30°).
         const dot = (nx * xx + ny * yy) / dist;
         if (dot < HALF_ANGLE_COS) continue;
         const ix = sx + xx, iy = sy + yy;
@@ -1036,12 +1049,22 @@ export class Game {
           if (this.areAllied(p.id, o)) continue;
           if (!this.areAtWar(p.id, o)) continue;
         }
-        if (this._claim(ix, iy, p.id)) claimed++;
+        if (this._claim(ix, iy, p.id)) {
+          claimed++;
+          if (o > 0) drainPerOwner.set(o, (drainPerOwner.get(o) ?? 0) + 1);
+        }
       }
     }
-    // Brief +50% combat power buff for 8s after — the steamroll
-    // momentum continues.
-    p.activeBuffs['tank-rush'] = this.tickCount + 80;
+    // Visible bleed on every enemy who lost ground to the push — armor
+    // chews infantry, not just paints territory.
+    for (const [oid, hits] of drainPerOwner) {
+      const enemy = this.players[oid];
+      if (!enemy) continue;
+      enemy.troops = Math.max(0, enemy.troops - hits * 50);
+    }
+    // Brief +50% combat power buff for 12s after — the steamroll
+    // momentum continues longer than before.
+    p.activeBuffs['tank-rush'] = this.tickCount + 120; // 12s (was 8s)
   }
 
   /** null on success, error code otherwise. */
