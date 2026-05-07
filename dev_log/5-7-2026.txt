@@ -348,3 +348,18 @@ WHY:
   along the flight axis (looks/feels like a bombing run). AA bypass is
   what justifies the 1000g — defenders can't stop it once launched, so
   it's the answer to a heavily-fortified AA umbrella.
+
+---
+
+[pending] ux: sticky placement modes — drop multiple without re-arming
+
+WHAT: tryPlaceAt / tryBombAt / tryBuildShipAt no longer clear their
+mode after a successful action. Player can drop 10 settlements / 5
+turrets / chain bombs / build a fleet without re-pressing the hotkey
+or re-opening the sheet between each one. Esc still exits cleanly,
+re-pressing the same hotkey toggles off, opening a different mode
+(build vs bomb vs ship) clears the others.
+
+WHY: User wanted "drop 10 settlements at once without pressing s
+between each drop" — was annoying to re-arm every time during early
+game build-up.

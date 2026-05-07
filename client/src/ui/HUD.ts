@@ -213,7 +213,9 @@ export class HUD {
     const err = this.game.tryBuild(type, x, y, 1);
     if (err === null) {
       this.toast(`Built ${type}`);
-      this.placeMode = null;
+      // Sticky: stay in place mode so the player can drop several
+      // settlements / turrets in a row without re-pressing the hotkey.
+      // Esc or tapping the same hotkey again exits the mode.
       this._refreshHotbar();
       this._refreshPlaceBanner();
     } else {
@@ -251,7 +253,8 @@ export class HUD {
     if (err === null) {
       const label = type === 'ac130' ? 'AC-130 inbound' : `${type[0]!.toUpperCase()}${type.slice(1)} bomb launched`;
       this.toast(label);
-      this.bombMode = null;
+      // Sticky: stay in bomb mode for back-to-back drops. Cooldown /
+      // gold gates will block further drops naturally; Esc exits.
       this._refreshPlaceBanner();
       this._refreshBombFab();
     } else {
@@ -628,7 +631,9 @@ export class HUD {
     const err = this.game.buildShip(kind, x, y, 1);
     if (err === null) {
       this.toast(`${kind} launched`);
-      this.shipBuildMode = null;
+      // Sticky: stay in ship-build mode so the player can launch a
+      // fleet without re-opening the sheet between each ship. Fleet
+      // cap / gold will block further; Esc exits.
       this._refreshPlaceBanner();
     } else {
       this.toast(this._shipErrorMsg(err));
