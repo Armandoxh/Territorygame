@@ -751,6 +751,7 @@ export class HUD {
       'no-water':     'No adjacent water',
       'cap':          'Fleet at capacity',
       'locked':       'Naval mastery required',
+      'no-port':      'Build a Defense Port first',
     };
     return msgs[err];
   }
@@ -777,9 +778,10 @@ export class HUD {
       this.el.fleetBtn.classList.add('hidden');
       return;
     }
-    // Hide entirely when naval is locked — keeps the right rail clean
-    // for ground/air players who can't use ships.
-    if (!this.game.isUnlocked(1, 'ships')) {
+    // Hide entirely until the player owns a Defense Port — ports are
+    // now the gate for fleet construction (parallel to airstrips for
+    // bombs and barracks for ground ops).
+    if (!this.game.hasPort(1)) {
       this.el.fleetBtn.classList.add('hidden');
       return;
     }

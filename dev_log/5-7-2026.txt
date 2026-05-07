@@ -491,3 +491,29 @@ rather than commander treasury. Cleaner separation: commander panel
 holds passive decrees + tactical buffs (Rally, Reinforcements);
 Barracks holds offensive ground deployments. Encourages investing
 in a Barracks per region for parallel firing capability.
+
+---
+
+[pending] gameplay: ships gated behind Defense Port (parallel to
+airstrip → bombs and Barracks → ground ops)
+
+WHAT:
+  • buildShip now requires the player to own at least one 'port'
+    building. Replaces the old `isUnlocked(ownerId, 'ships')` mastery
+    gate. Naval mastery still buffs ship cap and reload — it just
+    doesn't gatekeep construction anymore.
+  • New 'no-port' ShipBuildError → toast: "Build a Defense Port first".
+  • Fleet FAB hides entirely until the player has a Port (matches
+    bomb-fab → airstrip and barracks-fab → barracks pattern).
+  • AI ship-build path (`_aiMaybeBuildShip` trigger) gated on
+    hasPort rather than mastery unlock.
+  • Naval-mastery AIs now build a Port proactively (not just reactive
+    to enemy ships) since they need it to build ships at all.
+  • Port build-sheet desc updated: "Coastal · enables ship build ·
+    sinks enemy ships in r8".
+
+WHY: User wanted ships behind ports the same way bombs are behind
+airstrips and ground ops are behind barracks. Single unified pattern
+across all three offensive systems: enabler-building → fab →
+deployment sheet. Also gives the Defense Port an offensive value
+alongside its defensive role — invest once, get both.

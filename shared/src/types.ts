@@ -37,7 +37,7 @@ export interface Ship {
 }
 
 export type ShipBuildError =
-  | 'gold' | 'dead' | 'oob' | 'bad-type' | 'not-coastal' | 'no-water' | 'cap' | 'locked';
+  | 'gold' | 'dead' | 'oob' | 'bad-type' | 'not-coastal' | 'no-water' | 'cap' | 'locked' | 'no-port';
 
 /** Internal vassal-to-vassal trade route (Phase 2 of the trade empire
  *  overhaul). Auto-established between any two of an owner's connected

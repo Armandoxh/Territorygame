@@ -699,6 +699,10 @@ export class Game {
     return this.countBuildings(ownerId, 'barracks') > 0;
   }
 
+  hasPort(ownerId: PlayerId): boolean {
+    return this.countBuildings(ownerId, 'port') > 0;
+  }
+
   /** Soonest tick at which a barracks belonging to ownerId will be
    *  ready to fire `opType`, or -1 if the player has no barracks at all.
    *  Each barracks tracks its own cooldown per ground-op type, so a
@@ -3309,7 +3313,7 @@ export class Game {
     }
 
     // Naval mastery: try to build a ship on a coastal tile if under cap.
-    if (this.isUnlocked(p.id, 'ships')) this._aiMaybeBuildShip(p);
+    if (this.hasPort(p.id)) this._aiMaybeBuildShip(p);
 
     // Bombs: try once per think against the AI's current target region.
     const targetRegion = p.targetRegions[0] ?? 0;
@@ -3420,7 +3424,9 @@ export class Game {
     // posture as AA: don't build until there's a threat to deny.
     const portCount = this._countBuildingsInRegion(regionId, p.id, 'port');
     const portCap = Math.max(1, Math.floor(tiles.length / 60));
-    if (portCount < portCap && this._anyEnemyHasShips(p.id)) {
+    // Naval-mastery AIs build a port even without an enemy ship threat —
+    // they need the building to construct ships at all now.
+    if (portCount < portCap && (this._anyEnemyHasShips(p.id) || p.mastery === 'naval')) {
       const portCost = this.config.BUILDING_COSTS.port;
       if (p.gold >= reserve + portCost) {
         // Find an owned coastal tile (own + adjacent water).
@@ -4152,7 +4158,10 @@ export class Game {
     const owner = this.players[ownerId];
     if (!owner || !owner.alive) return 'dead';
     const cost = Math.ceil(baseCost * this._admiraltyCostMult(owner));
-    if (!this.isUnlocked(ownerId, 'ships')) return 'locked';
+    // Ships require a Defense Port — same building gates both anti-naval
+    // defense AND fleet construction. Naval mastery still buffs cap and
+    // reload, but no longer gatekeeps the ability to build.
+    if (!this.hasPort(ownerId)) return 'no-port';
     if (this.territory.getOwner(x, y) !== ownerId) return 'not-coastal';
     if (this.territory.isPassable(x, y) === false) return 'not-coastal';
     // Find adjacent water tile to spawn on.
