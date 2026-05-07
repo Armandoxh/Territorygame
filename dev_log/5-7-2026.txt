@@ -1,0 +1,311 @@
+SESSION: 2026-05-07
+=====================
+
+Big mechanical shift session. Game went from "free-for-all expansion
+with light diplomacy" to "Civ-style political model with peace as
+default + commander-tree depth that actually applies in play".
+
+Order is roughly chronological. Each entry is WHAT changed + WHY.
+
+---
+
+[a133e01] gameplay: manual click = 100% focus; vassals aggressive on
+neutrals
+
+WHAT: Restructured _expand candidate selection. Three modes per
+frontier tile: (1) MANUAL — pool restricted to candidates inside a
+manual-target region, no fallback; (2) VASSAL AUTONOMOUS — vassal
+target first, else any adjacent neutral, with +50% rate boost when
+targeting neutrals; (3) IDLE — non-vassal tile with no manual order
+does nothing. Peace-state filter folded into candidate list.
+
+WHY: User reported clicking a region "feels like spread 3× in all
+directions" instead of focused push. Root cause: focus multiplier
+applied to every leader-driven frontier tile regardless of whether it
+could actually contribute to the front. Tiles with no target-region
+neighbor fell through Tier 2/3 fallback and still got the boost,
+attacking arbitrary unclaimed land at 3×. Fix makes "click = general's
+order" literally true — only contributing tiles push, others sit out.
+
+Also user wanted vassals to "expand autonomously and aggressively into
+contacting neutrals" early game. The +50% boost in autonomous-on-
+neutral mode addresses that.
+
+---
+
+[f5a6e5f] fix: diplomacy button vanished — bad position override on
+#diplo-btn
+
+WHAT: Removed `#diplo-btn { position: relative; }` rule.
+
+WHY: Two commits earlier, that rule was added to anchor the new
+notification badge. But .icon-btn already has position:absolute, and
+overriding it with position:relative collapsed the button into normal
+document flow — invisible behind the canvas. Absolute children resolve
+against the nearest positioned ancestor, which the absolute parent
+already provided.
+
+---
+
+[5a4fac7] ux: diplomacy panel defaults to active relationships only
+
+WHAT: Hide "OTHER NATIONS" section by default; show only YOUR ALLIES
+and AT WAR. "Show N Other Nations" toggle at the bottom expands to
+the full list.
+
+WHY: User wanted a panel that surfaces what they actually need to
+manage. Listing 50 peaceful AIs was noise. Long-press enemy land
+already proposes alliance, so propose-from-panel is rare; the
+collapsed section preserves the option without making it the default.
+
+---
+
+[09a84b8] ux: diplomacy panel sections + war-invite validation + badge
+
+WHAT: Three things. (1) Diplomacy panel grouped into sections:
+ALLIES (green border), AT WAR (red border), OTHERS — instead of one
+flat list. (2) War-invite popup drops stale invites if inviter is no
+longer an ally. breakAlliance also clears any pending invites between
+the broken pair. (3) Notification badge on the ⚑ button showing count
+of pending war invites.
+
+WHY: User reported (a) panel was overwhelming "AI 1, AI 2... AI 50"
+with no order, (b) AI was sending war invites despite not being an
+ally — turned out to be stale invites from broken alliances, and (c)
+needed a way to know there's something to look at without opening
+the panel.
+
+---
+
+[9b53f29] diplomacy overhaul: peace by default, permanent alliances,
+war system
+
+WHAT: Big one.
+  • Default state for any pair = PEACE. tryCapture refuses to flip
+    a defender's tile unless at war (or neutral). Same gate added
+    to ship fire / submarine missiles / warship landings.
+  • Aggression auto-declares war: tap an enemy region, drop a bomb
+    on enemy land, or attack via ship. Toast shows cause→effect.
+  • Alliances now permanent (Infinity expiry) instead of 60s.
+    Forming an alliance ends any active war between the pair.
+  • declareWar bandwagons the target's allies into the war on
+    target's side (one level deep).
+  • New diplomacy buttons: Declare War / Sue for Peace, Make Them
+    Fight (coerce ally to declare war on your enemies).
+  • coerceAllyToWar accept rule keys off ally vs target strength
+    ratio; Embassy decree loosens the threshold.
+  • War-invite system: AI declares war → if it has human ally,
+    pendingWarInvites queue gets an entry. Red modal at top of
+    screen with [Join War] / [Decline].
+  • Ally indicator on map: capital crowns now color-coded —
+    green double-halo for allies, red ring for enemies, white pulse
+    for neutral.
+  • _aiConsiderWar runs every ~10s per AI. Peaceful AIs prefer
+    expanding into neutral. Only declare war when no neutrals
+    adjacent AND 1.3× strength advantage.
+
+WHY: User wanted a Civ-style political model: nations don't auto-
+fight, aggression is a deliberate choice with diplomatic cost,
+allies stick around long enough to matter, and "you can coerce
+allies + AI invites you to wars". Game previously had alliances
+existing but expiring after 60s and constant chaotic warfare with
+no peace state. The map gave no visual indicator of who was allied.
+
+---
+
+[4818188] fix: AI players actually buy decrees now (full audit pass)
+
+WHAT: New _aiBuyDecrees runs every ~10s per AI. Picks highest-priority
+affordable decree from a mastery-tilted list (naval AIs lean into
+admiralty/embassy/cartel, ground into iron-doctrine/bunkers/veterans,
+air into air-supremacy/forced-march). Soft-cap 8 stacks per decree.
+
+Audited every decree's effect path; documented in commit message.
+
+WHY: User asked to verify all commander perks apply. Audit showed
+every effect was wired — but buyDecree was only called from the human
+HUD. AIs never invested in any decree, so their treasury just stockpiled
+unused while the human stacked +30 forced-march unopposed. Asymmetric
+late-game advantage hardcoded into the engine.
+
+---
+
+[b974df4] balance + perks: trade rebalanced, two new branches, four
+new decrees
+
+WHAT:
+  • Trade per-region rate dropped 5g/s → 1.5g/s.
+  • Diminishing returns on alliance count: 1st 100% / 2nd 70% /
+    3rd 50% / 4th 35% / 5+ 25%.
+  • Hard cap removed — diminishing returns naturally bound it.
+  • New NAVAL branch: Admiralty (T1, +20% ship speed/–20% cost),
+    Privateer (T2, coming soon).
+  • New DIPLOMACY branch: Embassy (T1, AI more lenient), Cartel
+    (T2, +20% trade income), Cold War (T3, coming soon).
+  • Existing branches filled: Master Builder (econ), Reinforced
+    Bunkers (def), Veterans (mil), Forced Labor (esp, coming soon).
+
+WHY: User reported trade income compounded with commander boosts felt
+"broken" — three alliances printing 120g/s. Per-region rate was 5g/s
+with no diminishing, scaled linearly with allies. Lower base + dim
+returns keeps trade meaningful (one good alliance = ~10g/s) without
+snowballing. The two new branches address two earlier complaints —
+"naval class doesn't get much love" and "trade alliances are central
+now but have no decree tree".
+
+---
+
+[1bcb8f8] ux: long-press enemy land for one-tap trade alliance
+
+WHAT: Long-press on enemy territory → propose alliance + open trade
+route in one action. Long-press on own/neutral → still build sheet.
+
+WHY: User wanted "set up a trade alliance" to be a direct gesture
+instead of navigating through the diplomacy panel. Mobile-first
+muscle memory. Toast shows result + per-second income.
+
+---
+
+[e1d2005] fix: production decree applies empire-wide; buildings drop
+on flip
+
+WHAT: (1) Production decree now multiplies BOTH per-tile income AND
+settlement flat income; previously only per-tile. (2) tryCapture
++ morale collapse + ship landings all destroyed buildings via
+explicit calls; pulled it into _claim itself so every tile-flip
+path automatically destroys buildings.
+
+WHY: (1) User asked which decrees might have similar gaps to
+forced-march; audit found settlement flat-gold skipped production
+multiplier, so a settlement-heavy economy got half the boost.
+(2) User reported turrets/settlements lingering on enemy land after
+capture in some paths. The new morale-collapse defection routine
+called _claim directly without destroying buildings — zombie turrets
+on enemy land buffing the wrong owner's defense map.
+
+---
+
+[9ab4146] gameplay: decrees stack with manual play + siege actually
+cracks
+
+WHAT:
+  • _expansionBoostFor (forced-march) now applied to BOTH manual
+    and vassal-driven expansion paths.
+  • Vassal expansion gets a treasury fallback when _vassalGold[r]
+    runs dry.
+  • New morale-collapse defection: regions pinned at floor morale
+    (0.20) for 30s under siege start losing one tile every 4 ticks
+    to the strongest besieger. Picks frontline tiles.
+
+WHY: User said "decree investment feels invisible during play" + "no
+matter what I build on my vassals they never overtake nearby land"
++ "late game feels like a stalemate". Diagnosis: forced-march was
+only on vassal-driven path, vassal pools drained from builds and
+stalled, and siege fatigue only drained morale without ever flipping
+tiles. All three fixed in one coherent change.
+
+---
+
+[d9489e2] gameplay: focus multiplier — concentrated taps push faster
+
+WHAT: New MANUAL_FOCUS_BOOST = 3.0. Single manual target rolls at
+3× baseline; N targets divides the boost by N. STOP fab text now
+shows current multiplier.
+
+WHY: User wanted 1-target taps to feel like a focused push. Same
+session this introduced a side effect (spread-3×-everywhere) that
+got fixed properly in [a133e01].
+
+---
+
+[f3ee1aa] fix: manual taps override vassal autonomy (the real
+expansion stall)
+
+WHAT: When the leader has a manual target and a frontier tile's
+region is adjacent to (or matches) that target, the leader's command
+overrides the vassal's autonomous target for that tile. Pays from
+p.gold + treasury fallback.
+
+WHY: Bomb the enemy → click the cleared region → units don't push.
+Cause: design comment in _expand said "Manual override does NOT
+apply here", so vassal-tile autonomous target hijacked the player's
+manual click. Compounded by vassal pool starvation.
+
+---
+
+[6b9f2d5] phase 3: external trade routes between allies
+
+WHAT: Diplomatic trade routes. Hard-gated on alliance — auto-cancel
+when alliance ends. Both sides earn flow into treasury per tick.
+HUD: Open/End Trade Route button, ROUTE tag with live income.
+Render: dashed cyan line + animated dots between players' largest-
+region centroids.
+
+WHY: User confirmed Phase 3 of the OVERHAUL.md plan. Trade as a
+diplomatic carrot beyond the existing one-shot exchanges.
+
+---
+
+[264177d] fix: bombed-out regions can be re-targeted instantly (no
+false cooldown)
+
+WHAT: REGION_LOSS_COOLDOWN now only enforces if an enemy currently
+holds the region. Bomb-wiped no-dominant case drops the cooldown.
+
+WHY: Tap a region you just got bombed in, troops don't advance.
+Cause: cooldown fired whenever you lost dominance regardless of who
+took it; bomb wipes drop you below 50% but region usually goes to
+no-dominant, not enemy-dominant. False positive — there's no yo-yo
+to prevent if no enemy actually conquered the region.
+
+---
+
+[0f439fb] perf: fog-cull buildings + O(1) building-version signature
+
+WHAT: Buildings + coverage rings inside fog-hidden regions are
+skipped during draw. New buildingsVersion counter bumped on every
+build/upgrade/destroy/consolidate; replaces the O(buildings)
+levelSum scan in the redraw signature.
+
+WHY: User reported late-game framerate drops. Two costs identified:
+(1) painting every distant building every redraw, (2) signature
+scan running per-frame even when sitting still. Fog-cull addresses
+the user's "tree depth 2" intuition naturally.
+
+---
+
+KEY INVARIANTS LEARNED THIS SESSION
+====================================
+
+1. ALL tile-flip paths must destroy buildings. _claim does this
+   centrally now — don't call territory.claim directly.
+2. Decree effects must apply on BOTH manual and vassal paths. Helpers
+   like _expansionBoostFor / _productionMult are called multiple
+   places; always grep before assuming a new decree "works".
+3. AI must invest in decrees (_aiBuyDecrees). Without that, any new
+   decree is a one-sided human-only buff.
+4. Peace is the default. tryCapture / ship fire / submarine missiles
+   all gated on areAtWar(). Filter candidate lists upfront in _expand
+   so we don't waste rolls.
+5. Alliances are permanent (Infinity expiry) unless explicitly time-
+   limited. allianceExpireAt() returning Number.POSITIVE_INFINITY is
+   normal; HUD displays "ALLY" without countdown in that case.
+6. Manual target click = "general's order" — only frontier tiles
+   that can directly contribute push. Don't add Tier 2/3 fallback
+   that bypasses the focus.
+7. Tile-flip paths route through _claim, but pendingWarInvites and
+   trade routes can become stale if alliances end — clean them up
+   in breakAlliance.
+
+FILES MOST TOUCHED THIS SESSION
+================================
+shared/src/game.ts        — core engine (peace/war, _expand, AI logic)
+shared/src/decrees.ts     — new branches + decree definitions
+shared/src/types.ts       — new event types, ExternalTradeRoute
+shared/src/config.ts      — MANUAL_FOCUS_BOOST and rebalance constants
+client/src/ui/HUD.ts      — diplomacy panel restructure, war-invite UI
+client/src/main.ts        — long-press routing for trade alliances
+client/src/render/OverlayLayer.ts — capital halos by relationship
+client/src/render/TradeLayer.ts   — external route rendering
+client/src/styles.css     — diplo sections, war-invite, badge styles
+client/index.html         — war-invite popup, badge span, naval/diplo tabs

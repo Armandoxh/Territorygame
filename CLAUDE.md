@@ -1,5 +1,18 @@
 # Repo notes for Claude
 
+## Session start: read the dev log
+
+Before doing anything else, list `dev_log/` and read the most recent
+file (filename format `m-d-yyyy.txt`). Read 2-3 of the most recent if
+present — they capture WHAT changed and WHY, so you don't repeat past
+mistakes or undo recent design decisions.
+
+After completing meaningful work in a session, append a new entry to
+the day's file (or create it if it's the first session of the day).
+Each entry is one short paragraph: WHAT changed (a commit hash or
+brief description) and WHY (the user-facing problem it addresses).
+Concise — future Claude needs the rationale, not the diff.
+
 ## Deployment / live UI
 
 GitHub Pages serves from branch **`claude/territorial-game-mobile-xXdYn`**. That
