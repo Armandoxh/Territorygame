@@ -300,6 +300,61 @@ export class Game {
     return sum;
   }
 
+  /** Per-second NET production rate per resource for `playerId` —
+   *  regional generation minus building upkeep. Trade flow is NOT
+   *  included so callers can compose it with `resourceTrades`
+   *  separately. Returns a fresh ResourceBag, safe to mutate. */
+  resourceProductionFor(playerId: PlayerId): { food: number; wood: number; stone: number; oil: number; gems: number } {
+    const out = { food: 0, wood: 0, stone: 0, oil: 0, gems: 0 };
+    const hz = this.config.SIM_HZ;
+    // Regional generation — mirror _generateResources but only sum
+    // contributions to `playerId`. Output is per-second.
+    const RATE: Record<ResourceKind, number> = {
+      food: 0.0015, wood: 0.0015, stone: 0.0012, oil: 0.0008, gems: 0.0002,
+    };
+    for (let r = 1; r <= this.regionCount; r++) {
+      const kind = this.regionResources[r];
+      if (!kind) continue;
+      const total = this._regionTotal[r] ?? 0;
+      if (total === 0) continue;
+      const base = r * 256;
+      let dominant = 0, dominantCount = 0, occupied = 0;
+      for (let o = 1; o < 256; o++) {
+        const c = this._regionOwnedTiles[base + o] ?? 0;
+        if (c > 0) occupied += c;
+        if (c * 2 > total) { dominant = o; dominantCount = c; }
+      }
+      if (occupied === 0) continue;
+      const myCount = this._regionOwnedTiles[base + playerId] ?? 0;
+      if (myCount === 0) continue;
+      const regionRate = total * RATE[kind];
+      let mine = 0;
+      if (dominant > 0) {
+        if (dominant === playerId) {
+          const remainderClaimants = occupied - dominantCount;
+          mine = remainderClaimants <= 0 ? regionRate : regionRate * 0.9;
+        } else {
+          const remainderClaimants = occupied - dominantCount;
+          if (remainderClaimants > 0) mine = regionRate * 0.10 * (myCount / remainderClaimants);
+        }
+      } else {
+        mine = regionRate * (myCount / total);
+      }
+      out[kind] += mine * hz;
+    }
+    // Upkeep — sum BUILDING_UPKEEP per owned building. Per-second.
+    const upkeepTable = this.config.BUILDING_UPKEEP;
+    for (const b of this.buildings) {
+      if (b.owner !== playerId) continue;
+      const upkeep = upkeepTable[b.type] ?? {};
+      for (const [kind, amount] of Object.entries(upkeep)) {
+        if ((amount ?? 0) <= 0) continue;
+        out[kind as ResourceKind] -= (amount ?? 0) * hz;
+      }
+    }
+    return out;
+  }
+
   // --- Setup ---
 
   generateTerrain(seed?: number): void {

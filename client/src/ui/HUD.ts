@@ -1837,11 +1837,20 @@ export class HUD {
   }
 
   /** Update the per-currency flow chips on the top resource bar
-   *  (and the gold stat). Sums net flow across all active resource
-   *  trades involving the human and renders +/- /s in green/red.
-   *  Hidden when there's no trade or the flow is effectively zero. */
+   *  (and the gold stat). Net per-second rate = regional generation
+   *  − building upkeep + trade flow. Renders +/- /s in green/red,
+   *  hidden when the rate is effectively zero. Gold uses trade flow
+   *  only (gold has many income sources surfaced elsewhere). */
   private _refreshResourceFlowChips(): void {
     const flow: Record<TradeCurrency, number> = { food: 0, wood: 0, stone: 0, oil: 0, gems: 0, gold: 0 };
+    // Production net of upkeep for the five resources.
+    const prod = this.game.resourceProductionFor(1);
+    flow.food  += prod.food;
+    flow.wood  += prod.wood;
+    flow.stone += prod.stone;
+    flow.oil   += prod.oil;
+    flow.gems  += prod.gems;
+    // Trade flow on top.
     for (const t of this.game.resourceTrades) {
       if (t.a !== 1 && t.b !== 1) continue;
       const youGive    = t.a === 1 ? t.aGives : t.bGives;

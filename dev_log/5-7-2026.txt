@@ -804,3 +804,21 @@ which meant players didn't see the gate before clicking. (b)
 "accepting trades from the trade window is not working, it only
 accepts when it's on the popup on the map" — turned out to be a
 plain dispatcher bug, the engine's accept path was fine.
+
+---
+
+[pending] ux: top resource chips show net PRODUCTION rate, not
+just trade flow
+
+WHAT: New Game.resourceProductionFor(playerId) returns per-second
+net rate = regional generation (mirrors _generateResources logic
+without mutating state) − building upkeep. HUD's resource flow
+chips now combine production + trade flow into a single number,
+so a chip says "+1.2/s" instead of nothing when the player has no
+trades but is generating food from owned regions.
+
+WHY: User noticed "I'm not seeing my net resource production next
+to my total resource numbers" — the chips only surfaced trade
+deltas, so without an active trade you saw no per-second number
+even though resources were ticking up from regions. Now the chip
+reflects the actual rate of change at all times.
