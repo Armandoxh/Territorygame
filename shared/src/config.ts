@@ -229,18 +229,18 @@ export const DEFAULT_CONFIG: GameConfig = {
   TURRET_DEFENSE_BONUS: 4,      // (1 + 4) = 5x cost / 1/5 rate per stacked turret
   TURRET_RETALIATION_DAMAGE: 8, // attacker troops lost per turret on successful capture in radius
 
-  BOMB_COSTS:          { small: 60,  large: 240, ac130: 350 },
-  BOMB_RADII:          { small: 3,   large: 6,   ac130: 4   }, // ac130 = single-strafe radius
-  BOMB_COOLDOWN_TICKS: { small: 80,  large: 250, ac130: 320 }, // 32s @ 10Hz
-  PLANE_SPEED:         { small: 0.45, large: 0.30, ac130: 0.35 },
+  BOMB_COSTS:          { small: 60,  large: 240, ac130: 350,  stealth: 1000 },
+  BOMB_RADII:          { small: 3,   large: 6,   ac130: 6,    stealth: 4   }, // ac130 = orbit zone; stealth = per-bomblet
+  BOMB_COOLDOWN_TICKS: { small: 80,  large: 250, ac130: 320,  stealth: 600 }, // 60s — premium long cd
+  PLANE_SPEED:         { small: 0.45, large: 0.30, ac130: 0.35, stealth: 0.55 }, // stealth flies fast
 
   AA_RADIUS:     7,    // a bit bigger than turret radius — defensive umbrella
   AA_HIT_CHANCE: 0.75, // single 75% roll per AA per plane
 
   /** AC-130 only. Ticks the gunship orbits the target after arrival. */
-  AC130_ORBIT_TICKS:    100,  // 10s on station
+  AC130_ORBIT_TICKS:    150,  // 15s on station — buffed from 10s
   /** AC-130 only. Ticks between strafes during orbit. */
-  AC130_STRAFE_INTERVAL: 14,  // ~1.4s
+  AC130_STRAFE_INTERVAL: 9,   // ~0.9s — faster strafing pass
 
   SHIP_COSTS:      { scout: 80,  skirmisher: 200, warship: 500, submarine: 350, destroyer: 280 },
   SHIP_HP:         { scout: 30,  skirmisher: 80,  warship: 280, submarine: 60,  destroyer: 110 },

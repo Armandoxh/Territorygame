@@ -309,3 +309,42 @@ client/src/render/OverlayLayer.ts — capital halos by relationship
 client/src/render/TradeLayer.ts   — external route rendering
 client/src/styles.css     — diplo sections, war-invite, badge styles
 client/index.html         — war-invite popup, badge span, naval/diplo tabs
+
+---
+
+[pending] gameplay: AC-130 buffed; new Stealth Bomber (1000g carpet)
+
+WHAT:
+  AC-130 buff:
+    - Orbit duration 100 → 150 ticks (10s → 15s on station)
+    - Strafe interval 14 → 9 ticks (~1.4s → ~0.9s, more passes)
+    - Per-strafe blast radius 2 → 3
+    - Per-strafe troop drain 25 → 60 (×2.4)
+    - Per-strafe ship damage 15 → 35
+    - Orbit-zone radius (BOMB_RADII['ac130']) 4 → 6 (wider area covered)
+    Net: ~16 strafes per orbit covering a 12-tile-diameter footprint —
+    cumulative wipe now solidly out-clears a Large bomb, justifying 350g.
+
+  Stealth bomber:
+    - New BombType 'stealth', cost 1000g, cooldown 60s
+    - Plane speed 0.55 (fastest of any bomber)
+    - On arrival, lays a CARPET of 7 bomblets along the flight axis
+      from origin → dest, spaced 5 tiles apart, each radius 4
+    - Net coverage ≈ 30 tiles long × 8 tiles wide
+    - Per-bomblet 40 troop drain on owned tiles, 80 ship damage
+    - Bypasses AA entirely — no rolledAA check applied
+    - HUD: new bomb-sheet button with chevron icon, hotkey X
+    - Plane visual: dark angular flying-wing with owner-tint stripe
+    - New Plane.originX/originY field tracks spawn point so the carpet
+      orients along the actual flight axis
+
+WHY:
+  User said AC-130 felt underwhelming for its 350g cost. Per-strafe was
+  too small (radius 2, 25 troops) and orbit was short, so total per-cast
+  damage trailed Large bomb at 240g. Boosted across all axes.
+  
+  User asked for a Stealth Bomber: high-cost premium aircraft that does
+  carpet bombing. Carpet implemented as a strip of overlapping bomblets
+  along the flight axis (looks/feels like a bombing run). AA bypass is
+  what justifies the 1000g — defenders can't stop it once launched, so
+  it's the answer to a heavily-fortified AA umbrella.

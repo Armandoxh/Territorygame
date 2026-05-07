@@ -18,6 +18,7 @@ const BOMB_KEYS: Record<string, BombType> = {
   b: 'small',
   l: 'large',
   c: 'ac130',
+  x: 'stealth', // 's' is taken by settlement
 };
 
 async function boot(): Promise<void> {

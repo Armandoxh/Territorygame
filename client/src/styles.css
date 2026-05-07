@@ -412,6 +412,13 @@ html, body {
 }
 .bb-btn[data-bomb="small"] .bb-icon::before { inset: 11px; }
 .bb-btn[data-bomb="large"] .bb-icon::before { inset: 4px; }
+/* Stealth bomber: an angled chevron silhouette to read as "aircraft" */
+.bb-btn[data-bomb="stealth"] .bb-icon::before {
+  inset: 6px;
+  background-color: #c8eef5;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='12,3 22,18 12,14 2,18' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='12,3 22,18 12,14 2,18' fill='black'/></svg>");
+}
 
 .icon-btn {
   position: absolute;

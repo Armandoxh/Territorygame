@@ -9,7 +9,7 @@ export const TERRAIN_DEEP = 2;
 
 export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'aa';
 
-export type BombType = 'small' | 'large' | 'ac130';
+export type BombType = 'small' | 'large' | 'ac130' | 'stealth';
 
 export type ShipKind = 'scout' | 'skirmisher' | 'warship' | 'submarine' | 'destroyer';
 
@@ -78,6 +78,10 @@ export interface Plane {
   /** Float world coordinates — sub-tile precision so movement reads smooth. */
   x: number;
   y: number;
+  /** Where the plane spawned. Lets the stealth-bomber carpet detonate
+   *  along the actual flight axis instead of an arbitrary direction. */
+  originX: number;
+  originY: number;
   destX: number;
   destY: number;
   /** Tiles per tick. */

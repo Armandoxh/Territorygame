@@ -58,7 +58,7 @@ export class PlanesLayer {
   }
 }
 
-function drawPlane(g: Graphics, bombType: 'small' | 'large' | 'ac130', tint: number): void {
+function drawPlane(g: Graphics, bombType: 'small' | 'large' | 'ac130' | 'stealth', tint: number): void {
   g.clear();
   // Trail (drawn first so the body sits on top)
   g.poly([-0.5, 6, 0.5, 6, 0, 12]).fill({ color: 0xffffff, alpha: 0.20 });
@@ -94,7 +94,7 @@ function drawPlane(g: Graphics, bombType: 'small' | 'large' | 'ac130', tint: num
     g.circle( 3.4, 1.5, 0.8).fill({ color: 0x1a0f08 });
     // Cockpit
     g.circle(0, -5, 0.9).fill({ color: 0x1a0f08 });
-  } else {
+  } else if (bombType === 'ac130') {
     // AC-130 gunship: longer fuselage, swept wings, side gun bulge,
     // four engines on the wings. Reads as "this thing hangs around".
     g.poly([
@@ -120,5 +120,19 @@ function drawPlane(g: Graphics, bombType: 'small' | 'large' | 'ac130', tint: num
     g.circle( 5.5, 1.5, 0.7).fill({ color: 0x1a0f08 });
     // Cockpit
     g.circle(0, -7, 0.9).fill({ color: 0x1a0f08 });
+  } else {
+    // Stealth bomber: dark angular flying-wing silhouette. No cockpit
+    // dot, semi-transparent body, faint owner-tint stripe so you can
+    // still tell whose it is. Distinct shape from the others.
+    g.poly([
+      0,  -9,
+      9,   3,
+      4,   3,
+      0,   1,
+     -4,   3,
+     -9,   3,
+    ]).fill({ color: 0x1a1a22, alpha: 0.92 }).stroke({ color: tint, width: 0.9, alpha: 0.85 });
+    // Faint center stripe in owner tint
+    g.poly([0, -7, 1.2, 0, -1.2, 0]).fill({ color: tint, alpha: 0.55 });
   }
 }

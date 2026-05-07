@@ -845,6 +845,8 @@ export class Game {
       bombType: type,
       x: chosen.x + 0.5,
       y: chosen.y + 0.5,
+      originX: chosen.x + 0.5,
+      originY: chosen.y + 0.5,
       destX: x + 0.5,
       destY: y + 0.5,
       speed: this.config.PLANE_SPEED[type],
@@ -934,25 +936,22 @@ export class Game {
     this.events.push({ type: 'bomb', bombType: type, x, y, radius, ownerId });
   }
 
-  /** AC-130 strafe — a tight mini-bomb that scuffs a small area each
-   *  pass. Picks a random spot inside the orbit zone and detonates a
-   *  radius-2 blast (wipes claims, destroys buildings, damages ships).
-   *  Called every AC130_STRAFE_INTERVAL ticks during orbit, so a full
-   *  10s pass produces ~7 of these — the cumulative wipe is comparable
-   *  to a single small bomb but spread across the orbit zone. */
+  /** AC-130 strafe — heavier mini-bomb that punches a sustained radius-3
+   *  blast each pass. Picks a random spot inside the orbit zone and
+   *  detonates (wipes claims, destroys buildings, damages ships).
+   *  Called every AC130_STRAFE_INTERVAL ticks (~0.9s) during a 15s
+   *  orbit → ~16 strafes per gunship. Cumulative coverage now solidly
+   *  out-clears a Large bomb, justifying the 350g cost. */
   private _strafe(cx: number, cy: number, ownerId: PlayerId): void {
     const orbitR = this.config.BOMB_RADII['ac130'];
     const W = this.territory.width;
     const H = this.territory.height;
-    // Pick a random target tile inside the orbit footprint.
     let tx = Math.floor(cx + (Math.random() * 2 - 1) * orbitR);
     let ty = Math.floor(cy + (Math.random() * 2 - 1) * orbitR);
     if (tx < 0) tx = 0; if (tx >= W) tx = W - 1;
     if (ty < 0) ty = 0; if (ty >= H) ty = H - 1;
-    // Strafe blast: tight radius-2 area bomb.
-    const blastR = 2;
+    const blastR = 3;
     const blastR2 = blastR * blastR;
-    let hit = 0;
     const wipedByRegion = new Map<number, number>();
     for (let dy = -blastR; dy <= blastR; dy++) {
       const ny = ty + dy;
@@ -966,11 +965,9 @@ export class Game {
         const o = this.territory.getOwner(nx, ny);
         if (o === ownerId) continue;
         if (o > 0 && this.areAllied(ownerId, o)) continue;
-        // Drain troops on owned tiles (whether enemy or unclaimed
-        // defenders sitting nearby) and clear the claim.
         if (o > 0) {
           const dp = this.players[o];
-          if (dp) dp.troops = Math.max(0, dp.troops - 25);
+          if (dp) dp.troops = Math.max(0, dp.troops - 60);
         }
         if (this._claim(nx, ny, 0)) {
           this._destroyBuildingsAt(nx, ny);
@@ -980,14 +977,10 @@ export class Game {
         } else if (this.buildingAt(nx, ny)) {
           this._destroyBuildingsAt(nx, ny);
         }
-        hit++;
       }
     }
-    void hit;
     for (const [r, n] of wipedByRegion) this._drainMoraleForRegion(r, n);
-    // Renderer flashes the strafe.
     this.events.push({ type: 'bomb', bombType: 'ac130', x: tx, y: ty, radius: blastR, ownerId });
-    // Splash on enemy ships nearby (15 hp).
     for (let i = this.ships.length - 1; i >= 0; i--) {
       const s = this.ships[i]!;
       if (s.owner === ownerId) continue;
@@ -995,10 +988,80 @@ export class Game {
       const dx2 = s.x + 0.5 - tx;
       const dy2 = s.y + 0.5 - ty;
       if (dx2 * dx2 + dy2 * dy2 > blastR2) continue;
-      s.hp -= 15;
+      s.hp -= 35;
       if (s.hp <= 0) {
         this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
         this.ships.splice(i, 1);
+      }
+    }
+  }
+
+  /** Stealth-bomber carpet — detonates a SERIES of overlapping bomblets
+   *  along the flight axis, producing a long strip of devastation
+   *  instead of a single circle. 7 bomblets, each radius BOMB_RADII
+   *  ['stealth'] (4), spaced 5 tiles apart along origin → dest. Net
+   *  coverage ≈ 30 tiles long × 8 tiles wide. Premium 1000g price tag
+   *  earned by area + AA bypass (handled in _planesTick). */
+  private _carpetBomb(plane: Plane): void {
+    const W = this.territory.width;
+    const H = this.territory.height;
+    const dx = plane.destX - plane.originX;
+    const dy = plane.destY - plane.originY;
+    const len = Math.hypot(dx, dy);
+    let nx = 1, ny = 0;
+    if (len > 0.001) { nx = dx / len; ny = dy / len; }
+    const SPACING = 5;
+    const BOMBLETS = 7;
+    const bombR = this.config.BOMB_RADII['stealth'];
+    const bombR2 = bombR * bombR;
+    // Lay the carpet centered on the target, extending along the
+    // incoming flight axis (so it visually reads as the bomber's run).
+    for (let b = 0; b < BOMBLETS; b++) {
+      const offset = (b - (BOMBLETS - 1) / 2) * SPACING;
+      const cx = Math.floor(plane.destX + nx * offset);
+      const cy = Math.floor(plane.destY + ny * offset);
+      if (cx < 0 || cx >= W || cy < 0 || cy >= H) continue;
+      const wipedByRegion = new Map<number, number>();
+      for (let ddy = -bombR; ddy <= bombR; ddy++) {
+        const ty = cy + ddy;
+        if (ty < 0 || ty >= H) continue;
+        for (let ddx = -bombR; ddx <= bombR; ddx++) {
+          if (ddx * ddx + ddy * ddy > bombR2) continue;
+          const tx = cx + ddx;
+          if (tx < 0 || tx >= W) continue;
+          if (this._capitalIndexAt(tx, ty) >= 0) continue;
+          if (!this.territory.isPassable(tx, ty)) continue;
+          const o = this.territory.getOwner(tx, ty);
+          if (o === plane.owner) continue;
+          if (o > 0 && this.areAllied(plane.owner, o)) continue;
+          if (o > 0) {
+            const dp = this.players[o];
+            if (dp) dp.troops = Math.max(0, dp.troops - 40);
+          }
+          if (this._claim(tx, ty, 0)) {
+            this._destroyBuildingsAt(tx, ty);
+            const r = this.regions[ty * W + tx]!;
+            if (r > 0) wipedByRegion.set(r, (wipedByRegion.get(r) ?? 0) + 1);
+          } else if (this.buildingAt(tx, ty)) {
+            this._destroyBuildingsAt(tx, ty);
+          }
+        }
+      }
+      for (const [r, n] of wipedByRegion) this._drainMoraleForRegion(r, n);
+      this.events.push({ type: 'bomb', bombType: 'stealth', x: cx, y: cy, radius: bombR, ownerId: plane.owner });
+      // Ship splash per bomblet (heavy — stealth carpets shred fleets).
+      for (let i = this.ships.length - 1; i >= 0; i--) {
+        const s = this.ships[i]!;
+        if (s.owner === plane.owner) continue;
+        if (this.areAllied(plane.owner, s.owner)) continue;
+        const sdx = s.x + 0.5 - cx;
+        const sdy = s.y + 0.5 - cy;
+        if (sdx * sdx + sdy * sdy > bombR2) continue;
+        s.hp -= 80;
+        if (s.hp <= 0) {
+          this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
+          this.ships.splice(i, 1);
+        }
       }
     }
   }
@@ -3908,6 +3971,7 @@ export class Game {
         owner: s.owner,
         bombType: 'small',
         x: s.x, y: s.y,
+        originX: s.x, originY: s.y,
         destX: tx + 0.5, destY: ty + 0.5,
         speed: this.config.PLANE_SPEED.small,
         rolledAA: new Set<number>(),
@@ -4143,13 +4207,18 @@ export class Game {
         if (this.tickCount % 30 === 0) pl.rolledAA.clear();
         // Fall through to AA check (orbit phase is the most vulnerable).
       } else if (d <= pl.speed) {
-        // Arrived — bombers detonate and despawn; AC-130 enters orbit.
+        // Arrived — bombers detonate and despawn; AC-130 enters orbit;
+        // stealth bombers lay a carpet along their flight axis.
         if (pl.bombType === 'ac130') {
           pl.x = pl.destX; pl.y = pl.destY;
           pl.orbitUntilTick = this.tickCount + this.config.AC130_ORBIT_TICKS;
           pl.nextStrafeTick = this.tickCount + 4; // first strafe almost immediately
           // Don't continue — fall through so AA can immediately roll
           // against the now-stationary gunship.
+        } else if (pl.bombType === 'stealth') {
+          this._carpetBomb(pl);
+          this.planes.splice(i, 1);
+          continue;
         } else {
           this._detonateBomb(pl.bombType, Math.floor(pl.destX), Math.floor(pl.destY), pl.owner);
           this.planes.splice(i, 1);
@@ -4159,6 +4228,10 @@ export class Game {
         pl.x += (dx / d) * pl.speed;
         pl.y += (dy / d) * pl.speed;
       }
+
+      // Stealth bombers bypass AA entirely — that's the whole point of
+      // the 1000g price tag. They cannot be shot down en route.
+      if (pl.bombType === 'stealth') continue;
 
       // Check enemy AA for shootdown. Each AA gets one roll per plane.
       let shotDown = false;
