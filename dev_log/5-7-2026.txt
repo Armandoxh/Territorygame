@@ -517,3 +517,29 @@ airstrips and ground ops are behind barracks. Single unified pattern
 across all three offensive systems: enabler-building → fab →
 deployment sheet. Also gives the Defense Port an offensive value
 alongside its defensive role — invest once, get both.
+
+---
+
+[pending] gameplay: artillery rolls + barrages; tank push is a V-cone
+
+WHAT:
+  • Artillery Strike no longer single-shells at target. Spawns an
+    ArtilleryUnit (new entity) at the closest Barracks. The unit rolls
+    toward the player's nearest tile to target at 0.35 tiles/tick, then
+    sets up and barrages — 7 small radius-2 shells over 8s, scattered
+    in r4 of the target zone. AC-130-style cadence, ground-launched.
+    Each shell drains 30 troops/tile per enemy + 25hp ship damage.
+    OverlayLayer renders the rolling tank-with-cannon silhouette plus
+    a muzzle-flash flicker during the firing phase.
+  • Tank Push no longer a 1-tile straight line. Now a V-cone (60° wedge)
+    of DEPTH (8) tiles outward from the closest frontier tile to target.
+    Sweeps every tile inside the cone, claims eligible ones (neutral or
+    at-war non-allied). Capped at 32 claims to prevent runaway. Same
+    +50% combat-power buff for 8s after.
+  • New _artilleryTick processes phase transitions; new _fireArtilleryShell
+    helper reuses 'bomb' event for explosion VFX.
+
+WHY: User feedback — single-shot artillery felt anonymous, and a 1-tile
+line tank push didn't feel like a steamroll. Both are now visibly
+expressive: artillery has a deployment story (roll → fire → leave),
+tanks paint a wedge of conquered territory you can see at a glance.

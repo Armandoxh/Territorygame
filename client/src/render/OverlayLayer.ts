@@ -12,6 +12,7 @@ export class OverlayLayer {
   readonly worldContainer: Container;
   private readonly capitals: Graphics;
   private readonly buildings: Graphics;
+  private readonly artillery: Graphics;
   private _bldsLastSig = '';
   private readonly target: Graphics; // unused screen-space target (kept for legacy)
   private readonly tapFlash: Graphics;
@@ -46,10 +47,11 @@ export class OverlayLayer {
     this.worldContainer = new Container();
     this.capitals = new Graphics();
     this.buildings = new Graphics();
+    this.artillery = new Graphics();
     this.target = new Graphics();
     this.tapFlash = new Graphics();
     this.labelLayer = new Container();
-    this.container.addChild(this.capitals, this.buildings, this.target, this.tapFlash, this.labelLayer);
+    this.container.addChild(this.capitals, this.buildings, this.artillery, this.target, this.tapFlash, this.labelLayer);
 
     // Target-region highlight: native-resolution canvas, sprite scales with world.
     const W = game.territory.width;
@@ -108,11 +110,59 @@ export class OverlayLayer {
   update(now: number): void {
     this._drawCapitals(now);
     this._drawBuildings(now);
+    this._drawArtillery(now);
     this._drawTroopLabels();
     this._drawEmpireLabels();
     this._drawRegionNames();
     this._drawTarget(now);
     this._drawExplosions(now);
+  }
+
+  /** Render rolling artillery units. Phase 1 (rolling) renders as a
+   *  small treaded silhouette moving toward the firing position; phase
+   *  2 (firing) adds a muzzle-flash flicker on shot ticks. Lightweight
+   *  — drawn into the same buildings Graphics so we don't add another
+   *  layer. */
+  private _drawArtillery(now: number): void {
+    const g = this.artillery;
+    g.clear();
+    const units = this.game.artilleryUnits;
+    if (units.length === 0) return;
+    const palette = this.game.config.PLAYER_COLORS;
+    const flicker = (Math.sin(now * 0.025) + 1) * 0.5;
+    for (const u of units) {
+      const c = palette[u.owner];
+      if (!c) continue;
+      const color = (c[0] << 16) | (c[1] << 8) | c[2];
+      const s = this._toScreen(u.x, u.y);
+      const r = Math.max(5, Math.min(14, this.renderer.zoom * 0.9));
+      // Tracked base + cannon: trapezoid for treads, angled barrel.
+      g.poly([
+        s.x - r * 0.85, s.y + r * 0.55,
+        s.x + r * 0.85, s.y + r * 0.55,
+        s.x + r * 0.55, s.y - r * 0.05,
+        s.x - r * 0.55, s.y - r * 0.05,
+      ]).fill({ color }).stroke({ color: 0xffffff, alpha: 0.85, width: 0.9 });
+      g.rect(s.x - r * 0.10, s.y - r * 0.55, r * 0.20, r * 0.65)
+       .fill({ color: 0x222426 });
+      // Barrel pointed at target — cheap angle from u → target.
+      const dx = u.targetX - u.x, dy = u.targetY - u.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const bx = (dx / len) * r * 1.2;
+      const by = (dy / len) * r * 1.2;
+      g.poly([
+        s.x - 1, s.y - r * 0.1,
+        s.x + 1, s.y - r * 0.1,
+        s.x + bx + 1, s.y + by - r * 0.1,
+        s.x + bx - 1, s.y + by - r * 0.1,
+      ]).fill({ color: 0x222426 }).stroke({ color: 0xffffff, alpha: 0.7, width: 0.6 });
+      // Muzzle flash when actively firing.
+      if (u.fireUntilTick > 0) {
+        const alpha = 0.5 + 0.5 * flicker;
+        g.circle(s.x + bx, s.y + by, r * 0.55)
+         .fill({ color: 0xffd66b, alpha: alpha * 0.9 });
+      }
+    }
   }
 
   // Big italic "Empire of X" label per alive player, positioned at their

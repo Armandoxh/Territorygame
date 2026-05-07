@@ -3,7 +3,7 @@ import type {
   Player, PlayerId, Capital, Building, BuildingType, BombType, GameEvent,
   GameOutcome, BuildError, BombError, GroundOpType, GroundOpError, Point,
   Ship, ShipKind, ShipBuildError,
-  Plane,
+  Plane, ArtilleryUnit,
   TradeRoute, ExternalTradeRoute,
 } from './types.js';
 import { TERRAIN_LAND } from './types.js';
@@ -34,6 +34,8 @@ export class Game {
   readonly ships: Ship[] = [];
   private _shipNextId = 1;
   readonly planes: Plane[] = [];
+  readonly artilleryUnits: ArtilleryUnit[] = [];
+  private _artilleryNextId = 1;
   /** Active trade routes (Phase 2 — internal vassal-to-vassal). Rebuilt
    *  every TRADE_RESCAN_TICKS via union-find connectivity + MST per
    *  component. Each route adds `flow` to its owner's treasury per tick. */
@@ -621,6 +623,7 @@ export class Game {
     this._shipsTick();
     this._planesTick();
     this._portsTick();
+    this._artilleryTick();
     this._checkVictory();
   }
 
@@ -842,8 +845,105 @@ export class Game {
   /** Artillery Strike: single shell at (tx,ty). Drains troops from
    *  enemy owners with tiles in radius and damages ships in range.
    *  Does NOT wipe claims — this is troop attrition, not territory. */
+  /** Artillery Strike: spawn a rolling artillery unit. It moves toward
+   *  the player's frontier nearest the target (a few seconds of "rolling"),
+   *  then sets up and barrages the target zone for ~8s with a series of
+   *  small AOE shells (AC-130 cadence, ground-launched). The unit despawns
+   *  after the barrage ends. Real-time _artilleryTick processes phases. */
   private _fireArtilleryStrike(p: Player, tx: number, ty: number): void {
-    const r = this.config.GROUND_OP_RADII['artillery'];
+    // Find a Barracks owned by p closest to target — that's the spawn
+    // (where the unit "rolls out from"). Falls back to player centroid.
+    let spawnX = -1, spawnY = -1, bestD = Infinity;
+    for (const b of this.buildings) {
+      if (b.type !== 'barracks' || b.owner !== p.id) continue;
+      const dx = b.x - tx, dy = b.y - ty;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD) { bestD = d2; spawnX = b.x; spawnY = b.y; }
+    }
+    if (spawnX < 0) {
+      const c = this.territory.centroid(p.id);
+      spawnX = Math.floor(c.x); spawnY = Math.floor(c.y);
+    }
+    // Firing position: nearest player-owned tile to target. Not the
+    // exact frontier (we want the unit to sit just behind the line),
+    // but the closest owned tile is a fine proxy.
+    const W = this.territory.width;
+    const owners = this.territory.owners;
+    let firingX = spawnX, firingY = spawnY, bestFD = Infinity;
+    for (let i = 0; i < owners.length; i++) {
+      if (owners[i] !== p.id) continue;
+      const x = i % W, y = (i - x) / W;
+      const dx = x - tx, dy = y - ty;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestFD) { bestFD = d2; firingX = x; firingY = y; }
+    }
+    this.artilleryUnits.push({
+      id: this._artilleryNextId++,
+      owner: p.id,
+      x: spawnX + 0.5, y: spawnY + 0.5,
+      destX: firingX + 0.5, destY: firingY + 0.5,
+      targetX: tx + 0.5, targetY: ty + 0.5,
+      fireUntilTick: 0,
+      nextShotTick: 0,
+    });
+  }
+
+  /** Per-tick: advance every ArtilleryUnit. Two phases:
+   *    1. Rolling — move toward (destX, destY) at 0.35 tiles/tick.
+   *    2. Firing — once arrived, fire a shell every 12 ticks for 8s
+   *       (~7 shells). Each shell hits a tight radius-2 area at a
+   *       random offset within r4 of the target zone, draining
+   *       troops + damaging ships. */
+  private _artilleryTick(): void {
+    if (this.artilleryUnits.length === 0) return;
+    const ROLL_SPEED = 0.35;
+    const FIRE_DURATION_TICKS = 80; // 8s @ SIM_HZ=10
+    const FIRE_INTERVAL = 12;
+    const W = this.territory.width;
+    const H = this.territory.height;
+    for (let i = this.artilleryUnits.length - 1; i >= 0; i--) {
+      const u = this.artilleryUnits[i]!;
+      // Owner may have died mid-deployment.
+      const owner = this.players[u.owner];
+      if (!owner || !owner.alive) { this.artilleryUnits.splice(i, 1); continue; }
+
+      if (u.fireUntilTick === 0) {
+        // Phase 1: roll.
+        const dx = u.destX - u.x, dy = u.destY - u.y;
+        const d = Math.hypot(dx, dy);
+        if (d <= ROLL_SPEED) {
+          u.x = u.destX; u.y = u.destY;
+          u.fireUntilTick = this.tickCount + FIRE_DURATION_TICKS;
+          u.nextShotTick = this.tickCount + 4; // first shell almost immediately
+        } else {
+          u.x += (dx / d) * ROLL_SPEED;
+          u.y += (dy / d) * ROLL_SPEED;
+        }
+        continue;
+      }
+
+      // Phase 2: fire.
+      if (this.tickCount >= u.fireUntilTick) {
+        this.artilleryUnits.splice(i, 1);
+        continue;
+      }
+      if (this.tickCount >= u.nextShotTick) {
+        u.nextShotTick = this.tickCount + FIRE_INTERVAL;
+        // Random offset within r4 of target.
+        const SCATTER = 4;
+        let sx = Math.floor(u.targetX + (Math.random() * 2 - 1) * SCATTER);
+        let sy = Math.floor(u.targetY + (Math.random() * 2 - 1) * SCATTER);
+        if (sx < 0) sx = 0; if (sx >= W) sx = W - 1;
+        if (sy < 0) sy = 0; if (sy >= H) sy = H - 1;
+        this._fireArtilleryShell(u.owner, sx, sy);
+      }
+    }
+  }
+
+  /** One artillery shell impact: tight radius-2 AOE. Drains 30 troops
+   *  per hit tile from each enemy owner, 25hp ship damage. Doesn't claim. */
+  private _fireArtilleryShell(ownerId: PlayerId, tx: number, ty: number): void {
+    const r = 2;
     const r2 = r * r;
     const W = this.territory.width;
     const H = this.territory.height;
@@ -857,43 +957,46 @@ export class Game {
         if (x < 0 || x >= W) continue;
         if (!this.territory.isPassable(x, y)) continue;
         const o = this.territory.getOwner(x, y);
-        if (o <= 0 || o === p.id) continue;
-        if (this.areAllied(p.id, o)) continue;
+        if (o <= 0 || o === ownerId) continue;
+        if (this.areAllied(ownerId, o)) continue;
         drainPerOwner.set(o, (drainPerOwner.get(o) ?? 0) + 1);
       }
     }
-    // Drain proportional to tiles hit, capped per fire.
     for (const [oid, hits] of drainPerOwner) {
       const enemy = this.players[oid];
       if (!enemy) continue;
-      const drain = Math.min(800, hits * 12);
-      enemy.troops = Math.max(0, enemy.troops - drain);
+      enemy.troops = Math.max(0, enemy.troops - hits * 30);
     }
-    // Ship damage in radius.
     for (let i = this.ships.length - 1; i >= 0; i--) {
       const s = this.ships[i]!;
-      if (s.owner === p.id) continue;
-      if (this.areAllied(p.id, s.owner)) continue;
+      if (s.owner === ownerId) continue;
+      if (this.areAllied(ownerId, s.owner)) continue;
       const sdx = s.x + 0.5 - tx;
       const sdy = s.y + 0.5 - ty;
       if (sdx * sdx + sdy * sdy > r2) continue;
-      s.hp -= 60;
+      s.hp -= 25;
       if (s.hp <= 0) {
         this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
         this.ships.splice(i, 1);
       }
     }
+    // Reuse 'bomb' event so the renderer flashes an explosion.
+    this.events.push({ type: 'bomb', bombType: 'small', x: tx, y: ty, radius: r, ownerId });
   }
 
-  /** Tank Push: from the closest frontier tile to target, claim a line
-   *  of LEN tiles toward target. Ignores defense. Steamroll. */
+  /** Tank Push: from the closest frontier tile to target, claim every
+   *  tile inside a V-cone (60° wedge) of LEN-deep toward target.
+   *  Ignores defense. The wedge widens as it goes — the further from
+   *  the origin, the broader the steamroll, so a single push covers
+   *  ~25-35 tiles depending on map and obstacles. */
   private _fireTankPush(p: Player, tx: number, ty: number): void {
-    const LEN = this.config.GROUND_OP_RADII['tanks'];
+    const DEPTH = this.config.GROUND_OP_RADII['tanks'];
+    const HALF_ANGLE_COS = Math.cos(Math.PI / 6); // 30° half-angle → 60° cone
     const W = this.territory.width;
     const territory = this.territory;
-    // Closest frontier tile to target.
     const frontier = territory.getFrontier(p.id);
     if (frontier.size === 0) return;
+    // Origin: closest frontier tile to target.
     let bestI = -1, bestD = Infinity;
     for (const i of frontier) {
       const x = i % W, y = (i - x) / W;
@@ -904,26 +1007,37 @@ export class Game {
     if (bestI < 0) return;
     const sx = bestI % W;
     const sy = (bestI - sx) / W;
-    // Bresenham-like step from frontier toward target, claim each step.
+    // Direction from origin to target.
     const ddx = tx - sx, ddy = ty - sy;
-    const steps = Math.max(Math.abs(ddx), Math.abs(ddy)) || 1;
-    const stepX = ddx / steps;
-    const stepY = ddy / steps;
-    let x = sx, y = sy;
+    const dlen = Math.hypot(ddx, ddy);
+    if (dlen < 0.001) return;
+    const nx = ddx / dlen, ny = ddy / dlen;
+    // Sweep all tiles within DEPTH of origin; keep those whose direction
+    // vector falls inside the cone. Cap claims so a single push doesn't
+    // runaway-conquer in dense neutral zones.
+    const MAX_CLAIMS = 32;
     let claimed = 0;
-    for (let s = 0; s < LEN && claimed < LEN; s++) {
-      x += stepX; y += stepY;
-      const ix = Math.round(x), iy = Math.round(y);
-      if (!territory.inBounds(ix, iy)) break;
-      if (!territory.isPassable(ix, iy)) break;
-      if (this._capitalIndexAt(ix, iy) >= 0) continue;
-      const o = territory.getOwner(ix, iy);
-      if (o === p.id) continue;
-      if (o > 0) {
-        if (this.areAllied(p.id, o)) break;
-        if (!this.areAtWar(p.id, o)) break;
+    for (let yy = -DEPTH; yy <= DEPTH; yy++) {
+      for (let xx = -DEPTH; xx <= DEPTH; xx++) {
+        if (claimed >= MAX_CLAIMS) break;
+        const dist2 = xx * xx + yy * yy;
+        if (dist2 === 0 || dist2 > DEPTH * DEPTH) continue;
+        const dist = Math.sqrt(dist2);
+        // Cone test: dot(direction, normalized(xx,yy)) >= cos(30°).
+        const dot = (nx * xx + ny * yy) / dist;
+        if (dot < HALF_ANGLE_COS) continue;
+        const ix = sx + xx, iy = sy + yy;
+        if (!territory.inBounds(ix, iy)) continue;
+        if (!territory.isPassable(ix, iy)) continue;
+        if (this._capitalIndexAt(ix, iy) >= 0) continue;
+        const o = territory.getOwner(ix, iy);
+        if (o === p.id) continue;
+        if (o > 0) {
+          if (this.areAllied(p.id, o)) continue;
+          if (!this.areAtWar(p.id, o)) continue;
+        }
+        if (this._claim(ix, iy, p.id)) claimed++;
       }
-      if (this._claim(ix, iy, p.id)) claimed++;
     }
     // Brief +50% combat power buff for 8s after — the steamroll
     // momentum continues.

@@ -107,6 +107,29 @@ export interface Point {
   y: number;
 }
 
+/** A rolling artillery unit deployed by a Barracks Artillery Strike.
+ *  Phase 1: rolls to its firing position (a frontier tile near the
+ *  target). Phase 2: stationary, fires shells every N ticks for M
+ *  seconds — each shell is a small AOE hit on a random tile near the
+ *  target zone. Acts like an AC-130 but ground-launched. */
+export interface ArtilleryUnit {
+  id: number;
+  owner: PlayerId;
+  /** Current float position. */
+  x: number;
+  y: number;
+  /** Firing position (nearest player frontier to target). */
+  destX: number;
+  destY: number;
+  /** Shelling aim point. */
+  targetX: number;
+  targetY: number;
+  /** Tick at which the barrage ends (0 = still rolling). */
+  fireUntilTick: number;
+  /** Tick of next shell. */
+  nextShotTick: number;
+}
+
 export interface Player {
   id: PlayerId;
   name: string;
