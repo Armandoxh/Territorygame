@@ -363,3 +363,21 @@ re-pressing the same hotkey toggles off, opening a different mode
 WHY: User wanted "drop 10 settlements at once without pressing s
 between each drop" — was annoying to re-arm every time during early
 game build-up.
+
+---
+
+[pending] gameplay: only the leader declares war; vassals never auto-aggress
+
+WHAT:
+  • _vassalRetarget skips any adjacent region whose dominant owner
+    is a peace-state non-allied player. Vassals only choose neutrals
+    or at-war enemy regions as their target.
+  • _vassalMaybeBomb early-exit if the target region's dominant owner
+    is non-war non-self (i.e. a peace neighbor). Without this guard,
+    a vassal-driven bomb on a peaceful neighbor's land would auto-
+    declare war via dropBomb's aggression check.
+
+WHY: User reported vassals were independently dragging them into
+wars by bombing neighbors. Foreign policy is a leader-only decision —
+vassals should expand into neutrals + fight wars the leader has
+sanctioned, but never start one on their own.

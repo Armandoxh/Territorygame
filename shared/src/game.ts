@@ -2165,6 +2165,15 @@ export class Game {
         if (o === leader.id) continue;
         if (counts[o]! > domCount) { domCount = counts[o]!; dominantEnemy = o; }
       }
+      // Vassals never autonomously target a region dominated by a
+      // player the leader is at peace with — leader is the only one
+      // who can start a war. If the dominant owner is an ally OR a
+      // peaceful neighbor, skip the region entirely (the vassal
+      // wouldn't be able to do anything productive there anyway).
+      if (dominantEnemy > 0) {
+        if (this.areAllied(leader.id, dominantEnemy)) continue;
+        if (!this.areAtWar(leader.id, dominantEnemy)) continue;
+      }
       const neutralFrac = unclaimed / tiles.length;
 
       let score: number;
@@ -2327,6 +2336,15 @@ export class Game {
     if (!targetRegion) return;
     const targetTiles = this._tilesByRegion[targetRegion];
     if (!targetTiles || targetTiles.length === 0) return;
+    // Only the leader declares war. Vassals can't bomb a region whose
+    // dominant owner is a peace-state neighbor — that would auto-
+    // declare war via dropBomb's aggression check, dragging the leader
+    // into a conflict they didn't sanction. Bombs only authorized
+    // against neutrals or actual at-war enemies.
+    const targetDom = this._regionDominant[targetRegion] ?? 0;
+    if (targetDom > 0 && targetDom !== leader.id && !this.areAtWar(leader.id, targetDom)) {
+      return;
+    }
 
     // Choose bomb size by what the VASSAL can comfortably afford from its
     // own pool (not the leader's). Keep a healthy reserve so we don't
