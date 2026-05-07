@@ -952,3 +952,21 @@ buy more boats, do more ground attacks like tank and
 blitzkrieg. But I'm not seeing any of that." Audit confirmed
 ground deployments were a player-only toy and bomb tier was
 hard-capped at 'large'. Now the AI uses the full attack kit.
+
+---
+
+[pending] gameplay: teammates spawn with real breathing room
+
+WHAT: Bumped team-mode intra-team separation. Was spawnRadius+2
+(~7 tiles — blobs literally touched), now 4× spawnRadius (~20
+tiles), with the cluster radius scaled up correspondingly so a
+team of 8 / 16 still fits comfortably. Each teammate now wakes
+up with a buffer of neutral land between themselves and their
+nearest ally instead of being immediately border-locked.
+
+WHY: User said "my allies are spawning way too close to me,
+space them out." Audit also showed a downstream effect: a
+teammate hemmed in by other teammates has no expansion target
+because _adjacentRegions filters out allied land, so a tightly-
+clustered team genuinely had nowhere to push. Spreading them
+apart gives every team member personal frontier to claim.

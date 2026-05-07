@@ -619,8 +619,11 @@ export class Game {
     if (candidates.length === 0) return null;
 
     // Inter-team separation: aim to place team anchors far apart.
-    // Cluster radius scales with team size so a team of 8 has room.
-    const clusterR = (this._spawnRadius() + 2) * Math.max(2.5, Math.sqrt(teamSize) * 1.6);
+    // Cluster radius scales with team size so members get real
+    // breathing room. Sized so teammates stay ~minSep apart even
+    // packed into the cluster.
+    const minSep = this._spawnRadius() * 4;       // ~20 tiles for default spawn
+    const clusterR = Math.max(minSep * 1.3, minSep * Math.sqrt(teamSize) * 0.9);
     const clusterR2 = clusterR * clusterR;
 
     for (let factor = 1.0; factor >= 0.4; factor *= 0.75) {
@@ -650,7 +653,11 @@ export class Game {
         const teamIdx = Math.floor((id - 1) / teamSize);
         const anchor = anchors[teamIdx]!;
         let placed = false;
-        const memberMinSep = this._spawnRadius() + 2; // teammates can't overlap
+        // Teammate-to-teammate min separation. Was spawnR+2 (blobs
+        // touched), now 4× spawnR — each member gets meaningful
+        // territory of their own to expand into instead of waking
+        // up surrounded by allies they can't attack through.
+        const memberMinSep = minSep;
         const memberMin2 = memberMinSep * memberMinSep;
         for (let attempt = 0; attempt < 400; attempt++) {
           const ang = Math.random() * Math.PI * 2;
