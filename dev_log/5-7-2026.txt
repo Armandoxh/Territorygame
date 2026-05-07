@@ -970,3 +970,35 @@ teammate hemmed in by other teammates has no expansion target
 because _adjacentRegions filters out allied land, so a tightly-
 clustered team genuinely had nowhere to push. Spreading them
 apart gives every team member personal frontier to claim.
+
+---
+
+[pending] gameplay: empire-wide deep defense — kills the
+"snake" attack pattern through interior regions
+
+WHAT: Added an empire-wide turret-investment bonus to _defenseAt
+that activates when an attacker is fighting a defender's frontier
+tile WITHOUT a turret in that specific region. Bonus scales with
+total turret levels owned by the defender (0.4 per level, capped
+at +2.5). Cached in _turretCountByOwner per build/destroy.
+
+So: 5 turrets on the wall → +2.0 multiplier on every interior
+frontier tile of yours; 8+ turrets → capped at +2.5.
+
+WHY: User reported "this weird snake thing — enemy does a
+straight line into my territory bypassing all turrets, then
+takes over line by line like a snake." Diagnosis: an enemy
+salient (created by a successful blitzkrieg or grinding push)
+sits inside an interior region of the defender. Interior
+regions can't host a turret (no frontier to build on while the
+wall held), so _regionTurretLevels for that region is 0. With
+no in-region turret, the salient's frontier rolled expansion
+through interior tiles paying just ATTACK_COST × 1 per claim
+(no defense multiplier). That's the snake.
+
+The deep-defense fallback means a defender who invested in wall
+turrets STILL gets meaningful resistance in their interior
+once a salient breaks through, without diluting the strong
+in-region turret bonus. Wall investment now translates to
+empire-wide resistance; the snake gets a 3× cost-per-claim
+penalty on every roll instead of free progress.

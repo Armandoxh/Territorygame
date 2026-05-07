@@ -163,6 +163,12 @@ export class Game {
    *  + retaliation model — turrets reinforce every frontier tile
    *  of the region they sit in, no per-tile radius. */
   private _regionTurretLevels!: Float32Array;
+  /** Total turret levels per owner (sum across all regions). Drives
+   *  empire-wide "deep defense" — interior regions that can't host
+   *  a turret still get a small bonus from the empire's overall
+   *  turret investment, so a blitz-salient can't snake through
+   *  unopposed. */
+  private readonly _turretCountByOwner = new Float32Array(256);
   /** Set when buildings change; we rebuild the cache lazily on next read. */
   private _turretCacheDirty = true;
   /** Reusable scratch arrays so tick paths don't allocate. */
@@ -4973,13 +4979,27 @@ export class Game {
     // turret-reinforced region — or use bombs / blitzkrieg / tank
     // push, all of which bypass _defenseAt.
     let bonus = 0;
+    let inRegionTurret = false;
     if (this.regionCount > 0) {
       const r = this.regions[i]!;
       if (r > 0) {
         const turretLvls = this._regionTurretLevels[r * 256 + defenderId] ?? 0;
         if (turretLvls > 0 && this._isFrontierTile(x, y, defenderId)) {
           bonus = turretLvls * this.config.TURRET_DEFENSE_BONUS;
+          inRegionTurret = true;
         }
+      }
+    }
+    // Deep defense: when no in-region turret covers this tile, fall
+    // back to a smaller empire-wide bonus scaled by total turret
+    // investment. Stops blitz-salient "snake" attacks from rolling
+    // unopposed through interior regions that couldn't host a turret
+    // (no frontier to build on while the wall held). Capped so
+    // turret-spam in deep interior doesn't dominate.
+    if (!inRegionTurret && this._isFrontierTile(x, y, defenderId)) {
+      const totalTurrets = this._turretCountByOwner[defenderId] ?? 0;
+      if (totalTurrets > 0) {
+        bonus = Math.min(totalTurrets * 0.4, 2.5);
       }
     }
     // Reinforced Bunkers buffs the turret bonus specifically (not the
@@ -5031,6 +5051,7 @@ export class Game {
     const grid = this._regionTurretLevels;
     if (!grid) { this._turretCacheDirty = false; return; }
     grid.fill(0);
+    this._turretCountByOwner.fill(0);
     const W = this.territory.width;
     for (const b of this.buildings) {
       if (b.type !== 'turret') continue;
@@ -5038,6 +5059,7 @@ export class Game {
       if (r <= 0) continue;
       const lvl = b.level ?? 1;
       grid[r * 256 + b.owner]! += lvl;
+      this._turretCountByOwner[b.owner]! += lvl;
     }
     this._turretCacheDirty = false;
   }
