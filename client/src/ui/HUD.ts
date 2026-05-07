@@ -1482,26 +1482,41 @@ export class HUD {
     desc.textContent = d.desc;
     panel.appendChild(desc);
 
-    if (eff) {
-      const effEl = document.createElement('div');
-      effEl.className = 'dn-effect';
-      const cur = document.createElement('span');
-      cur.className = 'dn-eff-cur';
-      cur.textContent = eff.current;
-      effEl.appendChild(cur);
-      if (eff.next) {
-        const nxt = document.createElement('span');
-        nxt.className = 'dn-eff-next';
-        nxt.textContent = eff.next;
-        effEl.appendChild(nxt);
-      }
-      panel.appendChild(effEl);
-    }
     if (d.branches && !branch) {
       const note = document.createElement('p');
       note.className = 'cms-hint';
       note.textContent = `At L${d.branches.forkAt} you'll pick a path: ${d.branches.a.name} or ${d.branches.b.name}.`;
       panel.appendChild(note);
+    }
+
+    // Bottom NOW vs NEXT stat compare — the headline read for "is
+    // buying this worth it?" Side-by-side with an arrow between.
+    if (eff) {
+      const compare = document.createElement('div');
+      compare.className = 'stat-compare';
+      const label = decreePowerLabel(d);
+      const nowVal = decreeCompactCurrent(d, stacks, branch);
+      // At the fork point (stacks+1 === forkAt) the player is about
+      // to be forced to pick a branch; the next value depends on the
+      // pick. Show "Pick path" instead of a number that's wrong.
+      const atFork = !!(d.branches && stacks + 1 >= d.branches.forkAt && !branch);
+      const nextVal = atFork ? 'Pick path' : decreeCompactCurrent(d, stacks + 1, branch);
+      const mkSide = (cls: string, hdr: string, val: string): HTMLElement => {
+        const div = document.createElement('div');
+        div.className = `stat-side ${cls}`;
+        const h = document.createElement('div'); h.className = 'stat-hdr'; h.textContent = hdr;
+        const v = document.createElement('div'); v.className = 'stat-val'; v.textContent = val || '—';
+        const sub = document.createElement('div'); sub.className = 'stat-sub'; sub.textContent = label;
+        div.appendChild(h); div.appendChild(v); div.appendChild(sub);
+        return div;
+      };
+      compare.appendChild(mkSide('now', 'NOW', stacks > 0 ? nowVal : (d.stackable ? 'Inactive' : 'Inactive')));
+      const arrow = document.createElement('div');
+      arrow.className = 'stat-arrow';
+      arrow.textContent = '→';
+      compare.appendChild(arrow);
+      compare.appendChild(mkSide('next', d.oneShot ? 'AFTER ISSUE' : 'AFTER BUY', nextVal));
+      panel.appendChild(compare);
     }
 
     const foot = document.createElement('div');

@@ -1295,6 +1295,46 @@ html, body {
   margin-top: 4px;
 }
 .cms-foot .dn-cost { font-size: 13px; }
+
+/* NOW → AFTER stat-compare bar at the bottom of the side panel.
+ * Two big values flanking an arrow so the impact of the next
+ * purchase reads instantly. */
+.stat-compare {
+  display: flex; align-items: stretch;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 8px;
+}
+.stat-side {
+  flex: 1 1 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.stat-side .stat-hdr {
+  font-size: 9px; font-weight: 800; letter-spacing: 1.5px;
+  color: #8a92a0;
+}
+.stat-side .stat-val {
+  font-size: 18px; font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+  line-height: 1.1;
+}
+.stat-side.now .stat-val  { color: #c6d8d0; }
+.stat-side.next .stat-val { color: #6ee68a; }
+.stat-side .stat-sub {
+  font-size: 10px; opacity: 0.55;
+  text-transform: lowercase;
+  letter-spacing: 0.2px;
+}
+.stat-arrow {
+  align-self: center;
+  font-size: 18px;
+  color: rgba(234, 199, 104, 0.55);
+  font-weight: 700;
+}
 .dn-empty { padding: 24px; text-align: center; opacity: 0.55; font-size: 12px; }
 /* Tier-column layout: T1 / T2 / T3 side-by-side so prereq
  * progression reads left-to-right like a real tech tree. */
