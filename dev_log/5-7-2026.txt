@@ -572,3 +572,41 @@ cost/upkeep rework and trade routes. Shipped in this commit:
 NEXT (per user spec):
   • Phase 2: building costs in resources + per-tick resource upkeep.
   • Phase 3: indefinite resource trades between players.
+
+---
+
+[pending] gameplay: Phase 3 — buildings cost resources + upkeep
+
+WHAT:
+  • New BUILDING_RESOURCE_COSTS table per BuildingType:
+      settlement: 25 food + 15 wood
+      turret:     30 stone + 15 wood
+      airstrip:   40 stone + 25 oil + 5 gems
+      aa:         25 stone + 15 oil
+      port:       35 wood + 25 stone
+      barracks:   30 wood + 20 stone
+    Charged on tryBuild in addition to gold. Empire-wide pool (no
+    per-vassal resource pool yet).
+  • New BUILDING_UPKEEP table — per-tick resource drain per owned
+    building. Settlement 0.002 food/tick, airstrip 0.005 oil/tick,
+    AA 0.0015 stone + 0.001 oil/tick, etc.
+  • _payBuildingUpkeep runs each tick. If owner can pay all components,
+    drain. If not → mark Building.starvingSinceTick. After
+    STARVING_DECAY_TICKS (30s) of continuous starvation the building
+    self-destructs via _destroyBuildingsAt.
+  • New BuildError 'resources' returned from tryBuild when any
+    component is short. HUD toasts "Need more resources (see top bar)".
+  • Build sheet now shows resource costs alongside gold cost
+    ("60g 25🌾 15🌲"). Buttons disable when ANY component (gold OR
+    resources) is unaffordable.
+
+WHY: Phase 3 of the resource overhaul. User wanted buildings to cost
+"a combination of resources" with upkeep. Forces the player to think
+strategically about which regions to capture (your ability to build
+turrets depends on owning stone-producing regions; airstrips need oil;
+etc.). Sustained shortages start eating your infrastructure — late-
+game neglect actually has consequences.
+
+NEXT (Phase 4): trade overhaul — resource-specific trades, indefinite
+flow until cancelled, AI-aware ("I need stone, propose stone-for-oil
+trade"), with diplomatic pressure when needs aren't met.

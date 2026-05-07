@@ -613,6 +613,7 @@ export class Game {
     this._applyTradeFlow();
     this._earnGoldAll();
     this._generateResources();
+    this._payBuildingUpkeep();
     this._growTroops();
     this._vassalsThink();
     for (let id = 1; id < this.players.length; id++) {
@@ -1129,6 +1130,17 @@ export class Game {
     // vassal-funded builds use their own pool at face value (the
     // discount is a leader-side investment).
     const cost = fromVassalRegion > 0 ? baseCost : Math.ceil(baseCost * this._buildCostMult(owner));
+    // Strategic resource gate (Phase 3): every building requires a
+    // combination of raw materials in addition to gold. Resources are
+    // shared across the empire (no per-vassal pool). Must be checked
+    // before charging gold so we don't half-pay on a failed build.
+    const resourceCosts = this.config.BUILDING_RESOURCE_COSTS[type] ?? {};
+    for (const [kind, need] of Object.entries(resourceCosts)) {
+      if ((need ?? 0) <= 0) continue;
+      if ((owner.resources[kind as keyof typeof owner.resources] ?? 0) < (need ?? 0)) {
+        return 'resources';
+      }
+    }
     if (fromVassalRegion > 0) {
       if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
       this._vassalGold[fromVassalRegion]! -= cost;
@@ -1136,6 +1148,12 @@ export class Game {
       // Manual builds drain gold first, fall back to treasury for any
       // remainder. Treasury still can't be drained passively.
       if (!this._chargeOps(owner, cost)) return 'gold';
+    }
+    // Resources confirmed available — drain them now that gold cleared.
+    for (const [kind, need] of Object.entries(resourceCosts)) {
+      if ((need ?? 0) <= 0) continue;
+      const k = kind as keyof typeof owner.resources;
+      owner.resources[k] = Math.max(0, owner.resources[k] - (need ?? 0));
     }
     const b: Building = { x, y, owner: ownerId, type, level: 1 };
     this.buildings.push(b);
@@ -2983,6 +3001,46 @@ export class Game {
       const p = players[oid];
       if (!p || !p.alive) continue;
       p.resources[kind] += RATE[kind];
+    }
+  }
+
+  /** Per-tick: drain resource upkeep for every owned building. If the
+   *  owner can't cover all components of a building's upkeep, the
+   *  building enters "starving" state (starvingSinceTick set). After
+   *  STARVING_DECAY_TICKS of continuous starvation, the building
+   *  destructs. Buildings that pay upkeep clear the starvation flag.
+   */
+  private _payBuildingUpkeep(): void {
+    const upkeepTable = this.config.BUILDING_UPKEEP;
+    const decayTicks = this.config.STARVING_DECAY_TICKS;
+    for (let i = this.buildings.length - 1; i >= 0; i--) {
+      const b = this.buildings[i]!;
+      const owner = this.players[b.owner];
+      if (!owner || !owner.alive) continue;
+      const upkeep = upkeepTable[b.type] ?? {};
+      // Check affordability across all components.
+      let canPay = true;
+      for (const [kind, amount] of Object.entries(upkeep)) {
+        if ((amount ?? 0) <= 0) continue;
+        if ((owner.resources[kind as keyof typeof owner.resources] ?? 0) < (amount ?? 0)) {
+          canPay = false; break;
+        }
+      }
+      if (canPay) {
+        for (const [kind, amount] of Object.entries(upkeep)) {
+          if ((amount ?? 0) <= 0) continue;
+          const k = kind as keyof typeof owner.resources;
+          owner.resources[k] = Math.max(0, owner.resources[k] - (amount ?? 0));
+        }
+        if (b.starvingSinceTick !== undefined) b.starvingSinceTick = undefined;
+      } else {
+        if (b.starvingSinceTick === undefined) {
+          b.starvingSinceTick = this.tickCount;
+        } else if (this.tickCount - b.starvingSinceTick >= decayTicks) {
+          // Sustained starvation — building collapses.
+          this._destroyBuildingsAt(b.x, b.y);
+        }
+      }
     }
   }
 

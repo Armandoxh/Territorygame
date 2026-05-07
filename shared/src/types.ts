@@ -199,6 +199,11 @@ export interface Building {
    *  barracks to fire different ops independently while still capping
    *  spam of the same op. */
   opCooldowns?: Partial<Record<GroundOpType, number>>;
+  /** Tick at which this building entered "starving" state because
+   *  the owner couldn't pay its resource upkeep. Cleared the moment
+   *  upkeep is paid again. If it stays set for STARVING_DECAY_TICKS,
+   *  the building destructs. */
+  starvingSinceTick?: number;
 }
 
 export interface Capital {
@@ -239,7 +244,8 @@ export type RGBA = readonly [number, number, number, number];
 
 export type BuildError =
   | 'gold' | 'not-yours' | 'occupied' | 'on-capital' | 'not-coastal'
-  | 'oob' | 'dead' | 'bad-type' | 'no-building' | 'max-level' | 'locked';
+  | 'oob' | 'dead' | 'bad-type' | 'no-building' | 'max-level' | 'locked'
+  | 'resources';
 
 export type BombError =
   | 'no-airstrip' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type' | 'locked';

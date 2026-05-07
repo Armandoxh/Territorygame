@@ -1963,15 +1963,39 @@ export class HUD {
     const me = this.game.human();
     const combined = this.game.combinedFundsFor(me.id);
     if (this.el.sheetEmpireGold) this.el.sheetEmpireGold.textContent = String(Math.floor(combined));
+    const resGlyph: Record<string, string> = {
+      food: '🌾', wood: '🌲', stone: '⛰', oil: '🛢', gems: '💎',
+    };
     this.el.sheet.querySelectorAll<HTMLButtonElement>('.bs-btn').forEach((btn) => {
       const type = btn.dataset['type'] as BuildingType | undefined;
       if (!type) return;
       const cost = this.game.config.BUILDING_COSTS[type];
+      const resCost = this.game.config.BUILDING_RESOURCE_COSTS[type] ?? {};
       const locked = this._isLockedForHuman(type);
-      btn.classList.toggle('disabled', locked || combined < cost);
+      // Resource affordability — disable if missing any required resource.
+      let resOk = true;
+      for (const [kind, need] of Object.entries(resCost)) {
+        if ((need ?? 0) <= 0) continue;
+        if ((me.resources[kind as keyof typeof me.resources] ?? 0) < (need ?? 0)) {
+          resOk = false; break;
+        }
+      }
+      btn.classList.toggle('disabled', locked || combined < cost || !resOk);
       btn.classList.toggle('locked', locked);
       const costEl = btn.querySelector('.bs-cost');
-      if (costEl) costEl.textContent = locked ? '🔒' : String(cost);
+      if (costEl) {
+        if (locked) {
+          costEl.textContent = '🔒';
+        } else {
+          // Compose: gold + each required resource as "Ng" + "N🌾" etc.
+          const parts: string[] = [`${cost}g`];
+          for (const [kind, need] of Object.entries(resCost)) {
+            if ((need ?? 0) <= 0) continue;
+            parts.push(`${need}${resGlyph[kind] ?? kind}`);
+          }
+          costEl.textContent = parts.join(' ');
+        }
+      }
     });
   }
 
@@ -2106,6 +2130,7 @@ export class HUD {
       'no-building':  'Nothing to upgrade here',
       'max-level':    'Already max tier',
       'locked':       'Locked — wrong mastery',
+      'resources':    'Need more resources (see top bar)',
     };
     return msgs[err];
   }

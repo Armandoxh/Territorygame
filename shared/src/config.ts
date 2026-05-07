@@ -1,4 +1,4 @@
-import type { BuildingType, BombType, GroundOpType, ShipKind, RGBA } from './types.js';
+import type { BuildingType, BombType, GroundOpType, ShipKind, ResourceKind, RGBA } from './types.js';
 
 export interface GameConfig {
   GRID_WIDTH: number;
@@ -86,6 +86,16 @@ export interface GameConfig {
 
   // Buildings
   BUILDING_COSTS: Record<BuildingType, number>;
+  /** Strategic resource costs per building type (in addition to gold).
+   *  Phase 3 of the resource overhaul — buildings now require both
+   *  gold AND raw materials, gated on owning regions that produce them. */
+  BUILDING_RESOURCE_COSTS: Record<BuildingType, Partial<Record<ResourceKind, number>>>;
+  /** Per-tick resource upkeep per owned building. Drains the player's
+   *  inventory each tick. Buildings that can't pay upkeep enter
+   *  "starving" state and self-destruct after STARVING_DECAY_TICKS. */
+  BUILDING_UPKEEP: Record<BuildingType, Partial<Record<ResourceKind, number>>>;
+  /** Ticks of continuous starvation before a building destructs. */
+  STARVING_DECAY_TICKS: number;
   SETTLEMENT_RADIUS: number;
   SETTLEMENT_BONUS: number;
   /** Flat troops/tick added per owned settlement (independent of radius). */
@@ -237,6 +247,23 @@ export const DEFAULT_CONFIG: GameConfig = {
     port:       180, // coastal anti-naval — pricier than turret because it scales by level
     barracks:   140, // ground-deployment enabler (Blitzkrieg / Artillery / Tanks)
   },
+  BUILDING_RESOURCE_COSTS: {
+    settlement: { food: 25, wood: 15 },
+    turret:     { stone: 30, wood: 15 },
+    airstrip:   { stone: 40, oil: 25, gems: 5 },
+    aa:         { stone: 25, oil: 15 },
+    port:       { wood: 35, stone: 25 },
+    barracks:   { wood: 30, stone: 20 },
+  },
+  BUILDING_UPKEEP: {
+    settlement: { food: 0.002 },
+    turret:     { stone: 0.0010 },
+    airstrip:   { oil: 0.0050 },
+    aa:         { stone: 0.0015, oil: 0.0010 },
+    port:       { wood: 0.0015, oil: 0.0008 },
+    barracks:   { wood: 0.0015, food: 0.0010 },
+  },
+  STARVING_DECAY_TICKS: 300, // 30s — sustained starvation destructs the building
   SETTLEMENT_RADIUS: 6,
   SETTLEMENT_BONUS: 0.5,        // +50% gold in radius
   SETTLEMENT_TROOP_BONUS: 5,    // +50 troops/sec per settlement (flat)
