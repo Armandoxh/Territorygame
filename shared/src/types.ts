@@ -181,6 +181,10 @@ export interface Player {
    *  All teammates auto-ally at spawn (locked, can't break) and
    *  bandwagon into each other's wars. Win condition is per-team. */
   teamId: number;
+  /** For decrees with branching (e.g. forced-march at L3+),
+   *  records which path the player chose. Indexed by decree id;
+   *  values are 'a' or 'b'. Missing = not yet branched. */
+  decreeBranches: Record<string, 'a' | 'b'>;
   /** Operational gold — funds builds, manual attacks, bombs, ships.
    *  Fed by your own non-vassal land + AI base income. */
   gold: number;

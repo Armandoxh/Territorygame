@@ -1035,3 +1035,46 @@ trivial mass-purchase. Branching (the third part of the
 revamp ask) is queued as a Phase 2 — it needs new data
 model + branch-picker UI, so shipping compound + ramp first
 to get them in front of you for tuning.
+
+---
+
+[pending] gameplay: decree BRANCHING paths (Phase 2)
+
+WHAT: Three pilot decrees fork at L3 into specialized
+sub-paths. Subsequent stacks compound the chosen branch only.
+  • Forced March (offense)
+      A: Vassal Initiative — vassal-driven expansion ×1.30/stack
+      B: Direct Command — manual-driven expansion ×1.30/stack
+  • Veterans (military)
+      A: Storm Troopers — attacker power ×1.10/stack
+      B: Iron Guard — defender power ×1.10/stack
+  • Reinforced Bunkers (defense)
+      A: Walls — turret defense ×1.75/stack
+      B: Garrison — turret retaliation ×2.0/stack
+
+Engine: Player.decreeBranches Record + Decree.branches schema.
+Effect helpers (_expansionBoostFor, _veteransMult,
+_reinforcedBunkersMult) split into pre-fork base + post-fork
+branch multipliers. Pre-fork stacks (L1, L2) compound the
+generic effect both ways; post-fork stacks compound the
+branch-specific effect only.
+
+buyDecree(playerId, decreeId, branch?) returns 'branch-required'
+when crossing the fork without a branch picked. AI auto-picks
+via _aiPickBranch using mastery heuristics: ground leans
+offensive, naval/air lean support, defenders at war pick
+Garrison. So AI never stalls on the gate.
+
+UI: new #branch-picker modal opens when the human clicks Buy on
+a fork-crossing stack. Shows both branch names + descriptions.
+Cancel returns to panel. After choice, a small ↳ Storm Troopers
+badge sticks beside the stack count so the player remembers
+their path.
+
+WHY: User said "I want to revamp the commander upgrade panel."
+Phase 1 (compound + ramp) gave depth scaling. Phase 2 gives
+strategic identity — a forced-march specialist now feels
+different from another forced-march specialist depending on
+their path. User explicitly asked for AI to share the same
+awareness so opponents have coherent late-game strategies
+instead of all looking alike.

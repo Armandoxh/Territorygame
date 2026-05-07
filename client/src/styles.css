@@ -394,6 +394,46 @@ html, body {
 #resource-offer .ro-msg .ro-take { color: #d8a857; }
 #resource-offer .ro-actions { display: flex; gap: 8px; }
 
+#branch-picker {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(18, 22, 28, 0.96);
+  border: 1px solid rgba(234, 199, 104, 0.55);
+  padding: 18px 18px 14px;
+  border-radius: 14px;
+  width: min(420px, 92vw);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  z-index: 60;
+  pointer-events: auto;
+  display: flex; flex-direction: column; gap: 10px;
+}
+#branch-picker.hidden { display: none; }
+#branch-picker .bp-title {
+  font-size: 11px; font-weight: 800; letter-spacing: 2px;
+  color: #eac768; text-align: center; margin-bottom: 2px;
+}
+#branch-picker .bp-blurb {
+  font-size: 11px; opacity: 0.65; text-align: center;
+  margin-bottom: 6px; line-height: 1.45;
+}
+#branch-picker .bp-option {
+  display: flex; flex-direction: column; gap: 4px;
+  background: #20262e; color: #d6dee8;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 12px 14px; text-align: left;
+  font-family: inherit; cursor: pointer;
+}
+#branch-picker .bp-option:hover { background: #283036; border-color: rgba(234,199,104,0.45); }
+#branch-picker .bp-option:active { transform: scale(0.99); }
+#branch-picker .bp-name { font-size: 13px; font-weight: 800; letter-spacing: 0.5px; color: #eac768; }
+#branch-picker .bp-desc { font-size: 11px; opacity: 0.78; line-height: 1.4; }
+#branch-picker .bp-cancel {
+  background: transparent; border: 0; color: #9aa3ad;
+  padding: 8px; font-size: 11px; letter-spacing: 1.5px;
+  text-transform: uppercase; cursor: pointer; font-family: inherit;
+}
+
 #vassal-log {
   position: absolute;
   bottom: calc(80px + env(safe-area-inset-bottom, 0));
@@ -1162,6 +1202,15 @@ html, body {
   padding: 2px 7px;
   border-radius: 999px;
   letter-spacing: 1px;
+}
+.dn-branch {
+  font-size: 9.5px; font-weight: 700;
+  color: #eac768;
+  background: rgba(234, 199, 104, 0.12);
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.5px;
+  margin-left: 4px;
 }
 .dn-desc { font-size: 11px; opacity: 0.72; line-height: 1.4; }
 .dn-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }

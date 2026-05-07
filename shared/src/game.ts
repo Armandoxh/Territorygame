@@ -1869,6 +1869,7 @@ export class Game {
       alive: true,
       targetRegions: [],
       decreeStacks: {},
+      decreeBranches: {},
       abilityCooldowns: {},
       activeBuffs: {},
       mastery,
@@ -2054,17 +2055,29 @@ export class Game {
     return Math.floor(d.cost * ramp);
   }
 
-  buyDecree(playerId: PlayerId, decreeId: string): 'gold' | 'dead' | 'locked' | 'unknown' | null {
+  buyDecree(playerId: PlayerId, decreeId: string, branch?: 'a' | 'b'): 'gold' | 'dead' | 'locked' | 'unknown' | 'branch-required' | null {
     const p = this.players[playerId];
     if (!p || !p.alive) return 'dead';
     const d = decreeById(decreeId);
     if (!d) return 'unknown';
     if (!this.decreeAvailable(playerId, decreeId)) return 'locked';
+    // Branch-required gate: branchable decrees ask for a branch
+    // choice the first time the player crosses forkAt. After that,
+    // subsequent stacks compound the chosen branch automatically.
+    if (d.branches) {
+      const stacksBefore = p.decreeStacks[decreeId] ?? 0;
+      const willCross = stacksBefore + 1 >= d.branches.forkAt;
+      const alreadyChosen = !!p.decreeBranches?.[decreeId];
+      if (willCross && !alreadyChosen && !branch) return 'branch-required';
+    }
     const cost = this.decreeCostFor(playerId, decreeId);
     // Doctrines pay from the commander treasury, not operational gold.
     if (p.treasury < cost) return 'gold';
     p.treasury -= cost;
     p.decreeStacks[decreeId] = (p.decreeStacks[decreeId] ?? 0) + 1;
+    if (branch && d.branches && !p.decreeBranches[decreeId]) {
+      p.decreeBranches[decreeId] = branch;
+    }
     // Border Patrol changes effective turret radius — invalidate cache.
     if (decreeId === 'border-patrol') this._turretCacheDirty = true;
     // Apply one-shot side effects at purchase time.
@@ -2127,11 +2140,43 @@ export class Game {
       // Don't endlessly stack — soft cap at 8 stacks per decree so the
       // AI diversifies instead of dumping 30 forced-march.
       if ((p.decreeStacks[id] ?? 0) >= 8) continue;
-      const cost = id === 'war-bonds' ? Math.floor(p.treasury * 0.30) : d.cost;
+      // Use the ramped cost (decreeCostFor honors the curve) so the
+      // AI's wallet check matches what the buy will actually charge.
+      const cost = this.decreeCostFor(p.id, id);
       if (p.treasury < cost) continue;
-      this.buyDecree(p.id, id);
+      // Branchable decrees: AI pre-picks a branch by mastery before
+      // crossing the fork, so it doesn't get blocked on the
+      // 'branch-required' gate.
+      let branch: 'a' | 'b' | undefined;
+      if (d.branches && (p.decreeStacks[id] ?? 0) + 1 >= d.branches.forkAt
+          && !p.decreeBranches[id]) {
+        branch = this._aiPickBranch(p, id);
+      }
+      this.buyDecree(p.id, id, branch);
       return;
     }
+  }
+
+  /** Pick an AI's branch for a branchable decree based on mastery
+   *  + current strategic posture. Goal: each AI feels coherent,
+   *  not random. Ground specializes in defense/offense by mastery,
+   *  naval/air specialize in support. */
+  private _aiPickBranch(p: Player, decreeId: string): 'a' | 'b' {
+    if (decreeId === 'forced-march') {
+      // Ground = direct command (manual/aggressive), others = vassal initiative.
+      return p.mastery === 'ground' ? 'b' : 'a';
+    }
+    if (decreeId === 'veterans') {
+      // Ground = storm troopers (offense), others = iron guard (defense).
+      return p.mastery === 'ground' ? 'a' : 'b';
+    }
+    if (decreeId === 'reinforced-bunkers') {
+      // If at war with anyone, garrison (retaliation pays off).
+      // Else walls (raw defense scaling).
+      const enemies = this.enemiesOf(p.id);
+      return enemies.length > 0 ? 'b' : 'a';
+    }
+    return 'a';
   }
 
   // --- Decree effect helpers (read at the call sites in income/troops/etc.) ---
@@ -2163,11 +2208,29 @@ export class Game {
    *  they should buff every push, not just autonomous ones, otherwise
    *  the moment a player takes direct command their decree investment
    *  silently turns off. */
-  private _expansionBoostFor(p: Player): number {
+  private _expansionBoostFor(p: Player, isVassalDriven: boolean = false): number {
     const stacks = p.decreeStacks['forced-march'] ?? 0;
-    // Compound on top of the universal baseline. 0 stacks = baseline,
-    // 5 stacks = baseline × 1.20^5 = baseline × 2.49.
-    return this.config.VASSAL_EXPANSION_BOOST * this._compoundStack(stacks, 0.20);
+    // Forced March branches at L3:
+    //   • A (Vassal Initiative): branch stacks compound vassal pushes only ×1.30 each
+    //   • B (Direct Command):    branch stacks compound manual pushes only ×1.30 each
+    // Pre-fork stacks (L1, L2) compound ×1.20 across the board.
+    const forkAt = 3;
+    const baseStacks = Math.min(forkAt - 1, stacks); // 0..2
+    const branchStacks = Math.max(0, stacks - (forkAt - 1)); // 0..N for L3+
+    const baseMul = this._compoundStack(baseStacks, 0.20);
+    let branchMul = 1;
+    const branch = p.decreeBranches?.['forced-march'];
+    if (branchStacks > 0 && branch) {
+      const wantA = (branch === 'a' && isVassalDriven);
+      const wantB = (branch === 'b' && !isVassalDriven);
+      if (wantA || wantB) branchMul = this._compoundStack(branchStacks, 0.30);
+    } else if (branchStacks > 0) {
+      // Fallback for the L3+ stacks if branch wasn't set (shouldn't
+      // happen — buyDecree gates on branch). Treat as both-ways at
+      // the base 1.20 rate so investment isn't wasted.
+      branchMul = this._compoundStack(branchStacks, 0.20);
+    }
+    return this.config.VASSAL_EXPANSION_BOOST * baseMul * branchMul;
   }
 
   /** Troop cap multiplier from Standing Army stacks. */
@@ -2188,17 +2251,52 @@ export class Game {
     return Math.max(0.5, Math.pow(0.90, stacks));
   }
 
-  /** Combat-power multiplier from Veterans (attacker side). Compound
-   *  +5% per stack, capped at 2.0× so it doesn't run away. */
-  private _veteransMult(p: Player): number {
+  /** Combat-power multiplier from Veterans. Pre-fork (L1/L2)
+   *  compounds 1.05× on attacker AND defender. At L3 the stack
+   *  forks: branch A (Storm Troopers) compounds attacker only at
+   *  1.10×; branch B (Iron Guard) compounds defender only at 1.10×.
+   *  Cap stays at 2.0×. The `attacker` flag selects which side
+   *  the call cares about. */
+  private _veteransMult(p: Player, attacker: boolean = true): number {
     const stacks = p.decreeStacks['veterans'] ?? 0;
-    return Math.min(2.0, this._compoundStack(stacks, 0.05));
+    const forkAt = 3;
+    const baseStacks = Math.min(forkAt - 1, stacks);
+    const branchStacks = Math.max(0, stacks - (forkAt - 1));
+    const branch = p.decreeBranches?.['veterans'];
+    const baseMul = this._compoundStack(baseStacks, 0.05);
+    let branchMul = 1;
+    if (branchStacks > 0 && branch) {
+      const wantA = (branch === 'a' && attacker);
+      const wantB = (branch === 'b' && !attacker);
+      if (wantA || wantB) branchMul = this._compoundStack(branchStacks, 0.10);
+    } else if (branchStacks > 0) {
+      branchMul = this._compoundStack(branchStacks, 0.05);
+    }
+    return Math.min(2.0, baseMul * branchMul);
   }
 
-  /** Turret-defense bonus multiplier from Reinforced Bunkers. */
-  private _reinforcedBunkersMult(p: Player): number {
+  /** Turret-defense bonus multiplier from Reinforced Bunkers.
+   *  Pre-fork stacks compound 1.50× on defense AND retaliation.
+   *  Branch A (Walls) compounds defense only at 1.75× per stack;
+   *  branch B (Garrison) compounds retaliation only at 2.0× per
+   *  stack. `defense` flag selects which side. */
+  private _reinforcedBunkersMult(p: Player, defense: boolean = true): number {
     const stacks = p.decreeStacks['reinforced-bunkers'] ?? 0;
-    return Math.min(3.0, this._compoundStack(stacks, 0.50));
+    const forkAt = 3;
+    const baseStacks = Math.min(forkAt - 1, stacks);
+    const branchStacks = Math.max(0, stacks - (forkAt - 1));
+    const branch = p.decreeBranches?.['reinforced-bunkers'];
+    const baseMul = this._compoundStack(baseStacks, 0.50);
+    let branchMul = 1;
+    if (branchStacks > 0 && branch) {
+      const wantA = (branch === 'a' && defense);
+      const wantB = (branch === 'b' && !defense);
+      if (wantA) branchMul = this._compoundStack(branchStacks, 0.75);
+      else if (wantB) branchMul = this._compoundStack(branchStacks, 1.00);
+    } else if (branchStacks > 0) {
+      branchMul = this._compoundStack(branchStacks, 0.50);
+    }
+    return Math.min(3.0, baseMul * branchMul);
   }
 
   /** Ship-speed multiplier from Admiralty (lower move-ticks = faster). */
@@ -4883,7 +4981,7 @@ export class Game {
 
       // Decree-driven expansion boost (Forced March etc.) applies to
       // both manual and vassal pushes.
-      let tileChance = baseChance * this._expansionBoostFor(p);
+      let tileChance = baseChance * this._expansionBoostFor(p, isVassalDriven);
       // Focus multiplier: a single manual front gets the full FOCUS_BOOST,
       // multi-front splits the boost by N. Only applies to tiles that
       // ACTUALLY contribute to the front (have a target-region candidate).
@@ -4931,12 +5029,15 @@ export class Game {
         // Veterans decree multiplies attacker power. Stacks with
         // regional math (vassal-driven path multiplies its own
         // attackerPower below) and rally buffs.
-        const veteransMult = this._veteransMult(p);
+        const veteransAtkMult = this._veteransMult(p, true);
+        // Defender's veterans bonus — the defender's own decree branch
+        // controls their side. Branch B (Iron Guard) compounds defense.
+        const veteransDefMult = defender ? this._veteransMult(defender, false) : 1;
         // Tank-Push buff (set by _fireTankPush): brief +50% attacker
         // combat power so the steamroll momentum continues for ~8s.
         const tankMult = this._abilityActive(p, 'tank-rush') ? 1.5 : 1;
-        let attackerPower = p.troops * veteransMult * tankMult;
-        let defenderPower = Math.max(1, defender?.troops ?? 1);
+        let attackerPower = p.troops * veteransAtkMult * tankMult;
+        let defenderPower = Math.max(1, defender?.troops ?? 1) * veteransDefMult;
         const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
         if (defender) {
           const ownedD = this.territory.counts[defender.id] || 1;
@@ -4944,7 +5045,7 @@ export class Game {
           const fracD = ownedD > 0 ? Math.min(1, tilesD / ownedD) : 1;
           const moraleD = defR > 0 ? (this._regionMorale[defR] ?? 1) : 1;
           const garrisonD = this._settlementGarrison(defR, defender.id);
-          defenderPower = Math.max(1, defender.troops * fracD * moraleD * garrisonD);
+          defenderPower = Math.max(1, defender.troops * fracD * moraleD * garrisonD * veteransDefMult);
         }
         if (isVassalDriven) {
           const ownedA = this.territory.counts[p.id] || 1;
@@ -4952,7 +5053,7 @@ export class Game {
           const fracA = ownedA > 0 ? Math.min(1, tilesA / ownedA) : 1;
           const moraleA = tileRegion > 0 ? (this._regionMorale[tileRegion] ?? 1) : 1;
           const garrisonA = this._settlementGarrison(tileRegion, p.id);
-          attackerPower = p.troops * fracA * moraleA * garrisonA * veteransMult * tankMult;
+          attackerPower = p.troops * fracA * moraleA * garrisonA * veteransAtkMult * tankMult;
         }
         const ratio = attackerPower / defenderPower;
         const ratioFactor = Math.max(
@@ -5062,6 +5163,8 @@ export class Game {
     if (!this._isFrontierTile(x, y, defenderId)) return 0;
     let val = turretLvls * this.config.TURRET_RETALIATION_DAMAGE;
     const defender = this.players[defenderId];
+    // Reinforced Bunkers branch B (Garrison) compounds retaliation.
+    if (defender) val *= this._reinforcedBunkersMult(defender, false);
     const borderPatrol = defender ? (defender.decreeStacks['border-patrol'] ?? 0) : 0;
     if (borderPatrol > 0) val *= 1.5;
     if (defender?.mastery === 'ground') val *= 1.5;

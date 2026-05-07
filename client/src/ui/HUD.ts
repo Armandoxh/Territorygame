@@ -52,6 +52,15 @@ export class HUD {
     resourceOfferMsg:     this._byId('ro-msg'),
     resourceOfferAccept:  this._byId('ro-accept'),
     resourceOfferDecline: this._byId('ro-decline'),
+    branchPicker:         this._byId('branch-picker'),
+    bpTitle:              this._byId('bp-title'),
+    bpA:                  this._byId<HTMLButtonElement>('bp-a'),
+    bpAName:              this._byId('bp-a-name'),
+    bpADesc:              this._byId('bp-a-desc'),
+    bpB:                  this._byId<HTMLButtonElement>('bp-b'),
+    bpBName:              this._byId('bp-b-name'),
+    bpBDesc:              this._byId('bp-b-desc'),
+    bpCancel:             this._byId<HTMLButtonElement>('bp-cancel'),
     debug:        this._byId('debug'),
     stop:         this._byId('stop-btn'),
     hotbar:       this._byId('hotbar'),
@@ -1098,6 +1107,16 @@ export class HUD {
       const id = btn.dataset['ability'];
       if (id) this._fireAbility(id);
     });
+    // Branch picker — re-fires buyDecree with the chosen branch.
+    this.el.bpA?.addEventListener('click', () => {
+      const id = this.el.bpA?.dataset['decree'];
+      if (id) { this._hideBranchPicker(); this._buyDecree(id, 'a'); }
+    });
+    this.el.bpB?.addEventListener('click', () => {
+      const id = this.el.bpB?.dataset['decree'];
+      if (id) { this._hideBranchPicker(); this._buyDecree(id, 'b'); }
+    });
+    this.el.bpCancel?.addEventListener('click', () => this._hideBranchPicker());
   }
 
   showCommander(): void {
@@ -1239,7 +1258,10 @@ export class HUD {
     const me = this.game.human();
     const branch = this.cmdActiveBranch;
     let stackSig = '';
-    for (const d of DECREES) stackSig += (me.decreeStacks[d.id] ?? 0) + '.';
+    for (const d of DECREES) {
+      stackSig += (me.decreeStacks[d.id] ?? 0) + ':';
+      stackSig += (me.decreeBranches[d.id] ?? '-') + '.';
+    }
     const sig = `${branch}|${stackSig}`;
     if (sig === this._cmdLastSig) {
       this._updateDecreeAffordability();
@@ -1273,6 +1295,15 @@ export class HUD {
         badge.className = 'dn-stacks';
         badge.textContent = d.stackable ? `×${stacks}` : 'OWNED';
         head.appendChild(badge);
+      }
+      // Branch badge: the chosen path on a branched decree.
+      const chosen = me.decreeBranches[d.id];
+      if (chosen && d.branches) {
+        const branchBadge = document.createElement('span');
+        branchBadge.className = 'dn-branch';
+        const branchName = chosen === 'a' ? d.branches.a.name : d.branches.b.name;
+        branchBadge.textContent = `↳ ${branchName}`;
+        head.appendChild(branchBadge);
       }
       row.appendChild(head);
 
@@ -1346,23 +1377,40 @@ export class HUD {
     }
   }
 
-  private _buyDecree(id: string): void {
+  private _buyDecree(id: string, branch?: 'a' | 'b'): void {
     // Debounce double-fires from synthesized click + touch events on mobile.
     const now = performance.now();
     if (now - this._lastBuyAt < 250) return;
     this._lastBuyAt = now;
 
-    const err = this.game.buyDecree(1, id);
+    const err = this.game.buyDecree(1, id, branch);
     if (err === null) {
       this.toast('Decree issued');
       this._cmdLastSig = '';
       this._refreshCommander();
       return;
     }
+    if (err === 'branch-required') { this._showBranchPicker(id); return; }
     if (err === 'gold')   this.toast('Treasury too low');
     else if (err === 'locked') this.toast('Locked — buy prereq first');
     else if (err === 'dead')   this.toast('You are eliminated');
     else this.toast('Cannot decree');
+  }
+
+  private _showBranchPicker(decreeId: string): void {
+    const d = DECREES.find(x => x.id === decreeId);
+    if (!d?.branches) return;
+    if (this.el.bpTitle) this.el.bpTitle.textContent = `${d.name.toUpperCase()} · CHOOSE A PATH`;
+    if (this.el.bpAName) this.el.bpAName.textContent = d.branches.a.name;
+    if (this.el.bpADesc) this.el.bpADesc.textContent = d.branches.a.desc;
+    if (this.el.bpBName) this.el.bpBName.textContent = d.branches.b.name;
+    if (this.el.bpBDesc) this.el.bpBDesc.textContent = d.branches.b.desc;
+    if (this.el.bpA) this.el.bpA.dataset['decree'] = decreeId;
+    if (this.el.bpB) this.el.bpB.dataset['decree'] = decreeId;
+    this.el.branchPicker?.classList.remove('hidden');
+  }
+  private _hideBranchPicker(): void {
+    this.el.branchPicker?.classList.add('hidden');
   }
 
   // --- Diplomacy --------------------------------------------------------

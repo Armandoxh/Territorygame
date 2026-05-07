@@ -24,7 +24,20 @@ export interface Decree {
   oneShot?: boolean;
   /** Visible in UI but cannot be bought yet (deferred implementation). */
   comingSoon?: boolean;
+  /** Optional branching: when set, buying a stack >= forkAt forks
+   *  the decree into two specializations (a / b). Player picks
+   *  one; subsequent stacks compound the chosen branch's effect.
+   *  Earlier stacks (< forkAt) apply both branches' "base" effect
+   *  (whatever the multiplier helper does at L1-L2). */
+  branches?: {
+    forkAt: number;
+    a: { name: string; desc: string };
+    b: { name: string; desc: string };
+  };
 }
+
+/** Branch ID. 'none' = no fork choice made yet (decree at < forkAt). */
+export type BranchChoice = 'a' | 'b' | 'none';
 
 export const DECREES: readonly Decree[] = [
   // ECONOMY
@@ -43,7 +56,15 @@ export const DECREES: readonly Decree[] = [
   { id: 'iron-doctrine', branch: 'defense', tier: 1, name: 'Iron Doctrine',
     desc: 'Tiles you defend gain +20% effective defense (stacks with turrets).', cost: 800 },
   { id: 'reinforced-bunkers', branch: 'defense', tier: 2, name: 'Reinforced Bunkers',
-    desc: '×1.50 turret defense per stack (compound, capped ×3.0). 3 stacks = ×3.0.', cost: 1500, prereq: 'iron-doctrine', stackable: true },
+    desc: '×1.50 turret defense per stack (compound, capped ×3.0). At L3 picks a path: WALLS or GARRISON.', cost: 1500, prereq: 'iron-doctrine', stackable: true,
+    branches: {
+      forkAt: 3,
+      a: { name: 'Walls',
+        desc: 'Doubles down on defense — turret defense scales ×1.75 per branch stack.' },
+      b: { name: 'Garrison',
+        desc: 'Turret retaliation damage ×2.0 per branch stack — attackers bleed troops on every breach.' },
+    },
+  },
   { id: 'watchtowers',   branch: 'defense', tier: 2, name: 'Watchtowers',
     desc: 'Free L1 turrets auto-build on fully-owned region frontiers. (Coming soon)', cost: 2000, prereq: 'border-patrol', comingSoon: true },
 
@@ -51,7 +72,15 @@ export const DECREES: readonly Decree[] = [
   { id: 'conscription',  branch: 'military', tier: 1, name: 'Conscription',
     desc: '+1000 troops to your pool, instant. Repeatable.', cost: 300, oneShot: true, stackable: true },
   { id: 'veterans',      branch: 'military', tier: 1, name: 'Veterans',
-    desc: '×1.05 combat power per stack (compound, capped ×2.0). 10 stacks = ×1.63.', cost: 900, stackable: true },
+    desc: '×1.05 combat power per stack (compound, capped ×2.0). At L3 picks a path: STORM TROOPERS or IRON GUARD.', cost: 900, stackable: true,
+    branches: {
+      forkAt: 3,
+      a: { name: 'Storm Troopers',
+        desc: 'Branch stacks compound attacker power only ×1.10 each — pure offense.' },
+      b: { name: 'Iron Guard',
+        desc: 'Branch stacks compound defender power only ×1.10 each — fortress fighting.' },
+    },
+  },
   { id: 'standing-army', branch: 'military', tier: 2, name: 'Standing Army',
     desc: '×1.50 troop cap empire-wide per stack (compound). 5 stacks = ×7.6.', cost: 1200, prereq: 'conscription', stackable: true },
   { id: 'war-bonds',     branch: 'military', tier: 3, name: 'War Bonds',
@@ -59,7 +88,15 @@ export const DECREES: readonly Decree[] = [
 
   // OFFENSE
   { id: 'forced-march',   branch: 'offense', tier: 1, name: 'Forced March',
-    desc: '×1.20 expansion rate per stack (compound, applies to manual + vassal pushes). 5 stacks = ×2.49.', cost: 600, stackable: true },
+    desc: '×1.20 expansion per stack (manual + vassal). At L3 picks a path: VASSAL INITIATIVE or DIRECT COMMAND.', cost: 600, stackable: true,
+    branches: {
+      forkAt: 3,
+      a: { name: 'Vassal Initiative',
+        desc: 'Branch stacks compound vassal-driven expansion only ×1.30 each. Manual pushes stay at L2.' },
+      b: { name: 'Direct Command',
+        desc: 'Branch stacks compound your manual-driven expansion only ×1.30 each. Vassals stay at L2.' },
+    },
+  },
   { id: 'air-supremacy',  branch: 'offense', tier: 2, name: 'Air Supremacy',
     desc: 'Empire-wide bomb cooldowns ×0.5.', cost: 1800, prereq: 'forced-march' },
   { id: 'nuclear-program', branch: 'offense', tier: 3, name: 'Nuclear Program',
