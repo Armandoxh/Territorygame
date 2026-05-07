@@ -692,3 +692,34 @@ WHY: Resources alone with no exchange mechanism would be too punishing
 Trades let you specialize: raid the gem mountains and trade gems for
 the things your terrain doesn't naturally produce. AI awareness means
 the simulation reacts to shortages instead of just stockpiling.
+
+---
+
+[pending] ux: trade-status block + AI desperation-scaled offers
+
+WHAT:
+  • New TRADE STATUS block pinned at top of diplomacy panel. Three
+    sub-sections: NET FLOW row (per-resource +/- chip across ALL
+    active trades, color-coded green/red), INCOMING OFFERS list
+    (every pending offer ranked by deal score with Accept/Decline
+    inline + GREAT / FAIR / WEAK rating tag), ACTIVE TRADES list
+    (every live trade with per-second in/out and Cancel button).
+  • Score formula: (received_per_sec / sent_per_sec) × shortage
+    weight (0.5×–2× based on stock of received resource).
+  • _aiProposeResourceTrade now scales offer asymmetry by
+    desperation: an AI dangerously short on the resource it needs
+    proposes "12 wood/s for 1.7 oil/s" instead of an even 5/5.
+    Recipients see clearly attractive offers when the seller is
+    truly hurting.
+
+WHY: User reported two problems with the Phase-4 trade flow.
+(1) "very difficult at the moment to know what active trade deals
+I have going on... I want to see the NET of all trades" — the
+per-row summary was buried in each enemy node and you had to
+mentally sum them. The flow chips give it at a glance. (2) "I
+should see one panel with everyone offering to trade me, so I can
+rank the best deal" — pop-up modals showed one offer at a time
+with no way to compare. The ranked list shows them all together,
+sorted by score, with the best deals highlighted green. The AI
+desperation change adds variance — without it every offer was
+identical and "rank the best deal" had nothing to rank.

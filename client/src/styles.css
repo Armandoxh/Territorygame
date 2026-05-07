@@ -821,6 +821,75 @@ html, body {
 .diplo-section-h.allies { color: #55c86e; }
 .diplo-section-h.wars   { color: #ff6b6b; }
 .diplo-section-h.others { color: #8a92a0; }
+
+/* Trade status block — pinned at top of diplomacy panel. Shows net
+ * resource flow, ranked incoming offers, and active trades so the
+ * player can see the whole trade picture without clicking through
+ * each enemy row. */
+.trade-status {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(234,199,104,0.10) 0%, rgba(40,46,54,0.4) 100%);
+  border: 1px solid rgba(234,199,104,0.30);
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+.trade-status .ts-flow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.trade-status .ts-label {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
+  color: #eac768; margin-right: 4px;
+}
+.trade-status .ts-empty { font-size: 11px; opacity: 0.55; font-style: italic; }
+.trade-status .ts-chip {
+  font-size: 11px; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.trade-status .ts-chip.pos { color: #6ee68a; border-color: rgba(110,230,138,0.35); background: rgba(110,230,138,0.10); }
+.trade-status .ts-chip.neg { color: #ff8c8c; border-color: rgba(255,140,140,0.35); background: rgba(255,140,140,0.10); }
+.trade-status .ts-section-h {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 1.5px;
+  color: #9aa3ad; margin: 4px 0 2px;
+}
+.trade-status .ts-offer,
+.trade-status .ts-active {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+.trade-status .ts-offer.rating-great { border-color: rgba(110,230,138,0.45); background: rgba(110,230,138,0.06); }
+.trade-status .ts-offer.rating-fair  { border-color: rgba(234,199,104,0.30); }
+.trade-status .ts-offer.rating-weak  { opacity: 0.78; }
+.trade-status .ts-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.trade-status .ts-from { font-weight: 800; min-width: 60px; }
+.trade-status .ts-deal { flex: 1; opacity: 0.92; }
+.trade-status .ts-deal b { color: #f4dca0; font-weight: 800; }
+.trade-status .ts-out { color: #ff8c8c; font-weight: 700; }
+.trade-status .ts-in  { color: #6ee68a; font-weight: 700; }
+.trade-status .ts-arrow { opacity: 0.55; margin: 0 4px; }
+.trade-status .ts-rating {
+  font-size: 9px; font-weight: 800; letter-spacing: 1px;
+  padding: 2px 6px; border-radius: 999px;
+}
+.trade-status .ts-rating.great { background: rgba(110,230,138,0.18); color: #6ee68a; }
+.trade-status .ts-rating.fair  { background: rgba(234,199,104,0.18); color: #eac768; }
+.trade-status .ts-rating.weak  { background: rgba(255,255,255,0.06); color: #9aa3ad; }
+.trade-status .diplo-act.ts-accept,
+.trade-status .diplo-act.ts-decline,
+.trade-status .diplo-act.ts-cancel {
+  flex: 0 0 auto; min-width: 0; padding: 4px 10px; font-size: 10px;
+}
+.trade-status .diplo-act.ts-accept { background: rgba(85,200,110,0.20); color: #6ee68a; border-color: rgba(110,230,138,0.45); }
+.trade-status .diplo-act.ts-decline,
+.trade-status .diplo-act.ts-cancel { background: rgba(232,74,74,0.18); color: #ff8c8c; border-color: rgba(232,74,74,0.40); }
 .diplo-node.section-ally { border-left: 3px solid rgba(85,200,110,0.65); }
 .diplo-node.section-war  { border-left: 3px solid rgba(232,74,74,0.65); }
 /* "Break Alliance" button — destructive styling so it pops out, since

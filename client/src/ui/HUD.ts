@@ -1309,6 +1309,28 @@ export class HUD {
       else if (action === 'coerce')    this._coerceAlly(pid);
       else if (action === 'rtrade-open')   this.showTradePrompt(pid);
       else if (action === 'rtrade-cancel') this._cancelResourceTrade(pid);
+      else if (action === 'rtrade-accept') {
+        const idx = parseInt(target.dataset['idx'] ?? '-1', 10);
+        if (idx < 0) return;
+        const off = this.game.pendingResourceOffers[idx];
+        if (!off) return;
+        const from = this.game.players[off.from];
+        if (this.game.acceptResourceOffer(idx)) {
+          this.toast(`Trade with ${from?.name ?? 'AI'} accepted`);
+        }
+        this._refreshResourceOffer();
+        this._renderDiplomacy();
+      } else if (action === 'rtrade-decline') {
+        const idx = parseInt(target.dataset['idx'] ?? '-1', 10);
+        if (idx < 0) return;
+        const off = this.game.pendingResourceOffers[idx];
+        if (!off) return;
+        const from = this.game.players[off.from];
+        this.game.declineResourceOffer(idx);
+        this.toast(`Declined ${from?.name ?? 'AI'}'s offer`);
+        this._refreshResourceOffer();
+        this._renderDiplomacy();
+      }
     });
 
     // Trade sheet wiring
@@ -1376,10 +1398,20 @@ export class HUD {
     // a player switches buckets (alliance formed/broken, war declared,
     // peace signed). Per-frame field updates handle the rest.
     // Show-all toggle also goes in the sig so flipping it rebuilds.
-    const sig = `a:${allies.join(',')}|w:${wars.join(',')}|o:${others.join(',')}|all:${this.diploShowAll ? 1 : 0}`;
+    // Trade-status sig (offers + actives) so the top section rebuilds
+    // when an offer arrives or a trade starts/ends.
+    const offerSig = this.game.pendingResourceOffers
+      .map(o => `${o.from}:${o.aGives}/${o.aGivesPerSec}>${o.bGives}/${o.bGivesPerSec}`)
+      .join(',');
+    const tradeSig = this.game.resourceTrades
+      .filter(t => t.a === 1 || t.b === 1)
+      .map(t => `${t.a}-${t.b}:${t.aGives}/${t.aGivesPerSec}>${t.bGives}/${t.bGivesPerSec}`)
+      .join(',');
+    const sig = `a:${allies.join(',')}|w:${wars.join(',')}|o:${others.join(',')}|all:${this.diploShowAll ? 1 : 0}|po:${offerSig}|tr:${tradeSig}`;
     if (list.dataset['sig'] !== sig) {
       list.dataset['sig'] = sig;
       list.innerHTML = '';
+      this._renderTradeStatusBlock(list);
       const renderRow = (id: number, kind: 'ally' | 'war' | 'other'): void => {
         const p = this.game.players[id]!;
         const c = palette[id];
@@ -1623,6 +1655,129 @@ export class HUD {
         else embBtn.textContent = `Embargo · ${emb.cost}♛`;
       }
     });
+  }
+
+  /** Renders the "TRADE STATUS" block at the top of the diplomacy
+   *  panel — net flow per resource, all incoming offers ranked by
+   *  deal score, and all active trades with cancel buttons. Inserted
+   *  before the per-player rows. Called from _renderDiplomacy when
+   *  the trade signature changes. */
+  private _renderTradeStatusBlock(list: HTMLElement): void {
+    const offers = this.game.pendingResourceOffers;
+    const trades = this.game.resourceTrades.filter(t => t.a === 1 || t.b === 1);
+    if (offers.length === 0 && trades.length === 0) return;
+
+    const me = this.game.human();
+    const RESOURCES: ResourceKind[] = ['food', 'wood', 'stone', 'oil', 'gems'];
+    const palette = this.game.config.PLAYER_COLORS;
+
+    // Net flow per resource: sum (received - sent) across all trades.
+    const flow: Record<ResourceKind, number> = { food: 0, wood: 0, stone: 0, oil: 0, gems: 0 };
+    for (const t of trades) {
+      const youGive    = t.a === 1 ? t.aGives : t.bGives;
+      const youGiveAmt = t.a === 1 ? t.aGivesPerSec : t.bGivesPerSec;
+      const youGet     = t.a === 1 ? t.bGives : t.aGives;
+      const youGetAmt  = t.a === 1 ? t.bGivesPerSec : t.aGivesPerSec;
+      flow[youGive] -= youGiveAmt;
+      flow[youGet]  += youGetAmt;
+    }
+
+    // Score offers: how good is this for me? Higher = more lopsided
+    // in my favor + I'm short on what they're offering.
+    //   raw  = receivedPerSec / sentPerSec  (>1 means they give more)
+    //   need = 1.5× when I'm low on the offered resource, 0.5× when full
+    const scoreOffer = (o: typeof offers[number]): number => {
+      const sentPerSec = o.bGivesPerSec; // human side pays bGives (offer's `b` is recipient = human)
+      const recvPerSec = o.aGivesPerSec;
+      const raw = recvPerSec / Math.max(0.1, sentPerSec);
+      const myStock = me.resources[o.aGives];
+      const need = Math.max(0.5, Math.min(2, (300 - myStock) / 150));
+      return raw * need;
+    };
+    const sortedOffers = [...offers]
+      .map((o, idx) => ({ o, idx, score: scoreOffer(o) }))
+      .sort((x, y) => y.score - x.score);
+
+    const block = document.createElement('div');
+    block.className = 'trade-status';
+
+    // 1. Net flow header
+    const flowParts: string[] = [];
+    for (const k of RESOURCES) {
+      const v = flow[k];
+      if (Math.abs(v) < 0.05) continue;
+      const cls = v > 0 ? 'pos' : 'neg';
+      const sign = v > 0 ? '+' : '';
+      flowParts.push(`<span class="ts-chip ${cls}">${k} ${sign}${v.toFixed(1)}/s</span>`);
+    }
+    const flowRow = document.createElement('div');
+    flowRow.className = 'ts-flow';
+    if (flowParts.length === 0) {
+      flowRow.innerHTML = `<span class="ts-label">NET FLOW</span><span class="ts-empty">— no active trades —</span>`;
+    } else {
+      flowRow.innerHTML = `<span class="ts-label">NET FLOW</span>${flowParts.join('')}`;
+    }
+    block.appendChild(flowRow);
+
+    // 2. Pending offers (best deal first)
+    if (sortedOffers.length > 0) {
+      const offerHdr = document.createElement('div');
+      offerHdr.className = 'ts-section-h';
+      offerHdr.textContent = `INCOMING OFFERS · ${sortedOffers.length}`;
+      block.appendChild(offerHdr);
+      sortedOffers.forEach(({ o, idx, score }) => {
+        const from = this.game.players[o.from];
+        if (!from) return;
+        const c = palette[o.from];
+        const tint = c ? `rgb(${c[0]},${c[1]},${c[2]})` : '#888';
+        const rating = score >= 1.4 ? 'great' : score >= 1.0 ? 'fair' : 'weak';
+        const row = document.createElement('div');
+        row.className = `ts-offer rating-${rating}`;
+        row.innerHTML = `
+          <span class="ts-dot" style="background:${tint}"></span>
+          <span class="ts-from">${from.name}</span>
+          <span class="ts-deal">offers <b>${o.aGivesPerSec} ${o.aGives}/s</b> for <b>${o.bGivesPerSec} ${o.bGives}/s</b></span>
+          <span class="ts-rating ${rating}">${rating.toUpperCase()}</span>
+          <button class="diplo-act ts-accept" data-action="rtrade-accept" data-idx="${idx}" type="button">Accept</button>
+          <button class="diplo-act ts-decline" data-action="rtrade-decline" data-idx="${idx}" type="button">Decline</button>
+        `;
+        block.appendChild(row);
+      });
+    }
+
+    // 3. Active trades with cancel
+    if (trades.length > 0) {
+      const trHdr = document.createElement('div');
+      trHdr.className = 'ts-section-h';
+      trHdr.textContent = `ACTIVE TRADES · ${trades.length}`;
+      block.appendChild(trHdr);
+      for (const t of trades) {
+        const otherId = t.a === 1 ? t.b : t.a;
+        const other = this.game.players[otherId];
+        if (!other) continue;
+        const c = palette[otherId];
+        const tint = c ? `rgb(${c[0]},${c[1]},${c[2]})` : '#888';
+        const youGive    = t.a === 1 ? t.aGives : t.bGives;
+        const youGiveAmt = t.a === 1 ? t.aGivesPerSec : t.bGivesPerSec;
+        const youGet     = t.a === 1 ? t.bGives : t.aGives;
+        const youGetAmt  = t.a === 1 ? t.bGivesPerSec : t.aGivesPerSec;
+        const row = document.createElement('div');
+        row.className = 'ts-active';
+        row.innerHTML = `
+          <span class="ts-dot" style="background:${tint}"></span>
+          <span class="ts-from">${other.name}</span>
+          <span class="ts-deal">
+            <span class="ts-out">−${youGiveAmt} ${youGive}/s</span>
+            <span class="ts-arrow">⇄</span>
+            <span class="ts-in">+${youGetAmt} ${youGet}/s</span>
+          </span>
+          <button class="diplo-act ts-cancel" data-action="rtrade-cancel" data-target="${otherId}" type="button">Cancel</button>
+        `;
+        block.appendChild(row);
+      }
+    }
+
+    list.appendChild(block);
   }
 
   private _proposeAlliance(targetId: PlayerId): void {

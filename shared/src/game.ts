@@ -3219,7 +3219,9 @@ export class Game {
 
   /** Periodically: AI players evaluate proposing a resource trade to
    *  a peer when they're short on a resource. Throttled to once every
-   *  ~20s per AI to avoid trade-spam. */
+   *  ~20s per AI to avoid trade-spam. Offer ratio scales with how
+   *  desperate the AI is — a player short on oil with surplus wood
+   *  proposes "12 wood/s for 2 oil/s" instead of an even 5/5 split. */
   private _aiProposeResourceTrade(p: Player): void {
     if (p.isHuman || !p.alive) return;
     if (((this.tickCount + p.id * 23) % 200) !== 0) return; // every 20s, offset per id
@@ -3252,15 +3254,21 @@ export class Game {
       const o = this.players[id];
       if (!o || !o.alive) continue;
       if (this.resourceTradeBetween(p.id, id)) continue;
-      // Score: how much of the needed resource they have.
       const supply = o.resources[needKind] ?? 0;
       if (supply < 100) continue;
       if (supply > bestScore) { bestScore = supply; bestTarget = id; }
     }
     if (bestTarget === 0) return;
-    // Propose 5/sec each way (a fair starter rate).
-    const rate = 5;
-    this.proposeResourceTrade(p.id, bestTarget, giveKind, rate, needKind, rate);
+    // Desperation scaling: how short are we on what we need? Scales the
+    // offer asymmetrically — desperate AIs give more and ask less, so
+    // their proposals look like genuinely good deals to the recipient.
+    //   needAmount=0   → desperation 3.0 (offer 15 / ask 1.7)
+    //   needAmount=50  → desperation 2.5 (offer 12 / ask 2.0)
+    //   needAmount=150 → desperation 1.5 (offer 7.5 / ask 3.3)
+    const desperation = Math.min(5, Math.max(1, 1 + (200 - needAmount) / 100));
+    const aGivesPerSec = Math.round(5 * desperation * 10) / 10;
+    const bGivesPerSec = Math.max(1, Math.round((5 / desperation) * 10) / 10);
+    this.proposeResourceTrade(p.id, bestTarget, giveKind, aGivesPerSec, needKind, bGivesPerSec);
   }
 
   /** Per-tick: drain resource upkeep for every owned building. If the
