@@ -24,6 +24,12 @@ export class HUD {
     rsStone:      this._byId('rs-stone'),
     rsOil:        this._byId('rs-oil'),
     rsGems:       this._byId('rs-gems'),
+    rsFlowFood:   this._byId('rs-flow-food'),
+    rsFlowWood:   this._byId('rs-flow-wood'),
+    rsFlowStone:  this._byId('rs-flow-stone'),
+    rsFlowOil:    this._byId('rs-flow-oil'),
+    rsFlowGems:   this._byId('rs-flow-gems'),
+    rsFlowGold:   this._byId('rs-flow-gold'),
     dot:          this._byId('my-dot'),
     enemies:      this._byId('enemies'),
     hint:         this._byId('hint'),
@@ -489,6 +495,11 @@ export class HUD {
     if (this.el.rsStone) this.el.rsStone.textContent = String(Math.floor(me.resources.stone));
     if (this.el.rsOil)   this.el.rsOil.textContent   = String(Math.floor(me.resources.oil));
     if (this.el.rsGems)  this.el.rsGems.textContent  = String(Math.floor(me.resources.gems));
+    // Net trade flow per currency, summed across all human-side
+    // resource trades. Shown as a green/red chip next to the stat
+    // so the player sees "I'm bleeding stone" at a glance without
+    // opening the diplomacy panel.
+    this._refreshResourceFlowChips();
     if (this.el.routes) {
       let n = 0;
       for (const r of this.game.tradeRoutes) if (r.ownerId === me.id) n++;
@@ -1788,6 +1799,41 @@ export class HUD {
     }
 
     list.appendChild(block);
+  }
+
+  /** Update the per-currency flow chips on the top resource bar
+   *  (and the gold stat). Sums net flow across all active resource
+   *  trades involving the human and renders +/- /s in green/red.
+   *  Hidden when there's no trade or the flow is effectively zero. */
+  private _refreshResourceFlowChips(): void {
+    const flow: Record<TradeCurrency, number> = { food: 0, wood: 0, stone: 0, oil: 0, gems: 0, gold: 0 };
+    for (const t of this.game.resourceTrades) {
+      if (t.a !== 1 && t.b !== 1) continue;
+      const youGive    = t.a === 1 ? t.aGives : t.bGives;
+      const youGiveAmt = t.a === 1 ? t.aGivesPerSec : t.bGivesPerSec;
+      const youGet     = t.a === 1 ? t.bGives : t.aGives;
+      const youGetAmt  = t.a === 1 ? t.bGivesPerSec : t.aGivesPerSec;
+      flow[youGive] -= youGiveAmt;
+      flow[youGet]  += youGetAmt;
+    }
+    const set = (el: HTMLElement | null | undefined, v: number): void => {
+      if (!el) return;
+      if (Math.abs(v) < 0.05) {
+        el.classList.remove('pos', 'neg');
+        el.textContent = '';
+        return;
+      }
+      const sign = v > 0 ? '+' : '';
+      el.textContent = `${sign}${v.toFixed(1)}/s`;
+      el.classList.toggle('pos', v > 0);
+      el.classList.toggle('neg', v < 0);
+    };
+    set(this.el.rsFlowFood,  flow.food);
+    set(this.el.rsFlowWood,  flow.wood);
+    set(this.el.rsFlowStone, flow.stone);
+    set(this.el.rsFlowOil,   flow.oil);
+    set(this.el.rsFlowGems,  flow.gems);
+    set(this.el.rsFlowGold,  flow.gold);
   }
 
   private _proposeAlliance(targetId: PlayerId): void {

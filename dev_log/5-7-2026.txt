@@ -763,3 +763,19 @@ with no way to compare. The ranked list shows them all together,
 sorted by score, with the best deals highlighted green. The AI
 desperation change adds variance — without it every offer was
 identical and "rank the best deal" had nothing to rank.
+
+---
+
+[pending] ux: per-resource net flow chips on the top resource bar
+
+WHAT: Each resource chip in the top bar (and the gold stat) gained
+a small green/red flow indicator that shows the net per-second
+trade flow for that currency. "+3.0/s" green when net incoming,
+"-5.0/s" red when net outgoing, hidden when there's no flow. Same
+sum used by the diplomacy panel's TRADE STATUS block, just surfaced
+inline so it's visible without opening the panel.
+
+WHY: User said the trade-status block buried inside the diplomacy
+panel wasn't enough — they wanted the net flow at a glance from
+anywhere in the game so they could spot a draining resource
+without context-switching. Same data, just always visible.

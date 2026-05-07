@@ -102,6 +102,17 @@ html, body {
 #resourcebar .rs-stone b { color: #a8a8b0; }
 #resourcebar .rs-oil b   { color: #c79a52; }
 #resourcebar .rs-gems b  { color: #b9d6f2; }
+/* Per-resource net trade flow chip — sits inline with the resource
+ * label, hidden when there's no flow. Green for net incoming, red
+ * for net outgoing so the bar shows trade impact at a glance. */
+.rs-flow {
+  font-style: normal; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.3px; padding: 1px 5px; border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  display: none;
+}
+.rs-flow.pos { display: inline-block; color: #6ee68a; background: rgba(110,230,138,0.14); }
+.rs-flow.neg { display: inline-block; color: #ff8c8c; background: rgba(255,140,140,0.14); }
 
 #enemies {
   position: absolute;
