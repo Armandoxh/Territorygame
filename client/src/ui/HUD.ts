@@ -1905,8 +1905,9 @@ export class HUD {
   }
 
   private _isLockedForHuman(type: BuildingType): boolean {
+    // Only airstrip remains mastery-gated. AA, ports, barracks etc.
+    // are universal defenses/enablers — no mastery lock on those.
     if (type === 'airstrip') return !this.game.isUnlocked(1, 'airstrip');
-    if (type === 'aa')       return !this.game.isUnlocked(1, 'aa');
     return false;
   }
 
