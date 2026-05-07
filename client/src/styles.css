@@ -1178,6 +1178,47 @@ html, body {
   overflow-y: auto;
   padding-right: 2px;
 }
+/* Tier-column layout: T1 / T2 / T3 side-by-side so prereq
+ * progression reads left-to-right like a real tech tree. */
+.cmd-tier-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.cmd-tier-col {
+  display: flex; flex-direction: column; gap: 8px;
+  position: relative;
+  padding-top: 22px;
+}
+.cmd-tier-col::before {
+  content: ''; position: absolute; top: 12px; left: 0; right: 0;
+  height: 1px; background: rgba(255,255,255,0.04);
+}
+.cmd-tier-col .cmd-tier-h {
+  position: absolute; top: 0; left: 0;
+  font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
+  color: rgba(234,199,104,0.8);
+  background: rgba(20,24,30,0.85);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+/* Connector arrows between tier columns — drawn by the gap. */
+.cmd-tier-col.tier-2::after,
+.cmd-tier-col.tier-3::after {
+  content: '→'; position: absolute;
+  left: -10px; top: 28px;
+  font-size: 14px; color: rgba(234,199,104,0.45);
+  pointer-events: none;
+}
+@media (max-width: 600px) {
+  /* On narrow screens stack tiers vertically to stay readable. */
+  .cmd-tier-cols { grid-template-columns: 1fr; gap: 6px; }
+  .cmd-tier-col.tier-2::after,
+  .cmd-tier-col.tier-3::after {
+    left: 12px; top: -10px; transform: rotate(90deg);
+  }
+}
 .decree-node {
   background: #20262e;
   border: 1px solid rgba(255,255,255,0.06);
@@ -1213,6 +1254,16 @@ html, body {
   margin-left: 4px;
 }
 .dn-desc { font-size: 11px; opacity: 0.72; line-height: 1.4; }
+.dn-effect {
+  display: flex; flex-direction: column; gap: 2px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(85, 200, 110, 0.06);
+  border-left: 2px solid rgba(85, 200, 110, 0.45);
+  border-radius: 4px;
+}
+.dn-eff-cur { font-size: 11px; font-weight: 700; color: #b8e6c4; }
+.dn-eff-next { font-size: 10px; opacity: 0.7; color: #c6d8d0; }
 .dn-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
 .dn-cost {
   font-size: 13px; font-weight: 800;

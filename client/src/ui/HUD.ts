@@ -1,5 +1,5 @@
 import type { Game, Building, BuildingType, BuildError, BombType, BombError, GroundOpType, GroundOpError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId, Mastery, ResourceKind, TradeCurrency } from '@territorygame/shared';
-import { DECREES, ABILITIES, MASTERIES } from '@territorygame/shared';
+import { DECREES, ABILITIES, MASTERIES, decreeEffectFor } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa', 'port', 'barracks'];
@@ -1270,7 +1270,27 @@ export class HUD {
     this._cmdLastSig = sig;
 
     tree.innerHTML = '';
-    const nodes = DECREES.filter(d => d.branch === branch).slice().sort((a, b) => a.tier - b.tier);
+    // Tree layout: three tier columns (T1 → T2 → T3) so progression
+    // reads visually instead of as a flat list. Prereq dependencies
+    // run left-to-right across the columns. Within a column, decrees
+    // stack vertically.
+    const branchNodes = DECREES.filter(d => d.branch === branch);
+    const tierColsWrap = document.createElement('div');
+    tierColsWrap.className = 'cmd-tier-cols';
+    const tierCols: Record<number, HTMLDivElement> = {};
+    for (const t of [1, 2, 3] as const) {
+      const col = document.createElement('div');
+      col.className = `cmd-tier-col tier-${t}`;
+      const hdr = document.createElement('div');
+      hdr.className = 'cmd-tier-h';
+      hdr.textContent = `T${t}`;
+      col.appendChild(hdr);
+      tierColsWrap.appendChild(col);
+      tierCols[t] = col;
+    }
+    tree.appendChild(tierColsWrap);
+
+    const nodes = branchNodes.slice().sort((a, b) => a.tier - b.tier);
     for (const d of nodes) {
       const stacks = me.decreeStacks[d.id] ?? 0;
       const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
@@ -1312,6 +1332,25 @@ export class HUD {
       desc.textContent = d.desc;
       row.appendChild(desc);
 
+      // Live "Currently / Next" readout — translates the abstract
+      // multipliers into concrete %s the player can read at a glance.
+      const eff = decreeEffectFor(d, stacks, chosen);
+      if (eff) {
+        const effEl = document.createElement('div');
+        effEl.className = 'dn-effect';
+        const cur = document.createElement('span');
+        cur.className = 'dn-eff-cur';
+        cur.textContent = eff.current;
+        effEl.appendChild(cur);
+        if (eff.next) {
+          const nxt = document.createElement('span');
+          nxt.className = 'dn-eff-next';
+          nxt.textContent = eff.next;
+          effEl.appendChild(nxt);
+        }
+        row.appendChild(effEl);
+      }
+
       const foot = document.createElement('div');
       foot.className = 'dn-foot';
       const costEl = document.createElement('span');
@@ -1328,7 +1367,8 @@ export class HUD {
       foot.appendChild(buy);
       row.appendChild(foot);
 
-      tree.appendChild(row);
+      const col = tierCols[d.tier] ?? tree;
+      col.appendChild(row);
     }
     this._updateDecreeAffordability();
   }
@@ -1339,7 +1379,9 @@ export class HUD {
     const tree = this.el.cmdTree;
     if (!tree) return;
     const me = this.game.human();
-    const rows = tree.children;
+    // Decree nodes live inside tier columns now, not directly in `tree`.
+    // querySelectorAll picks them out wherever they sit in the layout.
+    const rows = tree.querySelectorAll<HTMLElement>('.decree-node');
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i] as HTMLElement;
       const id = row.dataset['decree'];

@@ -1078,3 +1078,29 @@ different from another forced-march specialist depending on
 their path. User explicitly asked for AI to share the same
 awareness so opponents have coherent late-game strategies
 instead of all looking alike.
+
+---
+
+[pending] ux: commander panel readability + tree-column layout
+
+WHAT: Three readability fixes.
+  1. Decree descriptions rewritten in plain English. "×1.05
+     combat power per stack" → "Your troops fight harder (more
+     damage on attack AND defense)." Static one-liners.
+  2. New decreeEffectFor(d, stacks, branch) returns live
+     "Currently / Next stack" readout so every decree row shows
+     the concrete current numbers AND the preview of the next
+     buy. A green-bordered effect block under the description.
+     Numbers reflect compound math + branch choice live.
+  3. Doctrines render as a 3-column tree (T1 → T2 → T3) instead
+     of a flat sorted list. Connector arrows hint at prereq
+     direction. Renamed the tab from "Doctrines" to "Tree".
+     Mobile narrow-screens stack tiers vertically.
+
+WHY: User said "the text looks weird. 1.05 combat power per
+stack but you don't say what the power is. Show a TREE and have
+2 tabs of it, abilities and military tree." Plain-English descs
++ live current-effect readout fixes the "what does this even
+do?" problem; tier-column tree layout shows the prereq
+progression at a glance instead of forcing the reader to
+mentally chain "Iron Doctrine → Reinforced Bunkers → fork."
