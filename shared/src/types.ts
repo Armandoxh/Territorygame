@@ -180,7 +180,7 @@ export type GameEvent =
 export type RGBA = readonly [number, number, number, number];
 
 export type BuildError =
-  | 'gold' | 'not-yours' | 'occupied' | 'on-capital'
+  | 'gold' | 'not-yours' | 'occupied' | 'on-capital' | 'not-coastal'
   | 'oob' | 'dead' | 'bad-type' | 'no-building' | 'max-level' | 'locked';
 
 export type BombError =

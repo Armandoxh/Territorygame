@@ -724,7 +724,7 @@ export class Game {
       for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
         if (this._isWaterTile(x + dx, y + dy)) { coastal = true; break; }
       }
-      if (!coastal) return 'not-yours';
+      if (!coastal) return 'not-coastal';
     }
     // Master Builder discount applies to leader-paid builds only —
     // vassal-funded builds use their own pool at face value (the

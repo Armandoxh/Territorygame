@@ -2,7 +2,7 @@ import type { Game, Building, BuildingType, BuildError, BombType, BombError, Pla
 import { DECREES, ABILITIES, MASTERIES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
-const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa'];
+const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa', 'port', 'artillery'];
 const BOMB_TYPES: BombType[] = ['small', 'large', 'ac130'];
 const SHIP_TYPES: ShipKind[] = ['scout', 'skirmisher', 'warship', 'submarine', 'destroyer'];
 const DECREE_BRANCHES: DecreeBranch[] = ['economy', 'defense', 'military', 'offense', 'espionage'];
@@ -1938,6 +1938,7 @@ export class HUD {
       'not-yours':    'Build on your own land',
       'occupied':     'Tile already built on',
       'on-capital':   'Cannot build on capital',
+      'not-coastal':  'Defense Port needs a coastal tile (adjacent to water)',
       'oob':          'Out of bounds',
       'dead':         'You are eliminated',
       'bad-type':     'Unknown building',
