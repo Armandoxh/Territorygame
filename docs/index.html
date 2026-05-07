@@ -7,8 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-  <script type="module" crossorigin src="/Territorygame/assets/index-CkHoeU0o.js"></script>
-  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-pI04JFgZ.css">
+  <script type="module" crossorigin src="/Territorygame/assets/index-CaUMKmLo.js"></script>
+  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-BoTRwlVJ.css">
 </head>
 <body>
   <div id="app"></div>
@@ -175,7 +175,12 @@
           <button class="cmd-tab"        data-branch="diplomacy" type="button">Diplomacy</button>
           <button class="cmd-tab"        data-branch="espionage" type="button">Espionage</button>
         </div>
-        <div class="cmd-tree" id="cmd-tree" style="display:none"></div>
+        <div class="cmd-tree-wrap" id="cmd-tree-wrap" style="display:none">
+          <div class="cmd-tree" id="cmd-tree"></div>
+          <div class="cmd-selected" id="cmd-selected">
+            <p class="cms-hint">Tap any node to see what it does and buy it.</p>
+          </div>
+        </div>
         <button id="commander-cancel" class="secondary" type="button">CLOSE</button>
       </div>
     </div>

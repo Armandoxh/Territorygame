@@ -1073,7 +1073,7 @@ html, body {
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 18px;
   padding: 24px 22px 18px;
-  width: min(420px, 94vw);
+  width: min(680px, 96vw);
 }
 .cmd-card { max-height: 92vh; display: flex; flex-direction: column; }
 #commander h2 {
@@ -1171,13 +1171,70 @@ html, body {
   border-color: rgba(232, 192, 74, 0.55);
   color: #e8c04a;
 }
-.cmd-tree {
-  display: flex; flex-direction: column; gap: 8px;
-  margin-bottom: 12px;
-  max-height: 52vh;
-  overflow-y: auto;
-  padding-right: 2px;
+.cmd-tree-wrap {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 10px;
 }
+.cmd-tree {
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px;
+  max-height: 52vh;
+  overflow: auto;
+  padding: 8px;
+}
+.cmd-tree-svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+}
+/* Tree node — clickable SVG group. */
+.cmd-tree-svg .tn { cursor: pointer; }
+.cmd-tree-svg .tn-rect {
+  fill: #20262e;
+  stroke: rgba(234, 199, 104, 0.45);
+  stroke-width: 1.2;
+}
+.cmd-tree-svg .tn.tier-1 .tn-rect { stroke: rgba(234, 199, 104, 0.40); }
+.cmd-tree-svg .tn.tier-2 .tn-rect { stroke: rgba(155, 217, 234, 0.45); }
+.cmd-tree-svg .tn.tier-3 .tn-rect { stroke: rgba(202, 156, 255, 0.55); }
+.cmd-tree-svg .tn.owned .tn-rect       { fill: #2a3a2e; stroke: #6ee68a; stroke-width: 1.6; }
+.cmd-tree-svg .tn.owned-once .tn-rect  { fill: #2a3a2e; stroke: #6ee68a; }
+.cmd-tree-svg .tn.locked .tn-rect      { fill: #1a1c20; stroke: rgba(255,255,255,0.08); }
+.cmd-tree-svg .tn.coming-soon .tn-rect { fill: #1a1c20; stroke: rgba(255,255,255,0.06); }
+.cmd-tree-svg .tn.selected .tn-rect    { stroke: #ffffff; stroke-width: 2.2; }
+.cmd-tree-svg .tn-name { fill: #e8eef4; font: 700 12px system-ui, sans-serif; }
+.cmd-tree-svg .tn-stack { fill: #6ee68a; font: 700 10px system-ui, sans-serif; }
+.cmd-tree-svg .tn-power { fill: #b8d6e6; font: 500 10.5px system-ui, sans-serif; }
+.cmd-tree-svg .tn-cost  { fill: #eac768; font: 700 11px system-ui, sans-serif; }
+.cmd-tree-svg .tn.locked .tn-name,
+.cmd-tree-svg .tn.locked .tn-power,
+.cmd-tree-svg .tn.locked .tn-cost,
+.cmd-tree-svg .tn.coming-soon .tn-name,
+.cmd-tree-svg .tn.coming-soon .tn-power,
+.cmd-tree-svg .tn.coming-soon .tn-cost { opacity: 0.45; }
+.cmd-tree-svg .tn-link {
+  stroke: rgba(255,255,255,0.10);
+  stroke-width: 1.5;
+  fill: none;
+}
+.cmd-tree-svg .tn-link.active { stroke: rgba(110,230,138,0.45); }
+
+/* Selected-decree side panel below the tree. */
+.cmd-selected {
+  background: #20262e;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.cms-hint { font-size: 11px; opacity: 0.55; margin: 0; text-align: center; padding: 12px 0; }
+.cms-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cms-title { font-size: 14px; font-weight: 800; flex: 1; }
+.cms-desc { font-size: 12px; opacity: 0.85; line-height: 1.5; margin: 0; }
+.cms-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.dn-empty { padding: 24px; text-align: center; opacity: 0.55; font-size: 12px; }
 /* Tier-column layout: T1 / T2 / T3 side-by-side so prereq
  * progression reads left-to-right like a real tech tree. */
 .cmd-tier-cols {

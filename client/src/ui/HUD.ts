@@ -100,6 +100,8 @@ export class HUD {
     cmdAbilities: this._byId('ability-list'),
     cmdTabs:      this._byId('cmd-tabs'),
     cmdTree:      this._byId('cmd-tree'),
+    cmdTreeWrap:  this._byId('cmd-tree-wrap'),
+    cmdSelected:  this._byId('cmd-selected'),
     cmdCancel:    this._byId('commander-cancel'),
     masteryPanel: this._byId('mastery'),
     masteryGrid:  this._byId('mastery-grid'),
@@ -151,6 +153,7 @@ export class HUD {
   private tpTakeAmt = 5;
   private cmdMode: CmdMode = 'abilities';
   private _cmdLastSig = '';
+  private _selectedDecree: string | null = null;
   private _lastBuyAt = 0;
   private _tradeTargetId: PlayerId = 0;
 
@@ -1095,7 +1098,21 @@ export class HUD {
         this._refreshCommander();
       });
     });
+    // Tree click: select the tapped node and re-render so details
+    // show in the side panel below. Closest .tn handles both the
+    // outer <g> and any inner element (rect, text).
     this.el.cmdTree?.addEventListener('click', (e) => {
+      const target = e.target as Element | null;
+      const node = target?.closest('.tn');
+      if (!node) return;
+      const id = node.getAttribute('data-decree');
+      if (!id) return;
+      this._selectedDecree = id;
+      this._cmdLastSig = ''; // force tree rebuild so selection class applies
+      this._renderDecreeTree();
+    });
+    // Side panel buy button.
+    this.el.cmdSelected?.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('.dn-buy');
       if (!btn || btn.disabled) return;
       const id = btn.dataset['decree'];
@@ -1146,7 +1163,7 @@ export class HUD {
     const showAbilities = this.cmdMode === 'abilities';
     if (this.el.cmdAbilities) this.el.cmdAbilities.style.display = showAbilities ? '' : 'none';
     if (this.el.cmdTabs) this.el.cmdTabs.style.display = showAbilities ? 'none' : '';
-    if (this.el.cmdTree) this.el.cmdTree.style.display = showAbilities ? 'none' : '';
+    if (this.el.cmdTreeWrap) this.el.cmdTreeWrap.style.display = showAbilities ? 'none' : '';
 
     if (showAbilities) {
       this._renderAbilities();
@@ -1262,7 +1279,7 @@ export class HUD {
       stackSig += (me.decreeStacks[d.id] ?? 0) + ':';
       stackSig += (me.decreeBranches[d.id] ?? '-') + '.';
     }
-    const sig = `${branch}|${stackSig}`;
+    const sig = `${branch}|${stackSig}|${this._selectedDecree ?? ''}`;
     if (sig === this._cmdLastSig) {
       this._updateDecreeAffordability();
       return;
@@ -1270,153 +1287,270 @@ export class HUD {
     this._cmdLastSig = sig;
 
     tree.innerHTML = '';
-    // Tree layout: three tier columns (T1 → T2 → T3) so progression
-    // reads visually instead of as a flat list. Prereq dependencies
-    // run left-to-right across the columns. Within a column, decrees
-    // stack vertically.
-    const branchNodes = DECREES.filter(d => d.branch === branch);
-    const tierColsWrap = document.createElement('div');
-    tierColsWrap.className = 'cmd-tier-cols';
-    const tierCols: Record<number, HTMLDivElement> = {};
-    for (const t of [1, 2, 3] as const) {
-      const col = document.createElement('div');
-      col.className = `cmd-tier-col tier-${t}`;
-      const hdr = document.createElement('div');
-      hdr.className = 'cmd-tier-h';
-      hdr.textContent = `T${t}`;
-      col.appendChild(hdr);
-      tierColsWrap.appendChild(col);
-      tierCols[t] = col;
-    }
-    tree.appendChild(tierColsWrap);
 
-    const nodes = branchNodes.slice().sort((a, b) => a.tier - b.tier);
-    for (const d of nodes) {
+    // Top-down SVG tree per branch. T1 nodes at top (roots), T2 in
+    // the middle, T3 at the bottom. Lines connect prereqs. Click
+    // any node → details + buy in the side panel below.
+    const branchNodes = DECREES.filter(d => d.branch === branch);
+    if (branchNodes.length === 0) {
+      tree.innerHTML = '<div class="dn-empty">No decrees in this branch.</div>';
+      this._renderSelectedDecreePanel();
+      return;
+    }
+
+    const NODE_W = 140, NODE_H = 72;
+    const TIER_GAP = 56;
+    const NODE_GAP = 18;
+    const PAD = 16;
+    const tierLists = [1, 2, 3].map(t => branchNodes.filter(d => d.tier === t));
+    let maxRowW = 0;
+    for (const list of tierLists) {
+      const w = list.length * NODE_W + Math.max(0, list.length - 1) * NODE_GAP;
+      if (w > maxRowW) maxRowW = w;
+    }
+    const SVG_W = Math.max(maxRowW + PAD * 2, 360);
+    const SVG_H = PAD * 2 + 3 * NODE_H + 2 * TIER_GAP;
+
+    const positions = new Map<string, { x: number; y: number }>();
+    for (let ti = 0; ti < 3; ti++) {
+      const list = tierLists[ti]!;
+      if (list.length === 0) continue;
+      const totalW = list.length * NODE_W + Math.max(0, list.length - 1) * NODE_GAP;
+      let x = (SVG_W - totalW) / 2;
+      const y = PAD + ti * (NODE_H + TIER_GAP);
+      for (const d of list) {
+        positions.set(d.id, { x, y });
+        x += NODE_W + NODE_GAP;
+      }
+    }
+
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'cmd-tree-svg');
+    svg.setAttribute('viewBox', `0 0 ${SVG_W} ${SVG_H}`);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMin meet');
+
+    // Lines (prereq → child) drawn first so they sit under nodes.
+    for (const d of branchNodes) {
+      if (!d.prereq) continue;
+      const a = positions.get(d.prereq);
+      const b = positions.get(d.id);
+      if (!a || !b) continue;
+      const x1 = a.x + NODE_W / 2;
+      const y1 = a.y + NODE_H;
+      const x2 = b.x + NODE_W / 2;
+      const y2 = b.y;
+      const path = document.createElementNS(ns, 'path');
+      const my = (y1 + y2) / 2;
+      path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`);
+      const prereqMet = (me.decreeStacks[d.prereq] ?? 0) > 0;
+      path.setAttribute('class', `tn-link${prereqMet ? ' active' : ''}`);
+      svg.appendChild(path);
+    }
+
+    // Nodes.
+    for (const d of branchNodes) {
+      const pos = positions.get(d.id);
+      if (!pos) continue;
       const stacks = me.decreeStacks[d.id] ?? 0;
       const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
       const owned = stacks > 0;
+      const locked = !!d.comingSoon || !prereqMet || (!d.stackable && owned);
+      const selected = this._selectedDecree === d.id;
+      const cls = ['tn', `tier-${d.tier}`];
+      if (d.comingSoon) cls.push('coming-soon');
+      else if (!prereqMet) cls.push('locked');
+      else if (!d.stackable && owned) cls.push('owned-once');
+      if (owned && d.stackable) cls.push('owned');
+      if (selected) cls.push('selected');
 
-      const row = document.createElement('div');
-      row.className = 'decree-node';
-      row.classList.add(`tier-${d.tier}`);
-      row.dataset['decree'] = d.id;
-      if (d.comingSoon) row.classList.add('coming-soon');
-      else if (!prereqMet) row.classList.add('locked');
-      else if (!d.stackable && owned) row.classList.add('owned');
+      const g = document.createElementNS(ns, 'g');
+      g.setAttribute('class', cls.join(' '));
+      g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+      g.setAttribute('data-decree', d.id);
 
-      const head = document.createElement('div');
-      head.className = 'dn-head';
-      const name = document.createElement('span');
-      name.className = 'dn-name';
-      name.textContent = `T${d.tier} · ${d.name}`;
-      head.appendChild(name);
+      const rect = document.createElementNS(ns, 'rect');
+      rect.setAttribute('width', String(NODE_W));
+      rect.setAttribute('height', String(NODE_H));
+      rect.setAttribute('rx', '8');
+      rect.setAttribute('class', 'tn-rect');
+      g.appendChild(rect);
+
+      const nameEl = document.createElementNS(ns, 'text');
+      nameEl.setAttribute('x', String(NODE_W / 2));
+      nameEl.setAttribute('y', '20');
+      nameEl.setAttribute('class', 'tn-name');
+      nameEl.setAttribute('text-anchor', 'middle');
+      nameEl.textContent = d.name;
+      g.appendChild(nameEl);
+
+      // Stack badge — top-right corner.
       if (stacks > 0) {
-        const badge = document.createElement('span');
-        badge.className = 'dn-stacks';
-        badge.textContent = d.stackable ? `×${stacks}` : 'OWNED';
-        head.appendChild(badge);
-      }
-      // Branch badge: the chosen path on a branched decree.
-      const chosen = me.decreeBranches[d.id];
-      if (chosen && d.branches) {
-        const branchBadge = document.createElement('span');
-        branchBadge.className = 'dn-branch';
-        const branchName = chosen === 'a' ? d.branches.a.name : d.branches.b.name;
-        branchBadge.textContent = `↳ ${branchName}`;
-        head.appendChild(branchBadge);
-      }
-      row.appendChild(head);
-
-      const desc = document.createElement('div');
-      desc.className = 'dn-desc';
-      desc.textContent = d.desc;
-      row.appendChild(desc);
-
-      // Live "Currently / Next" readout — translates the abstract
-      // multipliers into concrete %s the player can read at a glance.
-      const eff = decreeEffectFor(d, stacks, chosen);
-      if (eff) {
-        const effEl = document.createElement('div');
-        effEl.className = 'dn-effect';
-        const cur = document.createElement('span');
-        cur.className = 'dn-eff-cur';
-        cur.textContent = eff.current;
-        effEl.appendChild(cur);
-        if (eff.next) {
-          const nxt = document.createElement('span');
-          nxt.className = 'dn-eff-next';
-          nxt.textContent = eff.next;
-          effEl.appendChild(nxt);
-        }
-        row.appendChild(effEl);
+        const badge = document.createElementNS(ns, 'text');
+        badge.setAttribute('x', String(NODE_W - 10));
+        badge.setAttribute('y', '15');
+        badge.setAttribute('class', 'tn-stack');
+        badge.setAttribute('text-anchor', 'end');
+        badge.textContent = d.stackable ? `×${stacks}` : '✓';
+        g.appendChild(badge);
       }
 
-      const foot = document.createElement('div');
-      foot.className = 'dn-foot';
-      const costEl = document.createElement('span');
-      costEl.className = 'dn-cost';
-      foot.appendChild(costEl);
+      // Power line — current effect at a glance.
+      const eff = decreeEffectFor(d, stacks, me.decreeBranches[d.id]);
+      const power = document.createElementNS(ns, 'text');
+      power.setAttribute('x', String(NODE_W / 2));
+      power.setAttribute('y', '40');
+      power.setAttribute('class', 'tn-power');
+      power.setAttribute('text-anchor', 'middle');
+      power.textContent = eff
+        ? this._compactCurrent(eff.current)
+        : (d.comingSoon ? 'Coming soon' : '');
+      g.appendChild(power);
 
-      const buy = document.createElement('button');
-      buy.className = 'dn-buy';
-      buy.type = 'button';
-      buy.dataset['decree'] = d.id;
-      buy.textContent = (d.comingSoon || !prereqMet || (!d.stackable && owned))
-        ? '—'
-        : (d.oneShot ? 'ISSUE' : 'DECREE');
-      foot.appendChild(buy);
-      row.appendChild(foot);
+      // Cost — bottom row.
+      const cost = this.game.decreeCostFor(me.id, d.id);
+      const costEl = document.createElementNS(ns, 'text');
+      costEl.setAttribute('x', String(NODE_W / 2));
+      costEl.setAttribute('y', String(NODE_H - 10));
+      costEl.setAttribute('class', 'tn-cost');
+      costEl.setAttribute('text-anchor', 'middle');
+      costEl.textContent = locked
+        ? (d.comingSoon ? '—' : (!prereqMet ? '🔒' : 'Owned'))
+        : `${cost}♛`;
+      g.appendChild(costEl);
 
-      const col = tierCols[d.tier] ?? tree;
-      col.appendChild(row);
+      svg.appendChild(g);
     }
-    this._updateDecreeAffordability();
+
+    tree.appendChild(svg);
+    this._renderSelectedDecreePanel();
+  }
+
+  /** Strip the "Currently:" prefix and trim the rest so a node's
+   *  one-line power readout fits in the box. */
+  private _compactCurrent(s: string): string {
+    let t = s.replace(/^Currently:\s*/, '').replace(/\.$/, '');
+    if (t.length > 30) t = t.slice(0, 28) + '…';
+    return t;
+  }
+
+  /** Render the side panel below the tree showing full info for
+   *  the currently-selected decree (description, current/next
+   *  effect block, branch info, cost + buy button). */
+  private _renderSelectedDecreePanel(): void {
+    const panel = this.el.cmdSelected;
+    if (!panel) return;
+    const id = this._selectedDecree;
+    if (!id) {
+      panel.innerHTML = '<p class="cms-hint">Tap any node to see what it does and buy it.</p>';
+      return;
+    }
+    const d = DECREES.find(x => x.id === id);
+    if (!d) { panel.innerHTML = ''; return; }
+    const me = this.game.human();
+    const stacks = me.decreeStacks[d.id] ?? 0;
+    const branch = me.decreeBranches[d.id];
+    const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
+    const owned = stacks > 0;
+    const locked = !!d.comingSoon || !prereqMet || (!d.stackable && owned);
+    const cost = this.game.decreeCostFor(me.id, d.id);
+    const canAfford = me.treasury >= cost;
+    const eff = decreeEffectFor(d, stacks, branch);
+
+    panel.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'cms-head';
+    const title = document.createElement('span');
+    title.className = 'cms-title';
+    title.textContent = `T${d.tier} · ${d.name}`;
+    head.appendChild(title);
+    if (stacks > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'dn-stacks';
+      badge.textContent = d.stackable ? `×${stacks}` : 'OWNED';
+      head.appendChild(badge);
+    }
+    if (branch && d.branches) {
+      const bb = document.createElement('span');
+      bb.className = 'dn-branch';
+      bb.textContent = `↳ ${branch === 'a' ? d.branches.a.name : d.branches.b.name}`;
+      head.appendChild(bb);
+    }
+    panel.appendChild(head);
+
+    const desc = document.createElement('p');
+    desc.className = 'cms-desc';
+    desc.textContent = d.desc;
+    panel.appendChild(desc);
+
+    if (eff) {
+      const effEl = document.createElement('div');
+      effEl.className = 'dn-effect';
+      const cur = document.createElement('span');
+      cur.className = 'dn-eff-cur';
+      cur.textContent = eff.current;
+      effEl.appendChild(cur);
+      if (eff.next) {
+        const nxt = document.createElement('span');
+        nxt.className = 'dn-eff-next';
+        nxt.textContent = eff.next;
+        effEl.appendChild(nxt);
+      }
+      panel.appendChild(effEl);
+    }
+    if (d.branches && !branch) {
+      const note = document.createElement('p');
+      note.className = 'cms-hint';
+      note.textContent = `At L${d.branches.forkAt} you'll pick a path: ${d.branches.a.name} or ${d.branches.b.name}.`;
+      panel.appendChild(note);
+    }
+
+    const foot = document.createElement('div');
+    foot.className = 'cms-foot';
+    const costSpan = document.createElement('span');
+    costSpan.className = 'dn-cost';
+    if (d.comingSoon) costSpan.textContent = 'Coming soon';
+    else if (!prereqMet) {
+      const pre = DECREES.find(x => x.id === d.prereq);
+      costSpan.textContent = `Locked · needs ${pre?.name ?? d.prereq}`;
+    } else if (!d.stackable && owned) costSpan.textContent = 'Issued';
+    else costSpan.textContent = `${cost}♛`;
+    foot.appendChild(costSpan);
+
+    const buy = document.createElement('button');
+    buy.className = 'dn-buy';
+    buy.type = 'button';
+    buy.dataset['decree'] = d.id;
+    buy.textContent = (locked ? '—' : (d.oneShot ? 'ISSUE' : 'DECREE'));
+    buy.disabled = locked || !canAfford;
+    foot.appendChild(buy);
+    panel.appendChild(foot);
   }
 
   // Per-frame cheap update: gold ticks change affordability + war-bonds
   // dynamic cost. We mutate existing nodes instead of rebuilding the DOM.
   private _updateDecreeAffordability(): void {
-    const tree = this.el.cmdTree;
-    if (!tree) return;
+    // SVG tree refreshes on tap-via-sig and on any decree state change,
+    // so the only thing this needs to live-update each frame is the
+    // selected-node panel's buy button (treasury fluctuates with gold
+    // ticks). Node colors / cost text don't change every tick.
+    const panel = this.el.cmdSelected;
+    if (!panel) return;
+    const id = this._selectedDecree;
+    if (!id) return;
     const me = this.game.human();
-    // Decree nodes live inside tier columns now, not directly in `tree`.
-    // querySelectorAll picks them out wherever they sit in the layout.
-    const rows = tree.querySelectorAll<HTMLElement>('.decree-node');
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i] as HTMLElement;
-      const id = row.dataset['decree'];
-      if (!id) continue;
-      const d = DECREES.find(x => x.id === id);
-      if (!d) continue;
-      const stacks = me.decreeStacks[d.id] ?? 0;
-      const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
-      const owned = stacks > 0;
-      const locked = !!d.comingSoon || !prereqMet || (!d.stackable && owned);
-      const cost = this.game.decreeCostFor(me.id, d.id);
-      const canAfford = me.treasury >= cost;
-
-      row.classList.toggle('cant-afford', !locked && !canAfford);
-
-      const costEl = row.querySelector<HTMLElement>('.dn-cost');
-      if (costEl) {
-        costEl.classList.remove('soon');
-        if (d.comingSoon) {
-          costEl.textContent = 'Coming soon';
-          costEl.classList.add('soon');
-        } else if (!prereqMet) {
-          const pre = DECREES.find(x => x.id === d.prereq);
-          costEl.textContent = `Locked · needs ${pre?.name ?? d.prereq}`;
-          costEl.classList.add('soon');
-        } else if (!d.stackable && owned) {
-          costEl.textContent = 'Issued';
-          costEl.classList.add('soon');
-        } else {
-          costEl.textContent = `${cost}g`;
-        }
-      }
-      const buy = row.querySelector<HTMLButtonElement>('.dn-buy');
-      if (buy) buy.disabled = locked || !canAfford;
-    }
+    const d = DECREES.find(x => x.id === id);
+    if (!d) return;
+    const stacks = me.decreeStacks[d.id] ?? 0;
+    const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
+    const owned = stacks > 0;
+    const locked = !!d.comingSoon || !prereqMet || (!d.stackable && owned);
+    const cost = this.game.decreeCostFor(me.id, d.id);
+    const canAfford = me.treasury >= cost;
+    const buy = panel.querySelector<HTMLButtonElement>('.dn-buy');
+    if (buy) buy.disabled = locked || !canAfford;
+    const costEl = panel.querySelector<HTMLElement>('.dn-cost');
+    if (costEl && !locked) costEl.textContent = `${cost}♛`;
   }
 
   private _buyDecree(id: string, branch?: 'a' | 'b'): void {

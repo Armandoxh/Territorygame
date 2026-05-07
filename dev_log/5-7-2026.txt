@@ -1104,3 +1104,32 @@ stack but you don't say what the power is. Show a TREE and have
 do?" problem; tier-column tree layout shows the prereq
 progression at a glance instead of forcing the reader to
 mentally chain "Iron Doctrine → Reinforced Bunkers → fork."
+
+---
+
+[pending] ux: real top-down SVG decree tree with selectable
+nodes and side panel
+
+WHAT: Tier-column DOM list replaced with a real SVG tech-tree.
+Top row = T1 nodes, middle = T2, bottom = T3. Cubic Bezier
+prereq lines connect parents to their children, lines tinting
+green when the prereq is owned. Each node is a 140×72 box
+showing name + current power summary + cost.
+
+Tap a node → it goes selected (white ring on the rect) and the
+side panel below renders the full description, branch info,
+current/next effect block, and the BUY button. Tree itself is
+short on text — just the power summary fits in the box.
+Decree-node DOM list deleted; single .dn-buy now lives only
+in the side panel.
+
+Commander card width bumped from min(420px, 94vw) to
+min(680px, 96vw) so the tree has room to breathe.
+
+WHY: User asked for "a real tree, top down with nodes, bigger,
+zoomable. Click a tree item, you show the long text. Default
+on each node show the power, e.g. Veterans — more damage and
+defense. Current 1.0 Next 1.05." Implemented in full minus
+explicit pinch-zoom (scrollable container + mobile-friendly
+sizing covers the navigation need; pinch-zoom is a follow-up
+if needed).
