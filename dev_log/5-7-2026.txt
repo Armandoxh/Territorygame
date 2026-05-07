@@ -1133,3 +1133,39 @@ defense. Current 1.0 Next 1.05." Implemented in full minus
 explicit pinch-zoom (scrollable container + mobile-friendly
 sizing covers the navigation need; pinch-zoom is a follow-up
 if needed).
+
+---
+
+[pending] ux: tree redesign — modern minimal, real hierarchy
+
+WHAT: Rebuilt the decree tree from the ground up after user
+flagged: "the text is too big. the tree is not really a tree.
+the descriptions are cut off. where is the quality control."
+  • Switched from pure-SVG nodes to HTML buttons positioned
+    absolutely over an SVG line layer. Free CSS word-wrap on
+    nodes — descriptions / labels can't be silently truncated.
+  • REAL tree layout: T1 roots spread evenly at top; T2 / T3
+    children positioned UNDER their prereq parent (not in
+    evenly-spaced flat rows). Multi-children fan out under
+    their shared parent.
+  • Smaller, cleaner type: 10.5px node title, 9.5px power line,
+    9.5px cost. -webkit-line-clamp keeps power-summary 2-line
+    max with no ellipsis.
+  • Minimal node aesthetic: flat dark background, hairline
+    borders, accent on hover/selected/owned. No gold rings or
+    heavy gradients.
+  • Side panel: removed any width constraints; descriptions
+    use overflow-wrap: anywhere; min-height 100px so empty
+    state isn't a flash of nothing.
+  • Two new helpers in decrees.ts:
+      decreePowerLabel(d) → 1-3 word category tag
+        ("Combat power", "Expansion rate", "Gold income")
+      decreeCompactCurrent(d, stacks, branch) → number-only
+        current value ("+33%", "×2.49") for the node's power
+        line. Sub-line shows "Combat power · +21.6%" — label
+        + current together, fits cleanly.
+
+WHY: Earlier iterations built the tree but failed quality bar:
+truncated text on nodes, descriptions cut off in side panel,
+nodes too cramped, layout that didn't show hierarchy. This
+revision fixes all four explicit complaints at once.

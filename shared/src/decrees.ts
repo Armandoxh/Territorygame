@@ -131,6 +131,89 @@ export function decreeById(id: string): Decree | undefined {
   return DECREES.find(d => d.id === id);
 }
 
+/** Two-word power label for a decree node — what the buff IS,
+ *  not what it currently does. Shown as the second line of every
+ *  node in the tree. Designed to read like a tag/category. */
+export function decreePowerLabel(d: Decree): string {
+  switch (d.id) {
+    case 'production': return 'Gold income';
+    case 'master-builder': return 'Build cost';
+    case 'free-market': return 'Vassal income';
+    case 'industrial': return 'Auto-upgrade';
+    case 'border-patrol': return 'Turret reach';
+    case 'iron-doctrine': return 'Defense bonus';
+    case 'reinforced-bunkers': return 'Wall hardening';
+    case 'watchtowers': return 'Auto-turrets';
+    case 'conscription': return 'Instant troops';
+    case 'veterans': return 'Combat power';
+    case 'standing-army': return 'Troop cap';
+    case 'war-bonds': return 'Gold→troops';
+    case 'forced-march': return 'Expansion rate';
+    case 'air-supremacy': return 'Bomb cooldown';
+    case 'nuclear-program': return 'Nukes';
+    case 'spy-network': return 'Enemy intel';
+    case 'sabotage': return 'Skim income';
+    case 'forced-labor': return 'Capture bonus';
+    case 'coup-detat': return 'Region flip';
+    case 'admiralty': return 'Ship perks';
+    case 'privateer': return 'Trade raiding';
+    case 'embassy': return 'Diplomacy';
+    case 'cartel': return 'Trade income';
+    case 'cold-war': return 'Break alliance';
+    default: return '';
+  }
+}
+
+/** Compact one-line "current value" for a node — designed for
+ *  the tree node where space is limited. Returns just the number/
+ *  multiplier without prose. e.g. "+33% income" or "×2.49". */
+export function decreeCompactCurrent(d: Decree, stacks: number, branch?: 'a' | 'b'): string {
+  if (stacks <= 0) return '—';
+  const compound = (s: number, pct: number): number => Math.pow(1 + pct, s);
+  const fmt = (mul: number): string => {
+    const pct = (mul - 1) * 100;
+    if (pct >= 100) return `+${pct.toFixed(0)}%`;
+    return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+  };
+  switch (d.id) {
+    case 'production': return fmt(compound(stacks, 0.10));
+    case 'master-builder': return fmt(Math.max(0.5, Math.pow(0.90, stacks)));
+    case 'forced-march': {
+      const baseStacks = Math.min(2, stacks);
+      const branchStacks = Math.max(0, stacks - 2);
+      const baseMul = compound(baseStacks, 0.20);
+      const v = (branch === 'a') ? baseMul * compound(branchStacks, 0.30) : baseMul;
+      const m = (branch === 'b') ? baseMul * compound(branchStacks, 0.30) : baseMul;
+      if (v === m) return fmt(v);
+      return `V${fmt(v)} M${fmt(m)}`;
+    }
+    case 'veterans': {
+      const bs = Math.min(2, stacks), brs = Math.max(0, stacks - 2);
+      const bm = compound(bs, 0.05);
+      const a = Math.min(2.0, (branch === 'a') ? bm * compound(brs, 0.10) : bm);
+      const dd = Math.min(2.0, (branch === 'b') ? bm * compound(brs, 0.10) : bm);
+      if (a === dd) return fmt(a);
+      return `A${fmt(a)} D${fmt(dd)}`;
+    }
+    case 'reinforced-bunkers': {
+      const bs = Math.min(2, stacks), brs = Math.max(0, stacks - 2);
+      const bm = compound(bs, 0.50);
+      const v = Math.min(3.0, (branch === 'a') ? bm * compound(brs, 0.75) : bm);
+      const r = Math.min(3.0, (branch === 'b') ? bm * compound(brs, 1.00) : bm);
+      if (v === r) return `×${v.toFixed(2)}`;
+      return `D×${v.toFixed(1)} R×${r.toFixed(1)}`;
+    }
+    case 'standing-army': return `×${compound(stacks, 0.50).toFixed(2)}`;
+    case 'admiralty': return `×${compound(stacks, 0.20).toFixed(2)}`;
+    case 'sabotage': return `${Math.min(50, stacks * 5)}%`;
+    case 'embassy': return `+${stacks * 25}%`;
+    case 'cartel': return fmt(compound(stacks, 0.20));
+    case 'conscription': return `×${stacks}`;
+    case 'war-bonds': return `×${stacks}`;
+    default: return stacks > 0 ? '✓' : '';
+  }
+}
+
 /** Plain-English "Currently / Next" readout for a decree at a given
  *  stack count + branch choice. Returns undefined for non-numeric
  *  decrees (one-shots, flat toggles) since "current vs next" doesn't

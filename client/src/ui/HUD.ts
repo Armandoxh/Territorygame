@@ -1,5 +1,5 @@
 import type { Game, Building, BuildingType, BuildError, BombType, BombError, GroundOpType, GroundOpError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId, Mastery, ResourceKind, TradeCurrency } from '@territorygame/shared';
-import { DECREES, ABILITIES, MASTERIES, decreeEffectFor } from '@territorygame/shared';
+import { DECREES, ABILITIES, MASTERIES, decreeEffectFor, decreePowerLabel, decreeCompactCurrent } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa', 'port', 'barracks'];
@@ -1288,9 +1288,10 @@ export class HUD {
 
     tree.innerHTML = '';
 
-    // Top-down SVG tree per branch. T1 nodes at top (roots), T2 in
-    // the middle, T3 at the bottom. Lines connect prereqs. Click
-    // any node → details + buy in the side panel below.
+    // Real top-down tree per branch. HTML buttons (free word-wrap)
+    // for the nodes; SVG underneath draws the prereq lines. Each
+    // child is positioned directly UNDER its prereq parent — that's
+    // what makes the tree read as a tree instead of three flat rows.
     const branchNodes = DECREES.filter(d => d.branch === branch);
     if (branchNodes.length === 0) {
       tree.innerHTML = '<div class="dn-empty">No decrees in this branch.</div>';
@@ -1298,140 +1299,138 @@ export class HUD {
       return;
     }
 
-    const NODE_W = 140, NODE_H = 72;
-    const TIER_GAP = 56;
-    const NODE_GAP = 18;
-    const PAD = 16;
+    const NODE_W = 116, NODE_H = 60;
+    const TIER_GAP = 48;
+    const SIBLING_GAP = 14;
+    const PAD = 14;
+
+    // X-position layout. T1 = roots spread evenly; T2/T3 sit centered
+    // under their prereq parent. Multi-children of the same parent
+    // fan out horizontally.
     const tierLists = [1, 2, 3].map(t => branchNodes.filter(d => d.tier === t));
-    let maxRowW = 0;
-    for (const list of tierLists) {
-      const w = list.length * NODE_W + Math.max(0, list.length - 1) * NODE_GAP;
-      if (w > maxRowW) maxRowW = w;
+    const xOf = new Map<string, number>();
+    const roots = tierLists[0]!;
+    const rootsW = roots.length * NODE_W + Math.max(0, roots.length - 1) * SIBLING_GAP;
+    const containerW = Math.max(rootsW + PAD * 2, 320);
+    {
+      let x = (containerW - rootsW) / 2;
+      for (const d of roots) { xOf.set(d.id, x); x += NODE_W + SIBLING_GAP; }
     }
-    const SVG_W = Math.max(maxRowW + PAD * 2, 360);
-    const SVG_H = PAD * 2 + 3 * NODE_H + 2 * TIER_GAP;
-
-    const positions = new Map<string, { x: number; y: number }>();
-    for (let ti = 0; ti < 3; ti++) {
-      const list = tierLists[ti]!;
-      if (list.length === 0) continue;
-      const totalW = list.length * NODE_W + Math.max(0, list.length - 1) * NODE_GAP;
-      let x = (SVG_W - totalW) / 2;
-      const y = PAD + ti * (NODE_H + TIER_GAP);
+    for (const tier of [2, 3] as const) {
+      const list = tierLists[tier - 1]!;
+      const byParent = new Map<string, typeof list>();
+      const orphans: typeof list = [];
       for (const d of list) {
-        positions.set(d.id, { x, y });
-        x += NODE_W + NODE_GAP;
+        if (d.prereq && xOf.has(d.prereq)) {
+          const arr = byParent.get(d.prereq) ?? [];
+          arr.push(d);
+          byParent.set(d.prereq, arr);
+        } else orphans.push(d);
       }
+      for (const [pid, kids] of byParent) {
+        const px = xOf.get(pid)!;
+        const totalW = kids.length * NODE_W + Math.max(0, kids.length - 1) * SIBLING_GAP;
+        let kx = px + (NODE_W - totalW) / 2;
+        for (const k of kids) { xOf.set(k.id, kx); kx += NODE_W + SIBLING_GAP; }
+      }
+      // Orphans (rare): place them at the tail of the row.
+      let tailX = containerW - PAD - NODE_W;
+      for (const o of orphans) { xOf.set(o.id, tailX); tailX -= NODE_W + SIBLING_GAP; }
     }
+    const containerH = PAD + 3 * NODE_H + 2 * TIER_GAP + PAD;
+    const yOf = (tier: number): number => PAD + (tier - 1) * (NODE_H + TIER_GAP);
 
+    // Outer canvas — relative-positioned so absolute children stack
+    // visually inside.
+    const canvas = document.createElement('div');
+    canvas.className = 'cmd-tree-canvas';
+    canvas.style.width = `${containerW}px`;
+    canvas.style.height = `${containerH}px`;
+
+    // SVG line layer.
     const ns = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('class', 'cmd-tree-svg');
-    svg.setAttribute('viewBox', `0 0 ${SVG_W} ${SVG_H}`);
-    svg.setAttribute('preserveAspectRatio', 'xMidYMin meet');
-
-    // Lines (prereq → child) drawn first so they sit under nodes.
+    svg.setAttribute('class', 'tn-lines');
+    svg.setAttribute('width', String(containerW));
+    svg.setAttribute('height', String(containerH));
     for (const d of branchNodes) {
       if (!d.prereq) continue;
-      const a = positions.get(d.prereq);
-      const b = positions.get(d.id);
-      if (!a || !b) continue;
-      const x1 = a.x + NODE_W / 2;
-      const y1 = a.y + NODE_H;
-      const x2 = b.x + NODE_W / 2;
-      const y2 = b.y;
-      const path = document.createElementNS(ns, 'path');
+      const px = xOf.get(d.prereq); const cx = xOf.get(d.id);
+      if (px == null || cx == null) continue;
+      const py = yOf(branchNodes.find(x => x.id === d.prereq)!.tier);
+      const cy = yOf(d.tier);
+      const x1 = px + NODE_W / 2, y1 = py + NODE_H;
+      const x2 = cx + NODE_W / 2, y2 = cy;
       const my = (y1 + y2) / 2;
+      const path = document.createElementNS(ns, 'path');
       path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`);
       const prereqMet = (me.decreeStacks[d.prereq] ?? 0) > 0;
       path.setAttribute('class', `tn-link${prereqMet ? ' active' : ''}`);
       svg.appendChild(path);
     }
+    canvas.appendChild(svg);
 
-    // Nodes.
+    // HTML node buttons.
     for (const d of branchNodes) {
-      const pos = positions.get(d.id);
-      if (!pos) continue;
+      const x = xOf.get(d.id); if (x == null) continue;
+      const y = yOf(d.tier);
       const stacks = me.decreeStacks[d.id] ?? 0;
+      const chosen = me.decreeBranches[d.id];
       const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
       const owned = stacks > 0;
       const locked = !!d.comingSoon || !prereqMet || (!d.stackable && owned);
       const selected = this._selectedDecree === d.id;
-      const cls = ['tn', `tier-${d.tier}`];
-      if (d.comingSoon) cls.push('coming-soon');
-      else if (!prereqMet) cls.push('locked');
-      else if (!d.stackable && owned) cls.push('owned-once');
-      if (owned && d.stackable) cls.push('owned');
-      if (selected) cls.push('selected');
 
-      const g = document.createElementNS(ns, 'g');
-      g.setAttribute('class', cls.join(' '));
-      g.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
-      g.setAttribute('data-decree', d.id);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tn';
+      if (d.comingSoon) btn.classList.add('coming-soon');
+      else if (!prereqMet) btn.classList.add('locked');
+      else if (!d.stackable && owned) btn.classList.add('owned-once');
+      if (owned && d.stackable) btn.classList.add('owned');
+      if (selected) btn.classList.add('selected');
+      btn.dataset['decree'] = d.id;
+      btn.style.left = `${x}px`;
+      btn.style.top = `${y}px`;
+      btn.style.width = `${NODE_W}px`;
+      btn.style.height = `${NODE_H}px`;
 
-      const rect = document.createElementNS(ns, 'rect');
-      rect.setAttribute('width', String(NODE_W));
-      rect.setAttribute('height', String(NODE_H));
-      rect.setAttribute('rx', '8');
-      rect.setAttribute('class', 'tn-rect');
-      g.appendChild(rect);
+      const name = document.createElement('div');
+      name.className = 'tn-name';
+      name.textContent = d.name;
+      btn.appendChild(name);
 
-      const nameEl = document.createElementNS(ns, 'text');
-      nameEl.setAttribute('x', String(NODE_W / 2));
-      nameEl.setAttribute('y', '20');
-      nameEl.setAttribute('class', 'tn-name');
-      nameEl.setAttribute('text-anchor', 'middle');
-      nameEl.textContent = d.name;
-      g.appendChild(nameEl);
+      const power = document.createElement('div');
+      power.className = 'tn-power';
+      const label = decreePowerLabel(d);
+      const cur = decreeCompactCurrent(d, stacks, chosen);
+      power.textContent = stacks > 0 && cur && cur !== '—'
+        ? `${label} · ${cur}`
+        : (d.comingSoon ? 'Coming soon' : label);
+      btn.appendChild(power);
 
-      // Stack badge — top-right corner.
-      if (stacks > 0) {
-        const badge = document.createElementNS(ns, 'text');
-        badge.setAttribute('x', String(NODE_W - 10));
-        badge.setAttribute('y', '15');
-        badge.setAttribute('class', 'tn-stack');
-        badge.setAttribute('text-anchor', 'end');
-        badge.textContent = d.stackable ? `×${stacks}` : '✓';
-        g.appendChild(badge);
-      }
-
-      // Power line — current effect at a glance.
-      const eff = decreeEffectFor(d, stacks, me.decreeBranches[d.id]);
-      const power = document.createElementNS(ns, 'text');
-      power.setAttribute('x', String(NODE_W / 2));
-      power.setAttribute('y', '40');
-      power.setAttribute('class', 'tn-power');
-      power.setAttribute('text-anchor', 'middle');
-      power.textContent = eff
-        ? this._compactCurrent(eff.current)
-        : (d.comingSoon ? 'Coming soon' : '');
-      g.appendChild(power);
-
-      // Cost — bottom row.
+      const meta = document.createElement('div');
+      meta.className = 'tn-meta';
       const cost = this.game.decreeCostFor(me.id, d.id);
-      const costEl = document.createElementNS(ns, 'text');
-      costEl.setAttribute('x', String(NODE_W / 2));
-      costEl.setAttribute('y', String(NODE_H - 10));
-      costEl.setAttribute('class', 'tn-cost');
-      costEl.setAttribute('text-anchor', 'middle');
-      costEl.textContent = locked
-        ? (d.comingSoon ? '—' : (!prereqMet ? '🔒' : 'Owned'))
+      const costSpan = document.createElement('span');
+      costSpan.className = 'tn-cost';
+      costSpan.textContent = locked
+        ? (d.comingSoon ? '—' : (!prereqMet ? '🔒' : '✓'))
         : `${cost}♛`;
-      g.appendChild(costEl);
+      meta.appendChild(costSpan);
+      if (stacks > 0) {
+        const stack = document.createElement('span');
+        stack.className = 'tn-stack';
+        stack.textContent = d.stackable ? `×${stacks}` : '✓';
+        meta.appendChild(stack);
+      }
+      btn.appendChild(meta);
 
-      svg.appendChild(g);
+      canvas.appendChild(btn);
     }
 
-    tree.appendChild(svg);
+    tree.appendChild(canvas);
     this._renderSelectedDecreePanel();
-  }
-
-  /** Strip the "Currently:" prefix and trim the rest so a node's
-   *  one-line power readout fits in the box. */
-  private _compactCurrent(s: string): string {
-    let t = s.replace(/^Currently:\s*/, '').replace(/\.$/, '');
-    if (t.length > 30) t = t.slice(0, 28) + '…';
-    return t;
   }
 
   /** Render the side panel below the tree showing full info for
