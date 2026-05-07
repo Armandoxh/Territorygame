@@ -1563,7 +1563,9 @@ export class Game {
       activeBuffs: {},
       mastery,
       expanding: !isHuman,
-      resources: { oil: 0, stone: 0, gems: 0, food: 0, wood: 0 },
+      // Start with a 100-of-each grubstake so early builds are
+      // possible before the resource generation has caught up.
+      resources: { oil: 100, stone: 100, gems: 100, food: 100, wood: 100 },
     };
   }
 
@@ -2990,18 +2992,25 @@ export class Game {
     }
   }
 
-  /** Per-tick: generate resources from regions the player owns tiles in.
-   *  Each owned tile in a region produces a small fraction of that
-   *  region's resource. Regions with rarer resources (gems) generate at
-   *  a slower rate to preserve scarcity.
+  /** Per-tick: generate resources by REGION-LEVEL share, not per-tile.
+   *  For each region with a primary resource, compute the total
+   *  production for that region this tick. Distribute it:
+   *    - If anyone has dominance (>50% of the region's tiles): they
+   *      get 90% of the production. The remaining 10% is split among
+   *      other tile-holders proportional to their share of the
+   *      non-dominant claimed tiles. If no other claimants exist, the
+   *      dominant takes 100%.
+   *    - Else (no dominant): pro-rata by each player's share of the
+   *      region's total tiles. Unclaimed share is wasted — there's no
+   *      one to extract it.
+   *
+   *  Why region-level: makes "dominate the region" the productive play
+   *  (90% bonus). Partial control still pays out, so enemies bleeding
+   *  into your land cost you real income — visible incentive to push
+   *  back. Rare resources (gems) stay scarce via a slower per-tile rate.
    */
   private _generateResources(): void {
-    const owners = this.territory.owners;
-    const regions = this.regions;
     const players = this.players;
-    // Per-resource generation rate per tile per tick. Tuned so a
-    // typical 50-tile region gives ~0.5 wood/sec etc. Gems intentionally
-    // an order of magnitude slower.
     const RATE: Record<ResourceKind, number> = {
       food:  0.0015,
       wood:  0.0015,
@@ -3009,16 +3018,54 @@ export class Game {
       oil:   0.0008,
       gems:  0.0002,
     };
-    for (let i = 0; i < owners.length; i++) {
-      const oid = owners[i]!;
-      if (oid === 0) continue;
-      const r = regions[i]!;
-      if (r === 0) continue;
+    for (let r = 1; r <= this.regionCount; r++) {
       const kind = this.regionResources[r];
       if (!kind) continue;
-      const p = players[oid];
-      if (!p || !p.alive) continue;
-      p.resources[kind] += RATE[kind];
+      const total = this._regionTotal[r] ?? 0;
+      if (total === 0) continue;
+      const regionRate = total * RATE[kind];
+      const base = r * 256;
+      // Find dominant + accumulate occupied tile count.
+      let dominant = 0;
+      let dominantCount = 0;
+      let occupied = 0;
+      for (let o = 1; o < 256; o++) {
+        const c = this._regionOwnedTiles[base + o] ?? 0;
+        if (c > 0) occupied += c;
+        if (c * 2 > total) { dominant = o; dominantCount = c; }
+      }
+      if (occupied === 0) continue; // wholly neutral region — no extraction
+      if (dominant > 0) {
+        const dp = players[dominant];
+        if (!dp || !dp.alive) continue;
+        const remainderClaimants = occupied - dominantCount;
+        if (remainderClaimants <= 0) {
+          // Dominant is the only claimant — they get 100%.
+          dp.resources[kind] += regionRate;
+        } else {
+          dp.resources[kind] += regionRate * 0.9;
+          // 10% split among other claimants by their share of the
+          // non-dominant tiles.
+          for (let o = 1; o < 256; o++) {
+            if (o === dominant) continue;
+            const c = this._regionOwnedTiles[base + o] ?? 0;
+            if (c <= 0) continue;
+            const p = players[o];
+            if (!p || !p.alive) continue;
+            p.resources[kind] += regionRate * 0.10 * (c / remainderClaimants);
+          }
+        }
+      } else {
+        // Contested region with no dominant — pro-rata by share of
+        // region total (unclaimed share doesn't generate).
+        for (let o = 1; o < 256; o++) {
+          const c = this._regionOwnedTiles[base + o] ?? 0;
+          if (c <= 0) continue;
+          const p = players[o];
+          if (!p || !p.alive) continue;
+          p.resources[kind] += regionRate * (c / total);
+        }
+      }
     }
   }
 
