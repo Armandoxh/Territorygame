@@ -895,3 +895,30 @@ all tiles in that land. Also, i want towers to be on the edges
 of a territory — reinforce the walls along that edge so enemies
 need a crazy offence, or air strikes, or blitzkrieg." Direct
 implementation of both asks.
+
+---
+
+[pending] gameplay: settlements are one-per-region; rebuild
+upgrades the existing one
+
+WHAT: tryBuild('settlement', x, y) now redirects to tryUpgrade
+when the region already contains the player's settlement, so
+each region holds at most ONE settlement per owner. Repeated
+build attempts climb the L1→L6 ladder instead of cluttering the
+map with a bunch of separate icons. Settlement max level bumped
+to 6 (from 3), with a polynomial cost ramp:
+  L1→L2: 1×, L2→L3: 1.5×, L3→L4: 2.5×, L4→L5: 4×, L5→L6: 6×
+The renderer's bronze/silver/diamond icon visuals at L4-6 now
+read as the natural "tier-up" path. Tier-consolidation system
+(merge 5 same-level into 1 higher) is excluded for settlements
+since the ladder model makes it unreachable. Toast on
+upgrade-redirect reads "Settlement upgraded to L<n>" instead
+of "Built settlement".
+
+WHY: User clarified "instead of many settlements, just put 1 on
+the territory. further settlements boost that 1 to higher
+upgrade tiers." So the previous region-flat-bonus model stays,
+but the placement model collapses to one anchor per region with
+in-place tier upgrades — much cleaner visual and easier to
+reason about ("is this region rich? it has a level-5 settlement
+in it" vs counting 7 settlements scattered across the area).

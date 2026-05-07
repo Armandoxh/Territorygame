@@ -249,9 +249,26 @@ export class HUD {
   tryPlaceAt(x: number, y: number): boolean {
     if (!this.placeMode) return false;
     const type = this.placeMode;
+    // Settlement: if region already has the player's settlement, the
+    // engine redirects the build to an upgrade. Detect that pre-call
+    // so the toast can read "Settlement upgraded to L3" instead of
+    // "Built settlement" (which would be misleading).
+    let upgradeFromLvl = 0;
+    if (type === 'settlement') {
+      const r = this.game.regionAt(x, y);
+      if (r > 0) {
+        for (const b of this.game.buildings) {
+          if (b.type === 'settlement' && b.owner === 1 && this.game.regionAt(b.x, b.y) === r) {
+            upgradeFromLvl = b.level ?? 1;
+            break;
+          }
+        }
+      }
+    }
     const err = this.game.tryBuild(type, x, y, 1);
     if (err === null) {
-      this.toast(`Built ${type}`);
+      if (upgradeFromLvl > 0) this.toast(`Settlement upgraded to L${upgradeFromLvl + 1}`);
+      else this.toast(`Built ${type}`);
       // Sticky: stay in place mode so the player can drop several
       // settlements / turrets in a row without re-pressing the hotkey.
       // Esc or tapping the same hotkey again exits the mode.

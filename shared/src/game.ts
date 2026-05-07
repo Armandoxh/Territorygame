@@ -1346,6 +1346,23 @@ export class Game {
     const owner = this.players[ownerId];
     if (!owner || !owner.alive) return 'dead';
     if (this.territory.getOwner(x, y) !== ownerId) return 'not-yours';
+    // Settlement: one per region per owner. A second build attempt in
+    // the same region redirects to the existing settlement and bumps
+    // its tier — no more many-settlements clutter, just one growing
+    // anchor per region.
+    if (type === 'settlement') {
+      const r = this.regionAt(x, y);
+      if (r > 0) {
+        const existing = this.buildings.find(
+          b => b.type === 'settlement' && b.owner === ownerId
+            && this.regionAt(b.x, b.y) === r,
+        );
+        if (existing) {
+          // Caller may not control which tile they tapped; redirect.
+          return this.tryUpgrade(existing.x, existing.y, ownerId, fromVassalRegion);
+        }
+      }
+    }
     if (this.buildingAt(x, y)) return 'occupied';
     if (this._capitalIndexAt(x, y) >= 0) return 'on-capital';
     // Mastery gate. Settlement + turret are always available; airstrip
@@ -1428,7 +1445,7 @@ export class Game {
     const b = this.buildingAt(x, y);
     if (!b) return 'no-building';
     if (b.owner !== ownerId) return 'not-yours';
-    if (b.level >= this.config.BUILDING_MAX_LEVEL) return 'max-level';
+    if (b.level >= this._maxLevelFor(b.type)) return 'max-level';
     const baseCost = this._upgradeCost(b.type, b.level);
     const cost = fromVassalRegion > 0 ? baseCost : Math.ceil(baseCost * this._buildCostMult(owner));
     if (fromVassalRegion > 0) {
@@ -1454,10 +1471,29 @@ export class Game {
   /** Cost to take a building of `type` from `currentLevel` to the next tier.
    *  L1→L2 = base, L2→L3 = 1.5× base. Returns -1 if already at max. */
   upgradeCostFor(type: BuildingType, currentLevel: number): number {
-    if (currentLevel >= this.config.BUILDING_MAX_LEVEL) return -1;
+    const max = this._maxLevelFor(type);
+    if (currentLevel >= max) return -1;
     const base = this.config.BUILDING_COSTS[type];
     if (base == null) return -1;
+    // Settlement: only-one-per-region, so the upgrade ladder runs to
+    // L6. Cost ramps polynomially so late tiers are a real investment.
+    //   L1→L2 = 1×, L2→L3 = 1.5×, L3→L4 = 2.5×, L4→L5 = 4×, L5→L6 = 6×
+    if (type === 'settlement') {
+      const mult = currentLevel === 1 ? 1
+                 : currentLevel === 2 ? 1.5
+                 : currentLevel === 3 ? 2.5
+                 : currentLevel === 4 ? 4
+                 : 6;
+      return Math.floor(base * mult);
+    }
     return currentLevel === 1 ? base : Math.floor(base * 1.5);
+  }
+
+  /** Settlement tops out at 6 (the existing "diamond" tier renderer
+   *  visuals). Other buildings stay at the legacy max of 3. */
+  private _maxLevelFor(type: BuildingType): number {
+    if (type === 'settlement') return 6;
+    return this.config.BUILDING_MAX_LEVEL;
   }
 
   private _upgradeCost(type: BuildingType, currentLevel: number): number {
@@ -3094,7 +3130,7 @@ export class Game {
     let bestLvl = Infinity;
     for (const b of this.buildings) {
       if (b.owner !== leader.id) continue;
-      if ((b.level ?? 1) >= this.config.BUILDING_MAX_LEVEL) continue;
+      if ((b.level ?? 1) >= this._maxLevelFor(b.type)) continue;
       if (this.regions[b.y * W + b.x] !== regionId) continue;
       const cost = this.upgradeCostFor(b.type, b.level);
       if (cost < 0 || vGold < reserve + cost) continue;
@@ -4354,7 +4390,7 @@ export class Game {
     let bestLvl = Infinity;
     for (const b of this.buildings) {
       if (b.owner !== p.id) continue;
-      if ((b.level ?? 1) >= this.config.BUILDING_MAX_LEVEL) continue;
+      if ((b.level ?? 1) >= this._maxLevelFor(b.type)) continue;
       if (this.regions[b.y * W + b.x] !== regionId) continue;
       const cost = this.upgradeCostFor(b.type, b.level);
       if (cost < 0 || p.gold < reserve + cost) continue;
@@ -4904,8 +4940,10 @@ export class Game {
    *  Triggered by tryBuild and tryUpgrade after success. Recurses on
    *  the promoted building so 5 bronze can chain into silver, etc. */
   private _tryConsolidate(b: Building): void {
-    if (b.type !== 'settlement' && b.type !== 'turret'
-        && b.type !== 'aa' && b.type !== 'port') return;
+    // Settlements no longer consolidate — they're one-per-region and
+    // upgrade in-place via the level ladder. This path is reachable
+    // only from turret / AA / port spam.
+    if (b.type !== 'turret' && b.type !== 'aa' && b.type !== 'port') return;
     const lvl = b.level ?? 1;
     if (lvl < 3 || lvl >= 6) return; // promote only from L3-5 → L4-6
 
@@ -4960,10 +4998,6 @@ export class Game {
     const promoted: Building = { x: cx, y: cy, owner: b.owner, type: b.type, level: lvl + 1 };
     this.buildings.push(promoted);
     this.buildingsVersion++;
-    if (b.type === 'settlement') {
-      this._applySettlement(cx, cy, lvl + 1, this._settlementRadius(lvl + 1));
-      this._adjSettlementLevels(cx, cy, b.owner, lvl + 1);
-    }
     if (b.type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: b.type, ownerId: b.owner });
 
