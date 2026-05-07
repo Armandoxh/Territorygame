@@ -244,14 +244,18 @@ export class OverlayLayer {
       if (!icon) {
         icon = new Text({
           text: RESOURCE_GLYPHS[kind] ?? '·',
-          style: { fontSize: 14, fill: 0xffffff },
+          style: {
+            fontSize: 30,
+            fill: 0xffffff,
+            stroke: { color: 0x000000, width: 4, alpha: 0.85 },
+          },
         });
         icon.anchor.set(0.5, 1.0);
         this._regionLabelLayer.addChild(icon);
         this._resourceIcons.set(r, icon);
       }
       const s = this.renderer.worldToScreen(cx, cy);
-      icon.position.set(s.x, s.y - 8);
+      icon.position.set(s.x, s.y - 14);
       icon.visible = true;
     }
     const palette = this.game.config.PLAYER_COLORS;
