@@ -4225,11 +4225,15 @@ export class Game {
     // Naval mastery: try to build a ship on a coastal tile if under cap.
     if (this.hasPort(p.id)) this._aiMaybeBuildShip(p);
 
-    // Bombs: try once per think against the AI's current target region.
-    const targetRegion = p.targetRegions[0] ?? 0;
-    const targetDom = targetRegion > 0 ? this._dominantOwnerInRegion(targetRegion) : 0;
-    const targetIsEnemy = targetRegion > 0 && targetDom > 0 && targetDom !== p.id;
-    if (targetIsEnemy && this.hasAirstrip(p.id)) this._aiMaybeBomb(p, targetRegion);
+    // Bombs: try once per think. Used to require a war-enemy in the
+    // AI's targetRegion[0]; now the bomb scanner picks the densest
+    // enemy cluster across ALL war-enemy regions, so AIs don't sit
+    // on a stockpile when their current target is a quiet neutral.
+    if (this.hasAirstrip(p.id)) this._aiMaybeBomb(p);
+    // Ground deployments — same idea, fires blitzkrieg / artillery /
+    // tank push from any barracks. Was unimplemented before, which
+    // is the main reason AI offense felt so passive.
+    if (this.hasBarracks(p.id)) this._aiMaybeGroundOp(p);
   }
 
   /** Naval-mastery AIs build ships when under their cap. Picks the
@@ -4375,6 +4379,29 @@ export class Game {
       }
     }
 
+    // 2b. BARRACKS — gates the ground-deployment ops (blitzkrieg /
+    // artillery / tank push). Ground-mastery AIs build them eagerly;
+    // other masteries get one as a backup so they can crack a stalemate
+    // with artillery even without the air kit.
+    const barracksCap     = this._regionBuildingCap('barracks', tiles.length);
+    const barracksCount   = this._countBuildingsInRegion(regionId, p.id, 'barracks');
+    const empireBarracks  = this.countBuildings(p.id, 'barracks');
+    const wantBarracks    = (targetIsEnemy && p.mastery === 'ground') || empireBarracks === 0;
+    const barracksGlobalCap = p.mastery === 'ground'
+      ? Math.max(2, Math.floor(ownedTiles / 100))
+      : 1;
+    const barCost = this.config.BUILDING_COSTS.barracks;
+    if (wantBarracks && barracksCount < barracksCap
+        && empireBarracks < barracksGlobalCap
+        && safe.length > 0
+        && p.gold >= reserve + barCost) {
+      const spot = this._pickAirstripSpot(safe, targetRegion || regionId, p.id);
+      if (spot >= 0) {
+        const x = spot % W, y = (spot - x) / W;
+        if (this.tryBuild('barracks', x, y, p.id) === null) return;
+      }
+    }
+
     // 3. ECONOMY
     const settCost = this.config.BUILDING_COSTS.settlement;
     if (safe.length > 0 && settlementCount < settlementCap && p.gold >= reserve + settCost) {
@@ -4399,38 +4426,149 @@ export class Game {
     if (bestB) this.tryUpgrade(bestB.x, bestB.y, p.id);
   }
 
-  private _aiMaybeBomb(p: Player, targetRegion: number): void {
+  /** Drop a bomb on the densest enemy cluster across ALL war-enemy
+   *  regions (or, if at peace with everyone, fall back to dominant-
+   *  enemy regions of any non-allied player). Bomb tier scales with
+   *  budget + mastery: AIR-mastery AIs spend on AC-130 / stealth when
+   *  they can afford gold + gems + oil; everyone else uses small/large. */
+  private _aiMaybeBomb(p: Player): void {
     const ready = this.airstripReadyAt(p.id);
     if (ready < 0 || ready > this.tickCount) return;
-    const tiles = this._tilesByRegion[targetRegion];
-    if (!tiles || tiles.length === 0) return;
-    // Pick the densest enemy cluster in the target region. Score
-    // = enemies − 4×friendlies so we don't bomb our own border.
     const W = this.territory.width;
+    // Build a candidate sample across regions of war-enemies (or any
+    // non-ally if no active war). Sampling beats a full scan — late-
+    // game maps have hundreds of regions.
+    const candidates: number[] = [];
+    for (let r = 1; r <= this.regionCount; r++) {
+      const dom = this._regionDominant[r] ?? 0;
+      if (dom <= 0 || dom === p.id) continue;
+      if (this.areAllied(p.id, dom)) continue;
+      // Prefer war-enemies; fall back to anyone non-allied if no war.
+      const tiles = this._tilesByRegion[r];
+      if (!tiles || tiles.length === 0) continue;
+      // Sample a few tiles per region.
+      const sample = Math.min(4, tiles.length);
+      for (let n = 0; n < sample; n++) {
+        candidates.push(tiles[(Math.random() * tiles.length) | 0]!);
+      }
+    }
+    if (candidates.length === 0) return;
+
     let bestX = -1, bestY = -1, bestCount = 0, bestScore = -Infinity;
-    for (let n = 0; n < Math.min(20, tiles.length); n++) {
-      const i = tiles[(Math.random() * tiles.length) | 0]!;
+    for (const i of candidates) {
       const o = this.territory.owners[i]!;
-      if (o === 0 || o === p.id) continue;
+      if (o === 0 || o === p.id || this.areAllied(p.id, o)) continue;
       const x = i % W, y = (i - x) / W;
       let enemies = 0, friendlies = 0;
-      const r = 4;
-      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      const rr = 4;
+      for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) {
         const nx = x + dx, ny = y + dy;
         if (!this.territory.inBounds(nx, ny)) continue;
         const oo = this.territory.getOwner(nx, ny);
         if (oo <= 0) continue;
-        if (oo === p.id) friendlies++;
-        else if (this.areAllied(p.id, oo)) friendlies++;
+        if (oo === p.id || this.areAllied(p.id, oo)) friendlies++;
         else enemies++;
       }
       const score = enemies - friendlies * 4;
       if (score > bestScore) { bestScore = score; bestCount = enemies; bestX = x; bestY = y; }
     }
     if (bestCount < 6) return;
-    const bombType: BombType = p.gold >= this.config.BOMB_COSTS.large * 1.5 ? 'large' : 'small';
-    if (p.gold < this.config.BOMB_COSTS[bombType]) return;
+    // Pick the highest-tier bomb we can actually pay for in full
+    // (gold + gems + oil). Air-mastery AIs go heavy when rich.
+    const bombType = this._aiPickBombTier(p);
+    if (bombType === null) return;
     this.dropBomb(bombType, bestX, bestY, p.id);
+  }
+
+  /** Returns the priciest bomb type the AI can fully afford given
+   *  current gold + resources, or null if even small isn't payable.
+   *  Air-mastery AIs are willing to spend bigger; others stay frugal. */
+  private _aiPickBombTier(p: Player): BombType | null {
+    const air = p.mastery === 'air';
+    const order: BombType[] = air
+      ? ['stealth', 'ac130', 'large', 'small']
+      : ['large', 'small'];
+    for (const t of order) {
+      const gold = this.config.BOMB_COSTS[t];
+      if (p.gold < gold) continue;
+      const rcosts = this.config.BOMB_RESOURCE_COSTS[t] ?? {};
+      let resOk = true;
+      for (const [kind, need] of Object.entries(rcosts)) {
+        if ((need ?? 0) <= 0) continue;
+        if ((p.resources[kind as ResourceKind] ?? 0) < (need ?? 0)) { resOk = false; break; }
+      }
+      if (!resOk) continue;
+      // For premium bombs, require a comfortable buffer so the AI
+      // doesn't dump its entire treasury on one bomber.
+      if (t === 'stealth' && p.gold < gold * 1.4) continue;
+      if (t === 'ac130'   && p.gold < gold * 1.3) continue;
+      return t;
+    }
+    return null;
+  }
+
+  /** Fire a ground deployment (blitzkrieg / artillery / tanks) at the
+   *  densest enemy cluster in any war-enemy region. Op type scales
+   *  with mastery: ground-mastery prefers tanks for steamrolling,
+   *  others lean artillery for cheap chip damage. */
+  private _aiMaybeGroundOp(p: Player): void {
+    // Pick op based on mastery + budget + resources + cooldown.
+    const order: GroundOpType[] = p.mastery === 'ground'
+      ? ['tanks', 'blitzkrieg', 'artillery']
+      : ['artillery', 'blitzkrieg', 'tanks'];
+    let chosen: GroundOpType | null = null;
+    for (const op of order) {
+      if ((p.groundOpCooldowns?.[op] ?? 0) > this.tickCount) continue;
+      const ready = this.barracksReadyAt(p.id, op);
+      if (ready < 0 || ready > this.tickCount) continue;
+      const cost = this.config.GROUND_OP_COSTS[op];
+      if (p.gold < cost) continue;
+      const rcosts = this.config.GROUND_OP_RESOURCE_COSTS[op] ?? {};
+      let resOk = true;
+      for (const [kind, need] of Object.entries(rcosts)) {
+        if ((need ?? 0) <= 0) continue;
+        if ((p.resources[kind as ResourceKind] ?? 0) < (need ?? 0)) { resOk = false; break; }
+      }
+      if (!resOk) continue;
+      chosen = op;
+      break;
+    }
+    if (!chosen) return;
+
+    const W = this.territory.width;
+    // Sample candidate tiles across all war-enemy regions; prefer
+    // dense enemy clusters and tiles within reach of the AI's borders.
+    const candidates: number[] = [];
+    for (let r = 1; r <= this.regionCount; r++) {
+      const dom = this._regionDominant[r] ?? 0;
+      if (dom <= 0 || dom === p.id) continue;
+      if (this.areAllied(p.id, dom)) continue;
+      const tiles = this._tilesByRegion[r];
+      if (!tiles || tiles.length === 0) continue;
+      const sample = Math.min(4, tiles.length);
+      for (let n = 0; n < sample; n++) {
+        candidates.push(tiles[(Math.random() * tiles.length) | 0]!);
+      }
+    }
+    if (candidates.length === 0) return;
+
+    let bestX = -1, bestY = -1, bestScore = -Infinity;
+    for (const i of candidates) {
+      const o = this.territory.owners[i]!;
+      if (o === 0 || o === p.id || this.areAllied(p.id, o)) continue;
+      const x = i % W, y = (i - x) / W;
+      let enemies = 0;
+      const rr = 4;
+      for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (!this.territory.inBounds(nx, ny)) continue;
+        const oo = this.territory.getOwner(nx, ny);
+        if (oo > 0 && oo !== p.id && !this.areAllied(p.id, oo)) enemies++;
+      }
+      if (enemies > bestScore) { bestScore = enemies; bestX = x; bestY = y; }
+    }
+    if (bestX < 0 || bestScore < 4) return;
+    this.tryGroundOp(chosen, bestX, bestY, p.id);
   }
 
   // Pick a region for an AI to push into: prefer regions adjacent to its
