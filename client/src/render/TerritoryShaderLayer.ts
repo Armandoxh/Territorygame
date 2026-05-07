@@ -56,6 +56,7 @@ uniform float uTime;
 uniform float uTickByte;
 uniform float uPulseDuration;
 uniform float uPlayerCount;
+uniform float uSmoothMode; // 0 = crisp tile fill (legacy), 1 = bilinear smooth
 uniform vec3 uPalette[64];
 uniform vec3 uParchment;
 uniform vec3 uWaterShallow;
@@ -127,13 +128,69 @@ void main() {
   } else {
     // Land — parchment, then tint by owner. Grain lives only on land.
     grain = fbm(tileP * 0.45) - 0.36;
-    col = uParchment * (1.0 + grain * 0.35);
-    if (owner > 0 && float(owner) <= uPlayerCount + 0.5) {
-      vec3 tint = uPalette[owner - 1];
-      // Multiply tint over parchment, keep grain alive
-      vec3 wash = col * (tint * 1.5 + 0.05);
-      col = mix(col, wash, 0.88);
+    vec3 parchmentCol = uParchment * (1.0 + grain * 0.35);
+    if (uSmoothMode > 0.5) {
+      // BILINEAR SMOOTH: sample the 4 nearest tile centers (tile centers
+      // sit at half-integer world coords, so the half-tile grid). Look up
+      // each one's tinted color, then bilinear-blend by sub-half-tile
+      // fraction. This dissolves the per-tile stair-step into a smooth
+      // anti-aliased gradient at boundaries — crucial since the territory
+      // grid is the main source of pixelation.
+      //
+      // Skip the blend across land/water borders to keep the coastline
+      // crisp (mush-blending sand into ocean reads bad).
+      vec2 baseTile = floor(tileP - 0.5);
+      vec2 frac = (tileP - 0.5) - baseTile;
+      vec2 t00 = (baseTile + vec2(0.5, 0.5)) * texel;
+      vec2 t10 = (baseTile + vec2(1.5, 0.5)) * texel;
+      vec2 t01 = (baseTile + vec2(0.5, 1.5)) * texel;
+      vec2 t11 = (baseTile + vec2(1.5, 1.5)) * texel;
+      vec4 s00 = texture(uTexture, t00);
+      vec4 s10 = texture(uTexture, t10);
+      vec4 s01 = texture(uTexture, t01);
+      vec4 s11 = texture(uTexture, t11);
+      // Per-corner tint: parchment if water/unowned, else parchment×palette.
+      vec3 c00 = parchmentCol;
+      vec3 c10 = parchmentCol;
+      vec3 c01 = parchmentCol;
+      vec3 c11 = parchmentCol;
+      int o00 = int(s00.r * 255.0 + 0.5);
+      int o10 = int(s10.r * 255.0 + 0.5);
+      int o01 = int(s01.r * 255.0 + 0.5);
+      int o11 = int(s11.r * 255.0 + 0.5);
+      int t00t = int(s00.g * 255.0 + 0.5);
+      int t10t = int(s10.g * 255.0 + 0.5);
+      int t01t = int(s01.g * 255.0 + 0.5);
+      int t11t = int(s11.g * 255.0 + 0.5);
+      if (o00 > 0 && t00t == 0 && float(o00) <= uPlayerCount + 0.5) {
+        vec3 tint = uPalette[o00 - 1];
+        c00 = mix(parchmentCol, parchmentCol * (tint * 1.5 + 0.05), 0.88);
+      }
+      if (o10 > 0 && t10t == 0 && float(o10) <= uPlayerCount + 0.5) {
+        vec3 tint = uPalette[o10 - 1];
+        c10 = mix(parchmentCol, parchmentCol * (tint * 1.5 + 0.05), 0.88);
+      }
+      if (o01 > 0 && t01t == 0 && float(o01) <= uPlayerCount + 0.5) {
+        vec3 tint = uPalette[o01 - 1];
+        c01 = mix(parchmentCol, parchmentCol * (tint * 1.5 + 0.05), 0.88);
+      }
+      if (o11 > 0 && t11t == 0 && float(o11) <= uPlayerCount + 0.5) {
+        vec3 tint = uPalette[o11 - 1];
+        c11 = mix(parchmentCol, parchmentCol * (tint * 1.5 + 0.05), 0.88);
+      }
+      vec3 top = mix(c00, c10, frac.x);
+      vec3 bot = mix(c01, c11, frac.x);
+      col = mix(top, bot, frac.y);
       col *= 0.85 + grain * 0.30;
+    } else {
+      col = parchmentCol;
+      if (owner > 0 && float(owner) <= uPlayerCount + 0.5) {
+        vec3 tint = uPalette[owner - 1];
+        // Multiply tint over parchment, keep grain alive
+        vec3 wash = col * (tint * 1.5 + 0.05);
+        col = mix(col, wash, 0.88);
+        col *= 0.85 + grain * 0.30;
+      }
     }
   }
 
@@ -268,6 +325,7 @@ export class TerritoryShaderLayer {
       uTickByte:      { value: 0, type: 'f32' },
       uPulseDuration: { value: 0, type: 'f32' }, // disabled — was a sparkle effect that ate fps
       uPlayerCount:   { value: Math.max(1, this.config.PLAYER_COLORS.length - 1), type: 'f32' },
+      uSmoothMode:    { value: 1, type: 'f32' }, // 1 = bilinear smooth fill (de-pixelates owner boundaries)
       uPalette:       { value: this.palette, type: 'vec3<f32>', size: 64 },
       uParchment:     { value: parchment, type: 'vec3<f32>' },
       uWaterShallow:  { value: waterShallow, type: 'vec3<f32>' },
@@ -310,6 +368,18 @@ export class TerritoryShaderLayer {
     this.uniforms.uniforms['uTime'] = now * 0.001;
     this.uniforms.uniforms['uTickByte'] = tickCount & 0xFF;
     (this.uniforms as { _dirtyId: number })._dirtyId++;
+  }
+
+  /** Toggle the bilinear smoothing pass. Off = crisp per-tile fills
+   *  (legacy nearest-neighbor look); on = anti-aliased gradients at
+   *  owner boundaries. Tied to a debug key so we can A/B compare. */
+  setSmoothMode(on: boolean): void {
+    this.uniforms.uniforms['uSmoothMode'] = on ? 1 : 0;
+    (this.uniforms as { _dirtyId: number })._dirtyId++;
+  }
+
+  isSmoothMode(): boolean {
+    return (this.uniforms.uniforms['uSmoothMode'] as number) > 0.5;
   }
 
   /** Refresh the palette uniform when player colors change (e.g. on

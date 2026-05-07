@@ -172,6 +172,14 @@ async function boot(): Promise<void> {
       hud.clearBombMode();
       hud.clearGroundOpMode();
       e.preventDefault();
+    } else if (k === 'm') {
+      // Toggle between crisp tile fill and bilinear smooth (prototype
+      // de-pixelation). Press M to A/B the look.
+      const layer = renderer.territoryLayer;
+      const next = !layer.isSmoothMode();
+      layer.setSmoothMode(next);
+      hud.toast(next ? 'Smooth fill ON' : 'Smooth fill OFF');
+      e.preventDefault();
     }
   });
 
