@@ -155,6 +155,12 @@ export interface Player {
   abilityCooldowns: Record<string, number>;
   /** tickCount when each active buff/debuff expires. */
   activeBuffs: Record<string, number>;
+  /** Per-ground-op-type cooldown end-tick. Player-wide floor that
+   *  prevents stacking many Barracks from spamming the same op all
+   *  at once — multiple barracks still let different ops fire in
+   *  parallel, but any single op type can only fire on this cadence
+   *  regardless of building count. */
+  groundOpCooldowns?: Partial<Record<GroundOpType, number>>;
   /** Strategic specialization. null = unchosen (humans get prompted on
    *  first launch; AIs are picked at spawn). One of 'ground'|'air'|'naval'. */
   mastery: 'ground' | 'air' | 'naval' | null;

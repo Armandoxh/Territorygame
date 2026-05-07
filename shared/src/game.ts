@@ -720,7 +720,11 @@ export class Game {
       const ready = b.opCooldowns?.[opType] ?? 0;
       if (ready < best) best = ready;
     }
-    return any ? best : -1;
+    if (!any) return -1;
+    // Player-wide floor so the HUD reflects the actual gate.
+    const owner = this.players[ownerId];
+    const playerReady = owner?.groundOpCooldowns?.[opType] ?? 0;
+    return Math.max(best, playerReady);
   }
 
   /** Fire a ground deployment from any ready Barracks belonging to
@@ -758,6 +762,13 @@ export class Game {
     }
     if (!any) return 'no-barracks';
     if (!chosen) return 'cooldown';
+    // Player-wide cooldown floor: stacking many barracks doesn't let
+    // you spam the SAME op concurrently. Each op type has a single
+    // cadence per player. Multiple barracks still let DIFFERENT ops
+    // fire in parallel (you can blitz + arty + tanks at once), but
+    // 15-blitz-burst-takes-half-the-map is over.
+    const playerReady = owner.groundOpCooldowns?.[type] ?? 0;
+    if (playerReady > this.tickCount) return 'cooldown';
 
     // Aggression auto-declares war on the target tile owner if needed.
     // Same logic as dropBomb so ground deployments don't bypass the
@@ -771,9 +782,11 @@ export class Game {
 
     if (!this._chargeOps(owner, cost)) return 'gold';
 
-    // Set per-op cooldown on the firing barracks.
+    // Set per-op cooldown on the firing barracks AND player-wide floor.
     if (!chosen.opCooldowns) chosen.opCooldowns = {};
     chosen.opCooldowns[type] = this.tickCount + this.config.GROUND_OP_COOLDOWN_TICKS[type];
+    if (!owner.groundOpCooldowns) owner.groundOpCooldowns = {};
+    owner.groundOpCooldowns[type] = this.tickCount + this.config.GROUND_OP_COOLDOWN_TICKS[type];
 
     // Apply effect.
     if (type === 'blitzkrieg') this._fireBlitzkrieg(owner, x, y);
@@ -812,8 +825,14 @@ export class Game {
         queue.push([x + ddx, y + ddy, 1]);
       }
     }
+    // Hard cap on total claims regardless of anchor count. Without
+    // this, claims = depth × max(2, anchors), so 30 frontier anchors
+    // → 300 claims per fire — half the map vanishes per blitz. Cap
+    // keeps a single blitz to ~30 tiles across however many anchors
+    // contribute. Player-wide cooldown handles the spam vector.
+    const MAX_CLAIMS = 30;
     let claims = 0;
-    while (queue.length > 0 && claims < DEPTH * Math.max(2, anchors.length)) {
+    while (queue.length > 0 && claims < MAX_CLAIMS) {
       const [x, y, depth] = queue.shift()!;
       if (depth > DEPTH) continue;
       if (!territory.inBounds(x, y)) continue;
