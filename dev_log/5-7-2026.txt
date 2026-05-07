@@ -695,6 +695,46 @@ the simulation reacts to shortages instead of just stockpiling.
 
 ---
 
+[pending] gameplay: gems matter, gold tradeable, dead AIs clean up
+
+WHAT:
+  • New BOMB_RESOURCE_COSTS + GROUND_OP_RESOURCE_COSTS in config.
+    Bombs: small 0, large +3 gems +5 oil, ac130 +10 gems +15 oil,
+    stealth +50 gems +25 oil. Ground ops: +4–8 gems and +8–15 oil
+    depending on op. Vassal-funded bombs skip the resource gate.
+  • Trade currency expanded: ResourceTrade.aGives/bGives is now
+    TradeCurrency = ResourceKind | 'gold'. New _currencyStock /
+    _currencyPay / _currencyAdd helpers route gold payments through
+    the player's treasury instead of the resource bag.
+    AI accept rule scales gold thresholds higher (need 800 floor
+    to give gold; hungry to receive gold under 1500).
+  • New _checkEliminations() in tick(). Any AI with 0 territory
+    after the spawn grace flips alive=false and runs
+    _cleanupEliminatedPlayer: drops resource trades, pending offers,
+    war invites, alliances, wars, external trade routes — anything
+    that referenced them. Pushes a one-shot 'eliminated' event.
+  • Trade-status block + trade-prompt dropdowns now include 'gold'
+    as a currency. Net flow chip shows "gold ♛ -50.0/s" alongside
+    resource chips. Step buttons step gold by 10 (0–500 range)
+    vs 1 for resources (0–50 range).
+
+WHY: User asked three things. (1) "what are gems used for? I don't
+see a use" — they were only consumed by airstrip cost (5 gems,
+once). With bombs + ground ops also burning gems, the air mastery
+has a real demand for them, which makes resource trading actually
+necessary instead of just flavor. (2) "have the ability to trade
+gold for resources as well" — gold was the one thing you couldn't
+trade, which forced a weird workaround where you'd build a bunch
+of cheap stuff to convert gold→resources. Now it's a first-class
+trade currency. (3) "if a territory gets taken out and I have a
+trade deal with them, that trade deal is gone now right?" — no,
+it wasn't. The engine never flipped alive=false on wiped AIs, so
+trades silently lingered with the corpse, alliances/wars hung in
+the diplomacy panel, war invites kept arriving from the dead.
+Now they're properly purged.
+
+---
+
 [pending] ux: trade-status block + AI desperation-scaled offers
 
 WHAT:

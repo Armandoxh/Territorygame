@@ -112,6 +112,9 @@ export interface GameConfig {
   // radius — own or enemy — and destroy buildings on those tiles. Capitals
   // are immune.)
   BOMB_COSTS: Record<BombType, number>;
+  /** Resource cost on top of gold. Premium ordnance burns gems —
+   *  the rare-mountain currency that has nowhere else to go. */
+  BOMB_RESOURCE_COSTS: Record<BombType, Partial<Record<import('./types.js').ResourceKind, number>>>;
   BOMB_RADII: Record<BombType, number>;
   BOMB_COOLDOWN_TICKS: Record<BombType, number>;
 
@@ -136,6 +139,8 @@ export interface GameConfig {
 
   // --- Ground deployments (fired from a Barracks) ---
   GROUND_OP_COSTS: Record<GroundOpType, number>;
+  /** Resource cost on top of gold. Burns gems + oil for fuel. */
+  GROUND_OP_RESOURCE_COSTS: Record<GroundOpType, Partial<Record<import('./types.js').ResourceKind, number>>>;
   GROUND_OP_COOLDOWN_TICKS: Record<GroundOpType, number>;
   GROUND_OP_RADII: Record<GroundOpType, number>;
 
@@ -273,6 +278,15 @@ export const DEFAULT_CONFIG: GameConfig = {
   TURRET_RETALIATION_DAMAGE: 8, // attacker troops lost per turret on successful capture in radius
 
   BOMB_COSTS:          { small: 60,  large: 240, ac130: 350,  stealth: 1000 },
+  // Premium ordnance burns gems. Rough scaling: small = no gems
+  // (cheap fast), large = light gem cost, ac130/stealth = real
+  // gem investment so air mastery actively imports gems via trade.
+  BOMB_RESOURCE_COSTS: {
+    small:   {},
+    large:   { gems: 3, oil: 5 },
+    ac130:   { gems: 10, oil: 15 },
+    stealth: { gems: 50, oil: 25 },
+  },
   BOMB_RADII:          { small: 3,   large: 6,   ac130: 6,    stealth: 4   }, // ac130 = orbit zone; stealth = per-bomblet
   BOMB_COOLDOWN_TICKS: { small: 80,  large: 250, ac130: 320,  stealth: 600 }, // 60s — premium long cd
   PLANE_SPEED:         { small: 0.45, large: 0.30, ac130: 0.35, stealth: 0.55 }, // stealth flies fast
@@ -283,6 +297,13 @@ export const DEFAULT_CONFIG: GameConfig = {
   PORT_DAMAGE: 25,
 
   GROUND_OP_COSTS:          { blitzkrieg: 300, artillery: 250, tanks: 400 },
+  // Ground ops also burn gems + oil — lighter than bombs but still
+  // makes barracks-spam unsustainable without a resource economy.
+  GROUND_OP_RESOURCE_COSTS: {
+    blitzkrieg: { gems: 5,  oil: 10 },
+    artillery:  { gems: 4,  oil: 8  },
+    tanks:      { gems: 8,  oil: 15 },
+  },
   GROUND_OP_COOLDOWN_TICKS: { blitzkrieg: 300, artillery: 200, tanks: 600 }, // 30s / 20s / 60s
   GROUND_OP_RADII:          { blitzkrieg: 10,  artillery: 5,   tanks: 8 },   // bk = depth, arty = blast, tanks = line len
 

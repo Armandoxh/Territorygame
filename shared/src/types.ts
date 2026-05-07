@@ -81,9 +81,9 @@ export interface ExternalTradeRoute {
 export interface ResourceTrade {
   a: PlayerId;
   b: PlayerId;
-  aGives: ResourceKind;
+  aGives: TradeCurrency;
   aGivesPerSec: number;
-  bGives: ResourceKind;
+  bGives: TradeCurrency;
   bGivesPerSec: number;
   startedTick: number;
 }
@@ -91,9 +91,9 @@ export interface ResourceTrade {
 /** Pending resource-trade offer awaiting the human's accept/decline. */
 export interface ResourceTradeOffer {
   from: PlayerId;
-  aGives: ResourceKind;
+  aGives: TradeCurrency;
   aGivesPerSec: number;
-  bGives: ResourceKind;
+  bGives: TradeCurrency;
   bGivesPerSec: number;
 }
 
@@ -275,8 +275,13 @@ export type BuildError =
   | 'resources';
 
 export type BombError =
-  | 'no-airstrip' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type' | 'locked';
+  | 'no-airstrip' | 'cooldown' | 'gold' | 'resources' | 'oob' | 'dead' | 'bad-type' | 'locked';
 
 /** Mirrors BombError but for Barracks-launched ground deployments. */
 export type GroundOpError =
-  | 'no-barracks' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type';
+  | 'no-barracks' | 'cooldown' | 'gold' | 'resources' | 'oob' | 'dead' | 'bad-type';
+
+/** A trade currency = any resource OR gold. Used in `ResourceTrade`
+ *  so a player can swap stockpiled gold for resources (and vice
+ *  versa) the same way they swap food for stone. */
+export type TradeCurrency = ResourceKind | 'gold';

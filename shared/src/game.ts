@@ -5,7 +5,7 @@ import type {
   Ship, ShipKind, ShipBuildError,
   Plane, ArtilleryUnit,
   TradeRoute, ExternalTradeRoute,
-  ResourceKind, ResourceTrade, ResourceTradeOffer, ResourceTradeError,
+  ResourceKind, ResourceTrade, ResourceTradeOffer, ResourceTradeError, TradeCurrency,
 } from './types.js';
 import { RESOURCE_KINDS } from './types.js';
 import { TERRAIN_LAND } from './types.js';
@@ -651,7 +651,60 @@ export class Game {
     this._planesTick();
     this._portsTick();
     this._artilleryTick();
+    this._checkEliminations();
     this._checkVictory();
+  }
+
+  /** Flip `alive = false` on any AI player who has been wiped to 0
+   *  territory — and tear down their diplomatic state so the rest of
+   *  the world stops carrying ghosts (trades that can never pay,
+   *  alliances with no one home, war invites from a corpse). Called
+   *  once per tick. Has a brief grace window so spawn-frame races
+   *  don't kill anyone. */
+  private _checkEliminations(): void {
+    if (this.tickCount < 30) return;
+    for (let id = 2; id < this.players.length; id++) {
+      const p = this.players[id];
+      if (!p || !p.alive) continue;
+      if ((this.territory.counts[id] ?? 0) > 0) continue;
+      // Wipe.
+      p.alive = false;
+      this._cleanupEliminatedPlayer(id);
+      this.events.push({ type: 'eliminated', playerId: id, by: 0 });
+    }
+  }
+
+  /** Drop everything tied to an eliminated player: resource trades,
+   *  pending offers, alliances, wars, war invites, external trade
+   *  routes. Kept idempotent so it's safe to run more than once. */
+  private _cleanupEliminatedPlayer(id: PlayerId): void {
+    // Resource trades involving this player.
+    for (let i = this.resourceTrades.length - 1; i >= 0; i--) {
+      const t = this.resourceTrades[i]!;
+      if (t.a === id || t.b === id) this.resourceTrades.splice(i, 1);
+    }
+    // Pending resource offers from or to this player.
+    this.pendingResourceOffers = this.pendingResourceOffers.filter(o => o.from !== id);
+    // Pending war invites involving this player (as inviter or target).
+    this.pendingWarInvites = this.pendingWarInvites.filter(
+      inv => inv.from !== id && inv.target !== id,
+    );
+    // Alliances — break each one cleanly so allies' diplomacy panels
+    // refresh and any trade routes attached to the alliance drop too.
+    for (const key of Array.from(this._alliances.keys())) {
+      const [a, b] = key.split('-').map(Number);
+      if (a === id || b === id) this._alliances.delete(key);
+    }
+    // Wars.
+    for (const key of Array.from(this._wars)) {
+      const [a, b] = key.split('-').map(Number);
+      if (a === id || b === id) this._wars.delete(key);
+    }
+    // External trade routes (gold-flow alliances).
+    for (let i = this.externalTradeRoutes.length - 1; i >= 0; i--) {
+      const r = this.externalTradeRoutes[i]!;
+      if (r.a === id || r.b === id) this.externalTradeRoutes.splice(i, 1);
+    }
   }
 
   // UI consumes queued events on each frame.
@@ -807,7 +860,19 @@ export class Game {
       this.declareWar(ownerId, targetOwner, 'aggression');
     }
 
+    // Resource cost (gems/oil) is checked BEFORE charging gold so a
+    // failed op doesn't half-pay.
+    const opResourceCosts = this.config.GROUND_OP_RESOURCE_COSTS[type] ?? {};
+    for (const [kind, need] of Object.entries(opResourceCosts)) {
+      if ((need ?? 0) <= 0) continue;
+      if ((owner.resources[kind as ResourceKind] ?? 0) < (need ?? 0)) return 'resources';
+    }
     if (!this._chargeOps(owner, cost)) return 'gold';
+    for (const [kind, need] of Object.entries(opResourceCosts)) {
+      if ((need ?? 0) <= 0) continue;
+      const k = kind as ResourceKind;
+      owner.resources[k] = Math.max(0, owner.resources[k] - (need ?? 0));
+    }
 
     // Set per-op cooldown on the firing barracks AND player-wide floor.
     if (!chosen.opCooldowns) chosen.opCooldowns = {};
@@ -1275,11 +1340,26 @@ export class Game {
     }
     if (!any) return 'no-airstrip';
     if (!chosen) return 'cooldown';
+    // Premium ordnance burns gems/oil on top of gold. Vassal-funded
+    // bombing skips the resource check (vassal AI shouldn't be gated
+    // on the empire's gem stockpile — keeps simple AI behavior).
+    const bombResourceCosts = fromVassalRegion > 0
+      ? {}
+      : (this.config.BOMB_RESOURCE_COSTS[type] ?? {});
+    for (const [kind, need] of Object.entries(bombResourceCosts)) {
+      if ((need ?? 0) <= 0) continue;
+      if ((owner.resources[kind as ResourceKind] ?? 0) < (need ?? 0)) return 'resources';
+    }
     if (fromVassalRegion > 0) {
       if ((this._vassalGold[fromVassalRegion] ?? 0) < cost) return 'gold';
       this._vassalGold[fromVassalRegion]! -= cost;
     } else {
       if (!this._chargeOps(owner, cost)) return 'gold';
+    }
+    for (const [kind, need] of Object.entries(bombResourceCosts)) {
+      if ((need ?? 0) <= 0) continue;
+      const k = kind as ResourceKind;
+      owner.resources[k] = Math.max(0, owner.resources[k] - (need ?? 0));
     }
     // Higher-tier airstrips reload faster and throw bombs slightly farther.
     // Air Supremacy decree halves cooldown empire-wide on top of tier bonus.
@@ -3099,8 +3179,8 @@ export class Game {
    *  `pendingResourceOffers` (HUD shows a popup). */
   proposeResourceTrade(
     fromId: PlayerId, toId: PlayerId,
-    aGives: ResourceKind, aGivesPerSec: number,
-    bGives: ResourceKind, bGivesPerSec: number,
+    aGives: TradeCurrency, aGivesPerSec: number,
+    bGives: TradeCurrency, bGivesPerSec: number,
   ): ResourceTradeError | null {
     if (fromId === toId) return 'self';
     const a = this.players[fromId];
@@ -3172,23 +3252,42 @@ export class Game {
    *  Embassy decree loosens the surplus threshold. */
   private _aiAcceptsResourceTrade(
     proposer: Player, target: Player,
-    aGives: ResourceKind, aGivesPerSec: number,
-    bGives: ResourceKind, bGivesPerSec: number,
+    aGives: TradeCurrency, aGivesPerSec: number,
+    bGives: TradeCurrency, bGivesPerSec: number,
   ): boolean {
     void proposer;
     // From target's perspective: they receive `aGives`, give `bGives`.
-    const receiveSupply = target.resources[aGives] ?? 0;
-    const giveSupply = target.resources[bGives] ?? 0;
+    const receiveSupply = this._currencyStock(target, aGives);
+    const giveSupply = this._currencyStock(target, bGives);
     const embassy = target.decreeStacks['embassy'] ?? 0;
-    // Don't trade away a resource we're already short on.
-    const minGiveBuffer = 100 - embassy * 20;
+    // Don't trade away a currency we're already short on. Gold has a
+    // higher floor since it funds builds + ops, not just upkeep.
+    const baseFloor = bGives === 'gold' ? 800 : 100;
+    const minGiveBuffer = baseFloor - embassy * 20;
     const reservedGive = bGivesPerSec * 30; // 30s of payments
     if (giveSupply < Math.max(minGiveBuffer, reservedGive)) return false;
     // We accept if we're short on what we receive, or the rate ratio
     // is favorable (we receive at least as much as we give per sec).
-    if (receiveSupply < 250) return true;
+    // For gold receives, AI is hungrier — gold funds everything.
+    const receiveFloor = aGives === 'gold' ? 1500 : 250;
+    if (receiveSupply < receiveFloor) return true;
     if (aGivesPerSec >= bGivesPerSec) return true;
     return false;
+  }
+
+  /** Read the player's stockpile of a trade currency (resource or
+   *  gold). Used by the trade flow + AI accept rule so trades can
+   *  swap gold for resources transparently. */
+  private _currencyStock(p: Player, k: TradeCurrency): number {
+    return k === 'gold' ? p.gold : (p.resources[k] ?? 0);
+  }
+  private _currencyPay(p: Player, k: TradeCurrency, amt: number): void {
+    if (k === 'gold') p.gold = Math.max(0, p.gold - amt);
+    else p.resources[k] = Math.max(0, p.resources[k] - amt);
+  }
+  private _currencyAdd(p: Player, k: TradeCurrency, amt: number): void {
+    if (k === 'gold') p.gold += amt;
+    else p.resources[k] += amt;
   }
 
   /** Per-tick: flow resource trades between active pairs. Each side
@@ -3208,12 +3307,12 @@ export class Game {
       }
       const aPay = t.aGivesPerSec / hz;
       const bPay = t.bGivesPerSec / hz;
-      if ((a.resources[t.aGives] ?? 0) < aPay) continue;
-      if ((b.resources[t.bGives] ?? 0) < bPay) continue;
-      a.resources[t.aGives] -= aPay;
-      b.resources[t.aGives] += aPay;
-      b.resources[t.bGives] -= bPay;
-      a.resources[t.bGives] += bPay;
+      if (this._currencyStock(a, t.aGives) < aPay) continue;
+      if (this._currencyStock(b, t.bGives) < bPay) continue;
+      this._currencyPay(a, t.aGives, aPay);
+      this._currencyAdd(b, t.aGives, aPay);
+      this._currencyPay(b, t.bGives, bPay);
+      this._currencyAdd(a, t.bGives, bPay);
     }
   }
 

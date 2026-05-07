@@ -1,4 +1,4 @@
-import type { Game, Building, BuildingType, BuildError, BombType, BombError, GroundOpType, GroundOpError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId, Mastery, ResourceKind } from '@territorygame/shared';
+import type { Game, Building, BuildingType, BuildError, BombType, BombError, GroundOpType, GroundOpError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId, Mastery, ResourceKind, TradeCurrency } from '@territorygame/shared';
 import { DECREES, ABILITIES, MASTERIES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
@@ -130,8 +130,8 @@ export class HUD {
   /** Trade prompt state. Target = the player we're composing an
    *  offer to. Game is paused while non-zero. */
   private tradePromptTarget: PlayerId = 0;
-  private tpGiveKind: ResourceKind = 'food';
-  private tpTakeKind: ResourceKind = 'stone';
+  private tpGiveKind: TradeCurrency = 'food';
+  private tpTakeKind: TradeCurrency = 'stone';
   private tpGiveAmt = 5;
   private tpTakeAmt = 5;
   private cmdMode: CmdMode = 'abilities';
@@ -376,6 +376,7 @@ export class HUD {
       'no-barracks': 'Build a Barracks first',
       'cooldown':    'Barracks reloading',
       'gold':        'Not enough gold',
+      'resources':   'Not enough gems / oil',
       'oob':         'Out of bounds',
       'dead':        'You are eliminated',
       'bad-type':    'Unknown deployment',
@@ -1668,11 +1669,13 @@ export class HUD {
     if (offers.length === 0 && trades.length === 0) return;
 
     const me = this.game.human();
-    const RESOURCES: ResourceKind[] = ['food', 'wood', 'stone', 'oil', 'gems'];
+    const CURRENCIES: TradeCurrency[] = ['food', 'wood', 'stone', 'oil', 'gems', 'gold'];
     const palette = this.game.config.PLAYER_COLORS;
 
-    // Net flow per resource: sum (received - sent) across all trades.
-    const flow: Record<ResourceKind, number> = { food: 0, wood: 0, stone: 0, oil: 0, gems: 0 };
+    // Net flow per currency (resources + gold): sum (received - sent)
+    // across all trades. Trading 50 gold/s for 5 oil/s shows up here
+    // as -50/s gold and +5/s oil — same red/green chip treatment.
+    const flow: Record<TradeCurrency, number> = { food: 0, wood: 0, stone: 0, oil: 0, gems: 0, gold: 0 };
     for (const t of trades) {
       const youGive    = t.a === 1 ? t.aGives : t.bGives;
       const youGiveAmt = t.a === 1 ? t.aGivesPerSec : t.bGivesPerSec;
@@ -1683,15 +1686,21 @@ export class HUD {
     }
 
     // Score offers: how good is this for me? Higher = more lopsided
-    // in my favor + I'm short on what they're offering.
-    //   raw  = receivedPerSec / sentPerSec  (>1 means they give more)
-    //   need = 1.5× when I'm low on the offered resource, 0.5× when full
+    // in my favor + I'm short on what they're offering. Gold uses a
+    // larger reference stock since the working-treasury floor is
+    // higher than any resource.
+    const stockOf = (k: TradeCurrency): number =>
+      k === 'gold' ? me.gold : (me.resources[k as ResourceKind] ?? 0);
+    const refStock = (k: TradeCurrency): number => k === 'gold' ? 2000 : 300;
     const scoreOffer = (o: typeof offers[number]): number => {
-      const sentPerSec = o.bGivesPerSec; // human side pays bGives (offer's `b` is recipient = human)
-      const recvPerSec = o.aGivesPerSec;
-      const raw = recvPerSec / Math.max(0.1, sentPerSec);
-      const myStock = me.resources[o.aGives];
-      const need = Math.max(0.5, Math.min(2, (300 - myStock) / 150));
+      // Normalize gold so a 50 gold/s offer doesn't trivially look 10×
+      // better than a 5 stone/s offer purely from the unit difference.
+      const norm = (k: TradeCurrency, v: number) => k === 'gold' ? v / 10 : v;
+      const sentNorm = norm(o.bGives, o.bGivesPerSec);
+      const recvNorm = norm(o.aGives, o.aGivesPerSec);
+      const raw = recvNorm / Math.max(0.1, sentNorm);
+      const myStock = stockOf(o.aGives);
+      const need = Math.max(0.5, Math.min(2, (refStock(o.aGives) - myStock) / (refStock(o.aGives) / 2)));
       return raw * need;
     };
     const sortedOffers = [...offers]
@@ -1703,12 +1712,13 @@ export class HUD {
 
     // 1. Net flow header
     const flowParts: string[] = [];
-    for (const k of RESOURCES) {
+    for (const k of CURRENCIES) {
       const v = flow[k];
       if (Math.abs(v) < 0.05) continue;
       const cls = v > 0 ? 'pos' : 'neg';
       const sign = v > 0 ? '+' : '';
-      flowParts.push(`<span class="ts-chip ${cls}">${k} ${sign}${v.toFixed(1)}/s</span>`);
+      const label = k === 'gold' ? 'gold ♛' : k;
+      flowParts.push(`<span class="ts-chip ${cls}">${label} ${sign}${v.toFixed(1)}/s</span>`);
     }
     const flowRow = document.createElement('div');
     flowRow.className = 'ts-flow';
@@ -1892,20 +1902,32 @@ export class HUD {
 
   private _wireTradePrompt(): void {
     this.el.tpGiveKind?.addEventListener('change', () => {
-      this.tpGiveKind = (this.el.tpGiveKind!.value as ResourceKind);
+      const prev = this.tpGiveKind;
+      this.tpGiveKind = (this.el.tpGiveKind!.value as TradeCurrency);
+      // Switching to/from gold rescales the amount: 5/sec resource ≈
+      // 50/sec gold so the default offer is reasonable on either side.
+      if (prev !== 'gold' && this.tpGiveKind === 'gold') this.tpGiveAmt = 50;
+      else if (prev === 'gold' && this.tpGiveKind !== 'gold') this.tpGiveAmt = 5;
       this._refreshTradePrompt();
     });
     this.el.tpTakeKind?.addEventListener('change', () => {
-      this.tpTakeKind = (this.el.tpTakeKind!.value as ResourceKind);
+      const prev = this.tpTakeKind;
+      this.tpTakeKind = (this.el.tpTakeKind!.value as TradeCurrency);
+      if (prev !== 'gold' && this.tpTakeKind === 'gold') this.tpTakeAmt = 50;
+      else if (prev === 'gold' && this.tpTakeKind !== 'gold') this.tpTakeAmt = 5;
       this._refreshTradePrompt();
     });
     this.el.tradePrompt?.querySelectorAll<HTMLButtonElement>('.tp-step').forEach((btn) => {
       btn.addEventListener('click', () => {
         const op = btn.dataset['tp'];
-        if (op === 'give-up')   this.tpGiveAmt = Math.min(50, this.tpGiveAmt + 1);
-        if (op === 'give-down') this.tpGiveAmt = Math.max(1,  this.tpGiveAmt - 1);
-        if (op === 'take-up')   this.tpTakeAmt = Math.min(50, this.tpTakeAmt + 1);
-        if (op === 'take-down') this.tpTakeAmt = Math.max(1,  this.tpTakeAmt - 1);
+        const giveStep = this.tpGiveKind === 'gold' ? 10 : 1;
+        const takeStep = this.tpTakeKind === 'gold' ? 10 : 1;
+        const giveMax  = this.tpGiveKind === 'gold' ? 500 : 50;
+        const takeMax  = this.tpTakeKind === 'gold' ? 500 : 50;
+        if (op === 'give-up')   this.tpGiveAmt = Math.min(giveMax, this.tpGiveAmt + giveStep);
+        if (op === 'give-down') this.tpGiveAmt = Math.max(giveStep, this.tpGiveAmt - giveStep);
+        if (op === 'take-up')   this.tpTakeAmt = Math.min(takeMax, this.tpTakeAmt + takeStep);
+        if (op === 'take-down') this.tpTakeAmt = Math.max(takeStep, this.tpTakeAmt - takeStep);
         this._refreshTradePrompt();
       });
     });
@@ -1965,15 +1987,15 @@ export class HUD {
     const me = this.game.human();
     if (this.el.tpGiveAmt) this.el.tpGiveAmt.textContent = String(this.tpGiveAmt);
     if (this.el.tpTakeAmt) this.el.tpTakeAmt.textContent = String(this.tpTakeAmt);
+    const stockOf = (p: Player, k: TradeCurrency): number =>
+      k === 'gold' ? Math.floor(p.gold) : Math.floor(p.resources[k]);
     if (this.el.tpGiveStock) {
-      const stock = Math.floor(me.resources[this.tpGiveKind]);
-      this.el.tpGiveStock.textContent = `you have ${stock} ${this.tpGiveKind}`;
+      this.el.tpGiveStock.textContent = `you have ${stockOf(me, this.tpGiveKind)} ${this.tpGiveKind}`;
     }
     if (this.el.tpTakeStock) {
       const target = this.game.players[this.tradePromptTarget];
       if (target) {
-        const stock = Math.floor(target.resources[this.tpTakeKind]);
-        this.el.tpTakeStock.textContent = `${target.name} has ${stock} ${this.tpTakeKind}`;
+        this.el.tpTakeStock.textContent = `${target.name} has ${stockOf(target, this.tpTakeKind)} ${this.tpTakeKind}`;
       }
     }
   }
@@ -2524,6 +2546,7 @@ export class HUD {
       'no-airstrip': 'Need an airstrip',
       'cooldown':    'All airstrips on cooldown',
       'gold':        'Not enough gold',
+      'resources':   'Not enough gems / oil',
       'oob':         'Out of bounds',
       'dead':        'You are eliminated',
       'locked':      'Air mastery required',
