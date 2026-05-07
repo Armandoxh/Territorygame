@@ -1451,7 +1451,6 @@ export class HUD {
       .map(o => `${o.from}:${o.aGives}/${o.aGivesPerSec}>${o.bGives}/${o.bGivesPerSec}`)
       .join(',');
     const tradeSig = this.game.resourceTrades
-      .filter(t => t.a === 1 || t.b === 1)
       .map(t => `${t.a}-${t.b}:${t.aGives}/${t.aGivesPerSec}>${t.bGives}/${t.bGivesPerSec}`)
       .join(',');
     const sig = `a:${allies.join(',')}|w:${wars.join(',')}|o:${others.join(',')}|all:${this.diploShowAll ? 1 : 0}|po:${offerSig}|tr:${tradeSig}`;
@@ -1711,8 +1710,10 @@ export class HUD {
    *  the trade signature changes. */
   private _renderTradeStatusBlock(list: HTMLElement): void {
     const offers = this.game.pendingResourceOffers;
-    const trades = this.game.resourceTrades.filter(t => t.a === 1 || t.b === 1);
-    if (offers.length === 0 && trades.length === 0) return;
+    const allTrades = this.game.resourceTrades;
+    const trades = allTrades.filter(t => t.a === 1 || t.b === 1);
+    const worldTrades = allTrades.filter(t => t.a !== 1 && t.b !== 1);
+    if (offers.length === 0 && trades.length === 0 && worldTrades.length === 0) return;
 
     const me = this.game.human();
     const CURRENCIES: TradeCurrency[] = ['food', 'wood', 'stone', 'oil', 'gems', 'gold'];
@@ -1828,6 +1829,38 @@ export class HUD {
             <span class="ts-in">+${youGetAmt} ${youGet}/s</span>
           </span>
           <button class="diplo-act ts-cancel" data-action="rtrade-cancel" data-target="${otherId}" type="button">Cancel</button>
+        `;
+        block.appendChild(row);
+      }
+    }
+
+    // 4. World trades — AI-to-AI deals you're not part of. Read-only,
+    //    just so you can see the AI economy is alive and react if a
+    //    rival's pumping resources to a coalition partner.
+    if (worldTrades.length > 0) {
+      const wHdr = document.createElement('div');
+      wHdr.className = 'ts-section-h';
+      wHdr.textContent = `WORLD TRADES · ${worldTrades.length}`;
+      block.appendChild(wHdr);
+      for (const t of worldTrades) {
+        const aP = this.game.players[t.a];
+        const bP = this.game.players[t.b];
+        if (!aP || !bP) continue;
+        const aCol = palette[t.a];
+        const bCol = palette[t.b];
+        const aTint = aCol ? `rgb(${aCol[0]},${aCol[1]},${aCol[2]})` : '#888';
+        const bTint = bCol ? `rgb(${bCol[0]},${bCol[1]},${bCol[2]})` : '#888';
+        const row = document.createElement('div');
+        row.className = 'ts-world';
+        row.innerHTML = `
+          <span class="ts-pair">
+            <span class="ts-dot" style="background:${aTint}"></span>
+            <span class="ts-from">${aP.name}</span>
+            <span class="ts-arrow">⇄</span>
+            <span class="ts-dot" style="background:${bTint}"></span>
+            <span class="ts-from">${bP.name}</span>
+          </span>
+          <span class="ts-deal">${t.aGivesPerSec} ${t.aGives}/s ↔ ${t.bGivesPerSec} ${t.bGives}/s</span>
         `;
         block.appendChild(row);
       }

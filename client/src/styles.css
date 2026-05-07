@@ -901,6 +901,18 @@ html, body {
 .trade-status .diplo-act.ts-accept { background: rgba(85,200,110,0.20); color: #6ee68a; border-color: rgba(110,230,138,0.45); }
 .trade-status .diplo-act.ts-decline,
 .trade-status .diplo-act.ts-cancel { background: rgba(232,74,74,0.18); color: #ff8c8c; border-color: rgba(232,74,74,0.40); }
+/* World trades — read-only AI-to-AI deal display so the player
+ * can confirm the AI economy is alive. Slightly dimmer than rows
+ * the player can act on. */
+.trade-status .ts-world {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; font-size: 11px;
+  background: rgba(0,0,0,0.12);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 6px; opacity: 0.85;
+}
+.trade-status .ts-world .ts-pair { display: flex; align-items: center; gap: 4px; }
+.trade-status .ts-world .ts-deal { flex: 1; text-align: right; opacity: 0.85; }
 .diplo-node.section-ally { border-left: 3px solid rgba(85,200,110,0.65); }
 .diplo-node.section-war  { border-left: 3px solid rgba(232,74,74,0.65); }
 /* "Break Alliance" button — destructive styling so it pops out, since
