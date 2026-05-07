@@ -882,11 +882,27 @@ export class HUD {
       const op = btn.dataset['gop'] as GroundOpType | undefined;
       if (!op) return;
       const cost = this.game.config.GROUND_OP_COSTS[op];
+      const resCost = this.game.config.GROUND_OP_RESOURCE_COSTS[op] ?? {};
       const ready = this.game.barracksReadyAt(1, op);
       const cooling = ready < 0 ? false : ready > this.game.tickCount;
       const costEl = btn.querySelector('.bs-cost');
       if (costEl) costEl.textContent = String(cost);
-      btn.classList.toggle('disabled', cooling || combined < cost);
+      // Resource cost row — short labels colored by resource. Marks
+      // the line red when the player can't currently afford a kind.
+      let resOk = true;
+      const resEl = btn.querySelector<HTMLElement>('.bs-res');
+      if (resEl) {
+        const parts: string[] = [];
+        for (const [kind, need] of Object.entries(resCost)) {
+          if ((need ?? 0) <= 0) continue;
+          const have = me.resources[kind as keyof typeof me.resources] ?? 0;
+          if (have < (need ?? 0)) resOk = false;
+          parts.push(`<span class="r-${kind}">${need} ${kind}</span>`);
+        }
+        resEl.innerHTML = parts.join(' · ');
+        resEl.classList.toggle('short', !resOk && parts.length > 0);
+      }
+      btn.classList.toggle('disabled', cooling || combined < cost || !resOk);
     });
   }
 
@@ -944,9 +960,23 @@ export class HUD {
       const type = btn.dataset['bomb'] as BombType | undefined;
       if (!type) return;
       const cost = this.game.config.BOMB_COSTS[type];
+      const resCost = this.game.config.BOMB_RESOURCE_COSTS[type] ?? {};
       const costEl = btn.querySelector('.bs-cost');
       if (costEl) costEl.textContent = String(cost);
-      btn.classList.toggle('disabled', cooling || combined < cost);
+      let resOk = true;
+      const resEl = btn.querySelector<HTMLElement>('.bs-res');
+      if (resEl) {
+        const parts: string[] = [];
+        for (const [kind, need] of Object.entries(resCost)) {
+          if ((need ?? 0) <= 0) continue;
+          const have = me.resources[kind as keyof typeof me.resources] ?? 0;
+          if (have < (need ?? 0)) resOk = false;
+          parts.push(`<span class="r-${kind}">${need} ${kind}</span>`);
+        }
+        resEl.innerHTML = parts.join(' · ');
+        resEl.classList.toggle('short', !resOk && parts.length > 0);
+      }
+      btn.classList.toggle('disabled', cooling || combined < cost || !resOk);
     });
   }
 
@@ -1308,8 +1338,13 @@ export class HUD {
       if (!target || target.disabled) return;
       const idStr = target.dataset['target'];
       const action = target.dataset['action'];
-      if (!idStr || !action) return;
-      const pid = parseInt(idStr, 10);
+      if (!action) return;
+      // Trade-status accept/decline buttons key off `data-idx`, not
+      // `data-target`. Allow the dispatch to continue without a pid
+      // for those, but require pid for everything else.
+      const needsPid = action !== 'rtrade-accept' && action !== 'rtrade-decline';
+      if (needsPid && !idStr) return;
+      const pid = idStr ? parseInt(idStr, 10) : 0;
       if (action === 'trade')          this._openTrade(pid);
       else if (action === 'alliance')  this._proposeAlliance(pid);
       else if (action === 'break')     this._breakAlliance(pid);

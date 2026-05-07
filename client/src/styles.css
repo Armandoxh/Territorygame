@@ -1359,8 +1359,24 @@ html, body {
 .bs-name { grid-column: 2; grid-row: 1; font-size: 14px; font-weight: 700; }
 .bs-name em { font-style: normal; opacity: 0.55; font-size: 11px; margin-left: 4px; font-weight: 500; }
 .bs-desc { grid-column: 2; grid-row: 2; font-size: 11px; opacity: 0.55; }
-.bs-cost { grid-column: 3; grid-row: 1 / 3; font-size: 14px; font-weight: 700; color: #e8c04a; font-variant-numeric: tabular-nums; }
-.bs-cost::after { content: " gold"; font-size: 10px; font-weight: 500; opacity: 0.55; text-transform: uppercase; letter-spacing: 1px; margin-left: 4px; }
+.bs-cost { grid-column: 3; grid-row: 1; font-size: 14px; font-weight: 700; color: #e8c04a; font-variant-numeric: tabular-nums; text-align: right; }
+.bs-cost::after { content: "g"; font-size: 10px; font-weight: 500; opacity: 0.55; text-transform: uppercase; letter-spacing: 1px; margin-left: 2px; }
+/* Resource cost on bomb / barracks buttons — sits under the gold
+ * cost so the player can tell at a glance whether they have the
+ * gems and oil to actually fire it. */
+.bs-res {
+  grid-column: 3; grid-row: 2;
+  font-size: 10.5px; font-weight: 700;
+  text-align: right; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  display: flex; gap: 6px; justify-content: flex-end; align-items: center;
+}
+.bs-res .r-food  { color: #b8d77a; }
+.bs-res .r-wood  { color: #9bbd6c; }
+.bs-res .r-stone { color: #a8a8b0; }
+.bs-res .r-oil   { color: #c79a52; }
+.bs-res .r-gems  { color: #b9d6f2; }
+.bs-res.short { color: #ff8c8c; }
 .bs-cancel { width: 100%; background: transparent; border: 0; color: #9aa3ad; padding: 12px; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; font-family: inherit; }
 
 #menu {

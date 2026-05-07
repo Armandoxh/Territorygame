@@ -779,3 +779,28 @@ WHY: User said the trade-status block buried inside the diplomacy
 panel wasn't enough — they wanted the net flow at a glance from
 anywhere in the game so they could spot a draining resource
 without context-switching. Same data, just always visible.
+
+---
+
+[pending] ux: bomb / barracks sheets show gem + oil costs;
+fix trade-status accept/decline buttons
+
+WHAT: Two fixes.
+  1. Bomb sheet and barracks sheet buttons now show resource cost
+     under the gold cost (e.g. "5 gems · 10 oil" for blitzkrieg).
+     Buttons grey out when player can't afford the resources, not
+     just when out of gold. Same colored-by-resource short-form
+     used by the build hotbar.
+  2. Trade-status block's Accept / Decline buttons were no-ops.
+     The diplomacy click handler bailed early when a button had
+     no `data-target` attribute, but the new accept/decline
+     buttons only carry `data-idx`. Allowed the dispatch to
+     continue without a pid for those two actions specifically.
+
+WHY: User reported (a) "did you add oil and gem requirement to
+blitzkrieg? you should add it to the UI then" — costs were
+deducted at fire time but invisible until the action failed,
+which meant players didn't see the gate before clicking. (b)
+"accepting trades from the trade window is not working, it only
+accepts when it's on the popup on the map" — turned out to be a
+plain dispatcher bug, the engine's accept path was fine.
