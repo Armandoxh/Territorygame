@@ -1,6 +1,6 @@
 import { Application } from 'pixi.js';
 import {
-  DEFAULT_CONFIG, generatePalette, Game,
+  DEFAULT_CONFIG, generatePalette, generateTeamPalette, Game,
   type GameConfig, type BuildingType, type BombType,
 } from '@territorygame/shared';
 import { Renderer } from './render/Renderer.js';
@@ -43,7 +43,26 @@ async function boot(): Promise<void> {
   const h = parseInt(params.get('h') ?? '', 10);
   if (Number.isFinite(w) && w > 64) config.GRID_WIDTH = w;
   if (Number.isFinite(h) && h > 64) config.GRID_HEIGHT = h;
-  config.PLAYER_COLORS = generatePalette(config.AI_PLAYER_COUNT + 1);
+  // Team mode (URL ?team=N or localStorage). N must be 1, 2, 4, 8, or 16.
+  const teamRaw = parseInt(params.get('team') ?? '', 10);
+  if (Number.isFinite(teamRaw)) {
+    config.TEAM_SIZE = Math.max(1, Math.min(16, teamRaw));
+  } else {
+    const savedTeam = parseInt(localStorage.getItem('territory:team') ?? '', 10);
+    if (Number.isFinite(savedTeam)) config.TEAM_SIZE = Math.max(1, Math.min(16, savedTeam));
+  }
+  // Total players (human + AIs) must be divisible by team size.
+  // Bump the AI count up to the nearest multiple if needed.
+  if (config.TEAM_SIZE > 1) {
+    const total = config.AI_PLAYER_COUNT + 1;
+    const remainder = total % config.TEAM_SIZE;
+    if (remainder !== 0) {
+      config.AI_PLAYER_COUNT += (config.TEAM_SIZE - remainder);
+    }
+  }
+  config.PLAYER_COLORS = config.TEAM_SIZE > 1
+    ? generateTeamPalette(config.AI_PLAYER_COUNT + 1, config.TEAM_SIZE)
+    : generatePalette(config.AI_PLAYER_COUNT + 1);
 
   // --- Game ---
   const game = new Game(config);

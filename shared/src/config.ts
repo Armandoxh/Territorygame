@@ -10,6 +10,10 @@ export interface GameConfig {
   SPAWN_RADIUS: number;
   AI_PLAYER_COUNT: number;
   CAPITALS_PER_PLAYER: number;
+  /** Team size. 1 = FFA (every player a solo team). 2/4/8/16 split
+   *  the roster into teams of that size. Total players (human + AIs)
+   *  must be divisible by TEAM_SIZE — the menu enforces this. */
+  TEAM_SIZE: number;
 
   // Economy
   STARTING_GOLD: number;
@@ -192,6 +196,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   SPAWN_RADIUS: 5,
   AI_PLAYER_COUNT: 3,
   CAPITALS_PER_PLAYER: 2,
+  TEAM_SIZE: 1,
 
   STARTING_GOLD: 120,
   GOLD_PER_TILE_PER_TICK: 0.010,

@@ -1001,6 +1001,29 @@ export class HUD {
         if (this.el.oppCount) this.el.oppCount.value = btn.dataset['count'] ?? '3';
       });
     });
+    // Team-size buttons. Click toggles which team mode is active.
+    // FFA / 2 / 4 / 8 / 16. Selection persists in localStorage so a
+    // restart keeps the chosen mode.
+    const initialTeam = parseInt(localStorage.getItem('territory:team') ?? '1', 10) || 1;
+    const teamNote = this.el.menu.querySelector<HTMLElement>('#team-note');
+    const setTeamUI = (size: number): void => {
+      this.el.menu!.querySelectorAll<HTMLButtonElement>('.team-btn').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset['team'] ?? '1', 10) === size);
+      });
+      if (teamNote) {
+        teamNote.textContent = size <= 1
+          ? 'FFA — every player for themselves.'
+          : `Teams of ${size} — players auto-allied & locked. Total opponents bumped to a multiple of ${size}.`;
+      }
+    };
+    setTeamUI(initialTeam);
+    this.el.menu.querySelectorAll<HTMLButtonElement>('.team-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const size = parseInt(btn.dataset['team'] ?? '1', 10) || 1;
+        localStorage.setItem('territory:team', String(size));
+        setTeamUI(size);
+      });
+    });
     this.el.menu.addEventListener('click', (e) => {
       if (e.target === this.el.menu) this.hideMenu();
     });
@@ -1585,8 +1608,14 @@ export class HUD {
       }
 
       const allyBtn = row.querySelector<HTMLButtonElement>('.ally-btn');
+      const teammate = this.game.areTeammates(1, id);
       if (allyBtn) {
-        if (allied) {
+        if (teammate) {
+          // Teammates can't be unallied — lock the button.
+          allyBtn.dataset['action'] = '';
+          allyBtn.textContent = 'TEAMMATE';
+          allyBtn.disabled = true;
+        } else if (allied) {
           allyBtn.dataset['action'] = 'break';
           allyBtn.textContent = 'Break Alliance';
           allyBtn.disabled = false;
@@ -2645,9 +2674,18 @@ export class HUD {
 
   private _restart(): void {
     this._clampOppInput();
-    const v = parseInt(this.el.oppCount?.value ?? '3', 10) || 3;
+    let v = parseInt(this.el.oppCount?.value ?? '3', 10) || 3;
+    const team = parseInt(localStorage.getItem('territory:team') ?? '1', 10) || 1;
+    // Bump opponent count up to the nearest multiple of team-size if
+    // we're in team mode. (main.ts also does this defensively, but
+    // doing it here means the final count shows up in the URL too.)
+    if (team > 1) {
+      const total = v + 1;
+      const remainder = total % team;
+      if (remainder !== 0) v += (team - remainder);
+    }
     try { localStorage.setItem('territory:ai', String(v)); } catch { /* ignore */ }
-    location.search = '?ai=' + v;
+    location.search = `?ai=${v}&team=${team}`;
   }
 
   private _buildErrorMsg(err: BuildError): string {

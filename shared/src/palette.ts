@@ -21,6 +21,45 @@ export function generatePalette(playerCount: number): RGBA[] {
   return palette;
 }
 
+/** Team-aware palette. Every player on the same team shares a hue
+ *  family, with shade variation per team-slot so they're still
+ *  individually distinguishable. Human always anchors team 1
+ *  (red family). Index 0 is unclaimed; indices 1..playerCount
+ *  follow team layout (team 1 = ids 1..teamSize, team 2 = next
+ *  teamSize, etc — must match _mkPlayer's teamId assignment). */
+export function generateTeamPalette(playerCount: number, teamSize: number): RGBA[] {
+  if (teamSize <= 1) return generatePalette(playerCount);
+  const palette: RGBA[] = [
+    [0x4a, 0x3e, 0x2e, 0xff], // unclaimed parchment
+  ];
+  // Team hue anchors. Team 1 = red (human-anchored), then golden-angle
+  // around the wheel skipping the red band so teams don't blur together.
+  const teamCount = Math.ceil(playerCount / teamSize);
+  const teamHues: number[] = [0]; // team 1: pure red
+  const golden = 137.508;
+  for (let t = 2; t <= teamCount; t++) {
+    let h = ((t - 1) * golden + 55) % 360;
+    if (h < 18 || h > 348) h = (h + 30) % 360;
+    teamHues.push(h);
+  }
+  // Within each team, vary lightness/saturation so members are still
+  // tellable apart. Member 0 (the team captain / first player) is the
+  // brightest; later members darken slightly.
+  for (let i = 1; i <= playerCount; i++) {
+    const teamIdx = Math.floor((i - 1) / teamSize); // 0-based
+    const memberIdx = (i - 1) % teamSize;
+    const h = teamHues[teamIdx]!;
+    // Rotate hue slightly per member (±10°) so each team has a small
+    // hue spread instead of identical-looking shades.
+    const memberHueOffset = (memberIdx - (teamSize - 1) / 2) * (8 / Math.max(1, teamSize - 1));
+    const memberHue = (h + memberHueOffset + 360) % 360;
+    const sat = 0.70 - memberIdx * 0.05;
+    const light = 0.58 - memberIdx * 0.04;
+    palette.push(hslToRgba(memberHue, Math.max(0.40, sat), Math.max(0.34, light)));
+  }
+  return palette;
+}
+
 function hslToRgba(h: number, s: number, l: number): RGBA {
   h /= 360;
   let r: number, g: number, b: number;

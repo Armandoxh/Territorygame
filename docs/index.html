@@ -7,8 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-  <script type="module" crossorigin src="/Territorygame/assets/index-750IR4sg.js"></script>
-  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-BRMLzxDg.css">
+  <script type="module" crossorigin src="/Territorygame/assets/index-CnC_2f-X.js"></script>
+  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-D8NuYawY.css">
 </head>
 <body>
   <div id="app"></div>
@@ -371,6 +371,17 @@
           <button class="quick-btn" data-count="254" type="button">254</button>
         </div>
         <p class="menu-note">Max 254 (1 byte per tile)</p>
+        <label class="menu-row">
+          <span class="lbl">Teams</span>
+          <div class="quick-row team-row">
+            <button class="team-btn"  data-team="1"  type="button">FFA</button>
+            <button class="team-btn"  data-team="2"  type="button">2v2…</button>
+            <button class="team-btn"  data-team="4"  type="button">4-man</button>
+            <button class="team-btn"  data-team="8"  type="button">8-man</button>
+            <button class="team-btn"  data-team="16" type="button">16-man</button>
+          </div>
+        </label>
+        <p class="menu-note" id="team-note">FFA — every player for themselves.</p>
         <button id="restart-btn" class="primary" type="button">RESTART</button>
         <button id="menu-cancel" class="secondary" type="button">CANCEL</button>
       </div>

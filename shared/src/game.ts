@@ -473,6 +473,21 @@ export class Game {
       const t = this._pickAiTargetRegion(p.id);
       p.targetRegions = (t != null && t > 0) ? [t] : [];
     }
+
+    // Team mode: lock all teammates into permanent alliances at
+    // spawn. Stored as Infinity-expiry alliances; breakAlliance
+    // refuses on teammate pairs, so the bond is unbreakable.
+    if (this.hasTeams()) {
+      for (let i = 1; i < this.players.length; i++) {
+        const pi = this.players[i]; if (!pi) continue;
+        for (let j = i + 1; j < this.players.length; j++) {
+          const pj = this.players[j]; if (!pj) continue;
+          if (pi.teamId === pj.teamId) {
+            this._alliances.set(this._allianceKey(i, j), Infinity);
+          }
+        }
+      }
+    }
   }
 
   // Centralised tile claim: routes through territory.claim and keeps the
@@ -539,6 +554,11 @@ export class Game {
   private _chooseSpawnSpotsOnLand(): Array<{ id: PlayerId; x: number; y: number }> {
     const N = this.players.length - 1;
     if (N <= 0) return [];
+    if (this.hasTeams()) {
+      const teamSpots = this._chooseTeamSpawnSpots();
+      if (teamSpots) return teamSpots;
+      // fall through to FFA layout if team placement fails
+    }
     const W = this.territory.width, H = this.territory.height;
     const margin = this._spawnRadius() + 2;
     const terrain = this.territory.terrain;
@@ -576,6 +596,86 @@ export class Game {
       if (picked.length === N) return picked;
     }
     return this._fallbackCircleSpots();
+  }
+
+  /** Team-aware spawn picker. Drops one random anchor per team
+   *  with a wide inter-team separation, then places team members
+   *  around their anchor inside a small clustering radius. Returns
+   *  null if it can't fit — caller falls back to FFA layout. */
+  private _chooseTeamSpawnSpots(): Array<{ id: PlayerId; x: number; y: number }> | null {
+    const N = this.players.length - 1;
+    const teamSize = this.config.TEAM_SIZE | 0;
+    const teamCount = Math.ceil(N / teamSize);
+    const W = this.territory.width, H = this.territory.height;
+    const margin = this._spawnRadius() + 2;
+    const terrain = this.territory.terrain;
+    const candidates: number[] = [];
+    for (let y = margin; y < H - margin; y++) {
+      const row = y * W;
+      for (let x = margin; x < W - margin; x++) {
+        if (terrain[row + x] === TERRAIN_LAND) candidates.push(row + x);
+      }
+    }
+    if (candidates.length === 0) return null;
+
+    // Inter-team separation: aim to place team anchors far apart.
+    // Cluster radius scales with team size so a team of 8 has room.
+    const clusterR = (this._spawnRadius() + 2) * Math.max(2.5, Math.sqrt(teamSize) * 1.6);
+    const clusterR2 = clusterR * clusterR;
+
+    for (let factor = 1.0; factor >= 0.4; factor *= 0.75) {
+      const teamSepIdeal = Math.sqrt(candidates.length / teamCount) * 1.1 * factor;
+      const teamSep2 = teamSepIdeal * teamSepIdeal;
+      const anchors: Array<{ x: number; y: number }> = [];
+      let fails = 0;
+      const maxFails = Math.max(3000, teamCount * 400);
+      while (anchors.length < teamCount && fails < maxFails) {
+        const i = candidates[(Math.random() * candidates.length) | 0]!;
+        const x = i % W;
+        const y = (i - x) / W;
+        let ok = true;
+        for (const a of anchors) {
+          const dx = a.x - x, dy = a.y - y;
+          if (dx * dx + dy * dy < teamSep2) { ok = false; break; }
+        }
+        if (ok) anchors.push({ x, y });
+        else fails++;
+      }
+      if (anchors.length < teamCount) continue;
+
+      // Place team members around each anchor inside clusterR.
+      const picked: Array<{ id: PlayerId; x: number; y: number }> = [];
+      let placedAll = true;
+      for (let id = 1; id <= N; id++) {
+        const teamIdx = Math.floor((id - 1) / teamSize);
+        const anchor = anchors[teamIdx]!;
+        let placed = false;
+        const memberMinSep = this._spawnRadius() + 2; // teammates can't overlap
+        const memberMin2 = memberMinSep * memberMinSep;
+        for (let attempt = 0; attempt < 400; attempt++) {
+          const ang = Math.random() * Math.PI * 2;
+          const rad = Math.sqrt(Math.random()) * clusterR;
+          const x = Math.floor(anchor.x + Math.cos(ang) * rad);
+          const y = Math.floor(anchor.y + Math.sin(ang) * rad);
+          if (x < margin || x >= W - margin || y < margin || y >= H - margin) continue;
+          if (terrain[y * W + x] !== TERRAIN_LAND) continue;
+          let ok = true;
+          // Must clear teammates already placed (sep) AND non-teammates
+          // (full clusterR so teams don't merge).
+          for (const p of picked) {
+            const dx = p.x - x, dy = p.y - y;
+            const me = this.players[id]!;
+            const other = this.players[p.id]!;
+            const sep2 = (me.teamId === other.teamId) ? memberMin2 : clusterR2;
+            if (dx * dx + dy * dy < sep2) { ok = false; break; }
+          }
+          if (ok) { picked.push({ id, x, y }); placed = true; break; }
+        }
+        if (!placed) { placedAll = false; break; }
+      }
+      if (placedAll) return picked;
+    }
+    return null;
   }
 
   // Backstop: circle layout (will rely on Territory.carveLand to make these
@@ -1699,8 +1799,14 @@ export class Game {
       // most common so air/naval feel like committed strategies.
       mastery = r < 0.5 ? 'ground' : r < 0.8 ? 'air' : 'naval';
     }
+    // Team assignment: TEAM_SIZE=1 → every player is their own team
+    // (matches FFA behavior). For 2/4/8/16, sequential players go
+    // on the same team (player 1 = team 1 captain → human always
+    // captains team 1).
+    const size = Math.max(1, this.config.TEAM_SIZE | 0);
+    const teamId = Math.floor((id - 1) / size) + 1;
     return {
-      id, name, isHuman,
+      id, name, isHuman, teamId,
       gold: this.config.STARTING_GOLD,
       treasury: 0,
       troops: this.config.STARTING_TROOPS,
@@ -1715,6 +1821,31 @@ export class Game {
       // possible before the resource generation has caught up.
       resources: { oil: 100, stone: 100, gems: 100, food: 100, wood: 100 },
     };
+  }
+
+  /** True when the game is running in teams mode (TEAM_SIZE > 1). */
+  hasTeams(): boolean {
+    return (this.config.TEAM_SIZE | 0) > 1;
+  }
+  /** All player ids on `teamId`'s team that are still alive. Includes
+   *  the player themselves. */
+  teammatesOf(playerId: PlayerId): PlayerId[] {
+    const me = this.players[playerId];
+    if (!me) return [];
+    const out: PlayerId[] = [];
+    for (let id = 1; id < this.players.length; id++) {
+      const p = this.players[id];
+      if (!p || !p.alive) continue;
+      if (p.teamId === me.teamId) out.push(id);
+    }
+    return out;
+  }
+  areTeammates(a: PlayerId, b: PlayerId): boolean {
+    if (a === b) return false;
+    if (!this.hasTeams()) return false;
+    const pa = this.players[a]; const pb = this.players[b];
+    if (!pa || !pb) return false;
+    return pa.teamId === pb.teamId && pa.teamId > 0;
   }
 
   // --- Mastery (path-based specialization) ----------------------------------
@@ -2168,6 +2299,10 @@ export class Game {
    *  any pending war invites between the two so a stale invite doesn't
    *  haunt the player after they break the alliance. */
   breakAlliance(byId: PlayerId, otherId: PlayerId): boolean {
+    // Locked-team alliances are unbreakable. Caller (HUD) shows a
+    // toast for this case via the Player.teamId check, but we
+    // also reject here as a defensive guard.
+    if (this.areTeammates(byId, otherId)) return false;
     const key = this._allianceKey(byId, otherId);
     if (!this._alliances.has(key)) return false;
     this._alliances.delete(key);
@@ -2235,6 +2370,18 @@ export class Game {
         if (ally === declarer) continue;
         if (this.areAllied(declarer, ally)) continue;
         this.declareWar(declarer, ally, 'bandwagon');
+      }
+      // Team mode: declarer's teammates also drag in. So a war between
+      // any two players is effectively team-vs-team. Without this,
+      // only the target's side cascades and a teammate could sit out
+      // while you fight their war target alone.
+      if (this.hasTeams()) {
+        for (const mate of this.teammatesOf(declarer)) {
+          if (mate === declarer) continue;
+          if (this.areAllied(mate, target)) continue;
+          if (this._wars.has(this._warKey(mate, target))) continue;
+          this.declareWar(mate, target, 'bandwagon');
+        }
       }
     }
   }
@@ -5409,8 +5556,45 @@ export class Game {
     if (this.totalLand <= 0) return;
     const threshold = Math.ceil(this.totalLand * this.config.WIN_TERRITORY_FRACTION);
 
-    // Find the player with the most land. If they're past the threshold, the
-    // game is over.
+    if (this.hasTeams()) {
+      // Team mode: aggregate land per team. Win when one team
+      // crosses the territory threshold OR is the only team with
+      // any tiles standing.
+      const teamLand = new Map<number, { land: number; bestId: PlayerId; bestCount: number }>();
+      for (let id = 1; id < this.players.length; id++) {
+        const p = this.players[id];
+        if (!p) continue;
+        const c = this.territory.counts[id] ?? 0;
+        const cur = teamLand.get(p.teamId);
+        if (cur) {
+          cur.land += c;
+          if (c > cur.bestCount) { cur.bestCount = c; cur.bestId = id; }
+        } else {
+          teamLand.set(p.teamId, { land: c, bestId: id, bestCount: c });
+        }
+      }
+      let bestTeam = 0, bestTeamLand = -1, bestRep: PlayerId = 0;
+      let aliveTeams = 0;
+      for (const [tid, info] of teamLand) {
+        if (info.land > 0) aliveTeams++;
+        if (info.land > bestTeamLand) { bestTeamLand = info.land; bestTeam = tid; bestRep = info.bestId; }
+      }
+      const humanTeam = this.human().teamId;
+      const humanTeamInfo = teamLand.get(humanTeam);
+      if (bestTeamLand >= threshold || aliveTeams === 1) {
+        const outcome: 'victory' | 'defeat' = (bestTeam === humanTeam) ? 'victory' : 'defeat';
+        this.outcome = outcome;
+        this.events.push({ type: 'gameover', outcome, winner: bestRep });
+        return;
+      }
+      if (this.tickCount > 30 && humanTeamInfo && humanTeamInfo.land === 0 && bestTeamLand > 0) {
+        this.outcome = 'defeat';
+        this.events.push({ type: 'gameover', outcome: 'defeat', winner: bestRep });
+      }
+      return;
+    }
+
+    // FFA: per-player check (original behavior).
     let bestId = -1, bestCount = -1;
     for (let id = 1; id < this.players.length; id++) {
       const c = this.territory.counts[id]!;
@@ -5422,9 +5606,6 @@ export class Game {
       this.events.push({ type: 'gameover', outcome, winner: bestId });
       return;
     }
-    // Soft-end: if the human has been wiped out (and a few seconds have
-    // passed so it's not a startup glitch), they have no way back in. Show
-    // defeat with the current strongest player credited.
     if (this.tickCount > 30 && this.territory.counts[this.human().id] === 0 && bestId > 0) {
       this.outcome = 'defeat';
       this.events.push({ type: 'gameover', outcome: 'defeat', winner: bestId });

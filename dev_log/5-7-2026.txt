@@ -822,3 +822,41 @@ to my total resource numbers" — the chips only surfaced trade
 deltas, so without an active trade you saw no per-second number
 even though resources were ticking up from regions. Now the chip
 reflects the actual rate of change at all times.
+
+---
+
+[pending] gameplay: TEAMS MODE (2/4/8/16 with locked alliances)
+
+WHAT: Brand-new team-play mode. Picked from a row of buttons in
+the menu (FFA / 2 / 4 / 8 / 16). Every player in the game is on
+a numbered team; teams of size N split the total roster into
+ceil(total/N) teams. Human always captains team 1.
+
+Engine changes:
+  • New Player.teamId field; new GameConfig.TEAM_SIZE.
+  • generateTeamPalette gives each team a hue family (red, blue,
+    etc.) with per-member shade variation so teammates read as
+    same-colored at a glance.
+  • Team-aware spawn picker drops one anchor per team, places
+    teammates within a clustering radius around their anchor;
+    cross-team distance is large.
+  • Teammates auto-allied at spawn with Infinity expiry. New
+    Game.areTeammates() / teammatesOf() helpers.
+  • breakAlliance refuses on teammate pairs. declareWar's
+    bandwagon now pulls declarer's teammates in too (was only
+    pulling target's allies), so any war is effectively
+    team-vs-team.
+  • _checkVictory aggregates land per team; first team past the
+    territorial threshold (or the only team standing) wins.
+
+UI changes:
+  • Menu has Teams row (FFA / 2 / 4 / 8 / 16). Selection persists
+    in localStorage; restart adds &team=N to the URL.
+  • Opponent count auto-bumps to a multiple of team size.
+  • Diplomacy panel shows TEAMMATE label and locks the break
+    button on teammate rows.
+
+WHY: User asked "I want to add a teams mode where you can play
+in teams of 2, 4, 8, 16 and it splits the map with teammates."
+Picked random-anchor clustering (vs pie slices) per their choice
+and locked alliances forever (no betrayal) per their choice.

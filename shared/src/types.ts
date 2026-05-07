@@ -177,6 +177,10 @@ export interface Player {
   id: PlayerId;
   name: string;
   isHuman: boolean;
+  /** Team membership. 0 = solo (FFA mode). 1..N = team index.
+   *  All teammates auto-ally at spawn (locked, can't break) and
+   *  bandwagon into each other's wars. Win condition is per-team. */
+  teamId: number;
   /** Operational gold — funds builds, manual attacks, bombs, ships.
    *  Fed by your own non-vassal land + AI base income. */
   gold: number;

@@ -1421,8 +1421,12 @@ html, body {
 .num-btn { width: 36px; background: transparent; border: 0; color: #d6dee8; font-size: 18px; font-weight: 700; cursor: pointer; font-family: inherit; }
 .num-btn:active { background: rgba(255,255,255,0.08); }
 .quick-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 6px; }
+.quick-row.team-row { grid-template-columns: repeat(5, 1fr); flex: 1; }
 .quick-btn { background: #20262e; border: 1px solid rgba(255,255,255,0.06); color: #d6dee8; border-radius: 8px; padding: 8px 0; font-family: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
 .quick-btn:active { background: #283036; }
+.team-btn { background: #20262e; border: 1px solid rgba(255,255,255,0.06); color: #d6dee8; border-radius: 8px; padding: 8px 4px; font-family: inherit; font-weight: 700; font-size: 11px; cursor: pointer; letter-spacing: 0.5px; }
+.team-btn:active { background: #283036; }
+.team-btn.active { background: #4a9be8; border-color: #4a9be8; color: white; }
 .menu-note { font-size: 10px; opacity: 0.45; margin: 8px 0 18px; letter-spacing: 1px; text-transform: uppercase; }
 #menu .primary { display: block; width: 100%; background: #4a9be8; color: white; border: 0; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 14px; letter-spacing: 2px; cursor: pointer; font-family: inherit; margin-bottom: 8px; }
 #menu .primary:active { transform: scale(0.98); }
