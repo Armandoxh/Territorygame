@@ -88,6 +88,19 @@ float fbm(vec2 p) {
   return v;
 }
 
+// Heavier 4-octave fbm used for biome elevation. Pricier but only one
+// call per fragment; gives ridged-mountain + plains variation.
+float fbm4(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 4; i++) {
+    v += a * vnoise(p);
+    p *= 2.13;
+    a *= 0.55;
+  }
+  return v;
+}
+
 void main() {
   vec2 uv = vTextureCoord;
   vec2 texel = uInputSize.zw;
@@ -104,31 +117,70 @@ void main() {
 
   vec3 col;
   if (terrain >= 1) {
-    // Layered water: long swell + small chop + faux directional waves.
-    // Each octave drifts at a different speed/direction so they don't
-    // resonate into a tiled pattern.
-    float t = (terrain == 2) ? 0.0 : 1.0;
+    // Layered water with depth gradient. Shallow water is lighter (closer
+    // to coast); deep water is darker. Multiple wave octaves drift at
+    // different speeds and angles to avoid tiled patterns.
+    float depthT = (terrain == 2) ? 0.0 : 1.0;
     vec2 swellP = tileP * 0.08 + vec2(uTime * 0.040, uTime * 0.028);
     float swell = fbm(swellP);
     vec2 chopP  = tileP * 0.45 + vec2(-uTime * 0.075, uTime * 0.05);
     float chop  = fbm(chopP);
     float dir   = sin((tileP.x * 0.16 + tileP.y * 0.10) - uTime * 0.55) * 0.5 + 0.5;
+    // Long, slow caustic-like ripple — evokes refraction over the seabed.
+    float caustic = sin(tileP.x * 0.34 - uTime * 0.32) * sin(tileP.y * 0.27 + uTime * 0.21);
+    caustic = caustic * 0.5 + 0.5;
 
-    float waveMix = swell * 0.60 + chop * 0.30 + dir * 0.10;
+    float waveMix = swell * 0.55 + chop * 0.28 + dir * 0.10 + caustic * 0.07;
 
-    col = mix(uWaterDeep, uWaterShallow, t * 0.55 + waveMix * 0.40);
+    col = mix(uWaterDeep, uWaterShallow, depthT * 0.55 + waveMix * 0.35);
 
-    // Specular-ish highlights on wave crests
-    float crest = smoothstep(0.62, 0.88, waveMix);
-    col = mix(col, vec3(0.82, 0.90, 1.0), crest * 0.20);
+    // White-cap specular on crests
+    float crest = smoothstep(0.62, 0.92, waveMix);
+    col = mix(col, vec3(0.86, 0.94, 1.0), crest * 0.22);
 
-    // Trough darkening for depth
+    // Trough darkening for visible depth
     float trough = smoothstep(0.20, 0.05, waveMix);
-    col *= (1.0 - trough * 0.18);
+    col *= (1.0 - trough * 0.20);
+
+    // Subtle teal undertone on shallow water (near coast)
+    if (terrain == 1) {
+      col += vec3(-0.02, 0.02, 0.04) * (0.4 + waveMix * 0.6);
+    }
   } else {
-    // Land — parchment, then tint by owner. Grain lives only on land.
+    // Land — biome elevation noise gives visible terrain variation
+    // (forests, plains, highlands), then owner tint washes over the top.
+    // Grain stays for paper texture.
     grain = fbm(tileP * 0.45) - 0.36;
-    vec3 parchmentCol = uParchment * (1.0 + grain * 0.35);
+    // Elevation: low-frequency 4-octave noise so each region has its
+    // own character. Range roughly [0, 1].
+    float elev = fbm4(tileP * 0.025);
+    // Biome moisture: independent noise. Drives forest vs plains vs arid.
+    float moist = fbm(tileP * 0.045 + vec2(73.0, 19.0));
+    // Biome base palette (parchment-toned, painterly):
+    //   < 0.32 elev → coastal lowland (light sandy/beige)
+    //   < 0.55 elev → plains (warmer green-tan, varies by moist)
+    //   < 0.75 elev → highlands (darker olive/brown)
+    //   else        → mountains (granite gray-brown, ridged)
+    vec3 biome;
+    if (elev < 0.32) {
+      biome = mix(vec3(0.78, 0.69, 0.50), vec3(0.70, 0.62, 0.44), elev / 0.32);
+    } else if (elev < 0.55) {
+      vec3 plains   = vec3(0.62, 0.60, 0.40);
+      vec3 forested = vec3(0.40, 0.48, 0.30);
+      biome = mix(plains, forested, smoothstep(0.35, 0.75, moist));
+    } else if (elev < 0.75) {
+      vec3 hill    = vec3(0.50, 0.46, 0.34);
+      vec3 forest  = vec3(0.32, 0.38, 0.26);
+      biome = mix(hill, forest, smoothstep(0.40, 0.80, moist));
+    } else {
+      // Ridged mountain: invert the noise to get crisp ridge-lines
+      float ridge = 1.0 - abs(fbm(tileP * 0.18) * 2.0 - 1.0);
+      biome = mix(vec3(0.45, 0.42, 0.38), vec3(0.78, 0.74, 0.66), ridge * 0.55);
+    }
+    // Add subtle directional shading using elevation gradient (hill shading)
+    float shade = (fbm4(tileP * 0.025 + vec2(1.0, 0.0)) - elev) * 8.0;
+    biome *= 1.0 + clamp(shade, -0.18, 0.18);
+    vec3 parchmentCol = biome * (1.0 + grain * 0.18);
     if (uSmoothMode > 0.5) {
       // BILINEAR SMOOTH: sample the 4 nearest tile centers (tile centers
       // sit at half-integer world coords, so the half-tile grid). Look up
@@ -242,6 +294,24 @@ void main() {
     }
   }
 
+  // Inner shadow: tiles near a different-owner edge get subtle darkening
+  // toward the boundary — gives owned regions a "bowl" depth like a
+  // proper map illustration. Cheap: sample 2-tile diagonal neighbors and
+  // count how many are different owner. More mismatches → closer to the
+  // edge → more shading.
+  if (terrain == 0 && owner > 0) {
+    vec4 sNE = texture(uTexture, uv + vec2( texel.x * 1.5, -texel.y * 1.5));
+    vec4 sNW = texture(uTexture, uv + vec2(-texel.x * 1.5, -texel.y * 1.5));
+    vec4 sSE = texture(uTexture, uv + vec2( texel.x * 1.5,  texel.y * 1.5));
+    vec4 sSW = texture(uTexture, uv + vec2(-texel.x * 1.5,  texel.y * 1.5));
+    float diag = 0.0;
+    if (abs(sNE.r * 255.0 - ownerF) > 0.5) diag += 1.0;
+    if (abs(sNW.r * 255.0 - ownerF) > 0.5) diag += 1.0;
+    if (abs(sSE.r * 255.0 - ownerF) > 0.5) diag += 1.0;
+    if (abs(sSW.r * 255.0 - ownerF) > 0.5) diag += 1.0;
+    col *= 1.0 - diag * 0.04;
+  }
+
   // Frontier-claim pulse — recently-stamped tiles glow briefly. Sample
   // self + 4 neighbors and use the freshest age so the pulse softens
   // across an edge instead of being boxy. Wrap-safe via mod(..., 256).
@@ -263,6 +333,17 @@ void main() {
       vec3 pulseTint = vec3(1.0, 0.92, 0.70);
       col = mix(col, col + pulseTint * 0.55, t * 0.55);
     }
+  }
+
+  // Paper texture overlay: very fine fiber noise multiplied across the
+  // whole frame, gives the map a printed-on-paper feel. Only computed on
+  // land (water already has its own shading). Cost: ~2 noise calls per
+  // land fragment.
+  if (terrain == 0) {
+    float fiber = vnoise(tileP * 1.7 + 11.0) * 0.5 + vnoise(tileP * 5.3 - 4.0) * 0.5;
+    col *= 0.92 + fiber * 0.16;
+    // Faint warm-cool fiber tint for paper-grain authenticity.
+    col += vec3(0.02, 0.01, -0.01) * (fiber - 0.5);
   }
 
   finalColor = vec4(col, 1.0);
