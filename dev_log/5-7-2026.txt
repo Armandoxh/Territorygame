@@ -1002,3 +1002,36 @@ once a salient breaks through, without diluting the strong
 in-region turret bonus. Wall investment now translates to
 empire-wide resistance; the snake gets a 3× cost-per-claim
 penalty on every roll instead of free progress.
+
+---
+
+[pending] gameplay: commander decrees go COMPOUND + cost ramp
+
+WHAT: User asked "how does +20% per stack stack? Does it
+multiply or add? Feels too linear." Answer: was linear additive
+(1 + 0.20×stacks), now COMPOUND (1.20^stacks). Specialists who
+go deep in one decree get exponential payoff:
+  • Forced March: 5 stacks was ×2.0, now ×2.49
+  • Production: 5 stacks was ×1.50, now ×1.61
+  • Reinforced Bunkers: 3 stacks was ×2.0 (capped), now ×3.0
+  • Standing Army: 5 stacks was ×3.5 troop cap, now ×7.59
+  • Veterans: 10 stacks was ×1.50, now ×1.63 (capped at ×2.0)
+  • Master Builder: 5 stacks was ×0.50 cost, now ×0.59 cost
+  • Admiralty: 5 stacks was ×2.0 speed, now ×2.49
+
+Cost also ramps geometrically per stack (1×, 1.5×, 2.25×, 3.4×,
+5×, 7.6× …). Buying 5 stacks of a 600g decree now costs
+600 + 900 + 1350 + 2025 + 3038 = 7913g instead of flat 3000g.
+Late-game decree investment is a real commitment, not a carpet-buy.
+
+New `Game.decreeCostFor(playerId, decreeId)` returns the
+ramped cost; HUD calls it for both display and afford-check.
+Decree descriptions updated with the new compound math.
+
+WHY: User's intuition was right — linear stacking made the
+panel feel boring; every stack contributes the same flat
+amount. Compound rewards specialization, ramp prevents
+trivial mass-purchase. Branching (the third part of the
+revamp ask) is queued as a Phase 2 — it needs new data
+model + branch-picker UI, so shipping compound + ramp first
+to get them in front of you for tuning.

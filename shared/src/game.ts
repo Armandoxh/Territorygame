@@ -2040,15 +2040,27 @@ export class Game {
   }
 
   /** Returns null on success, error code otherwise. */
+  /** Cost to buy the NEXT stack of `decreeId` for `playerId`. Ramps
+   *  geometrically with stack count (1×, 1.5×, 2.25×, 3.4×, 5×, 7.6×…).
+   *  War Bonds is special-cased to 30% of current treasury. */
+  decreeCostFor(playerId: PlayerId, decreeId: string): number {
+    const p = this.players[playerId];
+    if (!p) return 0;
+    const d = decreeById(decreeId);
+    if (!d) return 0;
+    if (decreeId === 'war-bonds') return Math.floor(p.treasury * 0.30);
+    const stacks = p.decreeStacks[decreeId] ?? 0;
+    const ramp = Math.pow(1.5, stacks);
+    return Math.floor(d.cost * ramp);
+  }
+
   buyDecree(playerId: PlayerId, decreeId: string): 'gold' | 'dead' | 'locked' | 'unknown' | null {
     const p = this.players[playerId];
     if (!p || !p.alive) return 'dead';
     const d = decreeById(decreeId);
     if (!d) return 'unknown';
     if (!this.decreeAvailable(playerId, decreeId)) return 'locked';
-    // War Bonds: cost is 30% of current treasury.
-    let cost = d.cost;
-    if (decreeId === 'war-bonds') cost = Math.floor(p.treasury * 0.30);
+    const cost = this.decreeCostFor(playerId, decreeId);
     // Doctrines pay from the commander treasury, not operational gold.
     if (p.treasury < cost) return 'gold';
     p.treasury -= cost;
@@ -2125,8 +2137,18 @@ export class Game {
   // --- Decree effect helpers (read at the call sites in income/troops/etc.) ---
 
   /** Income multiplier from Production Decree stacks. */
+  /** Compound stack helper: 1× at 0 stacks, (1+pctPerStack)^stacks
+   *  thereafter. Replaces the old linear `1 + pctPerStack*stacks`
+   *  form so specialists who go deep in one decree get exponential
+   *  payoff. Caller can additionally cap with `Math.min`. */
+  private _compoundStack(stacks: number, pctPerStack: number): number {
+    if (stacks <= 0) return 1;
+    return Math.pow(1 + pctPerStack, stacks);
+  }
+
   private _productionMult(p: Player): number {
-    return 1 + this.config.DECREE_PRODUCTION_BOOST * (p.decreeStacks['production'] ?? 0);
+    const stacks = p.decreeStacks['production'] ?? 0;
+    return this._compoundStack(stacks, this.config.DECREE_PRODUCTION_BOOST);
   }
 
   /** Tribute fraction taking Free Market into account. */
@@ -2143,13 +2165,15 @@ export class Game {
    *  silently turns off. */
   private _expansionBoostFor(p: Player): number {
     const stacks = p.decreeStacks['forced-march'] ?? 0;
-    return this.config.VASSAL_EXPANSION_BOOST + 0.20 * stacks;
+    // Compound on top of the universal baseline. 0 stacks = baseline,
+    // 5 stacks = baseline × 1.20^5 = baseline × 2.49.
+    return this.config.VASSAL_EXPANSION_BOOST * this._compoundStack(stacks, 0.20);
   }
 
   /** Troop cap multiplier from Standing Army stacks. */
   private _troopCapFor(p: Player): number {
     const stacks = p.decreeStacks['standing-army'] ?? 0;
-    return this.config.TROOP_CAP_PER_TILE * (1 + 0.50 * stacks);
+    return this.config.TROOP_CAP_PER_TILE * this._compoundStack(stacks, 0.50);
   }
 
   /** Bomb-cooldown multiplier from Air Supremacy. */
@@ -2157,36 +2181,37 @@ export class Game {
     return (p.decreeStacks['air-supremacy'] ?? 0) > 0 ? 0.5 : 1;
   }
 
-  /** Build-cost multiplier from Master Builder. Each stack is –10%,
-   *  capped at –50% so we don't free-build at 5+ stacks. */
+  /** Build-cost multiplier from Master Builder. Compound -10% per
+   *  stack, floor 0.5 (still 50% min cost no matter how many stacks). */
   private _buildCostMult(p: Player): number {
     const stacks = p.decreeStacks['master-builder'] ?? 0;
-    return Math.max(0.5, 1 - 0.10 * stacks);
+    return Math.max(0.5, Math.pow(0.90, stacks));
   }
 
-  /** Combat-power multiplier from Veterans (attacker side). +5% per
-   *  stack. Capped so 30+ stacks doesn't double DPS by itself. */
+  /** Combat-power multiplier from Veterans (attacker side). Compound
+   *  +5% per stack, capped at 2.0× so it doesn't run away. */
   private _veteransMult(p: Player): number {
     const stacks = p.decreeStacks['veterans'] ?? 0;
-    return Math.min(2.0, 1 + 0.05 * stacks);
+    return Math.min(2.0, this._compoundStack(stacks, 0.05));
   }
 
   /** Turret-defense bonus multiplier from Reinforced Bunkers. */
   private _reinforcedBunkersMult(p: Player): number {
     const stacks = p.decreeStacks['reinforced-bunkers'] ?? 0;
-    return Math.min(2.0, 1 + 0.50 * stacks);
+    return Math.min(3.0, this._compoundStack(stacks, 0.50));
   }
 
   /** Ship-speed multiplier from Admiralty (lower move-ticks = faster). */
   private _admiraltySpeedDivisor(p: Player): number {
     const stacks = p.decreeStacks['admiralty'] ?? 0;
-    return Math.min(2.5, 1 + 0.20 * stacks);
+    return Math.min(3.0, this._compoundStack(stacks, 0.20));
   }
 
-  /** Ship-cost multiplier from Admiralty. */
+  /** Ship-cost multiplier from Admiralty. Compound 20% discount per
+   *  stack, floor 0.4 (at most 60% off). */
   private _admiraltyCostMult(p: Player): number {
     const stacks = p.decreeStacks['admiralty'] ?? 0;
-    return Math.max(0.4, 1 - 0.20 * stacks);
+    return Math.max(0.4, Math.pow(0.80, stacks));
   }
 
   // --- Active commander abilities ---------------------------------------

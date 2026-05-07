@@ -29,9 +29,9 @@ export interface Decree {
 export const DECREES: readonly Decree[] = [
   // ECONOMY
   { id: 'production',   branch: 'economy', tier: 1, name: 'Production Decree',
-    desc: '+10% gold income empire-wide per stack.', cost: 500, stackable: true },
+    desc: '×1.10 gold income empire-wide per stack (compound). 5 stacks = ×1.61.', cost: 500, stackable: true },
   { id: 'master-builder', branch: 'economy', tier: 1, name: 'Master Builder',
-    desc: '–10% build cost per stack (capped at –50%).', cost: 700, stackable: true },
+    desc: '×0.90 build cost per stack (compound, floored at ×0.5). 5 stacks = ×0.59.', cost: 700, stackable: true },
   { id: 'free-market',  branch: 'economy', tier: 2, name: 'Free Market',
     desc: 'Vassal tribute drops 10% → 5% — they keep more, build faster.', cost: 1500, prereq: 'production' },
   { id: 'industrial',   branch: 'economy', tier: 3, name: 'Industrial Revolution',
@@ -43,7 +43,7 @@ export const DECREES: readonly Decree[] = [
   { id: 'iron-doctrine', branch: 'defense', tier: 1, name: 'Iron Doctrine',
     desc: 'Tiles you defend gain +20% effective defense (stacks with turrets).', cost: 800 },
   { id: 'reinforced-bunkers', branch: 'defense', tier: 2, name: 'Reinforced Bunkers',
-    desc: 'Turret defense bonus +50% per stack (capped at +100%).', cost: 1500, prereq: 'iron-doctrine', stackable: true },
+    desc: '×1.50 turret defense per stack (compound, capped ×3.0). 3 stacks = ×3.0.', cost: 1500, prereq: 'iron-doctrine', stackable: true },
   { id: 'watchtowers',   branch: 'defense', tier: 2, name: 'Watchtowers',
     desc: 'Free L1 turrets auto-build on fully-owned region frontiers. (Coming soon)', cost: 2000, prereq: 'border-patrol', comingSoon: true },
 
@@ -51,15 +51,15 @@ export const DECREES: readonly Decree[] = [
   { id: 'conscription',  branch: 'military', tier: 1, name: 'Conscription',
     desc: '+1000 troops to your pool, instant. Repeatable.', cost: 300, oneShot: true, stackable: true },
   { id: 'veterans',      branch: 'military', tier: 1, name: 'Veterans',
-    desc: '+5% combat power per stack (manual + vassal attacks).', cost: 900, stackable: true },
+    desc: '×1.05 combat power per stack (compound, capped ×2.0). 10 stacks = ×1.63.', cost: 900, stackable: true },
   { id: 'standing-army', branch: 'military', tier: 2, name: 'Standing Army',
-    desc: '+50% troop cap empire-wide per stack.', cost: 1200, prereq: 'conscription', stackable: true },
+    desc: '×1.50 troop cap empire-wide per stack (compound). 5 stacks = ×7.6.', cost: 1200, prereq: 'conscription', stackable: true },
   { id: 'war-bonds',     branch: 'military', tier: 3, name: 'War Bonds',
     desc: 'Spend 30% of your gold for 5000 troops, instant.', cost: 0, prereq: 'standing-army', oneShot: true, stackable: true },
 
   // OFFENSE
   { id: 'forced-march',   branch: 'offense', tier: 1, name: 'Forced March',
-    desc: '+20% expansion rate per stack — applies to direct attacks AND vassal autonomous pushes.', cost: 600, stackable: true },
+    desc: '×1.20 expansion rate per stack (compound, applies to manual + vassal pushes). 5 stacks = ×2.49.', cost: 600, stackable: true },
   { id: 'air-supremacy',  branch: 'offense', tier: 2, name: 'Air Supremacy',
     desc: 'Empire-wide bomb cooldowns ×0.5.', cost: 1800, prereq: 'forced-march' },
   { id: 'nuclear-program', branch: 'offense', tier: 3, name: 'Nuclear Program',
@@ -77,7 +77,7 @@ export const DECREES: readonly Decree[] = [
 
   // NAVAL — make seafarers actually matter.
   { id: 'admiralty',   branch: 'naval', tier: 1, name: 'Admiralty',
-    desc: '+20% ship speed and –20% ship cost per stack.', cost: 800, stackable: true },
+    desc: '×1.20 ship speed and ×0.80 ship cost per stack (compound). 5 stacks = ×2.49 speed / ×0.33 cost.', cost: 800, stackable: true },
   { id: 'privateer',   branch: 'naval', tier: 2, name: 'Privateer',
     desc: 'Your warships near enemy trade routes drain the route\'s flow into your treasury. (Coming soon)', cost: 2500, prereq: 'admiralty', comingSoon: true },
 

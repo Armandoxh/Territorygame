@@ -1319,7 +1319,7 @@ export class HUD {
       const prereqMet = !d.prereq || (me.decreeStacks[d.prereq] ?? 0) > 0;
       const owned = stacks > 0;
       const locked = !!d.comingSoon || !prereqMet || (!d.stackable && owned);
-      const cost = d.id === 'war-bonds' ? Math.floor(me.treasury * 0.30) : d.cost;
+      const cost = this.game.decreeCostFor(me.id, d.id);
       const canAfford = me.treasury >= cost;
 
       row.classList.toggle('cant-afford', !locked && !canAfford);
