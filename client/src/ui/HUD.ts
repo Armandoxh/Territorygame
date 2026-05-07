@@ -19,6 +19,11 @@ export class HUD {
     routes:       this._byId('my-routes'),
     tradeFlow:    this._byId('my-trade-flow'),
     masteryBadge: this._byId('my-mastery'),
+    rsFood:       this._byId('rs-food'),
+    rsWood:       this._byId('rs-wood'),
+    rsStone:      this._byId('rs-stone'),
+    rsOil:        this._byId('rs-oil'),
+    rsGems:       this._byId('rs-gems'),
     dot:          this._byId('my-dot'),
     enemies:      this._byId('enemies'),
     hint:         this._byId('hint'),
@@ -456,6 +461,11 @@ export class HUD {
     if (this.el.troops) this.el.troops.textContent = formatTroops(me.troops);
     if (this.el.gold)     this.el.gold.textContent     = String(Math.floor(me.gold));
     if (this.el.treasury) this.el.treasury.textContent = String(Math.floor(me.treasury));
+    if (this.el.rsFood)  this.el.rsFood.textContent  = String(Math.floor(me.resources.food));
+    if (this.el.rsWood)  this.el.rsWood.textContent  = String(Math.floor(me.resources.wood));
+    if (this.el.rsStone) this.el.rsStone.textContent = String(Math.floor(me.resources.stone));
+    if (this.el.rsOil)   this.el.rsOil.textContent   = String(Math.floor(me.resources.oil));
+    if (this.el.rsGems)  this.el.rsGems.textContent  = String(Math.floor(me.resources.gems));
     if (this.el.routes) {
       let n = 0;
       for (const r of this.game.tradeRoutes) if (r.ownerId === me.id) n++;

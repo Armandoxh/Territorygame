@@ -70,6 +70,33 @@ html, body {
 #topbar .stat.compact b { font-size: 12px; opacity: 0.65; }
 #topbar .stat.compact i { font-size: 10px; }
 
+#resourcebar {
+  position: absolute;
+  top: calc(46px + env(safe-area-inset-top, 0));
+  left: 12px; right: 12px;
+  display: flex; gap: 8px; flex-wrap: wrap;
+  background: rgba(20, 24, 30, 0.78);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 9px;
+  padding: 6px 10px;
+  pointer-events: auto;
+  font-family: inherit;
+  z-index: 11;
+}
+#resourcebar .rs {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px;
+  flex: 1 1 auto; min-width: 0;
+  justify-content: center;
+}
+#resourcebar .rs-icon { font-size: 14px; opacity: 0.95; }
+#resourcebar .rs b { font-weight: 700; font-variant-numeric: tabular-nums; }
+#resourcebar .rs-food b  { color: #b8d77a; }
+#resourcebar .rs-wood b  { color: #9bbd6c; }
+#resourcebar .rs-stone b { color: #a8a8b0; }
+#resourcebar .rs-oil b   { color: #c79a52; }
+#resourcebar .rs-gems b  { color: #b9d6f2; }
+
 #enemies {
   position: absolute;
   top: 8px; right: 12px;

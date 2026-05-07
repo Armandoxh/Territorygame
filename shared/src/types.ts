@@ -130,6 +130,22 @@ export interface ArtilleryUnit {
   nextShotTick: number;
 }
 
+/** Strategic resources tied to terrain. Each region rolls one or two
+ *  primary resources at game start; owning the region (proportional
+ *  to tile share) generates that resource into the player's inventory.
+ *  - oil   (brown / arid highlands)
+ *  - stone (grey / mountains)
+ *  - gems  (gold / rare mountain veins — premium build resource)
+ *  - food  (green / plains, fertile lowlands)
+ *  - wood  (forest tiles)
+ */
+export type ResourceKind = 'oil' | 'stone' | 'gems' | 'food' | 'wood';
+export const RESOURCE_KINDS: readonly ResourceKind[] = ['oil', 'stone', 'gems', 'food', 'wood'];
+export type ResourceBag = Record<ResourceKind, number>;
+export function emptyResourceBag(): ResourceBag {
+  return { oil: 0, stone: 0, gems: 0, food: 0, wood: 0 };
+}
+
 export interface Player {
   id: PlayerId;
   name: string;
@@ -165,6 +181,9 @@ export interface Player {
    *  first launch; AIs are picked at spawn). One of 'ground'|'air'|'naval'. */
   mastery: 'ground' | 'air' | 'naval' | null;
   expanding: boolean;
+  /** Strategic resources extracted from owned region tiles. Generated
+   *  per tick from regions whose primary resources match. */
+  resources: ResourceBag;
 }
 
 export interface Building {

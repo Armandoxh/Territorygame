@@ -94,6 +94,7 @@ export class OverlayLayer {
 
   private readonly _regionLabelLayer: Container;
   private readonly _regionLabels: Map<number, Text>;
+  private readonly _resourceIcons: Map<number, Text> = new Map();
   private readonly _regionCentroids: Float32Array;
 
   flashTap(sx: number, sy: number): void {
@@ -226,7 +227,32 @@ export class OverlayLayer {
     const showRegions = this.renderer.zoom >= OverlayLayer.REGION_LABEL_ZOOM;
     if (!showRegions) {
       for (const t of this._regionLabels.values()) t.visible = false;
+      for (const t of this._resourceIcons.values()) t.visible = false;
       return;
+    }
+    // Resource icons (emoji) get drawn just above each region label.
+    // Same zoom gate as labels — they're region-level decorators.
+    const RESOURCE_GLYPHS: Record<string, string> = {
+      food: '🌾', wood: '🌲', stone: '⛰', oil: '🛢', gems: '💎',
+    };
+    for (let r = 1; r <= this.game.regionCount; r++) {
+      const kind = this.game.regionResources[r];
+      if (!kind) continue;
+      const cx = this._regionCentroids[r * 2]!;
+      const cy = this._regionCentroids[r * 2 + 1]!;
+      let icon = this._resourceIcons.get(r);
+      if (!icon) {
+        icon = new Text({
+          text: RESOURCE_GLYPHS[kind] ?? '·',
+          style: { fontSize: 14, fill: 0xffffff },
+        });
+        icon.anchor.set(0.5, 1.0);
+        this._regionLabelLayer.addChild(icon);
+        this._resourceIcons.set(r, icon);
+      }
+      const s = this.renderer.worldToScreen(cx, cy);
+      icon.position.set(s.x, s.y - 8);
+      icon.visible = true;
     }
     const palette = this.game.config.PLAYER_COLORS;
     for (let r = 1; r <= this.game.regionCount; r++) {

@@ -543,3 +543,32 @@ WHY: User feedback — single-shot artillery felt anonymous, and a 1-tile
 line tank push didn't feel like a steamroll. Both are now visibly
 expressive: artillery has a deployment story (roll → fire → leave),
 tanks paint a wedge of conquered territory you can see at a glance.
+
+---
+
+[pending] gameplay: resource layer (Phase 1 of "depth" overhaul)
+
+Adding strategic resources (food/wood/stone/oil/gems) as a parallel
+economy alongside gold. Phase 1 lands the layer; Phases 2+3 add
+cost/upkeep rework and trade routes. Shipped in this commit:
+
+  • New ResourceKind type + ResourceBag helper.
+  • Per-region resource assignment at game start. Distribution:
+    food 30%, wood 25%, stone 22%, oil 15%, gems 8%. Deterministic
+    per-region (hash on regionId).
+  • Player.resources inventory (5 floats, 0-init).
+  • _generateResources runs each tick: every owned tile in a region
+    contributes its region's resource at a per-resource rate. Gems
+    intentionally an order of magnitude slower so they stay scarce.
+  • Vassal target picker: regions with a resource the leader is short
+    on (< 100 inventory) get +600 score. Vassals naturally roll toward
+    strategically valuable land.
+  • Top-bar resource strip showing all 5 inventories with per-resource
+    color coding (food green, wood olive, stone grey, oil amber, gems
+    blue-white).
+  • OverlayLayer: resource emoji per region centroid (🌾🌲⛰🛢💎),
+    visible at the same zoom the region names show.
+
+NEXT (per user spec):
+  • Phase 2: building costs in resources + per-tick resource upkeep.
+  • Phase 3: indefinite resource trades between players.

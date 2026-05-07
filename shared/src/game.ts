@@ -5,7 +5,9 @@ import type {
   Ship, ShipKind, ShipBuildError,
   Plane, ArtilleryUnit,
   TradeRoute, ExternalTradeRoute,
+  ResourceKind,
 } from './types.js';
+import { RESOURCE_KINDS } from './types.js';
 import { TERRAIN_LAND } from './types.js';
 import { Territory } from './territory.js';
 import { generateTerrain } from './terrain.js';
@@ -99,6 +101,10 @@ export class Game {
    *  vassal autonomy — a vassal stays in charge while it holds the majority
    *  even if the region isn't 100% cleared. */
   private _regionDominant!: Uint8Array;
+  /** Primary strategic resource per region, indexed by regionId.
+   *  Empty string for region 0 (water). One resource per region —
+   *  owning the region's tiles generates that resource per tick. */
+  regionResources: (ResourceKind | null)[] = [];
   /** Random country-style name per region ("Kingdom of …"). Set at boot. */
   regionNames: string[] = [];
   /** Random country-style name per player (their "empire"). Set at boot.
@@ -333,6 +339,7 @@ export class Game {
     this._settlementLevelsByRegion = new Float32Array((this.regionCount + 1) * 256);
     this._settlementLevelsByOwner.fill(0);
     this.regionNames = generateRegionNames(this.regionCount);
+    this._assignRegionResources();
     // One empire-name per player (1..N); index 0 unused.
     this.playerEmpireNames = generateRegionNames(this.players.length - 1);
     this._tilesByRegion = [];
@@ -605,6 +612,7 @@ export class Game {
     this._aiOfferTradeRoutes();
     this._applyTradeFlow();
     this._earnGoldAll();
+    this._generateResources();
     this._growTroops();
     this._vassalsThink();
     for (let id = 1; id < this.players.length; id++) {
@@ -1532,6 +1540,7 @@ export class Game {
       activeBuffs: {},
       mastery,
       expanding: !isHuman,
+      resources: { oil: 0, stone: 0, gems: 0, food: 0, wood: 0 },
     };
   }
 
@@ -2603,6 +2612,15 @@ export class Game {
       if (threatPlayer > 0 && dominantEnemy === threatPlayer) {
         score += 800;
       }
+      // Resource priority: regions with a resource the leader is short
+      // on get a big boost, so vassals naturally roll toward
+      // strategically valuable land. "Short on" = inventory below 100
+      // for that resource. Stacks per matching kind so a region we
+      // genuinely need pulls hard.
+      const kind = this.regionResources[r];
+      if (kind && (leader.resources[kind] ?? 0) < 100) {
+        score += 600;
+      }
       if (score > bestScore) {
         bestScore = score;
         bestRegion = r;
@@ -2909,6 +2927,65 @@ export class Game {
   // 256 ops per call is trivial. When dominance flips to a NEW human owner,
   // we wake their vassal AI immediately so it can pick a target on the
   // next expansion tick instead of waiting up to VASSAL_THINK_INTERVAL.
+  /** Assign one primary resource to each region at game start.
+   *  Distribution targets:
+   *    food   ~30%   (plains/lowlands — common, drives settlements)
+   *    wood   ~25%   (forest — common)
+   *    stone  ~22%   (highlands/mountains — common, drives turrets)
+   *    oil    ~15%   (less common — needed for air/naval)
+   *    gems   ~8%    (rare — premium, gates upgrades)
+   *  Deterministic per-region: hashes regionId so a fresh game with
+   *  the same region count gets the same distribution.
+   */
+  private _assignRegionResources(): void {
+    this.regionResources = [];
+    this.regionResources[0] = null; // water
+    for (let r = 1; r <= this.regionCount; r++) {
+      // Cheap deterministic hash on regionId.
+      const h1 = Math.sin(r * 12.9898 + 78.233) * 43758.5453;
+      const h = h1 - Math.floor(h1); // 0..1
+      let kind: ResourceKind;
+      if      (h < 0.30) kind = 'food';
+      else if (h < 0.55) kind = 'wood';
+      else if (h < 0.77) kind = 'stone';
+      else if (h < 0.92) kind = 'oil';
+      else               kind = 'gems';
+      this.regionResources[r] = kind;
+    }
+  }
+
+  /** Per-tick: generate resources from regions the player owns tiles in.
+   *  Each owned tile in a region produces a small fraction of that
+   *  region's resource. Regions with rarer resources (gems) generate at
+   *  a slower rate to preserve scarcity.
+   */
+  private _generateResources(): void {
+    const owners = this.territory.owners;
+    const regions = this.regions;
+    const players = this.players;
+    // Per-resource generation rate per tile per tick. Tuned so a
+    // typical 50-tile region gives ~0.5 wood/sec etc. Gems intentionally
+    // an order of magnitude slower.
+    const RATE: Record<ResourceKind, number> = {
+      food:  0.0015,
+      wood:  0.0015,
+      stone: 0.0012,
+      oil:   0.0008,
+      gems:  0.0002,
+    };
+    for (let i = 0; i < owners.length; i++) {
+      const oid = owners[i]!;
+      if (oid === 0) continue;
+      const r = regions[i]!;
+      if (r === 0) continue;
+      const kind = this.regionResources[r];
+      if (!kind) continue;
+      const p = players[oid];
+      if (!p || !p.alive) continue;
+      p.resources[kind] += RATE[kind];
+    }
+  }
+
   private _recomputeDominant(regionId: number): void {
     const total = this._regionTotal[regionId]!;
     if (total === 0) { this._regionDominant[regionId] = 0; return; }
