@@ -66,7 +66,7 @@ export class Renderer {
     this.world = new Container();
     this.app.stage.addChild(this.world);
 
-    this.territoryLayer = new TerritoryShaderLayer(game.territory, game.config);
+    this.territoryLayer = new TerritoryShaderLayer(game.territory, game.config, game.resourceByTile);
     this.world.addChild(this.territoryLayer.sprite);
 
     // Region outlines as VECTOR polylines instead of a pixel sprite. Each

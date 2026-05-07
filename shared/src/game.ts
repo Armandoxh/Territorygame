@@ -105,6 +105,11 @@ export class Game {
    *  Empty string for region 0 (water). One resource per region —
    *  owning the region's tiles generates that resource per tick. */
   regionResources: (ResourceKind | null)[] = [];
+  /** Per-tile numeric resource id (0..5) — denormalized from
+   *  regionResources for the territory shader's B-channel encoding.
+   *  0 = none (water), 1 = food, 2 = wood, 3 = stone, 4 = oil, 5 = gems.
+   *  Resources are static after game init so this never changes. */
+  resourceByTile!: Uint8Array;
   /** Random country-style name per region ("Kingdom of …"). Set at boot. */
   regionNames: string[] = [];
   /** Random country-style name per player (their "empire"). Set at boot.
@@ -2969,6 +2974,19 @@ export class Game {
       else if (h < 0.92) kind = 'oil';
       else               kind = 'gems';
       this.regionResources[r] = kind;
+    }
+    // Denormalize to a per-tile lookup (Uint8Array) so the territory
+    // shader can pack the resource id into its texture without a JS
+    // map traversal per tile during flushDirty.
+    const N = this.regions.length;
+    this.resourceByTile = new Uint8Array(N);
+    const idMap: Record<ResourceKind, number> = {
+      food: 1, wood: 2, stone: 3, oil: 4, gems: 5,
+    };
+    for (let i = 0; i < N; i++) {
+      const reg = this.regions[i]!;
+      const kind = reg > 0 ? this.regionResources[reg] : null;
+      this.resourceByTile[i] = kind ? idMap[kind] : 0;
     }
   }
 

@@ -610,3 +610,32 @@ game neglect actually has consequences.
 NEXT (Phase 4): trade overhaul — resource-specific trades, indefinite
 flow until cancelled, AI-aware ("I need stone, propose stone-for-oil
 trade"), with diplomatic pressure when needs aren't met.
+
+---
+
+[pending] graphics: biomes match the region's resource
+
+WHAT:
+  • Per-tile resource id now encoded into territory texture B channel.
+    game.resourceByTile pre-computes id per tile from regionResources;
+    flushDirty + _fillFromGrid write it. Static after init.
+  • Shader land branch rewritten: biome color is picked from resource
+    id (food = golden plains, wood = deep forest, stone = cool grey,
+    oil = dark earthy brown, gems = silvery white). No more arbitrary
+    elevation/moisture coloring — the map's color now teaches the
+    player what each region produces.
+  • Each resource has a distinct PROCEDURAL pattern overlay:
+      food  → wheat-row striping + crop divisions
+      wood  → tree-blob noise clusters with canopy highlights
+      stone → rocky chunks + cracks
+      oil   → viscous splotches with iridescent slick highlights
+      gems  → rare animated sparkle points on silver base
+    All cheap fragment-level procedurals — no asset pipeline.
+  • Bilinear smoothing of owner tints still wraps over the resource
+    biome so empire colors blend smoothly across resource regions.
+
+WHY: User pointed out that Phase 2 polish was incomplete — the colors
+were arbitrary biome bands not tied to resources. Now the map's
+visual layer literally communicates the strategic layer. You can spot
+oil regions (dark slick), wood (tree clusters), gems (sparkle) at a
+glance from any zoom — vital with the new resource-cost economy.

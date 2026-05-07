@@ -7,16 +7,15 @@ import type { GameConfig } from '@territorygame/shared';
 //
 //   R = owner id (0 = unclaimed, 1..254 = player)
 //   G = terrain kind (0 = land, 1 = shallow water, 2 = deep water)
-//   B = tick stamp byte (tickCount & 0xFF) — written every time a tile is
-//       repainted from the dirty set. The shader compares this against the
-//       current uTickByte uniform to fade in a pulse highlight on tiles
-//       that were just claimed (or lost). Wraps every 256 ticks (~25.6s
-//       at 10 Hz) — fine since the pulse duration is ~1.5s.
+//   B = strategic resource id (0 = none, 1 = food, 2 = wood, 3 = stone,
+//       4 = oil, 5 = gems). Static after game init — set once from
+//       game.resourceByTile and never re-stamped.
 //
 // A custom fragment shader reads those bytes plus a player-color palette
-// uniform and renders the gritty parchment / ink-border / water look without
-// any per-tile CPU work after the initial fill. Per-tick cost is just a
-// canvas patch over the dirty tiles, same as before.
+// uniform and renders the painted-map look — biome color is determined
+// by RESOURCE (so each region's hue tells you what it produces) plus a
+// distinct procedural stylistic pattern per resource (wheat rows, tree
+// blobs, rocky chunks, oil splotches, gem sparkles).
 
 const VERT = /* glsl */ `#version 300 es
 in vec2 aPosition;
@@ -147,40 +146,60 @@ void main() {
       col += vec3(-0.02, 0.02, 0.04) * (0.4 + waveMix * 0.6);
     }
   } else {
-    // Land — biome elevation noise gives visible terrain variation
-    // (forests, plains, highlands), then owner tint washes over the top.
-    // Grain stays for paper texture.
+    // Land — biome color is determined by the region's RESOURCE (oil
+    // brown, stone grey, gems silver, food gold, wood deep green).
+    // Each resource also gets a procedural stylistic pattern overlay
+    // so you can tell at a glance what a region produces.
+    int rid = int(src.b * 255.0 + 0.5);
     grain = fbm(tileP * 0.45) - 0.36;
-    // Elevation: low-frequency 4-octave noise so each region has its
-    // own character. Range roughly [0, 1].
-    float elev = fbm4(tileP * 0.025);
-    // Biome moisture: independent noise. Drives forest vs plains vs arid.
-    float moist = fbm(tileP * 0.045 + vec2(73.0, 19.0));
-    // Biome base palette (parchment-toned, painterly):
-    //   < 0.32 elev → coastal lowland (light sandy/beige)
-    //   < 0.55 elev → plains (warmer green-tan, varies by moist)
-    //   < 0.75 elev → highlands (darker olive/brown)
-    //   else        → mountains (granite gray-brown, ridged)
-    vec3 biome;
-    if (elev < 0.32) {
-      biome = mix(vec3(0.78, 0.69, 0.50), vec3(0.70, 0.62, 0.44), elev / 0.32);
-    } else if (elev < 0.55) {
-      vec3 plains   = vec3(0.62, 0.60, 0.40);
-      vec3 forested = vec3(0.40, 0.48, 0.30);
-      biome = mix(plains, forested, smoothstep(0.35, 0.75, moist));
-    } else if (elev < 0.75) {
-      vec3 hill    = vec3(0.50, 0.46, 0.34);
-      vec3 forest  = vec3(0.32, 0.38, 0.26);
-      biome = mix(hill, forest, smoothstep(0.40, 0.80, moist));
-    } else {
-      // Ridged mountain: invert the noise to get crisp ridge-lines
-      float ridge = 1.0 - abs(fbm(tileP * 0.18) * 2.0 - 1.0);
-      biome = mix(vec3(0.45, 0.42, 0.38), vec3(0.78, 0.74, 0.66), ridge * 0.55);
+
+    vec3 base;
+    if      (rid == 1) base = vec3(0.78, 0.72, 0.36); // food — golden plains
+    else if (rid == 2) base = vec3(0.32, 0.45, 0.26); // wood — deep forest green
+    else if (rid == 3) base = vec3(0.52, 0.52, 0.55); // stone — cool grey
+    else if (rid == 4) base = vec3(0.32, 0.24, 0.18); // oil — dark earthy brown
+    else if (rid == 5) base = vec3(0.78, 0.80, 0.86); // gems — silvery white
+    else               base = vec3(0.62, 0.58, 0.42); // none — neutral parchment-tan
+
+    // Stylistic pattern per resource. Each is a cheap procedural at the
+    // fragment level, layered on top of the base color.
+    if (rid == 1) {
+      // Food: soft wheat-row striping at ~30°
+      float wheat = sin((tileP.x + tileP.y * 0.6) * 1.8) * 0.5 + 0.5;
+      base = mix(base, base * vec3(1.10, 1.05, 0.85), wheat * 0.18);
+      // Subtle dark crop divisions
+      float divs = step(0.92, fract(tileP.x * 0.18 + tileP.y * 0.05));
+      base *= 1.0 - divs * 0.10;
+    } else if (rid == 2) {
+      // Wood: tree-blob noise — clusters of darker green for tree canopies
+      float blob = vnoise(tileP * 0.85);
+      float trees = smoothstep(0.45, 0.85, blob);
+      base = mix(base, base * vec3(0.65, 0.85, 0.55), trees * 0.55);
+      // Tiny canopy highlights
+      float dot = step(0.92, vnoise(tileP * 1.7 + 3.0));
+      base += vec3(0.04, 0.06, 0.03) * dot;
+    } else if (rid == 3) {
+      // Stone: high-contrast rocky chunks
+      float rocks = vnoise(tileP * 0.55);
+      float crack = abs(vnoise(tileP * 1.3) - 0.5);
+      base = mix(base, base * vec3(1.20, 1.18, 1.15), smoothstep(0.55, 0.85, rocks) * 0.55);
+      base *= 1.0 - smoothstep(0.0, 0.06, crack) * 0.10;
+    } else if (rid == 4) {
+      // Oil: viscous splotchy pattern, dark with iridescent sheen
+      float splot = vnoise(tileP * 0.50);
+      base = mix(base, vec3(0.10, 0.08, 0.06), smoothstep(0.45, 0.80, splot) * 0.55);
+      // Faint oil-slick rainbow on highlights
+      float slick = smoothstep(0.78, 0.95, splot);
+      base += vec3(0.04, 0.02, 0.05) * slick;
+    } else if (rid == 5) {
+      // Gems: rare bright sparkle points on a cool silver base
+      base += grain * vec3(0.06, 0.06, 0.08);
+      float spark = step(0.985, vnoise(tileP * 3.7 + 17.0)) + step(0.985, vnoise(tileP * 5.1 - 8.0));
+      base += vec3(0.55, 0.55, 0.65) * spark * (0.5 + 0.5 * sin(uTime * 2.0 + tileP.x + tileP.y));
     }
-    // Add subtle directional shading using elevation gradient (hill shading)
-    float shade = (fbm4(tileP * 0.025 + vec2(1.0, 0.0)) - elev) * 8.0;
-    biome *= 1.0 + clamp(shade, -0.18, 0.18);
-    vec3 parchmentCol = biome * (1.0 + grain * 0.18);
+
+    // Grain modulation applies on top so paper-grain still reads.
+    vec3 parchmentCol = base * (1.0 + grain * 0.18);
     if (uSmoothMode > 0.5) {
       // BILINEAR SMOOTH: sample the 4 nearest tile centers (tile centers
       // sit at half-integer world coords, so the half-tile grid). Look up
@@ -354,6 +373,7 @@ export class TerritoryShaderLayer {
   readonly sprite: Sprite;
   private readonly territory: Territory;
   private readonly config: GameConfig;
+  private readonly resourceByTile: Uint8Array;
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly imageData: ImageData;
@@ -362,9 +382,10 @@ export class TerritoryShaderLayer {
   private readonly uniforms: UniformGroup;
   private readonly palette: Float32Array;
 
-  constructor(territory: Territory, config: GameConfig) {
+  constructor(territory: Territory, config: GameConfig, resourceByTile: Uint8Array) {
     this.territory = territory;
     this.config = config;
+    this.resourceByTile = resourceByTile;
 
     this.canvas = document.createElement('canvas');
     this.canvas.width = territory.width;
@@ -421,21 +442,23 @@ export class TerritoryShaderLayer {
     this.sprite.filters = [this.filter];
   }
 
-  /** Push the canvas owner/terrain/stamp bytes for any dirty tile, then
-   *  bump the texture so the GPU re-uploads. The stamp byte (B channel)
-   *  is the current tickCount mod 256 — the shader reads it to fade in
-   *  the frontier-claim pulse on freshly-flipped tiles. */
-  flushDirty(tickByte: number): void {
+  /** Push the canvas owner/terrain/resource bytes for any dirty tile,
+   *  then bump the texture so the GPU re-uploads. B channel is the
+   *  per-tile resource id (static after init); we still rewrite it per
+   *  flush so a later expansion of the system can mutate resources
+   *  without a separate code path. */
+  flushDirty(_tickByte: number): void {
     const dirty = this.territory.dirty;
     if (dirty.size === 0) return;
     const data = this.imageData.data;
     const owners = this.territory.owners;
     const terrain = this.territory.terrain;
+    const resByTile = this.resourceByTile;
     for (const i of dirty) {
       const di = i * 4;
       data[di]     = owners[i]!;
       data[di + 1] = terrain[i]!;
-      data[di + 2] = tickByte;
+      data[di + 2] = resByTile[i]!;
       data[di + 3] = 255;
     }
     this.ctx.putImageData(this.imageData, 0, 0);
@@ -476,12 +499,13 @@ export class TerritoryShaderLayer {
     const data = this.imageData.data;
     const owners = this.territory.owners;
     const terrain = this.territory.terrain;
+    const resByTile = this.resourceByTile;
     const N = owners.length;
     for (let i = 0; i < N; i++) {
       const di = i * 4;
       data[di]     = owners[i]!;
       data[di + 1] = terrain[i]!;
-      data[di + 2] = 0;
+      data[di + 2] = resByTile[i]!;
       data[di + 3] = 255;
     }
     void TERRAIN_LAND; void TERRAIN_WATER; void TERRAIN_DEEP;
