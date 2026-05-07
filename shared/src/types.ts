@@ -7,7 +7,7 @@ export const TERRAIN_LAND = 0;
 export const TERRAIN_WATER = 1;
 export const TERRAIN_DEEP = 2;
 
-export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'aa';
+export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'aa' | 'port' | 'artillery';
 
 export type BombType = 'small' | 'large' | 'ac130' | 'stealth';
 

@@ -392,6 +392,8 @@ export class OverlayLayer {
     const settleR = this.game.config.SETTLEMENT_RADIUS;
     const turretR = this.game.config.TURRET_RADIUS;
     const aaR     = this.game.config.AA_RADIUS;
+    const portR   = this.game.config.PORT_RADIUS;
+    const artyR   = this.game.config.TURRET_RADIUS + 3; // matches _rebuildTurretCache base
     const regions = this.game.regions;
     const W = this.game.territory.width;
     // Late-game perf gate: when there are lots of buildings AND the
@@ -426,6 +428,16 @@ export class OverlayLayer {
         g.circle(s.x, s.y, aaR * this.renderer.zoom)
          .fill({ color, alpha: 0.04 })
          .stroke({ color: 0x9bd9ea, alpha: 0.45, width: 1 });
+      } else if (b.type === 'port') {
+        // Port: blue-tinted ring over water — denies enemy ships.
+        g.circle(s.x, s.y, portR * this.renderer.zoom)
+         .fill({ color, alpha: 0.04 })
+         .stroke({ color: 0x4f9aff, alpha: 0.45, width: 1 });
+      } else if (b.type === 'artillery') {
+        // Artillery: orange-tinted ring — bigger than turret, no fill so
+        // it doesn't get confused with one.
+        g.circle(s.x, s.y, artyR * this.renderer.zoom)
+         .stroke({ color: 0xeb8a3a, alpha: 0.50, width: 1 });
       }
     }
 
@@ -484,7 +496,6 @@ export class OverlayLayer {
         fillStroke();
       } else if (b.type === 'aa') {
         // AA gun: trapezoid base + two angled barrels pointing up.
-        // Distinct from turret's solid triangle so the role reads at a glance.
         g.poly([
           cx - r * 0.85, cy + r * 0.7,
           cx + r * 0.85, cy + r * 0.7,
@@ -492,7 +503,6 @@ export class OverlayLayer {
           cx - r * 0.55, cy - r * 0.05,
         ]);
         fillStroke();
-        // Twin barrels (angled outwards, dark)
         g.poly([
           cx - r * 0.10, cy - r * 0.05,
           cx - r * 0.45, cy - r * 0.95,
@@ -505,6 +515,30 @@ export class OverlayLayer {
           cx + r * 0.25, cy - r * 1.00,
           cx - r * 0.05, cy - r * 0.10,
         ]).fill({ color: 0x222426 }).stroke({ color: 0xffffff, alpha: 0.85, width: 0.9 });
+      } else if (b.type === 'port') {
+        // Port: anchor silhouette in owner tint sitting on a small dock.
+        g.rect(cx - r * 0.85, cy + r * 0.55, r * 1.70, r * 0.30).fill({ color: 0x222426 });
+        g.circle(cx, cy - r * 0.55, r * 0.32);
+        fillStroke();
+        g.rect(cx - r * 0.10, cy - r * 0.20, r * 0.20, r * 0.95).fill({ color }).stroke({ color: 0xffffff, alpha: 0.9, width: 0.8 });
+        g.poly([
+          cx - r * 0.55, cy + r * 0.55,
+          cx - r * 0.30, cy + r * 0.20,
+          cx + r * 0.30, cy + r * 0.20,
+          cx + r * 0.55, cy + r * 0.55,
+        ]).stroke({ color: 0xffffff, alpha: 0.9, width: 1.4 });
+      } else if (b.type === 'artillery') {
+        // Cannon barrel + base. Reads as a long-range piece.
+        g.rect(cx - r * 0.65, cy + r * 0.40, r * 1.30, r * 0.35).fill({ color: 0x222426 });
+        g.poly([
+          cx - r * 0.20, cy + r * 0.40,
+          cx + r * 0.95, cy - r * 0.45,
+          cx + r * 0.85, cy - r * 0.65,
+          cx - r * 0.30, cy + r * 0.20,
+        ]);
+        fillStroke();
+        g.circle(cx - r * 0.30, cy + r * 0.55, r * 0.20).fill({ color: 0x111315 });
+        g.circle(cx + r * 0.40, cy + r * 0.65, r * 0.20).fill({ color: 0x111315 });
       }
       // Tier dots above L1. L1-L3 use small gold pips (1, 2 pips for L2/L3).
       // L4-L6 (bronze/silver/diamond) get a colored gem cluster that

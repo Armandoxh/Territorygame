@@ -381,3 +381,67 @@ WHY: User reported vassals were independently dragging them into
 wars by bombing neighbors. Foreign policy is a leader-only decision —
 vassals should expand into neutrals + fight wars the leader has
 sanctioned, but never start one on their own.
+
+---
+
+[pending] gameplay: AA tiers + Defense Port + Artillery + ground perks
+
+Late-game air dominance was a real problem — mass-bomb spam was the
+dominant strategy and most AIs never built AA (it was air-mastery
+gated). Ground play also lacked active push abilities while air/naval
+had bombs/ships to tilt fights.
+
+WHAT:
+  AA overhaul:
+    • Per-level hit rates: L1 50%, L2 60%, L3 75%, L4+ (consolidated)
+      85%. _aaHitChanceFor helper.
+    • AA included in _tryConsolidate so 5 same-tier cluster auto-
+      upgrades (Bronze/Silver/Diamond), like settlements/turrets.
+    • AA no longer gated on air-mastery — every player can build it.
+      Defense should be universal; mastery still differentiates
+      offense (airstrips/bombs).
+    • aaCount per region cap added (1 per 50 tiles).
+
+  Defense Port (NEW building):
+    • New BuildingType 'port'. Cost 180g. Coastal-only (rejected if
+      no adjacent water tile).
+    • _portsTick scans every tick: each port rolls one shot per
+      enemy ship in PORT_RADIUS (8). Hit rate uses same tier scale
+      as AA (L1 50% → L4+ 85%). Damage 25 base, ×1.25 / ×1.50 / ×2
+      by tier.
+    • Same auto-consolidation as AA.
+    • _anyEnemyHasShips drives AI port-build trigger (mirror of AA).
+    • Build-sheet button hotkey P, anchor icon, blue-tinted ring.
+
+  Artillery (NEW building):
+    • New BuildingType 'artillery'. Cost 140g. Long range (turret
+      base radius +3) but NO defense bonus — only retaliation.
+      3× turret retaliation per level, so a bronze artillery covers
+      a wide area and shreds attackers passing through.
+    • Same auto-consolidation as turret.
+    • Hotkey R. Cannon icon, orange-tinted ring.
+
+  Ground active abilities (NEW):
+    • Blitzkrieg (cost 900, 30s cooldown, instant): each region you
+      dominate fires a BFS burst from its frontier, claiming up to
+      10 tiles deep. Ignores defense. Only takes neutral or at-war
+      tiles (no auto-declare). Per-region cap so the burst feels
+      like a deep push from each vassal rather than a global cone.
+    • Tank Rush (cost 1100, 80s cooldown, 15s duration): empire-
+      wide ×2.0 attacker combat-power multiplier. Stacks
+      multiplicatively with Veterans / Rally / focus.
+    • Both wired into activateAbility with effects in _fireBlitzkrieg
+      / _tankRushMult. Surface in the existing commander abilities
+      panel automatically.
+
+WHY: User reported (a) air-spam dominated late game with no real
+counter, (b) AI rarely built AA so air players had free reign,
+(c) ground mastery felt purely passive while air/naval had active
+push tools. Three new structures + two new active abilities give
+ground a comparable late-game power curve and force air players
+to commit to bigger payloads (or stealth) to break through.
+
+User asked for tank "steamroll" — implemented as Tank Rush ability
+since per-tile units would require a lot more engine work.
+Blitzkrieg is the per-vassal burst as requested. Both are listed
+in the abilities panel and pay from treasury.

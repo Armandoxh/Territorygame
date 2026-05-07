@@ -620,6 +620,7 @@ export class Game {
     }
     this._shipsTick();
     this._planesTick();
+    this._portsTick();
     this._checkVictory();
   }
 
@@ -668,6 +669,9 @@ export class Game {
     if (type === 'turret')     return 1 + Math.floor(regionTiles / 25);
     if (type === 'settlement') return 1 + Math.floor(regionTiles / 35);
     if (type === 'airstrip')   return 1 + Math.floor(regionTiles / 60);
+    if (type === 'aa')         return 1 + Math.floor(regionTiles / 50);
+    if (type === 'port')       return 1 + Math.floor(regionTiles / 60);
+    if (type === 'artillery')  return 1 + Math.floor(regionTiles / 40);
     return 0;
   }
 
@@ -709,7 +713,19 @@ export class Game {
     // Mastery gate. Settlement + turret are always available; airstrip
     // and AA require the AIR mastery.
     if (type === 'airstrip' && !this.isUnlocked(ownerId, 'airstrip')) return 'locked';
-    if (type === 'aa' && !this.isUnlocked(ownerId, 'aa')) return 'locked';
+    // AA, port, artillery are defensive buildings available to everyone.
+    // Earlier design gated AA behind air-mastery, but that left ground/
+    // naval AIs unable to defend at all and air-mastery dominated late
+    // game. Defense should be universal; mastery differentiates offense.
+    // Defense Port must sit on a coastal tile (land tile with at least
+    // one adjacent water tile) — that's its whole job.
+    if (type === 'port') {
+      let coastal = false;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        if (this._isWaterTile(x + dx, y + dy)) { coastal = true; break; }
+      }
+      if (!coastal) return 'not-yours';
+    }
     // Master Builder discount applies to leader-paid builds only —
     // vassal-funded builds use their own pool at face value (the
     // discount is a leader-side investment).
@@ -729,7 +745,7 @@ export class Game {
       this._applySettlement(x, y, +1, this._settlementRadius(1));
       this._adjSettlementLevels(x, y, ownerId, +1);
     }
-    if (type === 'turret') this._turretCacheDirty = true;
+    if (type === 'turret' || type === 'artillery') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: type, ownerId });
     // A new L1 won't trigger consolidation (we need 5 of same tier+),
     // but call anyway to keep the code path uniform with tryUpgrade.
@@ -767,7 +783,7 @@ export class Game {
       this._applySettlement(b.x, b.y, +1, this._settlementRadius(b.level));
       this._adjSettlementLevels(b.x, b.y, ownerId, +1);
     }
-    if (b.type === 'turret') this._turretCacheDirty = true;
+    if (b.type === 'turret' || b.type === 'artillery') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: b.type, ownerId });
     this._tryConsolidate(b);
     return null;
@@ -1481,10 +1497,88 @@ export class Game {
     } else if (abilityId === 'embargo') {
       const t = this.players[targetId!];
       if (t) t.activeBuffs['embargoed'] = this.tickCount + a.duration;
+    } else if (abilityId === 'blitzkrieg') {
+      // Each vassal under this leader claims up to 10 tiles deep along
+      // its frontier, ignoring defense. Burst applies once per fire.
+      this._fireBlitzkrieg(p);
+    } else if (abilityId === 'tank-rush') {
+      // Empire-wide attacker combat-power multiplier for 15s. Read
+      // in _expand attack calc via _tankRushMult.
+      p.activeBuffs['tank-rush'] = this.tickCount + a.duration;
     }
 
     this.events.push({ type: 'ability-fired', abilityId, ownerId: playerId, targetId });
     return null;
+  }
+
+  /** Empire-wide attacker combat-power multiplier from Tank Rush
+   *  ability (15s, ×2.0). Stacks multiplicatively with veterans /
+   *  rally / focus.  */
+  private _tankRushMult(p: Player): number {
+    return this._abilityActive(p, 'tank-rush') ? 2.0 : 1;
+  }
+
+  /** Blitzkrieg burst: for each region this leader dominates, claim up
+   *  to N tiles outward from any frontier tile — ignoring defense and
+   *  war state, but only into NEUTRAL or AT-WAR-with-leader tiles.
+   *  Per-region cap so the burst feels like a deep push from each
+   *  vassal rather than a global cone. Doesn't auto-declare war —
+   *  it only operates against tiles you can already legally take. */
+  private _fireBlitzkrieg(p: Player): void {
+    const PER_REGION_DEPTH = 10;
+    const W = this.territory.width;
+    const territory = this.territory;
+    const claimedThisFire = new Set<number>();
+    for (let r = 1; r <= this.regionCount; r++) {
+      if (this._regionDominant[r] !== p.id) continue;
+      const frontierTiles: number[] = [];
+      const tiles = this._tilesByRegion[r];
+      if (!tiles) continue;
+      for (const i of tiles) {
+        if (territory.owners[i] !== p.id) continue;
+        const x = i % W, y = (i - x) / W;
+        if (this._hasEnemyNeighbor(x, y, p.id)) frontierTiles.push(i);
+      }
+      // BFS outward from each frontier tile, claim along the way.
+      const queue: Array<[number, number, number]> = []; // x, y, depth
+      const visited = new Set<number>();
+      for (const i of frontierTiles) {
+        const x = i % W, y = (i - x) / W;
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+          queue.push([x + dx, y + dy, 1]);
+        }
+      }
+      let claimedInRegion = 0;
+      while (queue.length > 0 && claimedInRegion < PER_REGION_DEPTH) {
+        const [x, y, depth] = queue.shift()!;
+        if (depth > PER_REGION_DEPTH) continue;
+        if (!territory.inBounds(x, y)) continue;
+        if (!territory.isPassable(x, y)) continue;
+        const idx = y * W + x;
+        if (visited.has(idx) || claimedThisFire.has(idx)) continue;
+        visited.add(idx);
+        const o = territory.getOwner(x, y);
+        if (o === p.id) {
+          // Already ours — keep BFSing through.
+          for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+            queue.push([x + dx, y + dy, depth]);
+          }
+          continue;
+        }
+        // Tiles we can take: neutral OR at-war non-allied.
+        if (o > 0) {
+          if (this.areAllied(p.id, o)) continue;
+          if (!this.areAtWar(p.id, o)) continue;
+        }
+        if (this._capitalIndexAt(x, y) >= 0) continue;
+        if (!this._claim(x, y, p.id)) continue;
+        claimedThisFire.add(idx);
+        claimedInRegion++;
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+          queue.push([x + dx, y + dy, depth + 1]);
+        }
+      }
+    }
   }
 
   // --- Alliances --------------------------------------------------------
@@ -2252,7 +2346,7 @@ export class Game {
     // enemy has airstrips/planes. tryBuild's lock check passes only if
     // leader has AIR mastery, so the isUnlocked test guards both lock
     // and intent.
-    if (this.isUnlocked(leader.id, 'aa') && aaCount < aaCap && this._anyEnemyHasAir(leader.id)) {
+    if (aaCount < aaCap && this._anyEnemyHasAir(leader.id)) {
       const aaCost = this.config.BUILDING_COSTS.aa;
       if (vGold >= reserve + aaCost) {
         const candidates = safe.length > 0 ? safe : exposed;
@@ -2265,6 +2359,29 @@ export class Game {
               return;
             }
           }
+        }
+      }
+    }
+
+    // 1c. NAVAL DEFENCE — coastal Defense Port if enemies have ships
+    // and this region has coastal land.
+    const portCount = this._countBuildingsInRegion(regionId, leader.id, 'port');
+    const portCap = Math.max(1, Math.floor(tiles.length / 60));
+    if (portCount < portCap && this._anyEnemyHasShips(leader.id)) {
+      const portCost = this.config.BUILDING_COSTS.port;
+      if (vGold >= reserve + portCost) {
+        for (const i of safe.concat(exposed)) {
+          const x = i % W, y = (i - x) / W;
+          let coastal = false;
+          for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+            if (this._isWaterTile(x + dx, y + dy)) { coastal = true; break; }
+          }
+          if (!coastal) continue;
+          if (this.tryBuild('port', x, y, leader.id, regionId) === null) {
+            this.events.push({ type: 'vassal-built', regionId, ownerId: leader.id, buildingType: 'port' });
+            return;
+          }
+          break;
         }
       }
     }
@@ -2897,6 +3014,62 @@ export class Game {
     return 1 + Math.min(0.40, levels * 0.04);
   }
 
+  /** Per-AA-level shootdown probability. L1 weak, L3 reliable, L4+
+   *  (consolidated) very reliable. Same scale used for Defense Port
+   *  hit rates — cluster a few low-tier AAs to consolidate into a
+   *  high-tier umbrella that actually denies airspace. */
+  private _aaHitChanceFor(level: number): number {
+    if (level >= 4) return 0.85;
+    if (level === 3) return 0.75;
+    if (level === 2) return 0.60;
+    return 0.50;
+  }
+
+  /** Defense Port hit rate uses the same level-tier scale as AA:
+   *  L1 50%, L2 60%, L3 75%, L4+ 85%. Each port rolls once per tick
+   *  per ship in range — so a L3 port in range of a destroyer sinks
+   *  it in ~3 ticks (75 dmg/tick × ~2-3 ticks vs 110 hp). */
+  private _portHitChanceFor(level: number): number {
+    return this._aaHitChanceFor(level);
+  }
+
+  /** Per-tick scan: every Defense Port projects fire onto enemy ships
+   *  within PORT_RADIUS. Each port rolls one shot per tick per ship
+   *  in range, gated by level-based hit chance. Damage stacks across
+   *  ports. Allies and at-peace neighbors are not engaged — same
+   *  peace gate as ship combat. */
+  private _portsTick(): void {
+    if (this.ships.length === 0) return;
+    const r = this.config.PORT_RADIUS;
+    const r2 = r * r;
+    const dmgBase = this.config.PORT_DAMAGE;
+    for (const b of this.buildings) {
+      if (b.type !== 'port') continue;
+      const lvl = b.level ?? 1;
+      const chance = this._portHitChanceFor(lvl);
+      const bx = b.x + 0.5, by = b.y + 0.5;
+      // Higher-tier ports hit harder too: L1 dmg, L2 ×1.25, L3 ×1.5,
+      // L4+ ×2 — combined with the higher hit rate this makes a
+      // bronze port a serious naval deterrent.
+      const dmgMult = lvl >= 4 ? 2.0 : 1 + 0.25 * (lvl - 1);
+      const dmg = dmgBase * dmgMult;
+      for (let i = this.ships.length - 1; i >= 0; i--) {
+        const s = this.ships[i]!;
+        if (s.owner === b.owner) continue;
+        if (this.areAllied(b.owner, s.owner)) continue;
+        if (!this.areAtWar(b.owner, s.owner)) continue;
+        const dx = s.x + 0.5 - bx, dy = s.y + 0.5 - by;
+        if (dx * dx + dy * dy > r2) continue;
+        if (Math.random() >= chance) continue;
+        s.hp -= dmg;
+        if (s.hp <= 0) {
+          this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
+          this.ships.splice(i, 1);
+        }
+      }
+    }
+  }
+
   /** Increment-or-decrement the cached settlement-level totals for the
    *  given tile. Called on every settlement build, upgrade, destroy,
    *  and consolidation event. */
@@ -2937,6 +3110,18 @@ export class Game {
       if (b.owner === playerId) continue;
       if (this.areAllied(b.owner, playerId)) continue;
       const o = this.players[b.owner];
+      if (o && o.alive) return true;
+    }
+    return false;
+  }
+
+  /** True if any non-allied player has at least one ship. Drives the
+   *  AI's Defense Port build trigger — same reactive posture as AA. */
+  private _anyEnemyHasShips(playerId: PlayerId): boolean {
+    for (const s of this.ships) {
+      if (s.owner === playerId) continue;
+      if (this.areAllied(s.owner, playerId)) continue;
+      const o = this.players[s.owner];
       if (o && o.alive) return true;
     }
     return false;
@@ -3061,7 +3246,7 @@ export class Game {
     // 1b. AIR DEFENCE — AIR-mastery AIs build AA when any non-allied
     // player has airstrips (or planes are airborne). Sized by region
     // cap. Reactive, not eager — no point building AA before threats.
-    if (this.isUnlocked(p.id, 'aa') && aaCount < aaCap && this._anyEnemyHasAir(p.id)) {
+    if (aaCount < aaCap && this._anyEnemyHasAir(p.id)) {
       const aaCost = this.config.BUILDING_COSTS.aa;
       if (p.gold >= reserve + aaCost) {
         // Prefer to drop AA on a safe interior tile so it isn't on the
@@ -3073,6 +3258,28 @@ export class Game {
             const x = spot % W, y = (spot - x) / W;
             if (this.tryBuild('aa', x, y, p.id) === null) return;
           }
+        }
+      }
+    }
+
+    // 1c. NAVAL DEFENCE — coastal Defense Port if any non-allied
+    // player has ships and we have coastal land. Same reactive
+    // posture as AA: don't build until there's a threat to deny.
+    const portCount = this._countBuildingsInRegion(regionId, p.id, 'port');
+    const portCap = Math.max(1, Math.floor(tiles.length / 60));
+    if (portCount < portCap && this._anyEnemyHasShips(p.id)) {
+      const portCost = this.config.BUILDING_COSTS.port;
+      if (p.gold >= reserve + portCost) {
+        // Find an owned coastal tile (own + adjacent water).
+        for (const i of safe.concat(exposed)) {
+          const x = i % W, y = (i - x) / W;
+          let coastal = false;
+          for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+            if (this._isWaterTile(x + dx, y + dy)) { coastal = true; break; }
+          }
+          if (!coastal) continue;
+          if (this.tryBuild('port', x, y, p.id) === null) return;
+          break;
         }
       }
     }
@@ -3480,7 +3687,8 @@ export class Game {
         // regional math (vassal-driven path multiplies its own
         // attackerPower below) and rally buffs.
         const veteransMult = this._veteransMult(p);
-        let attackerPower = p.troops * veteransMult;
+        const tankMult = this._tankRushMult(p);
+        let attackerPower = p.troops * veteransMult * tankMult;
         let defenderPower = Math.max(1, defender?.troops ?? 1);
         const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
         if (defender) {
@@ -3497,7 +3705,7 @@ export class Game {
           const fracA = ownedA > 0 ? Math.min(1, tilesA / ownedA) : 1;
           const moraleA = tileRegion > 0 ? (this._regionMorale[tileRegion] ?? 1) : 1;
           const garrisonA = this._settlementGarrison(tileRegion, p.id);
-          attackerPower = p.troops * fracA * moraleA * garrisonA * veteransMult;
+          attackerPower = p.troops * fracA * moraleA * garrisonA * veteransMult * tankMult;
         }
         const ratio = attackerPower / defenderPower;
         const ratioFactor = Math.max(
@@ -3612,18 +3820,28 @@ export class Game {
       }
     }
     for (const b of this.buildings) {
-      if (b.type !== 'turret') continue;
+      const isTurret = b.type === 'turret';
+      const isArtillery = b.type === 'artillery';
+      if (!isTurret && !isArtillery) continue;
       const owner = b.owner;
       const lvl = b.level ?? 1;
       // L1-3: gentle +1 radius per tier. L4-6 (bronze/silver/diamond
       // consolidations): much wider coverage so the consolidated tower
       // visibly replaces the cluster it absorbed.
+      // Artillery has a wider base footprint (longer-range cannons) but
+      // grants NO defense bonus — its job is to BLEED attackers via
+      // retaliation, not slow their captures. Different role from turret.
+      const baseR = isArtillery ? baseRBy[owner]! + 3 : baseRBy[owner]!;
       const r = lvl <= 3
-        ? baseRBy[owner]! + (lvl - 1)
-        : baseRBy[owner]! + 2 + (lvl - 3) * 4; // L4=base+6, L5=+10, L6=+14
+        ? baseR + (lvl - 1)
+        : baseR + 2 + (lvl - 3) * 4;
       const r2 = r * r;
-      const defAdd = this.config.TURRET_DEFENSE_BONUS * lvl;
-      const retAdd = this.config.TURRET_RETALIATION_DAMAGE * lvl;
+      const defAdd = isTurret ? this.config.TURRET_DEFENSE_BONUS * lvl : 0;
+      // Artillery: 3× turret retaliation per level. A bronze (L4) artillery
+      // covers a wide area and shreds attackers passing through.
+      const retAdd = isArtillery
+        ? this.config.TURRET_RETALIATION_DAMAGE * lvl * 3
+        : this.config.TURRET_RETALIATION_DAMAGE * lvl;
       const grids = ensureGrid(owner);
       const def = grids.def, ret = grids.ret;
       const x0 = Math.max(0, b.x - r);
@@ -3665,7 +3883,7 @@ export class Game {
           this._applySettlement(b.x, b.y, -lvl, this._settlementRadius(lvl));
           this._adjSettlementLevels(b.x, b.y, b.owner, -lvl);
         }
-        if (b.type === 'turret') this._turretCacheDirty = true;
+        if (b.type === 'turret' || b.type === 'artillery') this._turretCacheDirty = true;
         this.buildings.splice(i, 1);
         this.buildingsVersion++;
         this.events.push({ type: 'destroyed', buildingType: b.type, ownerId: b.owner });
@@ -3689,7 +3907,8 @@ export class Game {
    *  Triggered by tryBuild and tryUpgrade after success. Recurses on
    *  the promoted building so 5 bronze can chain into silver, etc. */
   private _tryConsolidate(b: Building): void {
-    if (b.type !== 'settlement' && b.type !== 'turret') return;
+    if (b.type !== 'settlement' && b.type !== 'turret'
+        && b.type !== 'aa' && b.type !== 'port' && b.type !== 'artillery') return;
     const lvl = b.level ?? 1;
     if (lvl < 3 || lvl >= 6) return; // promote only from L3-5 → L4-6
 
@@ -3734,7 +3953,7 @@ export class Game {
         this._applySettlement(c.x, c.y, -cl, this._settlementRadius(cl));
         this._adjSettlementLevels(c.x, c.y, c.owner, -cl);
       }
-      if (c.type === 'turret') this._turretCacheDirty = true;
+      if (c.type === 'turret' || c.type === 'artillery') this._turretCacheDirty = true;
       const idx = this.buildings.indexOf(c);
       if (idx >= 0) this.buildings.splice(idx, 1);
     }
@@ -3748,7 +3967,7 @@ export class Game {
       this._applySettlement(cx, cy, lvl + 1, this._settlementRadius(lvl + 1));
       this._adjSettlementLevels(cx, cy, b.owner, lvl + 1);
     }
-    if (b.type === 'turret') this._turretCacheDirty = true;
+    if (b.type === 'turret' || b.type === 'artillery') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: b.type, ownerId: b.owner });
 
     // Chain: 5 bronze → silver, 5 silver → diamond.
@@ -4252,6 +4471,8 @@ export class Game {
       if (pl.bombType === 'stealth') continue;
 
       // Check enemy AA for shootdown. Each AA gets one roll per plane.
+      // Per-level hit rate: L1 50%, L2 60%, L3 75%, L4+ (consolidated)
+      // 85%. Bigger AA umbrellas reward upgrade investment.
       let shotDown = false;
       let killer: PlayerId = 0;
       for (const b of this.buildings) {
@@ -4262,14 +4483,16 @@ export class Game {
         const bx = b.x + 0.5, by = b.y + 0.5;
         const ddx = bx - pl.x, ddy = by - pl.y;
         if (ddx * ddx + ddy * ddy > aaR2) continue;
-        // Plane is in range AND this AA hasn't rolled yet — roll now.
         pl.rolledAA.add(this._buildingKey(b));
-        if (Math.random() < hitChance) {
+        const lvl = b.level ?? 1;
+        const chance = this._aaHitChanceFor(lvl);
+        if (Math.random() < chance) {
           shotDown = true;
           killer = b.owner;
           break;
         }
       }
+      void hitChance;
 
       // Naval AA: warships and skirmishers also defend against bombers.
       // Each ship gets one roll per plane (keyed by negative ship id so

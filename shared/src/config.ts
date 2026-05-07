@@ -112,8 +112,17 @@ export interface GameConfig {
   // --- Anti-aircraft ---
   /** Tiles around an AA building inside which planes are vulnerable. */
   AA_RADIUS: number;
-  /** Probability that any single AA succeeds against a plane in range. */
+  /** Probability that any single AA succeeds against a plane in range.
+   *  Per-level rates are derived in _aaHitChanceFor: L1 50%, L2 60%,
+   *  L3 75%, L4+ (consolidated) 85%. This config field is the L1
+   *  baseline kept for legacy callers. */
   AA_HIT_CHANCE: number;
+
+  // --- Defense Port (anti-naval) ---
+  /** Range in tiles a port projects against enemy ships. */
+  PORT_RADIUS: number;
+  /** Damage per port hit on a ship (one roll per port per tick). */
+  PORT_DAMAGE: number;
 
   // --- AC-130 gunship ---
   /** Ticks the gunship orbits the target after arrival. */
@@ -220,6 +229,8 @@ export const DEFAULT_CONFIG: GameConfig = {
     turret:     90,
     airstrip:   150,
     aa:         110,
+    port:       180, // coastal anti-naval — pricier than turret because it scales by level
+    artillery:  140, // ground-defense emplacement, longer reach than turret
   },
   SETTLEMENT_RADIUS: 6,
   SETTLEMENT_BONUS: 0.5,        // +50% gold in radius
@@ -235,7 +246,9 @@ export const DEFAULT_CONFIG: GameConfig = {
   PLANE_SPEED:         { small: 0.45, large: 0.30, ac130: 0.35, stealth: 0.55 }, // stealth flies fast
 
   AA_RADIUS:     7,    // a bit bigger than turret radius — defensive umbrella
-  AA_HIT_CHANCE: 0.75, // single 75% roll per AA per plane
+  AA_HIT_CHANCE: 0.75, // legacy; per-level rates live in _aaHitChanceFor
+  PORT_RADIUS: 8,
+  PORT_DAMAGE: 25,
 
   /** AC-130 only. Ticks the gunship orbits the target after arrival. */
   AC130_ORBIT_TICKS:    150,  // 15s on station — buffed from 10s
