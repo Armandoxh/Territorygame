@@ -73,6 +73,33 @@ export interface ExternalTradeRoute {
   bx: number; by: number;
 }
 
+/** Indefinite resource trade between two players. Each tick, `a` pays
+ *  `aGivesPerSec / SIM_HZ` of `aGives` to `b`, and `b` pays the same
+ *  computation in the other direction. The flow auto-pauses the tick
+ *  if either side can't cover their half (no decay; resumes when both
+ *  can pay). Cancellable by either party. */
+export interface ResourceTrade {
+  a: PlayerId;
+  b: PlayerId;
+  aGives: ResourceKind;
+  aGivesPerSec: number;
+  bGives: ResourceKind;
+  bGivesPerSec: number;
+  startedTick: number;
+}
+
+/** Pending resource-trade offer awaiting the human's accept/decline. */
+export interface ResourceTradeOffer {
+  from: PlayerId;
+  aGives: ResourceKind;
+  aGivesPerSec: number;
+  bGives: ResourceKind;
+  bGivesPerSec: number;
+}
+
+export type ResourceTradeError =
+  | 'invalid' | 'dead' | 'self' | 'already' | 'rejected';
+
 /** A bomber in flight. Spawned by dropBomb; flies from an airstrip toward
  *  the target tile at PLANE_SPEED tiles/tick. On arrival it detonates
  *  (radius damage); along the way enemy AA buildings can shoot it down. */

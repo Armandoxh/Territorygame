@@ -7,8 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-  <script type="module" crossorigin src="/Territorygame/assets/index-D8pL_KzE.js"></script>
-  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-DZU9DakA.css">
+  <script type="module" crossorigin src="/Territorygame/assets/index-D4M86n_N.js"></script>
+  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-BocfiTP2.css">
 </head>
 <body>
   <div id="app"></div>
@@ -70,7 +70,55 @@
         <button id="wi-decline" class="wi-btn secondary" type="button">Decline</button>
       </div>
     </div>
-    <div id="hint">tap regions to attack (declares war) &middot; long-press own land to build &middot; long-press enemy land for a trade alliance</div>
+    <div id="trade-prompt" class="hidden">
+      <div class="tp-title" id="tp-title">TRADE WITH —</div>
+      <div class="tp-section">
+        <div class="tp-label">YOU GIVE</div>
+        <div class="tp-row">
+          <select class="tp-pick" id="tp-give-kind">
+            <option value="food">food</option>
+            <option value="wood">wood</option>
+            <option value="stone">stone</option>
+            <option value="oil">oil</option>
+            <option value="gems">gems</option>
+          </select>
+          <button class="tp-step" data-tp="give-down" type="button">−</button>
+          <span class="tp-amt"><b id="tp-give-amt">5</b><i>/sec</i></span>
+          <button class="tp-step" data-tp="give-up" type="button">+</button>
+        </div>
+        <div class="tp-stock" id="tp-give-stock"></div>
+      </div>
+      <div class="tp-arrow">↓ in exchange for ↓</div>
+      <div class="tp-section">
+        <div class="tp-label">YOU RECEIVE</div>
+        <div class="tp-row">
+          <select class="tp-pick" id="tp-take-kind">
+            <option value="food">food</option>
+            <option value="wood">wood</option>
+            <option value="stone">stone</option>
+            <option value="oil">oil</option>
+            <option value="gems">gems</option>
+          </select>
+          <button class="tp-step" data-tp="take-down" type="button">−</button>
+          <span class="tp-amt"><b id="tp-take-amt">5</b><i>/sec</i></span>
+          <button class="tp-step" data-tp="take-up" type="button">+</button>
+        </div>
+        <div class="tp-stock" id="tp-take-stock"></div>
+      </div>
+      <div class="tp-actions">
+        <button id="tp-send"   class="tp-btn primary" type="button">Send Offer</button>
+        <button id="tp-cancel" class="tp-btn secondary" type="button">Cancel</button>
+      </div>
+      <div class="tp-hint">Game paused while composing.</div>
+    </div>
+    <div id="resource-offer" class="hidden">
+      <div class="ro-msg" id="ro-msg"></div>
+      <div class="ro-actions">
+        <button id="ro-accept"  class="wi-btn primary" type="button">Accept Trade</button>
+        <button id="ro-decline" class="wi-btn secondary" type="button">Decline</button>
+      </div>
+    </div>
+    <div id="hint">tap regions to attack (declares war) &middot; long-press own land to build &middot; long-press enemy land to trade resources</div>
     <div id="vassal-log" aria-live="polite"></div>
     <button id="stop-btn" class="fab hidden" type="button">STOP</button>
     <button id="bomb-btn" class="fab fab-bomb hidden" type="button" aria-label="Bombs">

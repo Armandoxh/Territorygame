@@ -1,4 +1,4 @@
-import type { Game, Building, BuildingType, BuildError, BombType, BombError, GroundOpType, GroundOpError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId, Mastery } from '@territorygame/shared';
+import type { Game, Building, BuildingType, BuildError, BombType, BombError, GroundOpType, GroundOpError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId, Mastery, ResourceKind } from '@territorygame/shared';
 import { DECREES, ABILITIES, MASTERIES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
@@ -32,6 +32,20 @@ export class HUD {
     warInviteMsg: this._byId('wi-msg'),
     warInviteAccept:  this._byId('wi-accept'),
     warInviteDecline: this._byId('wi-decline'),
+    tradePrompt:      this._byId('trade-prompt'),
+    tpTitle:          this._byId('tp-title'),
+    tpGiveKind:       this._byId<HTMLSelectElement>('tp-give-kind'),
+    tpGiveAmt:        this._byId('tp-give-amt'),
+    tpGiveStock:      this._byId('tp-give-stock'),
+    tpTakeKind:       this._byId<HTMLSelectElement>('tp-take-kind'),
+    tpTakeAmt:        this._byId('tp-take-amt'),
+    tpTakeStock:      this._byId('tp-take-stock'),
+    tpSend:           this._byId('tp-send'),
+    tpCancel:         this._byId('tp-cancel'),
+    resourceOffer:        this._byId('resource-offer'),
+    resourceOfferMsg:     this._byId('ro-msg'),
+    resourceOfferAccept:  this._byId('ro-accept'),
+    resourceOfferDecline: this._byId('ro-decline'),
     debug:        this._byId('debug'),
     stop:         this._byId('stop-btn'),
     hotbar:       this._byId('hotbar'),
@@ -113,6 +127,13 @@ export class HUD {
    *  requests" without scrolling past 50 names of strangers. Toggle
    *  via the "Show all" button at the bottom. */
   private diploShowAll = false;
+  /** Trade prompt state. Target = the player we're composing an
+   *  offer to. Game is paused while non-zero. */
+  private tradePromptTarget: PlayerId = 0;
+  private tpGiveKind: ResourceKind = 'food';
+  private tpTakeKind: ResourceKind = 'stone';
+  private tpGiveAmt = 5;
+  private tpTakeAmt = 5;
   private cmdMode: CmdMode = 'abilities';
   private _cmdLastSig = '';
   private _lastBuyAt = 0;
@@ -143,6 +164,7 @@ export class HUD {
     this._wireCommander();
     this._wireDiplomacy();
     this._wireWarInvite();
+    this._wireTradePrompt();
     this._wireMastery();
     // Show the welcome tutorial automatically on first launch.
     try {
@@ -540,6 +562,7 @@ export class HUD {
     if (this.el.diploPanel?.classList.contains('show')) this._renderDiplomacy();
     this._refreshLeaderBar();
     this._refreshWarInvite();
+    this._refreshResourceOffer();
     this._refreshDiploBadge();
     const spy = (me.decreeStacks['spy-network'] ?? 0) > 0;
     for (const [id, ref] of this.enemyEls) {
@@ -1284,6 +1307,8 @@ export class HUD {
       else if (action === 'war')       this._declareWar(pid);
       else if (action === 'peace')     this._suePeace(pid);
       else if (action === 'coerce')    this._coerceAlly(pid);
+      else if (action === 'rtrade-open')   this.showTradePrompt(pid);
+      else if (action === 'rtrade-cancel') this._cancelResourceTrade(pid);
     });
 
     // Trade sheet wiring
@@ -1378,10 +1403,13 @@ export class HUD {
             <button class="diplo-act" data-action="trade"    data-target="${id}" type="button">Trade</button>
             <button class="diplo-act ally-btn" data-action="alliance" data-target="${id}" type="button">Propose Alliance</button>
             <button class="diplo-act route-btn" data-action="route" data-target="${id}" type="button" style="display:none">Trade Route</button>
+            <button class="diplo-act rtrade-btn" data-action="rtrade-open" data-target="${id}" type="button">Resource Trade</button>
+            <button class="diplo-act rtrade-cancel-btn" data-action="rtrade-cancel" data-target="${id}" type="button" style="display:none">Cancel Trade</button>
             <button class="diplo-act war-btn" data-action="war" data-target="${id}" type="button" style="display:none">Declare War</button>
             <button class="diplo-act coerce-btn" data-action="coerce" data-target="${id}" type="button" style="display:none">Make Them Fight</button>
             <button class="diplo-act embargo-btn" data-action="embargo" data-target="${id}" type="button">Embargo</button>
           </div>
+          <div class="dn-rtrade" style="display:none"></div>
         `;
         list.appendChild(row);
       };
@@ -1522,6 +1550,37 @@ export class HUD {
             : `Make Them Fight (${myEnemies.length})`;
         } else {
           coerceBtn.style.display = 'none';
+        }
+      }
+      // Resource trade: open / cancel buttons + active flow summary.
+      const rtrade = this.game.resourceTradeBetween(1, id);
+      const rtradeBtn = row.querySelector<HTMLButtonElement>('.rtrade-btn');
+      const rtradeCancelBtn = row.querySelector<HTMLButtonElement>('.rtrade-cancel-btn');
+      const rtradeLine = row.querySelector<HTMLElement>('.dn-rtrade');
+      if (rtradeBtn && rtradeCancelBtn) {
+        if (rtrade) {
+          rtradeBtn.style.display = 'none';
+          rtradeCancelBtn.style.display = '';
+        } else if (allied) {
+          // Allies use trade-routes for gold flow, not resource trades.
+          rtradeBtn.style.display = 'none';
+          rtradeCancelBtn.style.display = 'none';
+        } else {
+          rtradeBtn.style.display = '';
+          rtradeCancelBtn.style.display = 'none';
+        }
+      }
+      if (rtradeLine) {
+        if (rtrade) {
+          rtradeLine.style.display = '';
+          // Direction depends on who is `a`.
+          const youGive = rtrade.a === 1 ? rtrade.aGives : rtrade.bGives;
+          const youGiveAmt = rtrade.a === 1 ? rtrade.aGivesPerSec : rtrade.bGivesPerSec;
+          const youGet = rtrade.a === 1 ? rtrade.bGives : rtrade.aGives;
+          const youGetAmt = rtrade.a === 1 ? rtrade.bGivesPerSec : rtrade.aGivesPerSec;
+          rtradeLine.textContent = `↻ ${youGiveAmt} ${youGive}/s → ⇄ ← ${youGetAmt} ${youGet}/s`;
+        } else {
+          rtradeLine.style.display = 'none';
         }
       }
       // Trade route: only available between allies. Shows current
@@ -1674,18 +1733,165 @@ export class HUD {
     }
   }
 
+  // --- Resource trade prompt ------------------------------------------
+
+  private _wireTradePrompt(): void {
+    this.el.tpGiveKind?.addEventListener('change', () => {
+      this.tpGiveKind = (this.el.tpGiveKind!.value as ResourceKind);
+      this._refreshTradePrompt();
+    });
+    this.el.tpTakeKind?.addEventListener('change', () => {
+      this.tpTakeKind = (this.el.tpTakeKind!.value as ResourceKind);
+      this._refreshTradePrompt();
+    });
+    this.el.tradePrompt?.querySelectorAll<HTMLButtonElement>('.tp-step').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const op = btn.dataset['tp'];
+        if (op === 'give-up')   this.tpGiveAmt = Math.min(50, this.tpGiveAmt + 1);
+        if (op === 'give-down') this.tpGiveAmt = Math.max(1,  this.tpGiveAmt - 1);
+        if (op === 'take-up')   this.tpTakeAmt = Math.min(50, this.tpTakeAmt + 1);
+        if (op === 'take-down') this.tpTakeAmt = Math.max(1,  this.tpTakeAmt - 1);
+        this._refreshTradePrompt();
+      });
+    });
+    this.el.tpSend?.addEventListener('click',   () => this._sendTradeOffer());
+    this.el.tpCancel?.addEventListener('click', () => this.hideTradePrompt());
+    // Resource-offer popup (incoming AI offers to human).
+    this.el.resourceOfferAccept?.addEventListener('click', () => {
+      const off = this.game.pendingResourceOffers[0];
+      if (!off) return;
+      const from = this.game.players[off.from];
+      if (this.game.acceptResourceOffer(0)) {
+        this.toast(`Trade with ${from?.name ?? 'AI'} accepted`);
+      }
+      this._refreshResourceOffer();
+    });
+    this.el.resourceOfferDecline?.addEventListener('click', () => {
+      const off = this.game.pendingResourceOffers[0];
+      if (!off) return;
+      const from = this.game.players[off.from];
+      this.game.declineResourceOffer(0);
+      this.toast(`Declined ${from?.name ?? 'AI'}'s trade offer`);
+      this._refreshResourceOffer();
+    });
+  }
+
+  /** Open the trade-prompt modal targeting `targetId`. Pauses the
+   *  simulation while open so the player can compose without time
+   *  pressure. */
+  showTradePrompt(targetId: PlayerId): void {
+    if (this.game.outcome) return;
+    if (targetId === 1 || targetId <= 0) return;
+    const target = this.game.players[targetId];
+    if (!target || !target.alive) return;
+    if (this.game.areAllied(1, targetId)) {
+      this.toast(`${target.name} is already your ally — propose a trade route instead`);
+      return;
+    }
+    this.tradePromptTarget = targetId;
+    this.tpGiveAmt = 5; this.tpTakeAmt = 5;
+    this.tpGiveKind = 'food'; this.tpTakeKind = 'stone';
+    this.game.paused = true;
+    if (this.el.tpTitle) this.el.tpTitle.textContent = `TRADE WITH ${target.name.toUpperCase()}`;
+    if (this.el.tpGiveKind) this.el.tpGiveKind.value = this.tpGiveKind;
+    if (this.el.tpTakeKind) this.el.tpTakeKind.value = this.tpTakeKind;
+    this._refreshTradePrompt();
+    this.el.tradePrompt?.classList.remove('hidden');
+  }
+
+  hideTradePrompt(): void {
+    this.tradePromptTarget = 0;
+    this.game.paused = false;
+    this.el.tradePrompt?.classList.add('hidden');
+  }
+
+  private _refreshTradePrompt(): void {
+    if (!this.el.tradePrompt) return;
+    const me = this.game.human();
+    if (this.el.tpGiveAmt) this.el.tpGiveAmt.textContent = String(this.tpGiveAmt);
+    if (this.el.tpTakeAmt) this.el.tpTakeAmt.textContent = String(this.tpTakeAmt);
+    if (this.el.tpGiveStock) {
+      const stock = Math.floor(me.resources[this.tpGiveKind]);
+      this.el.tpGiveStock.textContent = `you have ${stock} ${this.tpGiveKind}`;
+    }
+    if (this.el.tpTakeStock) {
+      const target = this.game.players[this.tradePromptTarget];
+      if (target) {
+        const stock = Math.floor(target.resources[this.tpTakeKind]);
+        this.el.tpTakeStock.textContent = `${target.name} has ${stock} ${this.tpTakeKind}`;
+      }
+    }
+  }
+
+  private _sendTradeOffer(): void {
+    const targetId = this.tradePromptTarget;
+    if (targetId === 0) return;
+    const target = this.game.players[targetId];
+    if (!target) return;
+    if (this.tpGiveKind === this.tpTakeKind) {
+      this.toast('Pick different resources for each side');
+      return;
+    }
+    const err = this.game.proposeResourceTrade(
+      1, targetId,
+      this.tpGiveKind, this.tpGiveAmt,
+      this.tpTakeKind, this.tpTakeAmt,
+    );
+    if (err === null) {
+      this.toast(`${target.name} accepted: ${this.tpGiveAmt} ${this.tpGiveKind}/s ⇄ ${this.tpTakeAmt} ${this.tpTakeKind}/s`);
+    } else if (err === 'rejected') {
+      this.toast(`${target.name} declined the trade`);
+    } else if (err === 'already') {
+      this.toast(`Already trading with ${target.name}`);
+    } else if (err === 'invalid') {
+      this.toast('Invalid trade');
+    } else {
+      this.toast('Cannot send offer');
+    }
+    this.hideTradePrompt();
+  }
+
+  private _refreshResourceOffer(): void {
+    if (!this.el.resourceOffer) return;
+    const off = this.game.pendingResourceOffers[0];
+    if (!off) {
+      this.el.resourceOffer.classList.add('hidden');
+      return;
+    }
+    const from = this.game.players[off.from];
+    if (!from || !from.alive) {
+      this.game.declineResourceOffer(0);
+      this.el.resourceOffer.classList.add('hidden');
+      return;
+    }
+    this.el.resourceOffer.classList.remove('hidden');
+    if (this.el.resourceOfferMsg) {
+      this.el.resourceOfferMsg.innerHTML =
+        `<span class="ro-name">${from.name}</span> offers ` +
+        `<span class="ro-give">${off.aGivesPerSec} ${off.aGives}/s</span> for ` +
+        `<span class="ro-take">${off.bGivesPerSec} ${off.bGives}/s</span>.`;
+    }
+  }
+
   private _refreshDiploBadge(): void {
     if (!this.el.diploBadge) return;
-    // Notification count = pending war invites (the only async incoming
-    // event right now). Doubles as a "you should look at the panel" cue
-    // for new allied/at-war shifts in the future.
-    const n = this.game.pendingWarInvites.length;
+    // Notification count = pending war invites + pending resource trade
+    // offers. Both are async incoming events the player should look at.
+    const n = this.game.pendingWarInvites.length + this.game.pendingResourceOffers.length;
     if (n <= 0) {
       this.el.diploBadge.classList.add('hidden');
       return;
     }
     this.el.diploBadge.classList.remove('hidden');
     this.el.diploBadge.textContent = n > 9 ? '9+' : String(n);
+  }
+
+  private _cancelResourceTrade(otherId: PlayerId): void {
+    const other = this.game.players[otherId];
+    if (this.game.cancelResourceTrade(1, otherId)) {
+      this.toast(`Trade with ${other?.name ?? 'them'} cancelled`);
+      this._renderDiplomacy();
+    }
   }
 
   private _coerceAlly(allyId: PlayerId): void {

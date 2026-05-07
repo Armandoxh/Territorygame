@@ -286,6 +286,100 @@ html, body {
 }
 #war-invite .wi-btn:active { transform: scale(0.97); }
 
+#trade-prompt {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(180deg, #1c2230, #131822);
+  border: 1.5px solid rgba(232, 192, 74, 0.55);
+  padding: 18px 22px;
+  border-radius: 14px;
+  width: min(380px, 90vw);
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+  z-index: 60;
+}
+#trade-prompt.hidden { display: none; }
+#trade-prompt .tp-title {
+  font-size: 14px; font-weight: 800; letter-spacing: 1px;
+  color: #e8c04a; text-align: center; margin-bottom: 14px;
+}
+#trade-prompt .tp-section { margin-bottom: 12px; }
+#trade-prompt .tp-label {
+  font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
+  opacity: 0.55; margin-bottom: 4px;
+}
+#trade-prompt .tp-row {
+  display: flex; align-items: center; gap: 6px;
+}
+#trade-prompt .tp-pick {
+  flex: 1;
+  background: #283242; border: 1px solid rgba(255,255,255,0.10);
+  color: #e6e6e6; font-family: inherit; font-size: 13px; font-weight: 700;
+  padding: 7px 9px; border-radius: 7px;
+}
+#trade-prompt .tp-step {
+  width: 32px; height: 32px;
+  background: rgba(232, 192, 74, 0.18);
+  border: 1px solid rgba(232, 192, 74, 0.55);
+  color: #e8c04a;
+  font-size: 16px; font-weight: 800;
+  border-radius: 7px; cursor: pointer; font-family: inherit;
+}
+#trade-prompt .tp-step:active { transform: scale(0.94); }
+#trade-prompt .tp-amt {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 56px;
+}
+#trade-prompt .tp-amt b { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+#trade-prompt .tp-amt i { font-style: normal; opacity: 0.55; font-size: 10px; letter-spacing: 1px; }
+#trade-prompt .tp-stock {
+  font-size: 10px; opacity: 0.55; margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+#trade-prompt .tp-arrow {
+  text-align: center; font-size: 11px; opacity: 0.55;
+  letter-spacing: 1.5px; margin: 6px 0 10px;
+}
+#trade-prompt .tp-actions { display: flex; gap: 8px; margin-top: 14px; }
+#trade-prompt .tp-btn {
+  flex: 1; padding: 10px; border-radius: 8px; font-weight: 800;
+  font-size: 12px; font-family: inherit; border: 1px solid transparent;
+  letter-spacing: 0.5px; cursor: pointer;
+}
+#trade-prompt .tp-btn.primary {
+  background: rgba(232, 192, 74, 0.92); color: #1a1206;
+  border-color: rgba(232, 192, 74, 1);
+}
+#trade-prompt .tp-btn.secondary {
+  background: rgba(255,255,255,0.06); color: #cdd2d6;
+  border-color: rgba(255,255,255,0.12);
+}
+#trade-prompt .tp-btn:active { transform: scale(0.98); }
+#trade-prompt .tp-hint {
+  text-align: center; font-size: 10px; opacity: 0.45;
+  margin-top: 8px; letter-spacing: 1px;
+}
+
+#resource-offer {
+  position: absolute;
+  top: 80px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 8, 0.94);
+  border: 1px solid rgba(232, 192, 74, 0.65);
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  max-width: 340px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+  z-index: 50;
+}
+#resource-offer.hidden { display: none; }
+#resource-offer .ro-msg { font-weight: 600; margin-bottom: 10px; line-height: 1.4; }
+#resource-offer .ro-msg .ro-name { color: #ffb867; }
+#resource-offer .ro-msg .ro-give { color: #c1e285; }
+#resource-offer .ro-msg .ro-take { color: #d8a857; }
+#resource-offer .ro-actions { display: flex; gap: 8px; }
+
 #vassal-log {
   position: absolute;
   bottom: calc(80px + env(safe-area-inset-bottom, 0));
@@ -743,6 +837,23 @@ html, body {
   background: rgba(85,200,110,0.16);
   color: #7adf8e;
   border-color: rgba(85,200,110,0.55);
+}
+.diplo-act.rtrade-cancel-btn {
+  background: rgba(232,74,74,0.16);
+  color: #ff8c8c;
+  border-color: rgba(232,74,74,0.55);
+}
+.dn-rtrade {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-top: 6px;
+  padding: 5px 8px;
+  background: rgba(232, 192, 74, 0.10);
+  border-left: 2px solid rgba(232, 192, 74, 0.55);
+  border-radius: 4px;
+  color: #e8c04a;
+  font-variant-numeric: tabular-nums;
 }
 /* Notification badge on the diplomacy button. The button itself
  * already has position: absolute from .icon-btn, which makes it a

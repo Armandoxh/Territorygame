@@ -639,3 +639,56 @@ were arbitrary biome bands not tied to resources. Now the map's
 visual layer literally communicates the strategic layer. You can spot
 oil regions (dark slick), wood (tree clusters), gems (sparkle) at a
 glance from any zoom — vital with the new resource-cost economy.
+
+---
+
+[pending] gameplay: Phase 4 — resource-aware indefinite trades + AI
+
+Closes the resource overhaul. Players (and the AI) can now negotiate
+ongoing resource-for-resource exchanges that flow per tick until
+cancelled by either side.
+
+ENGINE:
+  • New ResourceTrade struct: { a, b, aGives, aGivesPerSec, bGives,
+    bGivesPerSec, startedTick }. Stored in game.resourceTrades.
+  • proposeResourceTrade(from, to, aGives, aRate, bGives, bRate):
+    if `to` is human → queues a ResourceTradeOffer in
+    pendingResourceOffers (HUD shows a popup like war invites);
+    if `to` is AI → routes through _aiAcceptsResourceTrade.
+  • _aiAcceptsResourceTrade: accepts if the resource RECEIVED is one
+    we're short on (< 250) AND we have enough of what we GIVE
+    (>100 + 30s of payments). Embassy decree loosens the buffer.
+  • _flowResourceTrades runs each tick: pays both sides their
+    perSec / SIM_HZ. If either side can't pay, the trade silently
+    pauses that tick (no decay, no destruction) and resumes next
+    tick when the resource comes back.
+  • _aiProposeResourceTrade runs every ~20s per AI, offset per
+    player id. AI finds its shortest resource (under 150) + biggest
+    surplus (over 200), picks a peer with > 100 of the needed
+    resource, proposes 5/sec each direction.
+  • cancelResourceTrade ends a trade — either side can call. New
+    Game.paused flag honored by tick() so the prompt can freeze the
+    sim while composing.
+
+UI:
+  • New trade-prompt modal: title shows target name; Give/Receive
+    sections each with a kind dropdown + step buttons + per-second
+    amount + stock readout ("you have 234 food", "AI 1 has 88 stone").
+    Send Offer / Cancel actions. Sets Game.paused while open.
+  • Long-press enemy land now opens the trade prompt instead of
+    the old alliance shortcut. Long-pressing an EXISTING ally still
+    routes to quickProposeTradeAlliance for the gold-flow trade route.
+  • New resource-offer popup (resource-offer element) for incoming
+    AI offers — same shape as war-invite popup: shows
+    "AI X offers 5 stone/s for 5 oil/s" with Accept / Decline.
+  • Per-diplomacy-row: new "Resource Trade" / "Cancel Trade" buttons
+    + an active-trade summary line ("↻ 5 food/s → ⇄ ← 5 stone/s")
+    when a trade is live.
+  • Diplomacy badge on the ⚑ button now counts pending resource
+    offers in addition to war invites.
+
+WHY: Resources alone with no exchange mechanism would be too punishing
+— if your map has no oil regions, you can't build airstrips ever.
+Trades let you specialize: raid the gem mountains and trade gems for
+the things your terrain doesn't naturally produce. AI awareness means
+the simulation reacts to shortages instead of just stockpiling.

@@ -144,7 +144,14 @@ async function boot(): Promise<void> {
       const ty = Math.floor(wy);
       const owner = game.territory.getOwner(tx, ty);
       if (owner > 0 && owner !== 1) {
-        hud.quickProposeTradeAlliance(owner);
+        // Long-press enemy land opens the resource-trade prompt
+        // (pauses the game). Allies get redirected to the alliance
+        // shortcut by showTradePrompt.
+        if (game.areAllied(1, owner)) {
+          hud.quickProposeTradeAlliance(owner);
+        } else {
+          hud.showTradePrompt(owner);
+        }
         return;
       }
       hud.showBuildSheet(wx, wy);

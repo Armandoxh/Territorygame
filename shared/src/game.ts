@@ -5,7 +5,7 @@ import type {
   Ship, ShipKind, ShipBuildError,
   Plane, ArtilleryUnit,
   TradeRoute, ExternalTradeRoute,
-  ResourceKind,
+  ResourceKind, ResourceTrade, ResourceTradeOffer, ResourceTradeError,
 } from './types.js';
 import { RESOURCE_KINDS } from './types.js';
 import { TERRAIN_LAND } from './types.js';
@@ -46,6 +46,16 @@ export class Game {
    *  sides earn `flow` per tick. Pruned automatically when either side
    *  dies or the alliance ends. */
   readonly externalTradeRoutes: ExternalTradeRoute[] = [];
+  /** Active indefinite resource trades. Each ticks resources between
+   *  the two parties until cancelled. Phase 4 of the resource overhaul. */
+  readonly resourceTrades: ResourceTrade[] = [];
+  /** Pending resource-trade offers awaiting the human's accept/decline.
+   *  Mirrors pendingWarInvites — the AI proposes, the HUD shows a
+   *  prompt, the human accepts or declines. */
+  pendingResourceOffers: ResourceTradeOffer[] = [];
+  /** When true, tick() is a no-op. Used by the trade-prompt UI to
+   *  freeze the simulation while the player composes an offer. */
+  paused = false;
   /** When each AI last considered proposing a trade route. Tick-throttled
    *  so AI doesn't hammer accept logic every tick. */
   private _aiTradeProposeAt = new Map<PlayerId, number>();
@@ -606,6 +616,7 @@ export class Game {
 
   tick(): void {
     if (this.outcome) return;
+    if (this.paused) return;
     this.tickCount++;
     this._expireHumanTargets();
     this._recoverMorale();
@@ -618,6 +629,7 @@ export class Game {
     this._applyTradeFlow();
     this._earnGoldAll();
     this._generateResources();
+    this._flowResourceTrades();
     this._payBuildingUpkeep();
     this._growTroops();
     this._vassalsThink();
@@ -629,6 +641,7 @@ export class Game {
         this._aiThink(p);
         this._aiBuild(p);
         this._aiBuyDecrees(p);
+        this._aiProposeResourceTrade(p);
       }
       // Always attempt expansion. _expand falls through tile-by-tile and
       // skips tiles with no effective target (no override + non-vassal).
@@ -3067,6 +3080,187 @@ export class Game {
         }
       }
     }
+  }
+
+  // --- Resource trades (Phase 4) -----------------------------------------
+
+  /** Returns the active resource trade between two players, or null. */
+  resourceTradeBetween(a: PlayerId, b: PlayerId): ResourceTrade | null {
+    if (a === b) return null;
+    for (const t of this.resourceTrades) {
+      if ((t.a === a && t.b === b) || (t.a === b && t.b === a)) return t;
+    }
+    return null;
+  }
+
+  /** Propose a resource trade from `fromId` to `toId`. AI accepts if the
+   *  resource being received covers a shortage AND the resource being
+   *  given is one they have a surplus of. Humans receive offers via
+   *  `pendingResourceOffers` (HUD shows a popup). */
+  proposeResourceTrade(
+    fromId: PlayerId, toId: PlayerId,
+    aGives: ResourceKind, aGivesPerSec: number,
+    bGives: ResourceKind, bGivesPerSec: number,
+  ): ResourceTradeError | null {
+    if (fromId === toId) return 'self';
+    const a = this.players[fromId];
+    const b = this.players[toId];
+    if (!a || !a.alive || !b || !b.alive) return 'dead';
+    if (this.resourceTradeBetween(fromId, toId)) return 'already';
+    if (aGives === bGives) return 'invalid';
+    if (aGivesPerSec <= 0 || bGivesPerSec <= 0) return 'invalid';
+    // Human-to-AI: AI auto-decides via accept rule.
+    // AI-to-human: queue an offer for the HUD to surface.
+    if (b.isHuman) {
+      this.pendingResourceOffers.push({
+        from: fromId, aGives, aGivesPerSec, bGives, bGivesPerSec,
+      });
+      return null;
+    }
+    if (!this._aiAcceptsResourceTrade(a, b, aGives, aGivesPerSec, bGives, bGivesPerSec)) {
+      return 'rejected';
+    }
+    this.resourceTrades.push({
+      a: fromId, b: toId, aGives, aGivesPerSec, bGives, bGivesPerSec,
+      startedTick: this.tickCount,
+    });
+    return null;
+  }
+
+  /** Human accepts a pending resource-trade offer at index `idx`.
+   *  Opens the trade if both sides still exist; drops the offer
+   *  whether accepted or not. */
+  acceptResourceOffer(idx: number): boolean {
+    const off = this.pendingResourceOffers[idx];
+    if (!off) return false;
+    this.pendingResourceOffers.splice(idx, 1);
+    const from = this.players[off.from];
+    const human = this.players[1];
+    if (!from || !from.alive || !human || !human.alive) return false;
+    if (this.resourceTradeBetween(off.from, 1)) return false;
+    this.resourceTrades.push({
+      a: off.from, b: 1,
+      aGives: off.aGives, aGivesPerSec: off.aGivesPerSec,
+      bGives: off.bGives, bGivesPerSec: off.bGivesPerSec,
+      startedTick: this.tickCount,
+    });
+    return true;
+  }
+
+  declineResourceOffer(idx: number): boolean {
+    if (idx < 0 || idx >= this.pendingResourceOffers.length) return false;
+    this.pendingResourceOffers.splice(idx, 1);
+    return true;
+  }
+
+  /** Cancel an active trade. Either party can call. */
+  cancelResourceTrade(byId: PlayerId, otherId: PlayerId): boolean {
+    for (let i = this.resourceTrades.length - 1; i >= 0; i--) {
+      const t = this.resourceTrades[i]!;
+      if ((t.a === byId && t.b === otherId) || (t.a === otherId && t.b === byId)) {
+        this.resourceTrades.splice(i, 1);
+        void byId;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** AI accept rule for resource trades: accept if the resource we
+   *  RECEIVE we're short on (< 200) AND the resource we GIVE we have
+   *  in surplus (> 100 + amount we'd give over a 30s window).
+   *  Embassy decree loosens the surplus threshold. */
+  private _aiAcceptsResourceTrade(
+    proposer: Player, target: Player,
+    aGives: ResourceKind, aGivesPerSec: number,
+    bGives: ResourceKind, bGivesPerSec: number,
+  ): boolean {
+    void proposer;
+    // From target's perspective: they receive `aGives`, give `bGives`.
+    const receiveSupply = target.resources[aGives] ?? 0;
+    const giveSupply = target.resources[bGives] ?? 0;
+    const embassy = target.decreeStacks['embassy'] ?? 0;
+    // Don't trade away a resource we're already short on.
+    const minGiveBuffer = 100 - embassy * 20;
+    const reservedGive = bGivesPerSec * 30; // 30s of payments
+    if (giveSupply < Math.max(minGiveBuffer, reservedGive)) return false;
+    // We accept if we're short on what we receive, or the rate ratio
+    // is favorable (we receive at least as much as we give per sec).
+    if (receiveSupply < 250) return true;
+    if (aGivesPerSec >= bGivesPerSec) return true;
+    return false;
+  }
+
+  /** Per-tick: flow resource trades between active pairs. Each side
+   *  pays their share of perSec / SIM_HZ; if either can't afford,
+   *  the trade silently pauses this tick (no decay, no destruction). */
+  private _flowResourceTrades(): void {
+    const trades = this.resourceTrades;
+    if (trades.length === 0) return;
+    const hz = this.config.SIM_HZ;
+    for (let i = trades.length - 1; i >= 0; i--) {
+      const t = trades[i]!;
+      const a = this.players[t.a];
+      const b = this.players[t.b];
+      if (!a || !a.alive || !b || !b.alive) {
+        trades.splice(i, 1);
+        continue;
+      }
+      const aPay = t.aGivesPerSec / hz;
+      const bPay = t.bGivesPerSec / hz;
+      if ((a.resources[t.aGives] ?? 0) < aPay) continue;
+      if ((b.resources[t.bGives] ?? 0) < bPay) continue;
+      a.resources[t.aGives] -= aPay;
+      b.resources[t.aGives] += aPay;
+      b.resources[t.bGives] -= bPay;
+      a.resources[t.bGives] += bPay;
+    }
+  }
+
+  /** Periodically: AI players evaluate proposing a resource trade to
+   *  a peer when they're short on a resource. Throttled to once every
+   *  ~20s per AI to avoid trade-spam. */
+  private _aiProposeResourceTrade(p: Player): void {
+    if (p.isHuman || !p.alive) return;
+    if (((this.tickCount + p.id * 23) % 200) !== 0) return; // every 20s, offset per id
+    // Find our shortest resource (under 150).
+    let needKind: ResourceKind | null = null;
+    let needAmount = Infinity;
+    const all: ResourceKind[] = ['food', 'wood', 'stone', 'oil', 'gems'];
+    for (const k of all) {
+      if (p.resources[k] < 150 && p.resources[k] < needAmount) {
+        needKind = k; needAmount = p.resources[k];
+      }
+    }
+    if (!needKind) return;
+    // Find our most surplus resource (over 200).
+    let giveKind: ResourceKind | null = null;
+    let giveSurplus = 200;
+    for (const k of all) {
+      if (k === needKind) continue;
+      if (p.resources[k] > giveSurplus) {
+        giveKind = k; giveSurplus = p.resources[k];
+      }
+    }
+    if (!giveKind) return;
+    // Pick a target peer: any alive non-allied non-self player who's
+    // not already trading with us. Prefer ones with surplus of our need.
+    let bestTarget: PlayerId = 0;
+    let bestScore = -Infinity;
+    for (let id = 1; id < this.players.length; id++) {
+      if (id === p.id) continue;
+      const o = this.players[id];
+      if (!o || !o.alive) continue;
+      if (this.resourceTradeBetween(p.id, id)) continue;
+      // Score: how much of the needed resource they have.
+      const supply = o.resources[needKind] ?? 0;
+      if (supply < 100) continue;
+      if (supply > bestScore) { bestScore = supply; bestTarget = id; }
+    }
+    if (bestTarget === 0) return;
+    // Propose 5/sec each way (a fair starter rate).
+    const rate = 5;
+    this.proposeResourceTrade(p.id, bestTarget, giveKind, rate, needKind, rate);
   }
 
   /** Per-tick: drain resource upkeep for every owned building. If the
