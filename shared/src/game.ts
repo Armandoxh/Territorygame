@@ -1,7 +1,7 @@
 import type { GameConfig } from './config.js';
 import type {
   Player, PlayerId, Capital, Building, BuildingType, BombType, GameEvent,
-  GameOutcome, BuildError, BombError, Point,
+  GameOutcome, BuildError, BombError, GroundOpType, GroundOpError, Point,
   Ship, ShipKind, ShipBuildError,
   Plane,
   TradeRoute, ExternalTradeRoute,
@@ -671,7 +671,7 @@ export class Game {
     if (type === 'airstrip')   return 1 + Math.floor(regionTiles / 60);
     if (type === 'aa')         return 1 + Math.floor(regionTiles / 50);
     if (type === 'port')       return 1 + Math.floor(regionTiles / 60);
-    if (type === 'artillery')  return 1 + Math.floor(regionTiles / 40);
+    if (type === 'barracks')   return 1 + Math.floor(regionTiles / 60);
     return 0;
   }
 
@@ -693,6 +693,237 @@ export class Game {
       if (ready < best) best = ready;
     }
     return any ? best : -1;
+  }
+
+  hasBarracks(ownerId: PlayerId): boolean {
+    return this.countBuildings(ownerId, 'barracks') > 0;
+  }
+
+  /** Soonest tick at which a barracks belonging to ownerId will be
+   *  ready to fire `opType`, or -1 if the player has no barracks at all.
+   *  Each barracks tracks its own cooldown per ground-op type, so a
+   *  player with two barracks can stagger Blitzkriegs but the same
+   *  barracks can't fire the same op back-to-back. */
+  barracksReadyAt(ownerId: PlayerId, opType: GroundOpType): number {
+    let best = Infinity;
+    let any = false;
+    for (const b of this.buildings) {
+      if (b.type !== 'barracks' || b.owner !== ownerId) continue;
+      any = true;
+      const ready = b.opCooldowns?.[opType] ?? 0;
+      if (ready < best) best = ready;
+    }
+    return any ? best : -1;
+  }
+
+  /** Fire a ground deployment from any ready Barracks belonging to
+   *  ownerId. Mirror of dropBomb but for ground effects.
+   *
+   *  Effects (see _fire* methods below):
+   *    - 'blitzkrieg' (300g, 30s): pick a target tile inside an enemy
+   *      region. Each frontier tile of yours within R of target launches
+   *      a 10-tile-deep BFS claim toward target, ignoring defense.
+   *    - 'artillery' (250g, 20s): single shell at target tile. Drains
+   *      80 troops from any enemy player owning tiles in r5, plus
+   *      heavy ship damage. No claim wipe.
+   *    - 'tanks' (400g, 60s): pick target tile. From your nearest
+   *      frontier toward target, claim a LINE of 8 tiles ignoring
+   *      defense. Steamroll. */
+  tryGroundOp(type: GroundOpType, x: number, y: number, ownerId: PlayerId): GroundOpError | null {
+    if (!this.territory.inBounds(x, y)) return 'oob';
+    const owner = this.players[ownerId];
+    if (!owner || !owner.alive) return 'dead';
+    const cost = this.config.GROUND_OP_COSTS[type];
+    if (cost == null) return 'bad-type';
+
+    // Find soonest-ready barracks for this op type.
+    let chosen: Building | null = null;
+    let chosenReady = Infinity;
+    let any = false;
+    for (const b of this.buildings) {
+      if (b.type !== 'barracks' || b.owner !== ownerId) continue;
+      any = true;
+      const ready = b.opCooldowns?.[type] ?? 0;
+      if (ready <= this.tickCount && ready < chosenReady) {
+        chosen = b;
+        chosenReady = ready;
+      }
+    }
+    if (!any) return 'no-barracks';
+    if (!chosen) return 'cooldown';
+
+    // Aggression auto-declares war on the target tile owner if needed.
+    // Same logic as dropBomb so ground deployments don't bypass the
+    // peace-state model.
+    const targetOwner = this.territory.getOwner(x, y);
+    if (targetOwner > 0 && targetOwner !== ownerId
+        && !this.areAllied(ownerId, targetOwner)
+        && !this.areAtWar(ownerId, targetOwner)) {
+      this.declareWar(ownerId, targetOwner, 'aggression');
+    }
+
+    if (!this._chargeOps(owner, cost)) return 'gold';
+
+    // Set per-op cooldown on the firing barracks.
+    if (!chosen.opCooldowns) chosen.opCooldowns = {};
+    chosen.opCooldowns[type] = this.tickCount + this.config.GROUND_OP_COOLDOWN_TICKS[type];
+
+    // Apply effect.
+    if (type === 'blitzkrieg') this._fireBlitzkrieg(owner, x, y);
+    else if (type === 'artillery') this._fireArtilleryStrike(owner, x, y);
+    else if (type === 'tanks') this._fireTankPush(owner, x, y);
+
+    this.events.push({ type: 'ground-op', opType: type, ownerId, x, y });
+    return null;
+  }
+
+  /** Blitzkrieg: every frontier tile of `p` within R of (tx,ty) launches
+   *  a BFS claim up to 10 tiles deep toward target. Ignores defense.
+   *  Only takes neutral / at-war tiles. Per-anchor depth cap so the
+   *  burst feels like multiple simultaneous deep pushes from the front. */
+  private _fireBlitzkrieg(p: Player, tx: number, ty: number): void {
+    const DEPTH = this.config.GROUND_OP_RADII['blitzkrieg'];
+    const ANCHOR_R = 8;
+    const W = this.territory.width;
+    const territory = this.territory;
+    const claimedThisFire = new Set<number>();
+    // Find frontier tiles within ANCHOR_R of target.
+    const anchors: number[] = [];
+    const frontier = territory.getFrontier(p.id);
+    for (const i of frontier) {
+      const x = i % W, y = (i - x) / W;
+      const dx = x - tx, dy = y - ty;
+      if (dx * dx + dy * dy > ANCHOR_R * ANCHOR_R) continue;
+      anchors.push(i);
+    }
+    if (anchors.length === 0) return;
+    const queue: Array<[number, number, number]> = [];
+    const visited = new Set<number>();
+    for (const i of anchors) {
+      const x = i % W, y = (i - x) / W;
+      for (const [ddx, ddy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        queue.push([x + ddx, y + ddy, 1]);
+      }
+    }
+    let claims = 0;
+    while (queue.length > 0 && claims < DEPTH * Math.max(2, anchors.length)) {
+      const [x, y, depth] = queue.shift()!;
+      if (depth > DEPTH) continue;
+      if (!territory.inBounds(x, y)) continue;
+      if (!territory.isPassable(x, y)) continue;
+      const idx = y * W + x;
+      if (visited.has(idx) || claimedThisFire.has(idx)) continue;
+      visited.add(idx);
+      const o = territory.getOwner(x, y);
+      if (o === p.id) {
+        for (const [ddx, ddy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+          queue.push([x + ddx, y + ddy, depth]);
+        }
+        continue;
+      }
+      if (o > 0) {
+        if (this.areAllied(p.id, o)) continue;
+        if (!this.areAtWar(p.id, o)) continue;
+      }
+      if (this._capitalIndexAt(x, y) >= 0) continue;
+      if (!this._claim(x, y, p.id)) continue;
+      claimedThisFire.add(idx);
+      claims++;
+      for (const [ddx, ddy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        queue.push([x + ddx, y + ddy, depth + 1]);
+      }
+    }
+  }
+
+  /** Artillery Strike: single shell at (tx,ty). Drains troops from
+   *  enemy owners with tiles in radius and damages ships in range.
+   *  Does NOT wipe claims — this is troop attrition, not territory. */
+  private _fireArtilleryStrike(p: Player, tx: number, ty: number): void {
+    const r = this.config.GROUND_OP_RADII['artillery'];
+    const r2 = r * r;
+    const W = this.territory.width;
+    const H = this.territory.height;
+    const drainPerOwner = new Map<PlayerId, number>();
+    for (let dy = -r; dy <= r; dy++) {
+      const y = ty + dy;
+      if (y < 0 || y >= H) continue;
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r2) continue;
+        const x = tx + dx;
+        if (x < 0 || x >= W) continue;
+        if (!this.territory.isPassable(x, y)) continue;
+        const o = this.territory.getOwner(x, y);
+        if (o <= 0 || o === p.id) continue;
+        if (this.areAllied(p.id, o)) continue;
+        drainPerOwner.set(o, (drainPerOwner.get(o) ?? 0) + 1);
+      }
+    }
+    // Drain proportional to tiles hit, capped per fire.
+    for (const [oid, hits] of drainPerOwner) {
+      const enemy = this.players[oid];
+      if (!enemy) continue;
+      const drain = Math.min(800, hits * 12);
+      enemy.troops = Math.max(0, enemy.troops - drain);
+    }
+    // Ship damage in radius.
+    for (let i = this.ships.length - 1; i >= 0; i--) {
+      const s = this.ships[i]!;
+      if (s.owner === p.id) continue;
+      if (this.areAllied(p.id, s.owner)) continue;
+      const sdx = s.x + 0.5 - tx;
+      const sdy = s.y + 0.5 - ty;
+      if (sdx * sdx + sdy * sdy > r2) continue;
+      s.hp -= 60;
+      if (s.hp <= 0) {
+        this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
+        this.ships.splice(i, 1);
+      }
+    }
+  }
+
+  /** Tank Push: from the closest frontier tile to target, claim a line
+   *  of LEN tiles toward target. Ignores defense. Steamroll. */
+  private _fireTankPush(p: Player, tx: number, ty: number): void {
+    const LEN = this.config.GROUND_OP_RADII['tanks'];
+    const W = this.territory.width;
+    const territory = this.territory;
+    // Closest frontier tile to target.
+    const frontier = territory.getFrontier(p.id);
+    if (frontier.size === 0) return;
+    let bestI = -1, bestD = Infinity;
+    for (const i of frontier) {
+      const x = i % W, y = (i - x) / W;
+      const dx = x - tx, dy = y - ty;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD) { bestD = d2; bestI = i; }
+    }
+    if (bestI < 0) return;
+    const sx = bestI % W;
+    const sy = (bestI - sx) / W;
+    // Bresenham-like step from frontier toward target, claim each step.
+    const ddx = tx - sx, ddy = ty - sy;
+    const steps = Math.max(Math.abs(ddx), Math.abs(ddy)) || 1;
+    const stepX = ddx / steps;
+    const stepY = ddy / steps;
+    let x = sx, y = sy;
+    let claimed = 0;
+    for (let s = 0; s < LEN && claimed < LEN; s++) {
+      x += stepX; y += stepY;
+      const ix = Math.round(x), iy = Math.round(y);
+      if (!territory.inBounds(ix, iy)) break;
+      if (!territory.isPassable(ix, iy)) break;
+      if (this._capitalIndexAt(ix, iy) >= 0) continue;
+      const o = territory.getOwner(ix, iy);
+      if (o === p.id) continue;
+      if (o > 0) {
+        if (this.areAllied(p.id, o)) break;
+        if (!this.areAtWar(p.id, o)) break;
+      }
+      if (this._claim(ix, iy, p.id)) claimed++;
+    }
+    // Brief +50% combat power buff for 8s after — the steamroll
+    // momentum continues.
+    p.activeBuffs['tank-rush'] = this.tickCount + 80;
   }
 
   /** null on success, error code otherwise. */
@@ -745,7 +976,7 @@ export class Game {
       this._applySettlement(x, y, +1, this._settlementRadius(1));
       this._adjSettlementLevels(x, y, ownerId, +1);
     }
-    if (type === 'turret' || type === 'artillery') this._turretCacheDirty = true;
+    if (type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: type, ownerId });
     // A new L1 won't trigger consolidation (we need 5 of same tier+),
     // but call anyway to keep the code path uniform with tryUpgrade.
@@ -783,7 +1014,7 @@ export class Game {
       this._applySettlement(b.x, b.y, +1, this._settlementRadius(b.level));
       this._adjSettlementLevels(b.x, b.y, ownerId, +1);
     }
-    if (b.type === 'turret' || b.type === 'artillery') this._turretCacheDirty = true;
+    if (b.type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: b.type, ownerId });
     this._tryConsolidate(b);
     return null;
@@ -1497,88 +1728,10 @@ export class Game {
     } else if (abilityId === 'embargo') {
       const t = this.players[targetId!];
       if (t) t.activeBuffs['embargoed'] = this.tickCount + a.duration;
-    } else if (abilityId === 'blitzkrieg') {
-      // Each vassal under this leader claims up to 10 tiles deep along
-      // its frontier, ignoring defense. Burst applies once per fire.
-      this._fireBlitzkrieg(p);
-    } else if (abilityId === 'tank-rush') {
-      // Empire-wide attacker combat-power multiplier for 15s. Read
-      // in _expand attack calc via _tankRushMult.
-      p.activeBuffs['tank-rush'] = this.tickCount + a.duration;
     }
 
     this.events.push({ type: 'ability-fired', abilityId, ownerId: playerId, targetId });
     return null;
-  }
-
-  /** Empire-wide attacker combat-power multiplier from Tank Rush
-   *  ability (15s, ×2.0). Stacks multiplicatively with veterans /
-   *  rally / focus.  */
-  private _tankRushMult(p: Player): number {
-    return this._abilityActive(p, 'tank-rush') ? 2.0 : 1;
-  }
-
-  /** Blitzkrieg burst: for each region this leader dominates, claim up
-   *  to N tiles outward from any frontier tile — ignoring defense and
-   *  war state, but only into NEUTRAL or AT-WAR-with-leader tiles.
-   *  Per-region cap so the burst feels like a deep push from each
-   *  vassal rather than a global cone. Doesn't auto-declare war —
-   *  it only operates against tiles you can already legally take. */
-  private _fireBlitzkrieg(p: Player): void {
-    const PER_REGION_DEPTH = 10;
-    const W = this.territory.width;
-    const territory = this.territory;
-    const claimedThisFire = new Set<number>();
-    for (let r = 1; r <= this.regionCount; r++) {
-      if (this._regionDominant[r] !== p.id) continue;
-      const frontierTiles: number[] = [];
-      const tiles = this._tilesByRegion[r];
-      if (!tiles) continue;
-      for (const i of tiles) {
-        if (territory.owners[i] !== p.id) continue;
-        const x = i % W, y = (i - x) / W;
-        if (this._hasEnemyNeighbor(x, y, p.id)) frontierTiles.push(i);
-      }
-      // BFS outward from each frontier tile, claim along the way.
-      const queue: Array<[number, number, number]> = []; // x, y, depth
-      const visited = new Set<number>();
-      for (const i of frontierTiles) {
-        const x = i % W, y = (i - x) / W;
-        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-          queue.push([x + dx, y + dy, 1]);
-        }
-      }
-      let claimedInRegion = 0;
-      while (queue.length > 0 && claimedInRegion < PER_REGION_DEPTH) {
-        const [x, y, depth] = queue.shift()!;
-        if (depth > PER_REGION_DEPTH) continue;
-        if (!territory.inBounds(x, y)) continue;
-        if (!territory.isPassable(x, y)) continue;
-        const idx = y * W + x;
-        if (visited.has(idx) || claimedThisFire.has(idx)) continue;
-        visited.add(idx);
-        const o = territory.getOwner(x, y);
-        if (o === p.id) {
-          // Already ours — keep BFSing through.
-          for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-            queue.push([x + dx, y + dy, depth]);
-          }
-          continue;
-        }
-        // Tiles we can take: neutral OR at-war non-allied.
-        if (o > 0) {
-          if (this.areAllied(p.id, o)) continue;
-          if (!this.areAtWar(p.id, o)) continue;
-        }
-        if (this._capitalIndexAt(x, y) >= 0) continue;
-        if (!this._claim(x, y, p.id)) continue;
-        claimedThisFire.add(idx);
-        claimedInRegion++;
-        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-          queue.push([x + dx, y + dy, depth + 1]);
-        }
-      }
-    }
   }
 
   // --- Alliances --------------------------------------------------------
@@ -3687,7 +3840,9 @@ export class Game {
         // regional math (vassal-driven path multiplies its own
         // attackerPower below) and rally buffs.
         const veteransMult = this._veteransMult(p);
-        const tankMult = this._tankRushMult(p);
+        // Tank-Push buff (set by _fireTankPush): brief +50% attacker
+        // combat power so the steamroll momentum continues for ~8s.
+        const tankMult = this._abilityActive(p, 'tank-rush') ? 1.5 : 1;
         let attackerPower = p.troops * veteransMult * tankMult;
         let defenderPower = Math.max(1, defender?.troops ?? 1);
         const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
@@ -3820,28 +3975,15 @@ export class Game {
       }
     }
     for (const b of this.buildings) {
-      const isTurret = b.type === 'turret';
-      const isArtillery = b.type === 'artillery';
-      if (!isTurret && !isArtillery) continue;
+      if (b.type !== 'turret') continue;
       const owner = b.owner;
       const lvl = b.level ?? 1;
-      // L1-3: gentle +1 radius per tier. L4-6 (bronze/silver/diamond
-      // consolidations): much wider coverage so the consolidated tower
-      // visibly replaces the cluster it absorbed.
-      // Artillery has a wider base footprint (longer-range cannons) but
-      // grants NO defense bonus — its job is to BLEED attackers via
-      // retaliation, not slow their captures. Different role from turret.
-      const baseR = isArtillery ? baseRBy[owner]! + 3 : baseRBy[owner]!;
       const r = lvl <= 3
-        ? baseR + (lvl - 1)
-        : baseR + 2 + (lvl - 3) * 4;
+        ? baseRBy[owner]! + (lvl - 1)
+        : baseRBy[owner]! + 2 + (lvl - 3) * 4;
       const r2 = r * r;
-      const defAdd = isTurret ? this.config.TURRET_DEFENSE_BONUS * lvl : 0;
-      // Artillery: 3× turret retaliation per level. A bronze (L4) artillery
-      // covers a wide area and shreds attackers passing through.
-      const retAdd = isArtillery
-        ? this.config.TURRET_RETALIATION_DAMAGE * lvl * 3
-        : this.config.TURRET_RETALIATION_DAMAGE * lvl;
+      const defAdd = this.config.TURRET_DEFENSE_BONUS * lvl;
+      const retAdd = this.config.TURRET_RETALIATION_DAMAGE * lvl;
       const grids = ensureGrid(owner);
       const def = grids.def, ret = grids.ret;
       const x0 = Math.max(0, b.x - r);
@@ -3883,7 +4025,7 @@ export class Game {
           this._applySettlement(b.x, b.y, -lvl, this._settlementRadius(lvl));
           this._adjSettlementLevels(b.x, b.y, b.owner, -lvl);
         }
-        if (b.type === 'turret' || b.type === 'artillery') this._turretCacheDirty = true;
+        if (b.type === 'turret') this._turretCacheDirty = true;
         this.buildings.splice(i, 1);
         this.buildingsVersion++;
         this.events.push({ type: 'destroyed', buildingType: b.type, ownerId: b.owner });
@@ -3908,7 +4050,7 @@ export class Game {
    *  the promoted building so 5 bronze can chain into silver, etc. */
   private _tryConsolidate(b: Building): void {
     if (b.type !== 'settlement' && b.type !== 'turret'
-        && b.type !== 'aa' && b.type !== 'port' && b.type !== 'artillery') return;
+        && b.type !== 'aa' && b.type !== 'port') return;
     const lvl = b.level ?? 1;
     if (lvl < 3 || lvl >= 6) return; // promote only from L3-5 → L4-6
 
@@ -3953,7 +4095,7 @@ export class Game {
         this._applySettlement(c.x, c.y, -cl, this._settlementRadius(cl));
         this._adjSettlementLevels(c.x, c.y, c.owner, -cl);
       }
-      if (c.type === 'turret' || c.type === 'artillery') this._turretCacheDirty = true;
+      if (c.type === 'turret') this._turretCacheDirty = true;
       const idx = this.buildings.indexOf(c);
       if (idx >= 0) this.buildings.splice(idx, 1);
     }
@@ -3967,7 +4109,7 @@ export class Game {
       this._applySettlement(cx, cy, lvl + 1, this._settlementRadius(lvl + 1));
       this._adjSettlementLevels(cx, cy, b.owner, lvl + 1);
     }
-    if (b.type === 'turret' || b.type === 'artillery') this._turretCacheDirty = true;
+    if (b.type === 'turret') this._turretCacheDirty = true;
     this.events.push({ type: 'built', buildingType: b.type, ownerId: b.owner });
 
     // Chain: 5 bronze → silver, 5 silver → diamond.

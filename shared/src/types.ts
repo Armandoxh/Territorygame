@@ -7,7 +7,12 @@ export const TERRAIN_LAND = 0;
 export const TERRAIN_WATER = 1;
 export const TERRAIN_DEEP = 2;
 
-export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'aa' | 'port' | 'artillery';
+export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'aa' | 'port' | 'barracks';
+
+/** Ground deployments — fired from a Barracks like bombs are fired
+ *  from an airstrip. Each has its own cost + cooldown stored on the
+ *  Barracks building, parallel to airstrip's cooldownUntil. */
+export type GroundOpType = 'blitzkrieg' | 'artillery' | 'tanks';
 
 export type BombType = 'small' | 'large' | 'ac130' | 'stealth';
 
@@ -142,6 +147,10 @@ export interface Building {
   level: number;
   /** Airstrips only. Tick count after which this airstrip can fire again. */
   cooldownUntil?: number;
+  /** Barracks only. Per-ground-op cooldown end-tick. Allows the same
+   *  barracks to fire different ops independently while still capping
+   *  spam of the same op. */
+  opCooldowns?: Partial<Record<GroundOpType, number>>;
 }
 
 export interface Capital {
@@ -175,7 +184,8 @@ export type GameEvent =
   | { type: 'war-invite';       from: PlayerId; target: PlayerId }
   | { type: 'trade-completed';  fromId: PlayerId; toId: PlayerId; gold: number; troops: number }
   | { type: 'trade-route-formed'; a: PlayerId; b: PlayerId }
-  | { type: 'trade-route-broken'; a: PlayerId; b: PlayerId; brokenBy: PlayerId };
+  | { type: 'trade-route-broken'; a: PlayerId; b: PlayerId; brokenBy: PlayerId }
+  | { type: 'ground-op';        opType: GroundOpType; ownerId: PlayerId; x: number; y: number };
 
 export type RGBA = readonly [number, number, number, number];
 
@@ -185,3 +195,7 @@ export type BuildError =
 
 export type BombError =
   | 'no-airstrip' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type' | 'locked';
+
+/** Mirrors BombError but for Barracks-launched ground deployments. */
+export type GroundOpError =
+  | 'no-barracks' | 'cooldown' | 'gold' | 'oob' | 'dead' | 'bad-type';

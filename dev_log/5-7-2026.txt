@@ -445,3 +445,49 @@ User asked for tank "steamroll" — implemented as Tank Rush ability
 since per-tile units would require a lot more engine work.
 Blitzkrieg is the per-vassal burst as requested. Both are listed
 in the abilities panel and pay from treasury.
+
+---
+
+[pending] gameplay: ground perks moved from commander to a Barracks
+building (parallel to airstrip → bombs)
+
+WHAT:
+  • Removed Blitzkrieg + Tank-Rush from ABILITIES (commander panel).
+  • Removed static 'artillery' building type entirely (its retaliation
+    effect went away).
+  • New 'barracks' BuildingType (cost 140g, no special effect on its
+    own — it's an enabler, like an airstrip).
+  • New GroundOpType: 'blitzkrieg' | 'artillery' | 'tanks'.
+  • New tryGroundOp(type, x, y, ownerId) engine API. Mirrors dropBomb:
+    finds the soonest-ready Barracks for that op, charges treasury,
+    sets per-op cooldown on that Barracks, applies effect.
+  • Per-Barracks per-op cooldowns stored on Building.opCooldowns
+    (Partial<Record<GroundOpType, number>>) so build more barracks =
+    more parallel deployments, but same barracks can't spam the same
+    op back-to-back.
+  • Effects:
+      blitzkrieg (300g, 30s): every frontier tile within 8 tiles of
+        the target launches a 10-tile-deep BFS claim toward target,
+        ignoring defense. Only takes neutral / at-war tiles.
+      artillery (250g, 20s): single shell at target. Drains 12 troops
+        per hit tile from each enemy owner (capped 800), 60hp ship
+        damage in r5. No claim wipe — pure attrition.
+      tanks (400g, 60s): claim a 8-tile line from your nearest frontier
+        toward target, ignoring defense. +50% combat power buff for
+        the next 8s after launch (sets activeBuffs['tank-rush']).
+  • Build sheet: Artillery button replaced with Barracks (hotkey G).
+  • New "barracks-sheet" mirroring the bomb sheet, opened by the new
+    ⚔ FAB button (only shows once you have a Barracks).
+  • Per-barracks cooldown reads in HUD ground-op buttons so they
+    grey out when reloading.
+  • OverlayLayer: barracks icon (bunkered hut + flagpole). No coverage
+    ring (it's an enabler, not an aura piece).
+  • Aggression on a peace neighbor's tile auto-declares war via
+    declareWar (same gate as bombs).
+
+WHY: User wanted ground troops to have a parallel push system to
+airstrips/bombs and ships, with deployments fired from a building
+rather than commander treasury. Cleaner separation: commander panel
+holds passive decrees + tactical buffs (Rally, Reinforcements);
+Barracks holds offensive ground deployments. Encourages investing
+in a Barracks per region for parallel firing capability.

@@ -318,6 +318,36 @@ html, body {
 }
 .fab-fleet.aiming { background: rgba(232, 74, 74, 0.95); color: white; }
 
+.fab-barracks {
+  background: rgba(170, 100, 60, 0.95);
+  color: #1a0a04;
+  bottom: calc(260px + env(safe-area-inset-bottom, 0));
+  min-width: 68px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 0;
+}
+.fab-barracks .fab-glyph { font-size: 24px; line-height: 1; }
+.fab-barracks .fab-cd {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  opacity: 0.7; margin-top: 1px;
+}
+.fab-barracks.armed  { background: rgba(170, 100, 60, 0.95); }
+.fab-barracks.aiming { background: rgba(232, 74, 74, 0.95); color: white; }
+
+#barrackssheet {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: #161b21;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 18px 16px calc(20px + env(safe-area-inset-bottom, 0));
+  transform: translateY(100%);
+  transition: transform 0.18s ease;
+  z-index: 22;
+  pointer-events: auto;
+}
+#barrackssheet.show { transform: translateY(0); }
+#barrackssheet .bs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+
 #fleetsheet {
   position: absolute;
   left: 0; right: 0; bottom: 0;
@@ -1045,10 +1075,25 @@ html, body {
   -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2 a3 3 0 1 1 0 6 a3 3 0 1 1 0 -6 z M11 8 v12 M3 14 q4 8 9 8 q5 0 9 -8' stroke='black' stroke-width='2.4' fill='none'/></svg>");
           mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2 a3 3 0 1 1 0 6 a3 3 0 1 1 0 -6 z M11 8 v12 M3 14 q4 8 9 8 q5 0 9 -8' stroke='black' stroke-width='2.4' fill='none'/></svg>");
 }
-.bs-icon[data-icon="artillery"]::before {
-  /* Cannon silhouette */
+.bs-icon[data-icon="barracks"]::before {
+  /* Barracks: bunkered hut silhouette with flag */
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='3,20 3,11 12,5 21,11 21,20' fill='black'/><rect x='14' y='2' width='1.5' height='6' fill='black'/><polygon points='15.5,2 21,4 15.5,6' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='3,20 3,11 12,5 21,11 21,20' fill='black'/><rect x='14' y='2' width='1.5' height='6' fill='black'/><polygon points='15.5,2 21,4 15.5,6' fill='black'/></svg>");
+}
+.bb-btn[data-gop="blitzkrieg"] .bb-icon::before {
+  background-color: #ff6b6b;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='4,12 14,2 11,11 20,11 10,22 13,13 4,13' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='4,12 14,2 11,11 20,11 10,22 13,13 4,13' fill='black'/></svg>");
+}
+.bb-btn[data-gop="artillery"] .bb-icon::before {
+  background-color: #eb8a3a;
   -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='2,18 22,6 22,10 4,22' fill='black'/><circle cx='3' cy='20' r='3' fill='black'/></svg>");
           mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><polygon points='2,18 22,6 22,10 4,22' fill='black'/><circle cx='3' cy='20' r='3' fill='black'/></svg>");
+}
+.bb-btn[data-gop="tanks"] .bb-icon::before {
+  background-color: #c1b15a;
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='2' y='12' width='20' height='6' fill='black'/><rect x='6' y='8' width='10' height='4' fill='black'/><rect x='15' y='9' width='8' height='1.5' fill='black'/><circle cx='5' cy='20' r='2' fill='black'/><circle cx='12' cy='20' r='2' fill='black'/><circle cx='19' cy='20' r='2' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='2' y='12' width='20' height='6' fill='black'/><rect x='6' y='8' width='10' height='4' fill='black'/><rect x='15' y='9' width='8' height='1.5' fill='black'/><circle cx='5' cy='20' r='2' fill='black'/><circle cx='12' cy='20' r='2' fill='black'/><circle cx='19' cy='20' r='2' fill='black'/></svg>");
 }
 .bs-name { grid-column: 2; grid-row: 1; font-size: 14px; font-weight: 700; }
 .bs-name em { font-style: normal; opacity: 0.55; font-size: 11px; margin-left: 4px; font-weight: 500; }

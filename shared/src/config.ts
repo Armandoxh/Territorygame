@@ -1,4 +1,4 @@
-import type { BuildingType, BombType, ShipKind, RGBA } from './types.js';
+import type { BuildingType, BombType, GroundOpType, ShipKind, RGBA } from './types.js';
 
 export interface GameConfig {
   GRID_WIDTH: number;
@@ -124,6 +124,11 @@ export interface GameConfig {
   /** Damage per port hit on a ship (one roll per port per tick). */
   PORT_DAMAGE: number;
 
+  // --- Ground deployments (fired from a Barracks) ---
+  GROUND_OP_COSTS: Record<GroundOpType, number>;
+  GROUND_OP_COOLDOWN_TICKS: Record<GroundOpType, number>;
+  GROUND_OP_RADII: Record<GroundOpType, number>;
+
   // --- AC-130 gunship ---
   /** Ticks the gunship orbits the target after arrival. */
   AC130_ORBIT_TICKS: number;
@@ -230,7 +235,7 @@ export const DEFAULT_CONFIG: GameConfig = {
     airstrip:   150,
     aa:         110,
     port:       180, // coastal anti-naval — pricier than turret because it scales by level
-    artillery:  140, // ground-defense emplacement, longer reach than turret
+    barracks:   140, // ground-deployment enabler (Blitzkrieg / Artillery / Tanks)
   },
   SETTLEMENT_RADIUS: 6,
   SETTLEMENT_BONUS: 0.5,        // +50% gold in radius
@@ -249,6 +254,10 @@ export const DEFAULT_CONFIG: GameConfig = {
   AA_HIT_CHANCE: 0.75, // legacy; per-level rates live in _aaHitChanceFor
   PORT_RADIUS: 8,
   PORT_DAMAGE: 25,
+
+  GROUND_OP_COSTS:          { blitzkrieg: 300, artillery: 250, tanks: 400 },
+  GROUND_OP_COOLDOWN_TICKS: { blitzkrieg: 300, artillery: 200, tanks: 600 }, // 30s / 20s / 60s
+  GROUND_OP_RADII:          { blitzkrieg: 10,  artillery: 5,   tanks: 8 },   // bk = depth, arty = blast, tanks = line len
 
   /** AC-130 only. Ticks the gunship orbits the target after arrival. */
   AC130_ORBIT_TICKS:    150,  // 15s on station — buffed from 10s

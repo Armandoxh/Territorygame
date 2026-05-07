@@ -65,6 +65,10 @@
       <span class="fab-glyph">⛵</span>
       <span class="fab-cd" id="fleet-count">0</span>
     </button>
+    <button id="barracks-btn" class="fab fab-barracks hidden" type="button" aria-label="Ground deployments">
+      <span class="fab-glyph">⚔</span>
+      <span class="fab-cd" id="barracks-cd"></span>
+    </button>
     <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu">≡</button>
     <button id="help-btn" class="icon-btn icon-btn-help" type="button" aria-label="How to play">?</button>
     <button id="crown-btn" class="icon-btn icon-btn-crown" type="button" aria-label="Commander">♛</button>
@@ -179,10 +183,10 @@
           <span class="bs-desc">Coastal · sinks enemy ships in r8 (same tier rates as AA)</span>
           <span class="bs-cost">180</span>
         </button>
-        <button class="bs-btn" data-type="artillery" type="button">
-          <span class="bs-icon" data-icon="artillery"></span>
-          <span class="bs-name">Artillery <em>(R)</em></span>
-          <span class="bs-desc">Long range, 3× turret retaliation, no defense bonus</span>
+        <button class="bs-btn" data-type="barracks" type="button">
+          <span class="bs-icon" data-icon="barracks"></span>
+          <span class="bs-name">Barracks <em>(G)</em></span>
+          <span class="bs-desc">Ground ops base · enables Blitzkrieg / Artillery / Tanks</span>
           <span class="bs-cost">140</span>
         </button>
       </div>
@@ -215,6 +219,31 @@
           <span class="bs-name">Stealth <em>(X)</em></span>
           <span class="bs-desc">carpet 30×8 · ignores AA · 60s cooldown</span>
           <span class="bs-cost">1000</span>
+        </button>
+      </div>
+      <button class="bs-cancel" type="button">Cancel</button>
+    </div>
+    <div id="barrackssheet">
+      <div class="bs-handle"></div>
+      <div class="bs-header">Deploy ground op · funded by <b class="bs-pool" id="gop-empire-gold">0</b>g (gold + ♛ fallback)</div>
+      <div class="bs-grid">
+        <button class="bb-btn" data-gop="blitzkrieg" type="button">
+          <span class="bb-icon" data-icon="ground-blitz"></span>
+          <span class="bs-name">Blitzkrieg</span>
+          <span class="bs-desc">Burst-claim 10 tiles deep from frontier · 30s cd</span>
+          <span class="bs-cost">300</span>
+        </button>
+        <button class="bb-btn" data-gop="artillery" type="button">
+          <span class="bb-icon" data-icon="ground-arty"></span>
+          <span class="bs-name">Artillery Strike</span>
+          <span class="bs-desc">Drains troops in r5 · damages ships · 20s cd</span>
+          <span class="bs-cost">250</span>
+        </button>
+        <button class="bb-btn" data-gop="tanks" type="button">
+          <span class="bb-icon" data-icon="ground-tanks"></span>
+          <span class="bs-name">Tank Push</span>
+          <span class="bs-desc">Claim 8-tile line · +50% combat 8s · 60s cd</span>
+          <span class="bs-cost">400</span>
         </button>
       </div>
       <button class="bs-cancel" type="button">Cancel</button>

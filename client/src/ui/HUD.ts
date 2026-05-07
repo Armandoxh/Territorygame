@@ -1,8 +1,8 @@
-import type { Game, Building, BuildingType, BuildError, BombType, BombError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId, Mastery } from '@territorygame/shared';
+import type { Game, Building, BuildingType, BuildError, BombType, BombError, GroundOpType, GroundOpError, Player, DecreeBranch, ShipKind, ShipBuildError, PlayerId, Mastery } from '@territorygame/shared';
 import { DECREES, ABILITIES, MASTERIES } from '@territorygame/shared';
 import { formatTroops } from '../render/OverlayLayer.js';
 
-const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa', 'port', 'artillery'];
+const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa', 'port', 'barracks'];
 const BOMB_TYPES: BombType[] = ['small', 'large', 'ac130'];
 const SHIP_TYPES: ShipKind[] = ['scout', 'skirmisher', 'warship', 'submarine', 'destroyer'];
 const DECREE_BRANCHES: DecreeBranch[] = ['economy', 'defense', 'military', 'offense', 'espionage'];
@@ -51,6 +51,10 @@ export class HUD {
     fleetBtn:     this._byId('fleet-btn'),
     fleetCount:   this._byId('fleet-count'),
     fleetSheet:   this._byId('fleetsheet'),
+    barracksBtn:    this._byId('barracks-btn'),
+    barracksCd:     this._byId('barracks-cd'),
+    barracksSheet:  this._byId('barrackssheet'),
+    gopEmpireGold:  this._byId('gop-empire-gold'),
     leaderbar:    this._byId('leaderbar'),
     vassalLog:    this._byId('vassal-log'),
     commander:    this._byId('commander'),
@@ -95,6 +99,7 @@ export class HUD {
   private placeMode: BuildingType | null = null;
   private bombMode: BombType | null = null;
   private shipBuildMode: ShipKind | null = null;
+  private groundOpMode: GroundOpType | null = null;
   private buildSheetCoord: { x: number; y: number } | null = null;
   private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement; intel: HTMLElement }>();
   private cmdActiveBranch: DecreeBranch = 'economy';
@@ -126,6 +131,7 @@ export class HUD {
     this._wireSheet();
     this._wireBomb();
     this._wireFleet();
+    this._wireBarracks();
     this._wireMenu();
     this._wireGameOver();
     this._wireTutorial();
@@ -276,6 +282,78 @@ export class HUD {
 
   hideBombSheet(): void {
     this.el.bombSheet?.classList.remove('show');
+  }
+
+  // Ground-op aim mode (mirror of bomb-aim mode but for Barracks deployments)
+
+  toggleGroundOpMode(type: GroundOpType): void {
+    if (this.game.outcome) { this.groundOpMode = null; }
+    else if (this.groundOpMode === type) this.groundOpMode = null;
+    else this.groundOpMode = type;
+    this.placeMode = null;
+    this.bombMode = null;
+    this.hideBuildSheet();
+    this.hideBombSheet();
+    this.hideBarracksSheet();
+    this._refreshHotbar();
+    this._refreshPlaceBanner();
+    this._refreshBarracksFab();
+  }
+
+  clearGroundOpMode(): void {
+    if (!this.groundOpMode) return;
+    this.groundOpMode = null;
+    this._refreshPlaceBanner();
+    this._refreshBarracksFab();
+  }
+
+  /** Returns true if the tap was consumed by ground-op aim mode. */
+  tryGroundOpAt(x: number, y: number): boolean {
+    if (!this.groundOpMode) return false;
+    const type = this.groundOpMode;
+    const err = this.game.tryGroundOp(type, x, y, 1);
+    if (err === null) {
+      const labels: Record<GroundOpType, string> = {
+        blitzkrieg: 'Blitzkrieg launched',
+        artillery:  'Artillery strike',
+        tanks:      'Tanks rolling',
+      };
+      this.toast(labels[type]);
+      // Sticky so player can chain ops if multiple barracks ready.
+      this._refreshPlaceBanner();
+      this._refreshBarracksFab();
+    } else {
+      this.toast(this._groundOpErrorMsg(err));
+    }
+    return true;
+  }
+
+  showBarracksSheet(): void {
+    if (!this.el.barracksSheet) return;
+    if (!this.game.hasBarracks(1)) { this.toast('Build a Barracks first'); return; }
+    this.clearPlaceMode();
+    this.clearBombMode();
+    this.groundOpMode = null;
+    this._refreshHotbar();
+    this._refreshPlaceBanner();
+    this.el.barracksSheet.classList.add('show');
+    this._refreshBarracksSheetButtons();
+  }
+
+  hideBarracksSheet(): void {
+    this.el.barracksSheet?.classList.remove('show');
+  }
+
+  private _groundOpErrorMsg(err: GroundOpError): string {
+    const msgs: Record<GroundOpError, string> = {
+      'no-barracks': 'Build a Barracks first',
+      'cooldown':    'Barracks reloading',
+      'gold':        'Not enough gold',
+      'oob':         'Out of bounds',
+      'dead':        'You are eliminated',
+      'bad-type':    'Unknown deployment',
+    };
+    return msgs[err];
   }
 
   // Long-press build sheet
@@ -444,7 +522,9 @@ export class HUD {
     this._refreshHotbar();
     this._refreshBombFab();
     this._refreshFleetFab();
+    this._refreshBarracksFab();
     if (this.el.bombSheet?.classList.contains('show')) this._refreshBombSheetButtons();
+    if (this.el.barracksSheet?.classList.contains('show')) this._refreshBarracksSheetButtons();
     if (this.el.fleetSheet?.classList.contains('show')) this._refreshFleetSheetButtons();
     if (this.el.commander?.classList.contains('show')) this._refreshCommander();
     if (this.el.diploPanel?.classList.contains('show')) this._renderDiplomacy();
@@ -568,6 +648,26 @@ export class HUD {
       });
       this.el.bombSheet.querySelector<HTMLButtonElement>('.bs-cancel')
         ?.addEventListener('click', () => this.hideBombSheet());
+    }
+  }
+
+  private _wireBarracks(): void {
+    this.el.barracksBtn?.addEventListener('click', () => {
+      if (this.groundOpMode) { this.clearGroundOpMode(); return; }
+      if (this.el.barracksSheet?.classList.contains('show')) { this.hideBarracksSheet(); return; }
+      this.showBarracksSheet();
+    });
+    if (this.el.barracksSheet) {
+      this.el.barracksSheet.querySelectorAll<HTMLButtonElement>('.bb-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const op = btn.dataset['gop'] as GroundOpType | undefined;
+          if (!op) return;
+          this.hideBarracksSheet();
+          this.toggleGroundOpMode(op);
+        });
+      });
+      this.el.barracksSheet.querySelector<HTMLButtonElement>('.bs-cancel')
+        ?.addEventListener('click', () => this.hideBarracksSheet());
     }
   }
 
@@ -710,6 +810,37 @@ export class HUD {
         this.el.bombCd.textContent = 'BOMB';
       }
     }
+  }
+
+  private _refreshBarracksFab(): void {
+    if (!this.el.barracksBtn) return;
+    const has = this.game.hasBarracks(1);
+    this.el.barracksBtn.classList.toggle('hidden', !has || !!this.game.outcome);
+    if (!has) return;
+    this.el.barracksBtn.classList.toggle('aiming', !!this.groundOpMode);
+    this.el.barracksBtn.classList.toggle('armed',  !this.groundOpMode);
+    if (this.el.barracksCd) {
+      this.el.barracksCd.textContent = this.groundOpMode
+        ? this.groundOpMode.toUpperCase()
+        : 'GND';
+    }
+  }
+
+  private _refreshBarracksSheetButtons(): void {
+    if (!this.el.barracksSheet) return;
+    const me = this.game.human();
+    const combined = this.game.combinedFundsFor(me.id);
+    if (this.el.gopEmpireGold) this.el.gopEmpireGold.textContent = String(Math.floor(combined));
+    this.el.barracksSheet.querySelectorAll<HTMLButtonElement>('.bb-btn').forEach((btn) => {
+      const op = btn.dataset['gop'] as GroundOpType | undefined;
+      if (!op) return;
+      const cost = this.game.config.GROUND_OP_COSTS[op];
+      const ready = this.game.barracksReadyAt(1, op);
+      const cooling = ready < 0 ? false : ready > this.game.tickCount;
+      const costEl = btn.querySelector('.bs-cost');
+      if (costEl) costEl.textContent = String(cost);
+      btn.classList.toggle('disabled', cooling || combined < cost);
+    });
   }
 
   // Rebuilds the thin stacked progress bar at the top of the screen showing

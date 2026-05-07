@@ -13,7 +13,7 @@ const BUILD_KEYS: Record<string, BuildingType> = {
   a: 'airstrip',
   q: 'aa',
   p: 'port',
-  r: 'artillery',
+  g: 'barracks',
 };
 
 const BOMB_KEYS: Record<string, BombType> = {
@@ -84,6 +84,7 @@ async function boot(): Promise<void> {
       if (game.outcome) return;
       if (!game.territory.inBounds(wx, wy)) { hud.toast('off-map'); return; }
       if (hud.tryBombAt(wx, wy)) return;
+      if (hud.tryGroundOpAt(wx, wy)) return;
       if (hud.tryBuildShipAt(wx, wy)) return;
       if (hud.tryPlaceAt(wx, wy)) return;
 
@@ -169,6 +170,7 @@ async function boot(): Promise<void> {
     } else if (k === 'escape') {
       hud.clearPlaceMode();
       hud.clearBombMode();
+      hud.clearGroundOpMode();
       e.preventDefault();
     }
   });
