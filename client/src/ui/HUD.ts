@@ -1862,13 +1862,17 @@ export class HUD {
     }
     const set = (el: HTMLElement | null | undefined, v: number): void => {
       if (!el) return;
-      if (Math.abs(v) < 0.05) {
+      // Threshold low enough that a 5%-share gems region (≈0.01/s)
+      // still reads. Use 2 decimals for sub-0.5/s rates so "+0.04/s"
+      // doesn't round down to "+0.0/s" and disappear.
+      if (Math.abs(v) < 0.005) {
         el.classList.remove('pos', 'neg');
         el.textContent = '';
         return;
       }
       const sign = v > 0 ? '+' : '';
-      el.textContent = `${sign}${v.toFixed(1)}/s`;
+      const decimals = Math.abs(v) < 0.5 ? 2 : 1;
+      el.textContent = `${sign}${v.toFixed(decimals)}/s`;
       el.classList.toggle('pos', v > 0);
       el.classList.toggle('neg', v < 0);
     };
