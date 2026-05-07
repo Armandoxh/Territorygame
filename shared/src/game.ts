@@ -3239,46 +3239,83 @@ export class Game {
       const i = tiles[k]!;
       const x = i % W;
       const y = (i - x) / W;
-
-      let effectiveTarget: number | undefined;
-      let isVassalDriven = false;
       const tileRegion = this.regions[i]!;
       const isVassal = tileRegion > 0 && this._regionDominant[tileRegion] === p.id;
 
-      // Manual override: if the leader has explicitly targeted a region
-      // that this frontier tile can directly contribute to (the manual
-      // target IS this tile's region, or borders it), the leader's
-      // command outranks the vassal's autonomous target. Without this,
-      // vassal tiles silently ignore direct taps because their own
-      // autonomous target wins — which makes "I just bombed the enemy,
-      // why won't my units push in?" a real bug.
-      let manualReachable = false;
-      if (manualTargets.length > 0 && tileRegion > 0) {
-        const adj = this._regionAdjacency[tileRegion];
-        for (const mt of manualTargets) {
-          if (mt === tileRegion || (adj && adj.has(mt))) { manualReachable = true; break; }
+      // Build candidate list, filtered for actionability:
+      //   - neutral (owner 0) is always claimable
+      //   - allied players can never be attacked
+      //   - peace neighbors can never be attacked (must be at war)
+      // This filters out tiles we'd waste rolls on inside tryCapture.
+      const cands = this._validTargets(x, y, p.id);
+      if (cands.length === 0) continue;
+      const actionable: ExpansionCandidate[] = [];
+      for (const c of cands) {
+        const o = this.territory.getOwner(c.x, c.y);
+        if (o === 0) { actionable.push(c); continue; }
+        if (this.areAllied(p.id, o)) continue;
+        if (!this.areAtWar(p.id, o)) continue;
+        actionable.push(c);
+      }
+      if (actionable.length === 0) continue;
+
+      // Decide pool + driver for this frontier tile.
+      //
+      //   1. MANUAL ORDER: if any of this tile's actionable candidates
+      //      sits in a manual-target region, the leader's command wins.
+      //      Pool is restricted to those candidates ONLY — no spreading
+      //      to other directions even if they're easier. This is the
+      //      "general's order to drop everything and take this land".
+      //
+      //   2. VASSAL AUTONOMOUS: tile is in a region we dominate but no
+      //      manual order applies → push toward the vassal's chosen
+      //      target if it's reachable, else into ANY adjacent neutral
+      //      tile. Aggressive early-game neutral-eating happens here.
+      //
+      //   3. IDLE: non-vassal tile with no manual order → do nothing
+      //      this tick. Stops the random spread that made the focus
+      //      multiplier feel like "spread 3× everywhere" instead of
+      //      "100% on the target".
+      let pool: ExpansionCandidate[] = [];
+      let isManualDriven = false;
+      let isVassalDriven = false;
+      let effectiveTarget = 0;
+
+      if (manualTargets.length > 0) {
+        const targetSet = new Set(manualTargets);
+        for (const c of actionable) {
+          if (targetSet.has(this.regions[c.y * W + c.x]!)) pool.push(c);
+        }
+        if (pool.length > 0) {
+          isManualDriven = true;
+          effectiveTarget = manualTargets.length === 1
+            ? manualTargets[0]!
+            : this._pickClosestTarget(x, y, manualTargets);
         }
       }
 
-      if (manualReachable) {
-        effectiveTarget = manualTargets.length === 1
-          ? manualTargets[0]!
-          : this._pickClosestTarget(x, y, manualTargets);
-        // isVassalDriven stays false — leader's command, leader pays
-        // from p.gold (with treasury fallback below).
-      } else if (isVassal) {
+      if (pool.length === 0 && isVassal) {
         const vt = this._vassalTarget[tileRegion];
         if (vt && vt > 0) {
-          effectiveTarget = vt;
-          isVassalDriven = true;
+          for (const c of actionable) {
+            if (this.regions[c.y * W + c.x] === vt) pool.push(c);
+          }
+          if (pool.length > 0) effectiveTarget = vt;
         }
+        if (pool.length === 0) {
+          // Aggressive fallback: any adjacent neutral. Vassals never
+          // sit idle when there's free land touching their border.
+          for (const c of actionable) {
+            if (this.territory.getOwner(c.x, c.y) === 0) pool.push(c);
+          }
+          if (pool.length > 0 && effectiveTarget === 0) {
+            effectiveTarget = this.regions[pool[0]!.y * W + pool[0]!.x]!;
+          }
+        }
+        if (pool.length > 0) isVassalDriven = true;
       }
-      if (effectiveTarget == null && manualTargets.length > 0) {
-        effectiveTarget = manualTargets.length === 1
-          ? manualTargets[0]!
-          : this._pickClosestTarget(x, y, manualTargets);
-      }
-      if (effectiveTarget == null) continue;
+
+      if (pool.length === 0) continue;
 
       // Gold routing:
       //   - Manual / leader-driven (incl. AI): pays from p.gold first,
@@ -3286,9 +3323,7 @@ export class Game {
       //   - Vassal-driven (humans only): pays from the vassal's own pool
       //     first, but if that's dry, drains a small amount from the
       //     leader's TREASURY so a fortified vassal whose pool got eaten
-      //     by builds doesn't just stop pushing. Treasury fallback per
-      //     claim is capped at EXPANSION_COST_PER_CLAIM so this can't
-      //     drain the leader faster than direct manual pushes would.
+      //     by builds doesn't just stop pushing.
       const useVassalGold = isVassalDriven && p.isHuman && tileRegion > 0;
       const goldPool = (): number => {
         if (useVassalGold) {
@@ -3314,41 +3349,24 @@ export class Game {
       if (goldPool() < this.config.EXPANSION_COST_PER_CLAIM) continue;
 
       // Decree-driven expansion boost (Forced March etc.) applies to
-      // BOTH vassal-driven and leader-driven pushes. The player's
-      // investment should pay off whether they're hands-off or actively
-      // commanding — otherwise 30 stacks of forced-march feels invisible
-      // the moment they tap a target.
+      // both manual and vassal pushes.
       let tileChance = baseChance * this._expansionBoostFor(p);
-      // Focus mechanic (humans only): a single manual target gets the
-      // full FOCUS_BOOST multiplier on top of the decree boost; spreading
-      // across N targets divides the boost by N. Stacks multiplicatively
-      // with forced-march — 30 stacks (7.2×) × focus (3×) = ~22× single-
-      // target push when the player commits everything to one front.
-      if (!isVassalDriven && p.isHuman && manualTargets.length > 0) {
+      // Focus multiplier: a single manual front gets the full FOCUS_BOOST,
+      // multi-front splits the boost by N. Only applies to tiles that
+      // ACTUALLY contribute to the front (have a target-region candidate).
+      if (isManualDriven && p.isHuman && manualTargets.length > 0) {
         tileChance *= this.config.MANUAL_FOCUS_BOOST / manualTargets.length;
+      }
+      // Vassal autonomous: 1.5× boost when pushing into neutral land,
+      // so early-game vassals eat free territory aggressively.
+      if (isVassalDriven) {
+        const targetingNeutral = pool.every((c) => this.territory.getOwner(c.x, c.y) === 0);
+        if (targetingNeutral) tileChance *= 1.5;
       }
       if (!p.isHuman && p.gold > 1500) tileChance *= 1.6;
 
-      const cands = this._validTargets(x, y, p.id);
-      if (cands.length === 0) continue;
-
-      // Tier 1: neighbors inside the effective target region (focused push).
-      // Tier 2: any unclaimed neighbor — opportunistic free-land grab so a
-      //         vassal sitting between two neutral regions DOES expand into
-      //         the one its target isn't, instead of idling.
-      // Tier 3: any candidate at all — guarantees a manual tap on a non-
-      //         adjacent region still produces SOME forward motion.
-      let pool: ExpansionCandidate[] = [];
-      for (const c of cands) {
-        if (this.regions[c.y * W + c.x] === effectiveTarget) pool.push(c);
-      }
-      if (pool.length === 0) {
-        for (const c of cands) {
-          if (this.territory.getOwner(c.x, c.y) === 0) pool.push(c);
-        }
-      }
-      if (pool.length === 0) pool = cands;
       const chosen = pool[(Math.random() * pool.length) | 0]!;
+      void effectiveTarget;
 
       const targetOwner = this.territory.getOwner(chosen.x, chosen.y);
       // Allies don't fight: skip every attack into an allied player's
