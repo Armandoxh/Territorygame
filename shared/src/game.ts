@@ -447,7 +447,6 @@ export class Game {
     this._regionTurretLevels = new Float32Array((this.regionCount + 1) * 256);
     this._settlementLevelsByOwner.fill(0);
     this.regionNames = generateRegionNames(this.regionCount);
-    this._assignRegionResources();
     // One empire-name per player (1..N); index 0 unused.
     this.playerEmpireNames = generateRegionNames(this.players.length - 1);
     this._tilesByRegion = [];
@@ -500,6 +499,12 @@ export class Game {
         }
       }
     }
+
+    // Resource clustering needs both region centroids AND adjacency,
+    // so it has to come after both are built. Doing it earlier (when
+    // the function used a hash on region id only) was fine, but the
+    // BFS-cluster path reads _regionAdjacency and _regionCentroids.
+    this._assignRegionResources();
 
     // Now spawn each player. _claim updates regionOwnedTiles + regionOwner.
     for (const s of spots) this._spawnPlayerAt(s.id, s.x, s.y);
