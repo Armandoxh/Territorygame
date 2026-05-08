@@ -626,14 +626,22 @@ export class Game {
 
     // Inter-team separation: aim to place team anchors far apart.
     // Cluster radius scales with team size so members get real
-    // breathing room. Sized so teammates stay ~minSep apart even
-    // packed into the cluster.
+    // breathing room. For an 8-man team, you need ~sqrt(8)*minSep
+    // to actually fit 8 members at minSep apart inside the disk —
+    // the old 0.9 multiplier was undersized and caused clusters
+    // to collapse with teammates packed on top of each other.
     const minSep = this._spawnRadius() * 4;       // ~20 tiles for default spawn
-    const clusterR = Math.max(minSep * 1.3, minSep * Math.sqrt(teamSize) * 0.9);
+    const clusterR = Math.max(minSep * 1.5, minSep * Math.sqrt(teamSize) * 1.5);
     const clusterR2 = clusterR * clusterR;
 
-    for (let factor = 1.0; factor >= 0.4; factor *= 0.75) {
-      const teamSepIdeal = Math.sqrt(candidates.length / teamCount) * 1.1 * factor;
+    for (let factor = 1.2; factor >= 0.5; factor *= 0.8) {
+      // Floor inter-team separation at 2.5× clusterR so two team
+      // footprints never touch, regardless of what the
+      // candidate-density formula returns. This is what makes
+      // 8-man / 16-man games actually use the whole map instead
+      // of bunching everyone in one corner.
+      const densityIdeal = Math.sqrt(candidates.length / teamCount) * 1.1 * factor;
+      const teamSepIdeal = Math.max(clusterR * 2.5, densityIdeal);
       const teamSep2 = teamSepIdeal * teamSepIdeal;
       const anchors: Array<{ x: number; y: number }> = [];
       let fails = 0;
