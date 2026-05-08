@@ -267,7 +267,11 @@ html, body {
 
 #place-banner {
   position: absolute;
-  top: 56px; left: 50%;
+  /* Sit below the resource bar (was 56px which overlapped it on
+   * iPhone with safe-area-inset-top). Same offset as the
+   * trade-offer / war-invite popups. */
+  top: calc(100px + env(safe-area-inset-top, 0));
+  left: 50%;
   transform: translate(-50%, -8px);
   background: rgba(232, 192, 74, 0.95);
   color: #1a1206;
