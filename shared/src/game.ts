@@ -6663,22 +6663,18 @@ export class Game {
     a.strength = Math.min(cap, a.strength + regen);
   }
 
-  /** Influence aura: claim neutral tiles within ARMY_AURA_RADIUS that
-   *  are adjacent to an existing tile of the army's owner.
-   *  - Idle armies (no destination) paint aggressively: up to 3
-   *    claims/tick. This is the "send and expand" feel — drop a
-   *    unit on a frontier and it fills the surrounding area in a
-   *    blob, not a thin line.
-   *  - Moving armies leak 1 claim/tick along their path.
+  /** Influence aura: claim ONE neutral tile within ARMY_AURA_RADIUS
+   *  that's adjacent to an existing tile of the army's owner.
    *  Each claim costs ARMY_NEUTRAL_CLAIM_COST strength, scaled by
    *  Field Logistics decree (less attrition per stack). Floor at 1
-   *  so passive painting can't outright kill the unit. */
+   *  so passive painting can't outright kill the unit.
+   *  At radius 3 = 7×7 area, one claim per tick fills naturally
+   *  while the army holds position, and the wake during marching
+   *  stays light. Multi-claim-per-tick was tried briefly but
+   *  thrashed the army strength labels' text rasterizer on mobile
+   *  (every claim shifts strength → relayout per Text node). */
   private _armyAura(a: Army): void {
-    const isIdle = a.destX < 0 || a.destY < 0;
-    const claimsThisTick = isIdle ? 3 : 1;
-    for (let n = 0; n < claimsThisTick; n++) {
-      if (!this._auraClaimOne(a)) return;
-    }
+    this._auraClaimOne(a);
   }
 
   private _auraClaimOne(a: Army): boolean {

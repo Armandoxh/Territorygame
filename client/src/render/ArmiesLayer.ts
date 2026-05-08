@@ -6,6 +6,12 @@ interface ArmyNode {
   hull: Graphics;
   ring: Graphics;
   label: Text;
+  /** Last value rendered into `label.text`. Strength changes every
+   *  tick (regen + aura attrition) and Pixi Text re-rasterizes on
+   *  every text mutation, which is brutal on mobile when there are
+   *  many armies. We coarsen to multiples of 5 so the rasterizer
+   *  fires ~5× less often without hiding meaningful changes. */
+  lastShown: number;
 }
 
 // Renders battlefield army stacks as Risk-style icons on top of the
@@ -47,9 +53,13 @@ export class ArmiesLayer {
       node.hull.position.set(sp.x, sp.y);
       node.ring.position.set(sp.x, sp.y);
       node.label.position.set(sp.x, sp.y + 1);
-      // Update label text if strength changed.
-      const txt = String(a.strength | 0);
-      if (node.label.text !== txt) node.label.text = txt;
+      // Throttle label rasterization: only update when the rounded-to-5
+      // value changes. Avoids per-tick text relayout on mobile.
+      const shown = Math.round(a.strength / 5) * 5;
+      if (shown !== node.lastShown) {
+        node.label.text = String(shown);
+        node.lastShown = shown;
+      }
       const z = Math.max(0.7, Math.min(2.2, this.renderer.zoom * 0.18));
       node.hull.scale.set(z);
       node.ring.scale.set(z);
@@ -103,6 +113,6 @@ export class ArmiesLayer {
       },
     });
     label.anchor.set(0.5, -0.55);
-    return { hull, ring, label };
+    return { hull, ring, label, lastShown: Math.round(a.strength / 5) * 5 };
   }
 }
