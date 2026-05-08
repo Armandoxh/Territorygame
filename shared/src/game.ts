@@ -5127,6 +5127,22 @@ export class Game {
       const tileRegion = this.regions[i]!;
       const isVassal = tileRegion > 0 && this._regionDominant[tileRegion] === p.id;
 
+      // Connectivity gate (AI / vassal only): a tile must have at
+      // least 2 same-owner cardinal neighbors to act as a frontier
+      // source. This kills the "1-tile-wide snake" expansion
+      // pattern — a salient or column tip with 0-1 connections is
+      // a beachhead, not a basecamp, and can't project further.
+      // Humans bypass the gate so peninsula pushes still work
+      // when YOU drive them.
+      if (!p.isHuman) {
+        let sameOwnerNbrs = 0;
+        if (this.territory.getOwner(x - 1, y) === p.id) sameOwnerNbrs++;
+        if (this.territory.getOwner(x + 1, y) === p.id) sameOwnerNbrs++;
+        if (this.territory.getOwner(x, y - 1) === p.id) sameOwnerNbrs++;
+        if (this.territory.getOwner(x, y + 1) === p.id) sameOwnerNbrs++;
+        if (sameOwnerNbrs < 2) continue;
+      }
+
       // Build candidate list, filtered for actionability:
       //   - neutral (owner 0) is always claimable
       //   - allied players can never be attacked
@@ -5311,19 +5327,23 @@ export class Game {
         let defenderPower = Math.max(1, defender?.troops ?? 1) * veteransDefMult;
         const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
         if (defender) {
-          // Defender brings their FULL empire troop pool to defend
-          // any region under attack — armies redeploy. The old
-          // "regionTiles / empireTiles" dilution gave a 200k-troop
-          // empire just 5% of its troops to defend a small region
-          // against a 1-tile encroaching salient, which is what
-          // made the snake bug feel like turrets didn't exist.
-          // Local modifiers (morale, garrison, veterans, turret
-          // defense via the cost multiplier) still differentiate
-          // regional outcomes, but the raw troop pool is empire-wide.
-          const defR2 = defR; // keep `defR` available outside this block
-          const moraleD = defR2 > 0 ? (this._regionMorale[defR2] ?? 1) : 1;
-          const garrisonD = this._settlementGarrison(defR2, defender.id);
-          defenderPower = Math.max(1, defender.troops * moraleD * garrisonD * veteransDefMult);
+          // Defender brings their FULL empire troop pool when they
+          // dominate the contested region. A 1-tile salient inside
+          // someone else's land — they're NOT dominant, so they
+          // only bring locally-projected force (their tile share
+          // of their empire). That's why a 1-tile salient can't
+          // hold against a coordinated push: their 1 tile of
+          // foothold = 1 tile of defense.
+          const defOwned = this.territory.counts[defender.id] || 1;
+          const ownInR = defR > 0 ? (this._regionOwnedTiles[defR * 256 + defender.id] ?? 0) : 0;
+          const regionSize = defR > 0 ? (this._tilesByRegion[defR]?.length ?? 1) : 1;
+          const dominantHere = ownInR * 2 > regionSize;
+          const fracD = dominantHere
+            ? 1.0
+            : Math.max(0.10, Math.min(1, (ownInR / defOwned) * 2));
+          const moraleD = defR > 0 ? (this._regionMorale[defR] ?? 1) : 1;
+          const garrisonD = this._settlementGarrison(defR, defender.id);
+          defenderPower = Math.max(1, defender.troops * fracD * moraleD * garrisonD * veteransDefMult);
         }
         if (isVassalDriven) {
           const ownedA = this.territory.counts[p.id] || 1;

@@ -284,6 +284,40 @@ playable instead of greyed-out placeholders.
 
 ---
 
+[pending] gameplay: snake fix v5 — non-dominant defender dilution
++ connectivity gate kills 1-wide snakes
+
+WHAT: User: "definitely a bug. The attack sends one pixel
+straight up. If I cancel my attack on that vassal, the rogue
+tile keeps expanding going 1 row at a time like the snake game."
+
+Two compounding bugs identified:
+  1. The salient owner DEFENDED with their full empire pool
+     (v3 fix gave it to them). So a salient backed by a 200k-
+     troop AI couldn't be cracked even with full player offense.
+  2. Nothing structurally prevented a 1-tile or 1-wide-column
+     salient from picking a cardinal direction and pushing
+     into it tick after tick. Snake-game behavior.
+
+Fixes:
+  • Defender power now scales by region dominance. If defender
+    is dominant in the contested region (>50% of region tiles),
+    they bring their FULL empire pool — your home defense feels
+    full-strength. If they're NOT dominant (e.g. a salient
+    owner holding 1 of 100 tiles), they bring tile-projected
+    force only with a 10% floor. So a 1-tile salient owner
+    backed by a 200k-troop empire defends with ~20k power, not
+    200k. Player attacker with full 100k crushes them.
+  • New connectivity gate in _expand: AI / vassal frontier
+    tiles need ≥ 2 same-owner cardinal neighbors to act as a
+    push source. A 1-tile salient (0 same-owner neighbors)
+    can't push at all. A 2-tile snake (each tile has 1) can't
+    extend. Humans bypass the gate so peninsula tips still
+    push when YOU drive them.
+
+Combined effect: 1-tile salients are pinned in place AND
+defend at 10%, so they wipe with even modest player offense.
+
 [pending] gameplay: snake fix v4 — AI attacker projection scales
 with regional foothold
 
