@@ -606,10 +606,22 @@ export class HUD {
       const p = this.game.players[id];
       if (!p) continue;
       const cnt = this.game.territory.counts[id]!;
-      ref.num.textContent = String(cnt);
+      // Show TROOPS as the primary number — that's what tells you
+      // how dangerous a nation is. Tile count moves to the intel
+      // sub-text. Own badge always shows troops; enemy troops
+      // gated by Spy Network.
+      const isHuman = id === 1;
+      if (isHuman || spy) {
+        ref.num.textContent = formatTroops(p.troops);
+      } else {
+        ref.num.textContent = String(cnt);
+      }
       ref.wrap.classList.toggle('dead', cnt === 0);
       if (spy && cnt > 0) {
-        ref.intel.textContent = formatTroops(p.troops);
+        ref.intel.textContent = `${cnt}t`;
+        ref.wrap.classList.add('with-intel');
+      } else if (isHuman && cnt > 0) {
+        ref.intel.textContent = `${cnt}t`;
         ref.wrap.classList.add('with-intel');
       } else {
         ref.intel.textContent = '';
@@ -630,11 +642,15 @@ export class HUD {
   private _buildEnemyBadges(): void {
     if (!this.el.enemies) return;
     this.el.enemies.innerHTML = '';
-    for (let id = 2; id < this.game.players.length; id++) {
+    // Include the human first so the roster reads as "everyone"
+    // not "everyone but me." Long-press a badge to open that
+    // nation's profile sheet (same intel as long-press on land).
+    for (let id = 1; id < this.game.players.length; id++) {
       const p = this.game.players[id];
       if (!p) continue;
       const wrap = document.createElement('span');
       wrap.className = 'enemy-badge';
+      if (id === 1) wrap.classList.add('is-you');
       const c = this.game.config.PLAYER_COLORS[id];
       if (c) {
         const dot = document.createElement('span');
@@ -649,6 +665,12 @@ export class HUD {
       intel.className = 'intel';
       intel.textContent = '';
       wrap.appendChild(intel);
+      // Tap an enemy badge → open Nation Profile. Skip for the
+      // human's own badge (no useful action).
+      if (id !== 1) {
+        wrap.addEventListener('click', () => this.showNationSheet(id));
+        wrap.style.cursor = 'pointer';
+      }
       this.el.enemies.appendChild(wrap);
       this.enemyEls.set(id, { wrap, num, intel });
     }

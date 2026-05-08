@@ -151,33 +151,52 @@ html, body {
 .rs-flow.pos { display: inline-block; color: #6ee68a; background: rgba(110,230,138,0.14); }
 .rs-flow.neg { display: inline-block; color: #ff8c8c; background: rgba(255,140,140,0.14); }
 
+/* Nation roster — horizontal strip pinned to the bottom of the
+ * map so each player's troop count is visible without burying
+ * it in a panel. Was at the top-right before, where it
+ * overlapped the topbar on narrow phones. */
 #enemies {
   position: absolute;
-  top: 8px; right: 12px;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0));
+  left: 12px; right: 12px;
   display: flex; flex-direction: row; gap: 6px;
-  pointer-events: none;
-  max-width: 60vw; overflow: hidden;
+  pointer-events: auto;
+  max-width: calc(100% - 24px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  z-index: 11;
 }
+#enemies::-webkit-scrollbar { display: none; }
 .enemy-badge {
   display: flex; align-items: center; gap: 5px;
   padding: 5px 9px;
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255,255,255,0.04);
   font-size: 12px;
   transition: opacity 0.3s ease;
   flex-shrink: 0;
 }
+.enemy-badge.is-you {
+  border-color: rgba(255,255,255,0.20);
+  background: rgba(0, 0, 0, 0.65);
+}
 .enemy-badge .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.enemy-badge b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.enemy-badge b { font-weight: 700; font-variant-numeric: tabular-nums; }
 .enemy-badge .intel {
   font-style: normal;
   font-size: 10px;
   font-weight: 600;
-  opacity: 0.6;
+  opacity: 0.55;
   margin-left: 2px;
   font-variant-numeric: tabular-nums;
-  display: none;
 }
+.enemy-badge.with-intel .intel { display: inline; }
+.enemy-badge:not(.with-intel) .intel { display: none; }
+.enemy-badge.dead { opacity: 0.32; filter: grayscale(0.8); }
 .enemy-badge.with-intel .intel { display: inline; }
 .enemy-badge.with-intel .intel::before { content: "·"; opacity: 0.5; margin-right: 3px; }
 .enemy-badge.dead { opacity: 0.3; text-decoration: line-through; }
