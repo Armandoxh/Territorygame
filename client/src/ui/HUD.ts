@@ -1125,6 +1125,13 @@ export class HUD {
       this._selectedDecree = id;
       this._cmdLastSig = ''; // force tree rebuild so selection class applies
       this._renderDecreeTree();
+      // After the side panel renders, scroll its BUY button into
+      // view so it's not hidden below the fold on mobile when the
+      // panel grows taller than the viewport.
+      requestAnimationFrame(() => {
+        const buy = this.el.cmdSelected?.querySelector<HTMLElement>('.dn-buy');
+        buy?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
     });
     // Side panel buy button.
     this.el.cmdSelected?.addEventListener('click', (e) => {

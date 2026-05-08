@@ -1347,8 +1347,17 @@ html, body {
   display: flex; justify-content: space-between;
   align-items: center; gap: 10px;
   margin-top: 4px;
+  /* Sticky bottom of the side panel — keeps the BUY button
+   * pinned at the visible edge while the user reads the
+   * description / stat-compare above it. */
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(28,33,40,0) 0%, #1c2128 30%);
+  padding: 8px 0 2px;
+  z-index: 2;
 }
 .cms-foot .dn-cost { font-size: 13px; }
+.cms-foot .dn-buy { min-width: 110px; padding: 10px 14px; }
 
 /* NOW → AFTER stat-compare bar at the bottom of the side panel.
  * Two big values flanking an arrow so the impact of the next
