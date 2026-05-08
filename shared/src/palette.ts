@@ -42,20 +42,27 @@ export function generateTeamPalette(playerCount: number, teamSize: number): RGBA
     if (h < 18 || h > 348) h = (h + 30) % 360;
     teamHues.push(h);
   }
-  // Within each team, vary lightness/saturation so members are still
-  // tellable apart. Member 0 (the team captain / first player) is the
-  // brightest; later members darken slightly.
+  // Within each team, fan members out across a wider hue + lightness
+  // range so 8-man teams aren't 8 nearly-identical reds. Total
+  // intra-team hue spread is ±18° (clamped) — wide enough that
+  // adjacent members are visibly different but tight enough that
+  // the team color identity still reads.
   for (let i = 1; i <= playerCount; i++) {
     const teamIdx = Math.floor((i - 1) / teamSize); // 0-based
     const memberIdx = (i - 1) % teamSize;
     const h = teamHues[teamIdx]!;
-    // Rotate hue slightly per member (±10°) so each team has a small
-    // hue spread instead of identical-looking shades.
-    const memberHueOffset = (memberIdx - (teamSize - 1) / 2) * (8 / Math.max(1, teamSize - 1));
+    const totalSpread = Math.min(36, teamSize * 6); // ±18° max
+    const memberHueOffset = teamSize > 1
+      ? (memberIdx - (teamSize - 1) / 2) * (totalSpread / Math.max(1, teamSize - 1))
+      : 0;
     const memberHue = (h + memberHueOffset + 360) % 360;
-    const sat = 0.70 - memberIdx * 0.05;
-    const light = 0.58 - memberIdx * 0.04;
-    palette.push(hslToRgba(memberHue, Math.max(0.40, sat), Math.max(0.34, light)));
+    // Member 0 (captain) keeps the brightest version. Subsequent
+    // members alternate light/dark in a zig-zag so neighbors in
+    // index don't look like neighbors in shade.
+    const zigzag = (memberIdx % 2 === 0 ? 1 : -1) * Math.floor(memberIdx / 2 + 1);
+    const sat = 0.72 + zigzag * 0.04;
+    const light = 0.56 + zigzag * 0.06;
+    palette.push(hslToRgba(memberHue, Math.max(0.38, Math.min(0.92, sat)), Math.max(0.30, Math.min(0.78, light))));
   }
   return palette;
 }

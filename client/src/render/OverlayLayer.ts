@@ -435,19 +435,32 @@ export class OverlayLayer {
       g.circle(s.x + 1.5, s.y + 2, r * 1.05).fill({ color: 0x000000, alpha: 0.35 });
       // Outer pulse ring — color-coded by relationship so allies vs
       // enemies vs neutral nations read at a glance from the map.
+      // YOU get a strong gold double-pulse ring that's clearly
+      // distinct from any teammate (who all share your team's hue).
       let ringColor = 0xffffff;
       let ringAlpha = 0.35 + 0.4 * pulse;
-      if (isAlly) { ringColor = 0x55c86e; ringAlpha = 0.55 + 0.45 * pulse; }
+      if (isHuman) { ringColor = 0xffd84a; ringAlpha = 0.65 + 0.35 * pulse; }
+      else if (isAlly) { ringColor = 0x55c86e; ringAlpha = 0.55 + 0.45 * pulse; }
       else if (atWar) { ringColor = 0xff6b6b; ringAlpha = 0.55 + 0.45 * pulse; }
-      g.circle(s.x, s.y, r * 1.55).stroke({ color: ringColor, alpha: ringAlpha, width: 1.5 });
+      const ringWidth = isHuman ? 2.5 : 1.5;
+      g.circle(s.x, s.y, r * 1.55).stroke({ color: ringColor, alpha: ringAlpha, width: ringWidth });
       // Allies get an extra inner halo for clarity.
       if (isAlly) {
         g.circle(s.x, s.y, r * 1.85).stroke({ color: 0x55c86e, alpha: 0.30 + 0.30 * pulse, width: 2 });
       }
+      // YOU get a second outer gold halo so the player can pinpoint
+      // their own capital instantly — critical in 8-man / 16-man
+      // teams where everyone on your team shares a hue family.
+      if (isHuman) {
+        g.circle(s.x, s.y, r * 2.10).stroke({ color: 0xffd84a, alpha: 0.30 + 0.40 * pulse, width: 2 });
+        g.circle(s.x, s.y, r * 2.55).stroke({ color: 0xffd84a, alpha: 0.15 + 0.20 * pulse, width: 1.5 });
+      }
       // Diamond body
       g.poly([s.x, s.y - r, s.x + r, s.y, s.x, s.y + r, s.x - r, s.y]);
       g.fill({ color });
-      g.stroke({ color: 0xffffff, alpha: 0.95, width: 1.4 });
+      // Bolder white outline on YOUR capital so the diamond also
+      // pops against the team's shared hue.
+      g.stroke({ color: 0xffffff, alpha: isHuman ? 1.0 : 0.95, width: isHuman ? 2.0 : 1.4 });
     }
   }
 
