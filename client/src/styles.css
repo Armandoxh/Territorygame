@@ -458,6 +458,29 @@ html, body {
 #resource-offer .ro-msg .ro-give { color: #c1e285; }
 #resource-offer .ro-msg .ro-take { color: #d8a857; }
 #resource-offer .ro-actions { display: flex; gap: 8px; }
+#resource-offer { position: relative; }
+.ro-hide {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 28px; height: 28px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #c6d8d0;
+  border-radius: 6px;
+  font-size: 14px; line-height: 1;
+  cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.12);
+}
+.ro-hide:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.ro-hide:active { transform: scale(0.92); }
+#resource-offer .ro-foot {
+  margin-top: 8px;
+  font-size: 10px;
+  opacity: 0.55;
+  text-align: center;
+}
+#resource-offer .ro-foot b { color: #eac768; font-weight: 700; }
 
 #branch-picker {
   position: absolute;

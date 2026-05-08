@@ -52,6 +52,7 @@ export class HUD {
     resourceOfferMsg:     this._byId('ro-msg'),
     resourceOfferAccept:  this._byId('ro-accept'),
     resourceOfferDecline: this._byId('ro-decline'),
+    resourceOfferHide:    this._byId<HTMLButtonElement>('ro-hide'),
     branchPicker:         this._byId('branch-picker'),
     bpTitle:              this._byId('bp-title'),
     bpA:                  this._byId<HTMLButtonElement>('bp-a'),
@@ -165,6 +166,11 @@ export class HUD {
   private _tradeTargetId: PlayerId = 0;
   private _nationSheetId: PlayerId = 0;
   private _nationSheetSig = '';
+  /** Trade-offer popup is suppressed until this timestamp (ms).
+   *  User taps the ✕ → 60s lockout regardless of how many offers
+   *  arrive. Pending offers stay accessible via the diplomacy
+   *  panel's TRADE STATUS section. */
+  private _offerPopupSuppressedUntil = 0;
 
   // Debug HUD live stats — set by main.ts loop
   fps = 0;
@@ -2388,6 +2394,14 @@ export class HUD {
       this.toast(`Declined ${from?.name ?? 'AI'}'s trade offer`);
       this._refreshResourceOffer();
     });
+    // Hide button — suppress the popup for 60s. New offers still
+    // queue up; the player can review them in the diplomacy panel
+    // (TRADE STATUS section) without the popup blocking the map.
+    this.el.resourceOfferHide?.addEventListener('click', () => {
+      this._offerPopupSuppressedUntil = Date.now() + 60_000;
+      this.toast('Offers hidden for 1 min · check Diplomacy');
+      this._refreshResourceOffer();
+    });
   }
 
   /** Open the trade-prompt modal targeting `targetId`. Pauses the
@@ -2672,6 +2686,13 @@ export class HUD {
 
   private _refreshResourceOffer(): void {
     if (!this.el.resourceOffer) return;
+    // User-suppressed window: hide unconditionally even if new
+    // offers arrive. They can still see them in the diplomacy
+    // panel's TRADE STATUS section.
+    if (Date.now() < this._offerPopupSuppressedUntil) {
+      this.el.resourceOffer.classList.add('hidden');
+      return;
+    }
     const off = this.game.pendingResourceOffers[0];
     if (!off) {
       this.el.resourceOffer.classList.add('hidden');
