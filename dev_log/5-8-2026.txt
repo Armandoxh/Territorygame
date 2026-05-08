@@ -475,3 +475,42 @@ power scaling you want **Veterans** (Storm Troopers L3+),
 which multiplies attackerPower directly. Self-profile makes
 this distinction visible: Atk power × is the multiplier that
 matters for breaking thick defenses.
+
+---
+
+[pending] gameplay: warship landings can no longer snake inland
+
+WHAT: Warship CLUSTER LANDFALL only flips coastal tiles now.
+A tile must be water-adjacent to be captured by naval
+gunfire — primary AND any of the 4 cardinal adjacents.
+Inland tiles still take 3x3 battery troop damage, but no
+ownership flip. Target selection biased toward coastal enemy
+tiles; inland tiles only get picked when no coast is in
+range (the volley still drains troops there).
+
+WHY: User report: "Im still seeing that snake bug, it looks
+like its from when ships drop troops off on the shore. they
+run through like a snake. i should be able to decimate them
+too."
+
+Root cause the v3/v4/v5 snake fixes missed: ship landings
+go through tryCapture, not _expand. They bypass:
+  - the connectivity gate (≥2 same-owner cardinal nbrs),
+  - defender-dominance dilution (full empire pool when
+    you're the dominant owner of the region),
+  - attacker fracA scaling.
+So every warship reload (~10 ticks) walked the bombardment
+1 tile inland: primary flips, plus its 4 cardinal adjacents
+flip. Even though _expand couldn't push the salient inland,
+the warship kept planting fresh inland tiles on each volley.
+That's the 1-tile-wide snake meandering through your land.
+
+With this fix, naval guns are coastal weapons only.
+Beachheads form along the shoreline (still snake-y along
+the coast — that's beach-storming). To push inland the
+attacker needs ground forces (barracks ground ops, vassal
+expansion, infantry _expand) — all of which now have to
+clear the v5 connectivity + dilution gates. Result: a
+landed beachhead either gets reinforced into a real foothold
+(spreads along the coast, builds a barracks, drops ground
+ops) or it dies under the defender's full troop pool.

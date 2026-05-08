@@ -5825,6 +5825,20 @@ export class Game {
     return !this.territory.isPassable(x, y);
   }
 
+  /** True when (x, y) is land AND has at least one cardinal water neighbor.
+   *  Used by warship landings — naval gunfire can flip coastal tiles
+   *  but not inland ones, preventing the "warship walks bombardment
+   *  inland" snake. */
+  private _isCoastalLand(x: number, y: number): boolean {
+    if (!this.territory.inBounds(x, y)) return false;
+    if (!this.territory.isPassable(x, y)) return false;
+    if (this._isWaterTile(x - 1, y)) return true;
+    if (this._isWaterTile(x + 1, y)) return true;
+    if (this._isWaterTile(x, y - 1)) return true;
+    if (this._isWaterTile(x, y + 1)) return true;
+    return false;
+  }
+
   /** Frontier check: is (x, y) on the edge of `ownerId`'s territory?
    *  Returns true when at least one of the 4 cardinal neighbors is
    *  out-of-bounds, water, or owned by someone other than ownerId.
@@ -6075,7 +6089,9 @@ export class Game {
     // coastal land — a warship with no fight nearby still expands the
     // empire instead of idling.
     if (s.kind === 'warship') {
-      // Find the closest enemy land tile in range.
+      // Find the closest COASTAL enemy land tile in range — naval guns
+      // hit the beach, not inland. Inland targets get bombarded by
+      // battery fire (3x3 troop drain) but can't be flipped by ships.
       let bestEX = -1, bestEY = -1, bestED = Infinity;
       for (let dy = -range; dy <= range; dy++) {
         for (let dx = -range; dx <= range; dx++) {
@@ -6092,7 +6108,12 @@ export class Game {
           // on peaceful neighbors and lose every shot to the war
           // gate inside tryCapture.
           if (!this.areAtWar(s.owner, o)) continue;
-          if (d2 < bestED) { bestED = d2; bestEX = tx; bestEY = ty; }
+          // Prefer coastal targets so the cluster landfall actually
+          // fires; if the closest is inland, fall back to it for the
+          // 3x3 battery drain even though no flip will happen.
+          const isCoast = this._isCoastalLand(tx, ty);
+          const score = d2 + (isCoast ? 0 : 9999);
+          if (score < bestED) { bestED = score; bestEX = tx; bestEY = ty; }
         }
       }
 
@@ -6116,19 +6137,26 @@ export class Game {
             if (ap) ap.troops = Math.max(0, ap.troops - d);
           }
         }
-        // CLUSTER LANDFALL — primary + adjacent enemy tiles flip if the
-        // primary is within reach (md <= 3). Means each volley plants a
-        // 2-5 tile beachhead instead of 1 lonely tile that gets re-flipped
-        // immediately. Capitals still immune.
+        // CLUSTER LANDFALL — beachhead at the shoreline. Primary tile
+        // flips if the warship is within reach (md <= 3). Adjacents
+        // flip ONLY if they are themselves coastal (water-adjacent).
+        // Inland tiles are off-limits to naval gunfire — naval guns
+        // storm the beach, ground forces push inland. Without this
+        // gate the warship walks its bombardment inland one tile per
+        // reload, snaking through enemy territory bypassing the
+        // _expand connectivity gate + defender-dominance dilution.
+        // Capitals still immune.
         const md = Math.abs(bestEX - s.x) + Math.abs(bestEY - s.y);
-        if (md <= 3 && this._capitalIndexAt(bestEX, bestEY) < 0) {
+        if (md <= 3 && this._capitalIndexAt(bestEX, bestEY) < 0
+            && this._isCoastalLand(bestEX, bestEY)) {
           this.tryCapture(bestEX, bestEY, s.owner);
-          // 4-direction adjacents
+          // 4-direction adjacents — must also be coastal to flip.
           for (const [adx, ady] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
             const ax = bestEX + adx, ay = bestEY + ady;
             if (!this.territory.inBounds(ax, ay)) continue;
             if (this._capitalIndexAt(ax, ay) >= 0) continue;
             if (!this.territory.isPassable(ax, ay)) continue;
+            if (!this._isCoastalLand(ax, ay)) continue;
             const ao = this.territory.getOwner(ax, ay);
             if (ao > 0 && ao !== s.owner && !this.areAllied(s.owner, ao)) {
               this.tryCapture(ax, ay, s.owner);
