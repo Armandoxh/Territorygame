@@ -284,6 +284,40 @@ playable instead of greyed-out placeholders.
 
 ---
 
+[pending] gameplay: snake fix v4 — AI attacker projection scales
+with regional foothold
+
+WHAT: AI / vassal attackers (everyone except the human) now
+have their attacker power scaled by how much of the target
+region they already hold:
+    fracA = clamp(ownTilesInTargetRegion / ownEmpire * 2, 0.10, 1)
+    attackerPower *= fracA
+The 10% floor keeps fresh pushes viable; the *2 lets a real
+foothold scale up faster. Human attackers keep their full
+empire troop pool — when you commit to an attack, your full
+army goes.
+
+WHY: User: "If the enemy has 1 tile on my property and I
+surround them I should wipe them out with ease. Instead the
+combination of 3x tap boost, offensive upgrades, and the use
+of all my barracks activities can't wipe them out."
+
+Root cause the previous v3 fix missed: when the snake-tile's
+owner reclaimed lost territory, they too brought their FULL
+empire troop pool through the salient. So a 1-tile salient
+backed by a 200k-troop AI kept re-flipping every tile you
+took back. Even barracks ops (which bypass defense math via
+direct _claim) only covered tiles that immediately flipped
+right back on the next tick.
+
+With this fix: a 1-tile salient owner brings 10% of their
+empire's troops to fight from there (the 1-tile foothold
+floored). Defender (you) brings full empire pool. Salient's
+attack power vs your defense: ~1:10 lopsided. They lose
+every roll. Salient dies and stays dead.
+
+---
+
 [pending] gameplay: snake fix v3 — defender uses FULL empire pool
 
 WHAT: Dropped the regional troop fraction entirely on the

@@ -5291,6 +5291,23 @@ export class Game {
         // combat power so the steamroll momentum continues for ~8s.
         const tankMult = this._abilityActive(p, 'tank-rush') ? 1.5 : 1;
         let attackerPower = p.troops * veteransAtkMult * tankMult;
+        // AI attackers (and their salients) project locally — their
+        // power in a region scales with how much of that region they
+        // already hold. A 1-tile salient inside an enemy empire can
+        // only field 1-tile-worth of force, NOT their entire 200k
+        // home army. Floor at 10% so a fresh AI push doesn't fizzle
+        // before it gets a foothold. Human attackers stay at full
+        // power — when YOU commit to an attack, your full army goes.
+        if (!p.isHuman) {
+          const targetR = this.regions[chosen.y * W + chosen.x] ?? 0;
+          if (targetR > 0) {
+            const ownInR = this._regionOwnedTiles[targetR * 256 + p.id] ?? 0;
+            const ownTotal = this.territory.counts[p.id] || 1;
+            const rawFrac = ownInR / ownTotal;
+            const fracA = Math.max(0.10, Math.min(1, rawFrac * 2));
+            attackerPower *= fracA;
+          }
+        }
         let defenderPower = Math.max(1, defender?.troops ?? 1) * veteransDefMult;
         const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
         if (defender) {
