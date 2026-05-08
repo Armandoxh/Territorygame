@@ -3,7 +3,7 @@ import type {
   Player, PlayerId, Capital, Building, BuildingType, BombType, GameEvent,
   GameOutcome, BuildError, BombError, GroundOpType, GroundOpError, Point,
   Ship, ShipKind, ShipBuildError,
-  Plane, ArtilleryUnit,
+  Plane, ArtilleryUnit, Army, ArmyOrderError,
   TradeRoute, ExternalTradeRoute,
   ResourceKind, ResourceTrade, ResourceTradeOffer, ResourceTradeError, TradeCurrency,
 } from './types.js';
@@ -38,6 +38,22 @@ export class Game {
   readonly planes: Plane[] = [];
   readonly artilleryUnits: ArtilleryUnit[] = [];
   private _artilleryNextId = 1;
+  /** Battlefield armies (the post-pivot ground unit). At most one per
+   *  (owner, tile); friendly armies merging onto a tile combine
+   *  strengths. Tile ownership only flips when an army walks onto it. */
+  readonly armies: Army[] = [];
+  private _armyNextId = 1;
+  /** Tile-keyed index for O(1) lookup of "is there an army here, and
+   *  whose?". Key = y * width + x → array of armies (one per owner).
+   *  Multiple armies of different owners on the same tile is ILLEGAL
+   *  by design — combat resolves before a tile is shared. So in
+   *  practice each entry has length 0 or 1. Stored as plain array
+   *  for cache locality + simpler invariant checks. */
+  private _armyByTile = new Map<number, Army>();
+  /** Per-barracks recruit cooldown. Key = building id (or x*W+y if
+   *  ids aren't reliable). Stored as a Map keyed by building xy
+   *  index to avoid touching the Building shape. */
+  private _barracksRecruitReadyAt = new Map<number, number>();
   /** Active trade routes (Phase 2 — internal vassal-to-vassal). Rebuilt
    *  every TRADE_RESCAN_TICKS via union-find connectivity + MST per
    *  component. Each route adds `flow` to its owner's treasury per tick. */
@@ -537,6 +553,19 @@ export class Game {
       }
     }
 
+    // ARMY_MODE: every player starts with a free Barracks at their
+    // first capital + one starter army on each capital tile. Without
+    // this, fresh games would have nothing on the map and the
+    // recruit-from-barracks loop never starts. The starter army is
+    // also the first piece a new player can move to learn the loop.
+    if (this.config.ARMY_MODE) {
+      for (let id = 1; id < this.players.length; id++) {
+        const p = this.players[id];
+        if (!p || !p.alive) continue;
+        this._spawnStarterArmies(p.id);
+      }
+    }
+
     // AI targets adjacent to their spawn (or random fallback).
     for (let id = 2; id < this.players.length; id++) {
       const p = this.players[id];
@@ -880,7 +909,7 @@ export class Game {
     this._payBuildingUpkeep();
     this._growTroops();
     this._doctrineTick();
-    this._vassalsThink();
+    if (!this.config.ARMY_MODE) this._vassalsThink();
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
       if (!p || !p.alive) continue;
@@ -890,10 +919,17 @@ export class Game {
         this._aiBuild(p);
         this._aiBuyDecrees(p);
         this._aiProposeResourceTrade(p);
+        if (this.config.ARMY_MODE) this._aiCommandArmies(p);
       }
-      // Always attempt expansion. _expand falls through tile-by-tile and
-      // skips tiles with no effective target (no override + non-vassal).
-      this._expand(p);
+      // Legacy flood-fill expansion. ARMY_MODE bypasses this — tiles
+      // only flip when an army physically walks onto them. The flag
+      // stays so we can A/B test both models without ripping out
+      // _expand.
+      if (!this.config.ARMY_MODE) this._expand(p);
+    }
+    if (this.config.ARMY_MODE) {
+      this._recruitTick();
+      this._armyTick();
     }
     this._shipsTick();
     this._planesTick();
@@ -1563,7 +1599,11 @@ export class Game {
     // Mastery gate. Settlement + turret are always available; airstrip
     // requires AIR; barracks (and its ground ops) require GROUND.
     if (type === 'airstrip' && !this.isUnlocked(ownerId, 'airstrip')) return 'locked';
-    if (type === 'barracks' && !this.isUnlocked(ownerId, 'barracks')) return 'locked';
+    // Barracks gate: ground-only in legacy flood mode. In ARMY_MODE
+    // every mastery needs barracks (it's the only recruit source for
+    // ground armies, the universal expansion unit). Ground still gets
+    // a passive bonus elsewhere (cheaper builds, faster recruit).
+    if (type === 'barracks' && !this.config.ARMY_MODE && !this.isUnlocked(ownerId, 'barracks')) return 'locked';
     // AA, port, artillery are defensive buildings available to everyone.
     // Earlier design gated AA behind air-mastery, but that left ground/
     // naval AIs unable to defend at all and air-mastery dominated late
@@ -1892,6 +1932,24 @@ export class Game {
       if (s.hp <= 0) {
         this.events.push({ type: 'ship-sunk', shipKind: s.kind, ownerId: s.owner, x: s.x, y: s.y });
         this.ships.splice(i, 1);
+      }
+    }
+
+    // Battlefield armies caught in the blast take strength damage —
+    // small bombs cripple light stacks, larges shred them. Stacks
+    // dropped to ≤ 0 die outright. Friendly armies are spared.
+    const armyDmg = type === 'small' ? 60 : type === 'large' ? 200 : type === 'ac130' ? 80 : 250;
+    for (let i = this.armies.length - 1; i >= 0; i--) {
+      const a = this.armies[i]!;
+      if (a.owner === ownerId) continue;
+      if (this.areAllied(ownerId, a.owner)) continue;
+      const dx2 = a.x + 0.5 - x;
+      const dy2 = a.y + 0.5 - y;
+      if (dx2 * dx2 + dy2 * dy2 > r2) continue;
+      a.strength -= armyDmg;
+      if (a.strength <= 0) {
+        this.events.push({ type: 'army-killed', ownerId: a.owner, armyId: a.id, x: a.x, y: a.y, killedBy: ownerId });
+        this._removeArmy(i);
       }
     }
 
@@ -2272,6 +2330,52 @@ export class Game {
       this.buildings.push({ x, y, owner: playerId, type: 'port', level: 1 });
       this.buildingsVersion++;
       return;
+    }
+  }
+
+  /** ARMY_MODE seed: free Barracks at the first capital + one starter
+   *  army on each capital. Gives every player a recruit base + an
+   *  initial unit to march. Skipped if any of those tiles already has
+   *  a building (paranoid safety). */
+  private _spawnStarterArmies(playerId: PlayerId): void {
+    const myCaps: Array<{ x: number; y: number }> = [];
+    for (const c of this.capitals) if (c.owner === playerId) myCaps.push({ x: c.x, y: c.y });
+    if (myCaps.length === 0) return;
+    // Barracks adjacent to the first capital (capitals can't host
+    // buildings themselves). Search 4 cardinal neighbors.
+    const cap0 = myCaps[0]!;
+    let placed = false;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+      const tx = cap0.x + dx, ty = cap0.y + dy;
+      if (!this.territory.inBounds(tx, ty)) continue;
+      if (this.territory.getOwner(tx, ty) !== playerId) continue;
+      if (this.buildingAt(tx, ty)) continue;
+      if (this._capitalIndexAt(tx, ty) >= 0) continue;
+      this.buildings.push({ x: tx, y: ty, owner: playerId, type: 'barracks', level: 1 });
+      this.buildingsVersion++;
+      placed = true;
+      break;
+    }
+    void placed;
+    // One starter army per capital — plant on a free tile next to
+    // (or on) the capital, mostly so the army doesn't stack on the
+    // capital itself which would feel weird.
+    for (const cap of myCaps) {
+      // Try the cardinal neighbors first; fall back to the capital
+      // tile itself if all are blocked.
+      let placedArmy = false;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const tx = cap.x + dx, ty = cap.y + dy;
+        if (!this.territory.inBounds(tx, ty)) continue;
+        if (!this.territory.isPassable(tx, ty)) continue;
+        if (this.territory.getOwner(tx, ty) !== playerId) continue;
+        if (this._anyArmyAt(tx, ty)) continue;
+        if (this.spawnArmy(tx, ty, playerId, this.config.ARMY_BASE_STRENGTH)) {
+          placedArmy = true;
+          break;
+        }
+      }
+      if (!placedArmy) this.spawnArmy(cap.x, cap.y, playerId, this.config.ARMY_BASE_STRENGTH);
     }
   }
 
@@ -6297,6 +6401,315 @@ export class Game {
       if (d <= tolTiles && d < bestD) { bestD = d; best = s; }
     }
     return best;
+  }
+
+  // ============================================================
+  // BATTLEFIELD ARMIES (post-pivot ground unit system).
+  // ============================================================
+
+  /** Tile-key helper for the army index (y * width + x). */
+  private _tileKey(x: number, y: number): number {
+    return y * this.territory.width + x;
+  }
+
+  /** Look up a player's army on a tile, or null. O(1). */
+  armyAt(x: number, y: number, ownerId: PlayerId): Army | null {
+    const a = this._armyByTile.get(this._tileKey(x, y));
+    return a && a.owner === ownerId ? a : null;
+  }
+
+  /** ANY army on this tile (for combat resolution / blocking). */
+  private _anyArmyAt(x: number, y: number): Army | null {
+    return this._armyByTile.get(this._tileKey(x, y)) ?? null;
+  }
+
+  /** Find the closest army of `ownerId` within tolTiles of (wx, wy).
+   *  Used by tap-to-select. Mirrors shipNear. */
+  armyNear(wx: number, wy: number, ownerId: PlayerId, tolTiles: number): Army | null {
+    let best: Army | null = null;
+    let bestD = Infinity;
+    for (const a of this.armies) {
+      if (a.owner !== ownerId) continue;
+      const d = Math.hypot(a.x - wx, a.y - wy);
+      if (d <= tolTiles && d < bestD) { bestD = d; best = a; }
+    }
+    return best;
+  }
+
+  /** Issue a move order to one of your armies. -1,-1 = clear (hold). */
+  setArmyTarget(armyId: number, x: number, y: number, ownerId: PlayerId): ArmyOrderError | null {
+    const a = this._armyById(armyId);
+    if (!a || a.owner !== ownerId) return 'bad-army';
+    if (x === -1 && y === -1) {
+      a.destX = -1; a.destY = -1; a.manual = false;
+      return null;
+    }
+    if (!this.territory.inBounds(x, y)) return 'oob';
+    if (!this.territory.isPassable(x, y)) return 'oob';
+    a.destX = Math.floor(x); a.destY = Math.floor(y);
+    a.manual = true;
+    return null;
+  }
+
+  private _armyById(id: number): Army | null {
+    for (const a of this.armies) if (a.id === id) return a;
+    return null;
+  }
+
+  /** Spawn an army at (x, y) for ownerId, merging if a friendly stack
+   *  is already there. Returns the resulting army (existing or new). */
+  spawnArmy(x: number, y: number, ownerId: PlayerId, strength: number): Army | null {
+    if (!this.territory.inBounds(x, y)) return null;
+    if (!this.territory.isPassable(x, y)) return null;
+    const owner = this.players[ownerId];
+    if (!owner || !owner.alive) return null;
+    const existing = this._armyByTile.get(this._tileKey(x, y));
+    if (existing && existing.owner === ownerId) {
+      existing.strength += strength;
+      return existing;
+    }
+    if (existing && existing.owner !== ownerId) {
+      // A foreign army occupies the spawn tile — bounce strength
+      // into the nearest friendly-or-neutral cardinal neighbor instead.
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const nx = x + dx, ny = y + dy;
+        if (!this.territory.inBounds(nx, ny)) continue;
+        if (!this.territory.isPassable(nx, ny)) continue;
+        const blocker = this._armyByTile.get(this._tileKey(nx, ny));
+        if (blocker && blocker.owner !== ownerId) continue;
+        return this.spawnArmy(nx, ny, ownerId, strength);
+      }
+      return null; // wedged in — drop the spawn rather than crash
+    }
+    const a: Army = {
+      id: this._armyNextId++,
+      owner: ownerId,
+      x: Math.floor(x), y: Math.floor(y),
+      strength,
+      destX: -1, destY: -1,
+      manual: false,
+      moveCooldown: this.config.ARMY_MOVE_TICKS,
+    };
+    this.armies.push(a);
+    this._armyByTile.set(this._tileKey(a.x, a.y), a);
+    this.events.push({ type: 'army-spawned', ownerId, armyId: a.id, x: a.x, y: a.y, strength });
+    return a;
+  }
+
+  /** Recruit an army from a barracks owned by ownerId. Caller passes
+   *  the barracks tile coords. Skips if cooldown not elapsed. */
+  recruitArmy(barracksX: number, barracksY: number, ownerId: PlayerId): Army | null {
+    const b = this.buildingAt(barracksX, barracksY);
+    if (!b || b.type !== 'barracks' || b.owner !== ownerId) return null;
+    const key = this._tileKey(barracksX, barracksY);
+    const readyAt = this._barracksRecruitReadyAt.get(key) ?? 0;
+    if (readyAt > this.tickCount) return null;
+    const owner = this.players[ownerId];
+    if (!owner || !owner.alive) return null;
+    // Veterans branch A: spawn troopers come in stronger.
+    const strengthMult = this._veteransMult(owner, true);
+    const strength = Math.floor(this.config.ARMY_BASE_STRENGTH * strengthMult);
+    const army = this.spawnArmy(barracksX, barracksY, ownerId, strength);
+    if (!army) return null;
+    // Reset cooldown. Master Builder shortens cadence (slight reuse).
+    const cooldownMult = this._buildCostMult(owner);
+    const ticks = Math.max(60, Math.floor(this.config.BARRACKS_RECRUIT_TICKS * cooldownMult));
+    this._barracksRecruitReadyAt.set(key, this.tickCount + ticks);
+    return army;
+  }
+
+  /** Returns ms-until-ready for a given barracks (0 = ready). */
+  barracksRecruitReadyAt(barracksX: number, barracksY: number): number {
+    return this._barracksRecruitReadyAt.get(this._tileKey(barracksX, barracksY)) ?? 0;
+  }
+
+  /** Auto-recruit from every barracks whose cooldown has elapsed. */
+  private _recruitTick(): void {
+    for (const b of this.buildings) {
+      if (b.type !== 'barracks') continue;
+      const key = this._tileKey(b.x, b.y);
+      const readyAt = this._barracksRecruitReadyAt.get(key);
+      if (readyAt == null) {
+        // First time we've seen this barracks — start its first cycle.
+        this._barracksRecruitReadyAt.set(key, this.tickCount + this.config.BARRACKS_RECRUIT_TICKS);
+        continue;
+      }
+      if (readyAt > this.tickCount) continue;
+      this.recruitArmy(b.x, b.y, b.owner);
+    }
+  }
+
+  /** Per-tick simulation for all armies: movement, combat, tile claims. */
+  private _armyTick(): void {
+    if (this.armies.length === 0) return;
+    for (let i = this.armies.length - 1; i >= 0; i--) {
+      const a = this.armies[i]!;
+      const owner = this.players[a.owner];
+      if (!owner || !owner.alive || a.strength <= 0) {
+        this._removeArmy(i);
+        continue;
+      }
+      // Forced March (offense decree branches a/b) speeds up moves.
+      // Boost is multiplicative ≥ 1; divide ARMY_MOVE_TICKS by it to
+      // shorten cadence.
+      a.moveCooldown -= 1;
+      if (a.moveCooldown > 0) continue;
+      const moveBoost = this._expansionBoostFor(owner, false);
+      a.moveCooldown = Math.max(1, Math.floor(this.config.ARMY_MOVE_TICKS / Math.max(1, moveBoost)));
+      // No order? hold.
+      if (a.destX < 0 || a.destY < 0) continue;
+      // Already there? clear order.
+      if (a.x === a.destX && a.y === a.destY) {
+        a.destX = -1; a.destY = -1; a.manual = false;
+        continue;
+      }
+      this._armyStep(a);
+    }
+  }
+
+  /** Single-tile move step + combat resolution for one army. Mirrors
+   *  the sign-step axis-try pattern from _shipMove, but on land. */
+  private _armyStep(a: Army): void {
+    const dx = Math.sign(a.destX - a.x);
+    const dy = Math.sign(a.destY - a.y);
+    const tries: Array<[number, number]> = [
+      [dx, dy], [dx, 0], [0, dy],
+      [dx, dy === 0 ? 1 : 0], [dx, dy === 0 ? -1 : 0],
+      [dx === 0 ? 1 : 0, dy], [dx === 0 ? -1 : 0, dy],
+    ];
+    for (const [stepX, stepY] of tries) {
+      if (stepX === 0 && stepY === 0) continue;
+      const nx = a.x + stepX, ny = a.y + stepY;
+      if (!this.territory.inBounds(nx, ny)) continue;
+      if (!this.territory.isPassable(nx, ny)) continue;
+      // Capitals are special — only the moving army can take a capital
+      // by stepping on it (capture happens in tryCapture).
+      const blocker = this._armyByTile.get(this._tileKey(nx, ny));
+      if (blocker && blocker.owner === a.owner) {
+        // Friendly — merge then despawn this army.
+        blocker.strength += a.strength;
+        this._removeArmyById(a.id);
+        return;
+      }
+      if (blocker && blocker.owner !== a.owner) {
+        // Hostile stack. Allies don't fight; peace gates combat too.
+        if (this.areAllied(a.owner, blocker.owner)) continue;
+        if (!this.areAtWar(a.owner, blocker.owner)) {
+          // Auto-declare on contact (aggression model — already used elsewhere).
+          this.declareWar(a.owner, blocker.owner, 'aggression');
+        }
+        this._armyCombatStep(a, blocker, nx, ny);
+        return;
+      }
+      // No blocker — claim the tile (if it's not already ours).
+      const tileOwner = this.territory.getOwner(nx, ny);
+      if (tileOwner !== a.owner) {
+        if (tileOwner > 0 && this.areAllied(a.owner, tileOwner)) continue;
+        if (tileOwner > 0 && !this.areAtWar(a.owner, tileOwner)) {
+          this.declareWar(a.owner, tileOwner, 'aggression');
+        }
+        // Capital? still uses tryCapture (which checks war state and emits the event).
+        if (!this.tryCapture(nx, ny, a.owner)) continue;
+        // Light strength bleed per claim — represents skirmish + occupation cost.
+        a.strength = Math.max(1, a.strength - this.config.ARMY_NEUTRAL_CLAIM_COST);
+      }
+      // Move the army onto the tile.
+      this._armyByTile.delete(this._tileKey(a.x, a.y));
+      a.x = nx; a.y = ny;
+      this._armyByTile.set(this._tileKey(a.x, a.y), a);
+      return;
+    }
+    // Stuck (water all around or all neighbors blocked) — drop order.
+    a.destX = -1; a.destY = -1; a.manual = false;
+  }
+
+  /** One tick of stack-vs-stack combat. Both sides bleed; loser dies,
+   *  winner advances onto the tile (taking ownership). */
+  private _armyCombatStep(attacker: Army, defender: Army, dx: number, dy: number): void {
+    const atkP = this.players[attacker.owner];
+    const defP = this.players[defender.owner];
+    const atkMul = atkP ? this._veteransMult(atkP, true) : 1;
+    const defMul = defP ? this._veteransMult(defP, false) : 1;
+    const wallBonus = 1 + this._defenseAt(dx, dy, defender.owner);
+    const rate = this.config.ARMY_COMBAT_RATE;
+    const dmgToDefender = Math.max(1, Math.floor(attacker.strength * rate * atkMul));
+    const dmgToAttacker = Math.max(1, Math.floor(defender.strength * rate * defMul * wallBonus));
+    attacker.strength = Math.max(0, attacker.strength - dmgToAttacker);
+    defender.strength = Math.max(0, defender.strength - dmgToDefender);
+    this.events.push({ type: 'army-engaged', attackerId: attacker.owner, defenderId: defender.owner, x: dx, y: dy });
+    // Resolve outcomes.
+    if (defender.strength <= 0 && attacker.strength > 0) {
+      this.events.push({ type: 'army-killed', ownerId: defender.owner, armyId: defender.id, x: dx, y: dy, killedBy: attacker.owner });
+      this._removeArmyById(defender.id);
+      // Attacker advances and takes the tile.
+      this.tryCapture(dx, dy, attacker.owner);
+      this._armyByTile.delete(this._tileKey(attacker.x, attacker.y));
+      attacker.x = dx; attacker.y = dy;
+      this._armyByTile.set(this._tileKey(attacker.x, attacker.y), attacker);
+    } else if (attacker.strength <= 0) {
+      this.events.push({ type: 'army-killed', ownerId: attacker.owner, armyId: attacker.id, x: attacker.x, y: attacker.y, killedBy: defender.owner });
+      this._removeArmyById(attacker.id);
+    }
+    // Otherwise both survive — combat continues next tick on the same tile.
+  }
+
+  private _removeArmyById(id: number): void {
+    for (let i = 0; i < this.armies.length; i++) {
+      if (this.armies[i]!.id === id) {
+        this._removeArmy(i);
+        return;
+      }
+    }
+  }
+
+  private _removeArmy(idx: number): void {
+    const a = this.armies[idx];
+    if (!a) return;
+    const k = this._tileKey(a.x, a.y);
+    const cur = this._armyByTile.get(k);
+    if (cur && cur.id === a.id) this._armyByTile.delete(k);
+    this.armies.splice(idx, 1);
+  }
+
+  /** AI command layer: pick a destination for any of player p's armies
+   *  that don't already have a manual order. Marches the closest
+   *  enemy capital. Reserves at least one army per friendly capital
+   *  for defense. Only runs when the AI player is alive. */
+  private _aiCommandArmies(p: Player): void {
+    if (p.isHuman || !p.alive) return;
+    if (this.armies.length === 0) return;
+    // Throttle: re-check orders every ~3s (per AI), not every tick.
+    if (((this.tickCount + p.id * 7) % 30) !== 0) return;
+    // Reserve: one army per own capital sits on the capital tile.
+    const myCaps: Array<{ x: number; y: number }> = [];
+    for (const c of this.capitals) if (c.owner === p.id) myCaps.push(c);
+    // Pick a march target — closest enemy capital we're at war with.
+    let tx = -1, ty = -1, bestD = Infinity;
+    for (const c of this.capitals) {
+      if (c.owner === p.id) continue;
+      if (this.areAllied(p.id, c.owner)) continue;
+      // Auto-march on any non-allied enemy; combat will declare war.
+      // Pick centroid of player's own armies as the source.
+      let cx = 0, cy = 0, n = 0;
+      for (const a of this.armies) if (a.owner === p.id) { cx += a.x; cy += a.y; n++; }
+      if (n === 0) { cx = c.x; cy = c.y; }
+      else { cx /= n; cy /= n; }
+      const d = Math.hypot(c.x - cx, c.y - cy);
+      if (d < bestD) { bestD = d; tx = c.x; ty = c.y; }
+    }
+    let capIdx = 0;
+    for (const a of this.armies) {
+      if (a.owner !== p.id) continue;
+      if (a.manual) continue; // human-style overrides preserved if any
+      // Defender duty: park the first N armies on capitals.
+      if (capIdx < myCaps.length) {
+        const cap = myCaps[capIdx]!;
+        a.destX = cap.x; a.destY = cap.y;
+        capIdx++;
+        continue;
+      }
+      if (tx >= 0) { a.destX = tx; a.destY = ty; }
+    }
   }
 
   /** Per-tick simulation for all ships: movement, patrol target choice,

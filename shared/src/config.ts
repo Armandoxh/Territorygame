@@ -176,6 +176,21 @@ export interface GameConfig {
   // AI behavior
   AI_RETARGET_TICKS: number;
 
+  // --- Battlefield army system (replaces flood-fill expansion) ---
+  /** Master switch. true = armies-only model (no flood expansion).
+   *  false = legacy flood + vassals (kept for fallback / A-B testing). */
+  ARMY_MODE: boolean;
+  /** Strength a fresh recruit spawns with. */
+  ARMY_BASE_STRENGTH: number;
+  /** Sim ticks between 1-tile move steps (lower = faster). */
+  ARMY_MOVE_TICKS: number;
+  /** Per-tick fraction of opposing strength dealt as combat damage. */
+  ARMY_COMBAT_RATE: number;
+  /** Strength bleed per neutral tile claimed (small attrition). */
+  ARMY_NEUTRAL_CLAIM_COST: number;
+  /** Sim ticks between barracks auto-recruits (per barracks). */
+  BARRACKS_RECRUIT_TICKS: number;
+
   // Terrain
   TERRAIN_NOISE_SCALE: number;
   TERRAIN_OCTAVES: number;
@@ -341,6 +356,15 @@ export const DEFAULT_CONFIG: GameConfig = {
   SHIP_PLAYER_CAP: 8,
 
   AI_RETARGET_TICKS: 120,
+
+  // Battlefield army system. ARMY_MODE on means tiles only flip when
+  // an army walks onto them — there is NO passive frontier flood.
+  ARMY_MODE: true,
+  ARMY_BASE_STRENGTH: 100,
+  ARMY_MOVE_TICKS: 5,            // 0.5s per tile at 10Hz
+  ARMY_COMBAT_RATE: 0.06,        // 2-3s engagements at equal strength
+  ARMY_NEUTRAL_CLAIM_COST: 2,
+  BARRACKS_RECRUIT_TICKS: 300,   // 30s base recruit cadence
 
   TERRAIN_NOISE_SCALE: 0.025,
   TERRAIN_OCTAVES: 4,

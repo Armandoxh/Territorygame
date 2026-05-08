@@ -46,6 +46,32 @@ export interface Ship {
 export type ShipBuildError =
   | 'gold' | 'dead' | 'oob' | 'bad-type' | 'not-coastal' | 'no-water' | 'cap' | 'locked' | 'no-port';
 
+/** Discrete Risk-style army stack on the map. One per (owner, tile);
+ *  friendly stacks merging onto a tile combine strengths. The "battle-
+ *  field" pivot replaces the flood-fill expansion engine — tiles only
+ *  flip ownership when an Army physically walks onto them. */
+export interface Army {
+  id: number;
+  owner: PlayerId;
+  /** Integer tile coords. Armies are tile-snapped (Risk-style). */
+  x: number;
+  y: number;
+  /** Troop count in this stack. Bleeds in combat; merged on stack
+   *  consolidation; 0 = army dies. */
+  strength: number;
+  /** Movement order. -1 = hold position. */
+  destX: number;
+  destY: number;
+  /** True when the player explicitly set the destination — cleared on
+   *  arrival so the army returns to autopilot. */
+  manual: boolean;
+  /** Ticks remaining until the next 1-tile move step. */
+  moveCooldown: number;
+}
+
+export type ArmyOrderError =
+  | 'bad-army' | 'oob' | 'dead';
+
 /** Internal vassal-to-vassal trade route (Phase 2 of the trade empire
  *  overhaul). Auto-established between any two of an owner's connected
  *  dominant regions, picked as the MST edges of the connected component
@@ -282,7 +308,10 @@ export type GameEvent =
   | { type: 'trade-route-broken'; a: PlayerId; b: PlayerId; brokenBy: PlayerId }
   | { type: 'ground-op';        opType: GroundOpType; ownerId: PlayerId; x: number; y: number }
   | { type: 'chopper-kill';     ownerId: PlayerId; victimId: PlayerId; x: number; y: number }
-  | { type: 'chopper-miss';     ownerId: PlayerId; x: number; y: number };
+  | { type: 'chopper-miss';     ownerId: PlayerId; x: number; y: number }
+  | { type: 'army-spawned';     ownerId: PlayerId; armyId: number; x: number; y: number; strength: number }
+  | { type: 'army-killed';      ownerId: PlayerId; armyId: number; x: number; y: number; killedBy: PlayerId }
+  | { type: 'army-engaged';     attackerId: PlayerId; defenderId: PlayerId; x: number; y: number };
 
 export type RGBA = readonly [number, number, number, number];
 
