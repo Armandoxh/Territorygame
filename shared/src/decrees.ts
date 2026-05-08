@@ -52,7 +52,7 @@ export const DECREES: readonly Decree[] = [
 
   // DEFENSE
   { id: 'border-patrol', branch: 'defense', tier: 1, name: 'Border Patrol',
-    desc: 'Turrets gain +1 frontier coverage and +50% retaliation damage.', cost: 800 },
+    desc: 'Turrets retaliate +50% harder when attackers capture inside their region.', cost: 800 },
   { id: 'iron-doctrine', branch: 'defense', tier: 1, name: 'Iron Doctrine',
     desc: 'All your defended tiles gain +20% effective defense (stacks with turrets).', cost: 800 },
   { id: 'reinforced-bunkers', branch: 'defense', tier: 2, name: 'Reinforced Bunkers',

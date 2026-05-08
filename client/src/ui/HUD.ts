@@ -671,12 +671,12 @@ export class HUD {
       intel.className = 'intel';
       intel.textContent = '';
       wrap.appendChild(intel);
-      // Tap an enemy badge → open Nation Profile. Skip for the
-      // human's own badge (no useful action).
-      if (id !== 1) {
-        wrap.addEventListener('click', () => this.showNationSheet(id));
-        wrap.style.cursor = 'pointer';
-      }
+      // Tap any badge — including your own — opens the Nation
+      // Profile sheet for that nation. Lets you peek at your own
+      // mastery + decree multipliers + buildings + resources just
+      // like you can for enemies.
+      wrap.addEventListener('click', () => this.showNationSheet(id));
+      wrap.style.cursor = 'pointer';
       this.el.enemies.appendChild(wrap);
       this.enemyEls.set(id, { wrap, num, intel });
     }
@@ -2446,7 +2446,7 @@ export class HUD {
    *  trade flow + diplomacy buttons (trade, ally, war, peace). */
   showNationSheet(playerId: PlayerId): void {
     if (this.game.outcome) return;
-    if (playerId <= 0 || playerId === 1) return;
+    if (playerId <= 0) return;
     const p = this.game.players[playerId];
     if (!p || !p.alive) return;
     this._nationSheetId = playerId;
@@ -2618,6 +2618,9 @@ export class HUD {
     this._nationSheetSig = sig;
     const actions = this.el.nsActions!;
     actions.innerHTML = '';
+    // Self-profile: no diplomacy actions (you can't trade with yourself).
+    // Just an empty actions slot. Stats above are the entire payload.
+    if (id === 1) return;
     const mkBtn = (cls: string, label: string, action: () => void, disabled = false): void => {
       const b = document.createElement('button');
       b.type = 'button';

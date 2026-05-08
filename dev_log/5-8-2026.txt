@@ -441,3 +441,37 @@ face a curated subset of your forces. With this change a
 small enemy salient inside a big empire now faces a brutal
 ratio (their tiny attacker pool vs the defender's full pool)
 and almost always loses.
+
+---
+
+[pending] ux: self-profile via own badge + doctrine audit
+
+WHAT: (1) Tapping your own nation badge in the bottom roster
+now opens the same Nation Profile sheet that long-press on
+enemy/ally land does — minus the diplomacy buttons (you can't
+trade/ally/declare-war on yourself). Same MILITARY block, same
+intel grid, so you can audit your own buffs at a glance.
+(2) Audited all 24 commander doctrines end-to-end against the
+engine to confirm each has a real application site. All 24
+applied correctly; only stale doc string was border-patrol's
+"+1 frontier coverage" — turrets are region-wide now, no
+radius. Updated the desc to "Turrets retaliate +50% harder
+when attackers capture inside their region."
+
+WHY: User: "I'd like to do the same to see my own stats when
+I long press myself. And evaluate. At some point I had +1600%
+boost in offense capability but I was frozen when charging an
+enemy camp. It wouldn't charge them. Go one by one on the
+commander doctrines and see if they are actually being
+applied."
+
+Forced March's "+1600%" multiplies your *per-tick attack
+chance*, not raw combat power — every roll still goes through
+ratioFactor = pow(troopRatio, 0.4) clamped [0.25, 4]. Against
+a defender whose empire troops > yours, ratioFactor floors
+near 0.25 and most rolls fail on the troop math regardless of
+how often they fire. That's the "frozen charge" feel. For raw
+power scaling you want **Veterans** (Storm Troopers L3+),
+which multiplies attackerPower directly. Self-profile makes
+this distinction visible: Atk power × is the multiplier that
+matters for breaking thick defenses.
