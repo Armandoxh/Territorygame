@@ -134,65 +134,77 @@ async function boot(): Promise<void> {
       if (hud.tryBuildShipAt(wx, wy)) return;
       if (hud.tryPlaceAt(wx, wy)) return;
 
-      // Army interaction (battlefield mode):
-      //   - tap your army → select
-      //   - tap selected army's own tile → DESELECT (the "esc" gesture)
-      //   - tap another of your armies → switch selection
-      //   - tap any other tile → march order
+      // Unified unit interaction. Taps near ANY of the player's units
+      // (army or ship) take priority over "issue order at this tile" —
+      // a tap that lands on a unit always means "select that unit",
+      // even if a different unit is currently selected. Without this,
+      // tapping a ship while an army was selected got treated as a
+      // march order to the ship's tile and the ship was never selected.
+      //
+      //   tap on your selected army's tile → DESELECT
+      //   tap on a different friendly army → switch to that army
+      //   tap on a friendly ship          → switch to that ship
+      //   tap on empty terrain w/ unit selected → issue order
+      //   tap on empty terrain w/ nothing selected → fall through
       const armySel = renderer.armies.selected();
+      const shipSel = renderer.ships.selected();
       const tx = Math.floor(wx), ty = Math.floor(wy);
-      if (armySel > 0) {
-        const sa = game.getArmy(armySel);
-        if (!sa || sa.owner !== 1 || sa.strength <= 0) {
-          renderer.armies.setSelected(0);
-        } else if (sa.x === tx && sa.y === ty) {
+      const armyTol = 4 / Math.max(1, renderer.zoom * 0.4);
+      const shipTol = 6 / Math.max(1, renderer.zoom * 0.4);
+      const tappedArmy = game.armyNear(wx, wy, 1, armyTol);
+      const tappedShip = game.shipNear(wx, wy, 1, shipTol);
+      // Pick the closer hit when both armies and ships are nearby —
+      // avoids ambiguous picks at coastal tiles.
+      let tappedKind: 'army' | 'ship' | 'none' = 'none';
+      if (tappedArmy && tappedShip) {
+        const dA = Math.hypot(tappedArmy.x + 0.5 - wx, tappedArmy.y + 0.5 - wy);
+        const dS = Math.hypot(tappedShip.x + 0.5 - wx, tappedShip.y + 0.5 - wy);
+        tappedKind = dA <= dS ? 'army' : 'ship';
+      } else if (tappedArmy) tappedKind = 'army';
+      else if (tappedShip) tappedKind = 'ship';
+
+      if (tappedKind === 'army') {
+        const a = tappedArmy!;
+        // Tap on the same army → deselect (the "esc" gesture).
+        if (a.id === armySel) {
           renderer.armies.setSelected(0);
           hud.toast('deselected');
           return;
-        } else {
-          // Switch to a different friendly army if the tap is on one.
-          const other = game.armyNear(wx, wy, 1, 4 / Math.max(1, renderer.zoom * 0.4));
-          if (other && other.id !== armySel) {
-            renderer.armies.setSelected(other.id);
-            hud.toast('switched · tap destination');
-            return;
-          }
-          // Otherwise, march order.
-          if (game.setArmyTarget(armySel, tx, ty, 1) === null) {
-            hud.toast('marching');
-            return;
-          }
-          renderer.armies.setSelected(0);
         }
+        // Switching from a different unit type or another army.
+        if (shipSel > 0) renderer.ships.setSelected(0);
+        renderer.armies.setSelected(a.id);
+        hud.toast('Army selected · tap army again to deselect');
+        return;
       }
-      if (renderer.armies.selected() === 0) {
-        const army = game.armyNear(wx, wy, 1, 4 / Math.max(1, renderer.zoom * 0.4));
-        if (army) {
-          renderer.armies.setSelected(army.id);
-          hud.toast('Army selected · tap army again to deselect');
+      if (tappedKind === 'ship') {
+        const s = tappedShip!;
+        if (s.id === shipSel) {
+          // Same-ship tap → deselect for symmetry with armies.
+          renderer.ships.setSelected(0);
+          hud.toast('deselected');
           return;
         }
+        if (armySel > 0) renderer.armies.setSelected(0);
+        renderer.ships.setSelected(s.id);
+        hud.toast(`${s.kind} selected · tap destination`);
+        return;
       }
 
-      // Ship interaction: if a ship is already selected, ANY tap retargets
-      // it. Otherwise, a tap close to one of our ships selects it (and is
-      // consumed — does not also retarget territory).
-      const sel = renderer.ships.selected();
-      if (sel > 0) {
-        if (game.setShipTarget(sel, wx, wy, 1)) {
+      // No unit tapped → if something IS selected, the tap is an order.
+      if (armySel > 0) {
+        if (game.setArmyTarget(armySel, tx, ty, 1) === null) {
+          hud.toast('marching');
+          return;
+        }
+        renderer.armies.setSelected(0);
+      }
+      if (renderer.ships.selected() > 0) {
+        if (game.setShipTarget(renderer.ships.selected(), wx, wy, 1)) {
           hud.toast('ordered');
           return;
         }
-        // Tap landed somewhere unreachable — drop the selection so the
-        // next tap can do something else (like target a region).
         renderer.ships.setSelected(0);
-      } else {
-        const ship = game.shipNear(wx, wy, 1, 6 / Math.max(1, renderer.zoom * 0.4));
-        if (ship) {
-          renderer.ships.setSelected(ship.id);
-          hud.toast(`${ship.kind} selected · tap destination`);
-          return;
-        }
       }
 
       // Legacy flood mode only: tap sets your manual region target,
