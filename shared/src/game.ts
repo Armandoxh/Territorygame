@@ -5348,23 +5348,21 @@ export class Game {
       const tileRegion = this.regions[i]!;
       const isVassal = tileRegion > 0 && this._regionDominant[tileRegion] === p.id;
 
-      // Connectivity gate (AI / vassal only): a frontier source tile
-      // must have at least 3 same-owner cardinal neighbors to project
-      // outward. This kills 1-tile-wide AND 2-tile-wide snake
-      // expansion through enemy territory. A 2-wide column tip has at
-      // most 2 same-owner cardinal neighbors (back + side); blocked.
-      // A 3-wide column's middle tip has 3 (back + 2 sides); allowed.
-      // So salients must be at least 3 wide to keep growing — they
-      // can't keep extending as a thin tendril.
-      // Humans bypass the gate so peninsula pushes still work
-      // when YOU drive them.
+      // Connectivity gate (AI / vassal only): for salient tiles INSIDE
+      // a region that someone else dominates, require ≥3 same-owner
+      // cardinal neighbors to project outward — a true thick foothold,
+      // not a thin finger. For tiles inside the player's OWN dominant
+      // region (their natural border), only ≥1 is required so corner
+      // and peninsula expansion stays fluid. Humans bypass the gate
+      // entirely.
       if (!p.isHuman) {
         let sameOwnerNbrs = 0;
         if (this.territory.getOwner(x - 1, y) === p.id) sameOwnerNbrs++;
         if (this.territory.getOwner(x + 1, y) === p.id) sameOwnerNbrs++;
         if (this.territory.getOwner(x, y - 1) === p.id) sameOwnerNbrs++;
         if (this.territory.getOwner(x, y + 1) === p.id) sameOwnerNbrs++;
-        if (sameOwnerNbrs < 3) continue;
+        const minNbrs = isVassal ? 1 : 3;
+        if (sameOwnerNbrs < minNbrs) continue;
       }
 
       // Build candidate list, filtered for actionability:

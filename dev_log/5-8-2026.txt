@@ -572,3 +572,28 @@ remaining tiles form a small foothold which can't snake-
 push further because the connectivity gate is now ≥3
 nbrs. The defender's full troop pool finishes the salient
 within a few _expand ticks.
+
+---
+
+[pending] hotfix: connectivity gate now region-dominance-aware
+
+WHAT: Reverted the v7 flat ≥3 gate that broke ALL non-human
+expansion. Replaced with region-dominance-aware:
+  - In your OWN dominant region (natural border), ≥1 nbr.
+  - In someone else's region (salient / thin foothold), ≥3.
+Humans still bypass the gate entirely.
+
+WHY: User: "now none of the vassals are doing any expansions"
++ "Now nobody is expanding on their own, not AI, not vassals,
+not allies."
+
+The flat ≥3 gate killed corner expansion: a frontier tile at
+a corner of an empire has only 2 same-owner cardinal nbrs
+(the 2 inland sides). That's most natural-looking borders.
+With ≥3 every corner stalled, AIs and vassals froze in place.
+
+The dominance-aware gate restores normal expansion (you've
+already got muscle in your own region; ≥1 nbr is enough)
+while keeping the snake gate active for foreign salients
+(you need a 3-wide foothold to push deeper into someone
+else's territory).
