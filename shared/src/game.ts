@@ -6663,11 +6663,25 @@ export class Game {
     a.strength = Math.min(cap, a.strength + regen);
   }
 
-  /** Influence aura: claim ONE neutral tile within ARMY_AURA_RADIUS
-   *  that's adjacent to an existing tile of the army's owner. Tile
-   *  must be passable land. Capitals in radius are skipped. Picks
-   *  the closest qualifying tile so growth feels radial, not random. */
+  /** Influence aura: claim neutral tiles within ARMY_AURA_RADIUS that
+   *  are adjacent to an existing tile of the army's owner.
+   *  - Idle armies (no destination) paint aggressively: up to 3
+   *    claims/tick. This is the "send and expand" feel — drop a
+   *    unit on a frontier and it fills the surrounding area in a
+   *    blob, not a thin line.
+   *  - Moving armies leak 1 claim/tick along their path.
+   *  Each claim costs ARMY_NEUTRAL_CLAIM_COST strength, scaled by
+   *  Field Logistics decree (less attrition per stack). Floor at 1
+   *  so passive painting can't outright kill the unit. */
   private _armyAura(a: Army): void {
+    const isIdle = a.destX < 0 || a.destY < 0;
+    const claimsThisTick = isIdle ? 3 : 1;
+    for (let n = 0; n < claimsThisTick; n++) {
+      if (!this._auraClaimOne(a)) return;
+    }
+  }
+
+  private _auraClaimOne(a: Army): boolean {
     const W = this.territory.width;
     const H = this.territory.height;
     const R = this.config.ARMY_AURA_RADIUS;
@@ -6686,7 +6700,6 @@ export class Game {
         if (this.territory.getOwner(tx, ty) !== 0) continue;
         if (!this.territory.isPassable(tx, ty)) continue;
         if (this._capitalIndexAt(tx, ty) >= 0) continue;
-        // Must touch the owner's existing territory (no leapfrogging).
         let adjacent = false;
         if (tx + 1 < W && this.territory.getOwner(tx + 1, ty) === a.owner) adjacent = true;
         else if (tx > 0 && this.territory.getOwner(tx - 1, ty) === a.owner) adjacent = true;
@@ -6696,14 +6709,21 @@ export class Game {
         bestD = d2; bestX = tx; bestY = ty;
       }
     }
-    if (bestX >= 0) {
-      this._claim(bestX, bestY, a.owner);
-      // Attrition: every claim — aura or walk — costs strength. Once
-      // there are no more neutrals to claim, regen pulls the unit
-      // back up to cap. Floor at 1 so the army doesn't die mid-paint
-      // (it'd be a frustrating unit-death from passive expansion).
-      a.strength = Math.max(1, a.strength - this.config.ARMY_NEUTRAL_CLAIM_COST);
-    }
+    if (bestX < 0) return false;
+    this._claim(bestX, bestY, a.owner);
+    const owner = this.players[a.owner];
+    const attritionMult = owner ? this._fieldLogisticsMult(owner) : 1;
+    const cost = this.config.ARMY_NEUTRAL_CLAIM_COST * attritionMult;
+    a.strength = Math.max(1, a.strength - cost);
+    return true;
+  }
+
+  /** Field Logistics decree: each stack compounds 0.85× attrition.
+   *  s1 = 85%, s5 = 44%, s10 = 20%. No floor (purely multiplicative
+   *  ramp so investment keeps mattering at high stacks). */
+  private _fieldLogisticsMult(p: Player): number {
+    const stacks = p.decreeStacks['field-logistics'] ?? 0;
+    return Math.pow(0.85, stacks);
   }
 
   /** Single-tile move step + combat resolution for one army. Mirrors
@@ -6750,7 +6770,10 @@ export class Game {
         // Capital? still uses tryCapture (which checks war state and emits the event).
         if (!this.tryCapture(nx, ny, a.owner)) continue;
         // Light strength bleed per claim — represents skirmish + occupation cost.
-        a.strength = Math.max(1, a.strength - this.config.ARMY_NEUTRAL_CLAIM_COST);
+        // Field Logistics decree shaves attrition (compound 0.85× per stack).
+        const ownerP = this.players[a.owner];
+        const attritionMult = ownerP ? this._fieldLogisticsMult(ownerP) : 1;
+        a.strength = Math.max(1, a.strength - this.config.ARMY_NEUTRAL_CLAIM_COST * attritionMult);
       }
       // Move the army onto the tile.
       this._armyByTile.delete(this._tileKey(a.x, a.y));

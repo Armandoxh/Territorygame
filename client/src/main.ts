@@ -30,10 +30,23 @@ async function boot(): Promise<void> {
   // --- Config from URL + localStorage ---
   const config: GameConfig = { ...DEFAULT_CONFIG };
   const params = new URLSearchParams(location.search);
+  // Sandbox / playtest mode: ?test or ?sandbox in URL. Tiny map + 4
+  // nations + huge starting gold + fast generation. Overrides further
+  // user query params. Use this to iterate the army loop without
+  // waiting 5 minutes for an empire to mature.
+  const sandbox = params.has('test') || params.has('sandbox');
+  if (sandbox) {
+    config.GRID_WIDTH = 128;
+    config.GRID_HEIGHT = 128;
+    config.AI_PLAYER_COUNT = 3;          // 1 human + 3 AIs = 4 nations
+    config.STARTING_GOLD = 999_999;
+    config.GOLD_PER_TILE_PER_TICK = 5;   // 50× normal so anything is buildable instantly
+    config.TEAM_SIZE = 1;                // FFA
+  }
   const ai = parseInt(params.get('ai') ?? '', 10);
-  if (Number.isFinite(ai)) {
+  if (!sandbox && Number.isFinite(ai)) {
     config.AI_PLAYER_COUNT = Math.max(0, Math.min(254, ai));
-  } else {
+  } else if (!sandbox) {
     const saved = parseInt(localStorage.getItem('territory:ai') ?? '', 10);
     if (Number.isFinite(saved)) config.AI_PLAYER_COUNT = Math.max(0, Math.min(254, saved));
   }
@@ -41,8 +54,8 @@ async function boot(): Promise<void> {
   if (Number.isFinite(seed)) config.TERRAIN_SEED = seed;
   const w = parseInt(params.get('w') ?? '', 10);
   const h = parseInt(params.get('h') ?? '', 10);
-  if (Number.isFinite(w) && w > 64) config.GRID_WIDTH = w;
-  if (Number.isFinite(h) && h > 64) config.GRID_HEIGHT = h;
+  if (!sandbox && Number.isFinite(w) && w > 64) config.GRID_WIDTH = w;
+  if (!sandbox && Number.isFinite(h) && h > 64) config.GRID_HEIGHT = h;
   // Team mode (URL ?team=N or localStorage). N must be 1, 2, 4, 8, or 16.
   const teamRaw = parseInt(params.get('team') ?? '', 10);
   if (Number.isFinite(teamRaw)) {

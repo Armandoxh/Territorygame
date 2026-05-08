@@ -1051,6 +1051,13 @@ export class HUD {
     this.el.menuBtn?.addEventListener('click', () => this.showMenu());
     this.el.menu.querySelector('#menu-cancel')?.addEventListener('click', () => this.hideMenu());
     this.el.menu.querySelector('#restart-btn')?.addEventListener('click', () => this._restart());
+    this.el.menu.querySelector('#sandbox-btn')?.addEventListener('click', () => {
+      // Sandbox: tiny map, 4 nations, infinite gold — rapid playtest.
+      // Clears any saved opp/team prefs so the mode is consistent.
+      try { localStorage.removeItem('territory:ai'); } catch { /* ignore */ }
+      try { localStorage.removeItem('territory:team'); } catch { /* ignore */ }
+      location.search = '?test';
+    });
     this.el.menu.querySelectorAll<HTMLButtonElement>('.num-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const d = parseInt(btn.dataset['delta'] ?? '0', 10) || 0;

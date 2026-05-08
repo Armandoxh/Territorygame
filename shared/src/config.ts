@@ -375,7 +375,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   ARMY_COMBAT_RATE: 0.06,        // 2-3s engagements at equal strength
   ARMY_NEUTRAL_CLAIM_COST: 2,    // strength bleed per claim (aura or walk)
   BARRACKS_RECRUIT_TICKS: 300,   // 30s base recruit cadence
-  ARMY_AURA_RADIUS: 2,           // 5×5 influence area per army
+  ARMY_AURA_RADIUS: 3,           // 7×7 influence area per army
   ARMY_REGEN_PER_TICK: 1,        // +10/s on owned soil
   ARMY_MAX_STRENGTH_MULT: 1.5,   // cap at 150 (base 100 × 1.5)
 

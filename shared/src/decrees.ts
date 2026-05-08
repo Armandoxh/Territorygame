@@ -83,6 +83,8 @@ export const DECREES: readonly Decree[] = [
   },
   { id: 'standing-army', branch: 'military', tier: 2, name: 'Standing Army',
     desc: 'Your maximum troop cap (per owned tile) goes way up.', cost: 1200, prereq: 'conscription', stackable: true },
+  { id: 'field-logistics', branch: 'military', tier: 2, name: 'Field Logistics',
+    desc: 'Your battalions bleed less strength when claiming new ground. Long marches hurt less.', cost: 900, prereq: 'conscription', stackable: true },
   { id: 'war-bonds',     branch: 'military', tier: 3, name: 'War Bonds',
     desc: 'Spend 30% of your gold treasury to instantly conscript 5000 troops.', cost: 0, prereq: 'standing-army', oneShot: true, stackable: true },
 
@@ -147,6 +149,7 @@ export function decreePowerLabel(d: Decree): string {
     case 'conscription': return 'Instant troops';
     case 'veterans': return 'Combat power';
     case 'standing-army': return 'Troop cap';
+    case 'field-logistics': return 'Less attrition';
     case 'war-bonds': return 'Gold→troops';
     case 'forced-march': return 'Expansion rate';
     case 'air-supremacy': return 'Bomb cooldown';
