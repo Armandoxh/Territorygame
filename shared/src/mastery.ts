@@ -26,6 +26,7 @@ export interface MasteryDef {
     aa?: boolean;
     bombs?: boolean;
     ships?: boolean;
+    barracks?: boolean;
   };
 }
 
@@ -39,9 +40,10 @@ export const MASTERIES: readonly MasteryDef[] = [
       '+30% tile defense (compounds with turrets)',
       '+50% turret retaliation damage',
       '+50% full-region fortress bonus',
+      'Unlocks barracks (Artillery / Blitz / Tank Push)',
       'Locked: airstrip, AA, bombs, ships',
     ],
-    unlocked: {},
+    unlocked: { barracks: true },
   },
   {
     id: 'air',
@@ -51,7 +53,7 @@ export const MASTERIES: readonly MasteryDef[] = [
       'Unlocks airstrip, AA, bombers',
       '+25% bomb radius',
       'Bombs damage enemy ships caught in blast',
-      'Locked: ships',
+      'Locked: barracks, ships',
     ],
     unlocked: { airstrip: true, aa: true, bombs: true },
   },
@@ -64,7 +66,7 @@ export const MASTERIES: readonly MasteryDef[] = [
       '+2 ship cap, +25% reload speed',
       'Warships shell coastal tiles + capture them',
       'Skirmishers / warships shoot down enemy bombers',
-      'Locked: airstrip, AA, bombs',
+      'Locked: airstrip, AA, bombs, barracks',
     ],
     unlocked: { ships: true },
   },

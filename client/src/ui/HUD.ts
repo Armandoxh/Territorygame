@@ -701,6 +701,15 @@ export class HUD {
 
   private _wireSheet(): void {
     if (!this.el.sheet) return;
+    // Nation Profile button at the top — opens the same intel sheet
+    // that long-press on enemy / ally land opens, but for the human's
+    // own nation. So long-press own land gets you to both build options
+    // and your own stats in 1-2 taps.
+    const profileBtn = this.el.sheet.querySelector<HTMLButtonElement>('#bs-profile');
+    profileBtn?.addEventListener('click', () => {
+      this.hideBuildSheet();
+      this.showNationSheet(1);
+    });
     this.el.sheet.querySelectorAll<HTMLButtonElement>('.bs-btn').forEach((btn) => {
       // The upgrade button has no data-type — it's wired below.
       if (btn.id === 'upgrade-button') return;
@@ -2981,9 +2990,10 @@ export class HUD {
   }
 
   private _isLockedForHuman(type: BuildingType): boolean {
-    // Only airstrip remains mastery-gated. AA, ports, barracks etc.
-    // are universal defenses/enablers — no mastery lock on those.
+    // Mastery-gated: airstrip (AIR), barracks (GROUND).
+    // Everything else (settlement, turret, AA, port) is universal.
     if (type === 'airstrip') return !this.game.isUnlocked(1, 'airstrip');
+    if (type === 'barracks') return !this.game.isUnlocked(1, 'barracks');
     return false;
   }
 

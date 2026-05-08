@@ -1443,8 +1443,9 @@ export class Game {
     if (this.buildingAt(x, y)) return 'occupied';
     if (this._capitalIndexAt(x, y) >= 0) return 'on-capital';
     // Mastery gate. Settlement + turret are always available; airstrip
-    // and AA require the AIR mastery.
+    // requires AIR; barracks (and its ground ops) require GROUND.
     if (type === 'airstrip' && !this.isUnlocked(ownerId, 'airstrip')) return 'locked';
+    if (type === 'barracks' && !this.isUnlocked(ownerId, 'barracks')) return 'locked';
     // AA, port, artillery are defensive buildings available to everyone.
     // Earlier design gated AA behind air-mastery, but that left ground/
     // naval AIs unable to defend at all and air-mastery dominated late
@@ -2004,7 +2005,7 @@ export class Game {
     return p.gold + p.treasury;
   }
 
-  isUnlocked(playerId: PlayerId, category: 'airstrip' | 'aa' | 'bombs' | 'ships'): boolean {
+  isUnlocked(playerId: PlayerId, category: 'airstrip' | 'aa' | 'bombs' | 'ships' | 'barracks'): boolean {
     const p = this.players[playerId];
     if (!p) return false;
     const m = p.mastery ?? 'ground';
@@ -4994,13 +4995,15 @@ export class Game {
     // artillery / tank push). Ground-mastery AIs build them eagerly;
     // other masteries get one as a backup so they can crack a stalemate
     // with artillery even without the air kit.
+    // Barracks now require GROUND mastery — only ground AIs build them.
+    // Other masteries fight via their kit (bombs / ships) instead of
+    // ground ops. This matches the player-side mastery gate.
     const barracksCap     = this._regionBuildingCap('barracks', tiles.length);
     const barracksCount   = this._countBuildingsInRegion(regionId, p.id, 'barracks');
     const empireBarracks  = this.countBuildings(p.id, 'barracks');
-    const wantBarracks    = (targetIsEnemy && p.mastery === 'ground') || empireBarracks === 0;
-    const barracksGlobalCap = p.mastery === 'ground'
-      ? Math.max(2, Math.floor(ownedTiles / 100))
-      : 1;
+    const canBuildBarracks = this.isUnlocked(p.id, 'barracks');
+    const wantBarracks    = canBuildBarracks && targetIsEnemy && p.mastery === 'ground';
+    const barracksGlobalCap = Math.max(2, Math.floor(ownedTiles / 100));
     const barCost = this.config.BUILDING_COSTS.barracks;
     if (wantBarracks && barracksCount < barracksCap
         && empireBarracks < barracksGlobalCap

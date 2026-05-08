@@ -633,3 +633,37 @@ hit the ≥3 gate and stalled. Now they push freely until
 they collide with another player's dominant region — and
 only at that boundary do they have to maintain a thick
 foothold.
+
+---
+
+[pending] mastery: barracks now GROUND-only + self-profile
+button on long-press own land
+
+WHAT: (1) Barracks (and the ground ops it fires — Artillery,
+Blitzkrieg, Tank Push) is now mastery-gated to GROUND.
+Players with AIR or NAVAL mastery can no longer build a
+barracks; their offensive kit is bombs / ships respectively.
+Updated mastery.ts unlock map (added barracks: true to
+ground only), tryBuild gate, _isLockedForHuman in HUD, and
+the AI build path so non-ground AIs don't even try.
+
+(2) Long-press on YOUR OWN land now opens the build sheet
+WITH a "View nation profile" button at the top. Tapping it
+opens the same intel sheet enemies get (MILITARY block:
+Mastery, Atk/Def/Wall mults, Expansion, decree count). So
+the natural gesture "long-press my land → see my stats"
+works now without disrupting the build-from-long-press flow.
+
+WHY: User: "1. i cant long press and see my own stats like
+i can see enemies. and 2. why are air units able to place
+artilleries"
+
+(1) Made artillery / blitz / tanks feel out-of-character for
+non-ground masteries. The mastery-as-identity contract is:
+ground = fortress + ground ops, air = bombs, naval = ships.
+Cross-buying broke that contract.
+
+(2) Symmetry with long-press enemy land — players asked
+"why can I see them but not myself." Build sheet still
+opens (long-press should still let you build), but the new
+top button is the bridge to the profile sheet.

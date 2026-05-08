@@ -1743,6 +1743,24 @@ html, body {
 .bs-header { text-align: center; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.55; margin-bottom: 14px; }
 .bs-header span { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; opacity: 1; margin-left: 4px; }
 .bs-header .bs-pool { color: #e8c04a; font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; opacity: 1; }
+.bs-profile {
+  display: block;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #cfd6e4;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.bs-profile:active { background: rgba(255,255,255,0.10); }
 .bs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .bs-btn {
   background: #20262e;
