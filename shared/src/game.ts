@@ -5525,15 +5525,35 @@ export class Game {
       const isVassal = tileRegion > 0 && this._regionDominant[tileRegion] === p.id;
 
       // Connectivity gate (AI / vassal only): if the source tile sits
-      // inside a region that SOMEONE ELSE dominates, require ≥3 same-
-      // owner cardinal neighbors to project outward — a true thick
-      // foothold, not a thin finger. Neutral / contested / your-own
-      // dominant regions are unrestricted, so spawn expansion, normal
-      // border push, and contested-zone fights all work normally.
+      // inside a region where the source player is NOT the leading
+      // owner (someone else holds more tiles here, OR there's a
+      // dominator that isn't them), require ≥3 same-owner cardinal
+      // neighbors to project outward — a true thick foothold, not a
+      // thin finger.
+      //
+      // Earlier versions only checked _regionDominant. That broke once
+      // a snake grew big enough to make the region contested (>50%
+      // claimed but no dominator). With no dominator, the gate stopped
+      // firing, and the snake kept growing freely — exactly the
+      // pattern the user kept reporting. The leading-owner check
+      // catches that case: if anyone has more tiles than you here,
+      // you're a guest and need a 3-wide foothold to push.
+      //
+      // Mostly-neutral regions (early-game spawn expansion) still let
+      // the source player push: maxOtherInR is 0 since no rivals are
+      // here yet, so the gate doesn't fire.
+      //
       // Humans bypass the gate entirely.
       if (!p.isHuman && tileRegion > 0) {
-        const regionDom = this._regionDominant[tileRegion] ?? 0;
-        if (regionDom > 0 && regionDom !== p.id) {
+        const base = tileRegion * 256;
+        const ownInR = this._regionOwnedTiles[base + p.id] ?? 0;
+        let maxOtherInR = 0;
+        for (let o = 1; o < 256; o++) {
+          if (o === p.id) continue;
+          const c = this._regionOwnedTiles[base + o] ?? 0;
+          if (c > maxOtherInR) maxOtherInR = c;
+        }
+        if (maxOtherInR > ownInR) {
           let sameOwnerNbrs = 0;
           if (this.territory.getOwner(x - 1, y) === p.id) sameOwnerNbrs++;
           if (this.territory.getOwner(x + 1, y) === p.id) sameOwnerNbrs++;
@@ -5777,8 +5797,27 @@ export class Game {
             Math.pow(ratio, this.config.ATTACK_RATIO_EXP),
           ),
         );
+        // Salient cleanup bonus: when the defender is NOT the leading
+        // owner of the contested region (someone else holds more
+        // tiles here, or the attacker dominates), boost attack rate
+        // by 3×. This is the "kick the foreign squatter out" rate —
+        // small enemy footholds inside YOUR territory should fall
+        // fast, not feel invincible. Without this, the ratioFactor
+        // cap of 4 plus a 0.10 fracD floor on a small foothold left
+        // attackers grinding for minutes against a few stuck tiles.
+        let cleanupBonus = 1;
+        if (defR > 0 && defender) {
+          const dbase = defR * 256;
+          const defOwnedInR = this._regionOwnedTiles[dbase + defender.id] ?? 0;
+          let leaderInR = 0;
+          for (let o = 1; o < 256; o++) {
+            const c = this._regionOwnedTiles[dbase + o] ?? 0;
+            if (c > leaderInR) leaderInR = c;
+          }
+          if (leaderInR > defOwnedInR) cleanupBonus = 3;
+        }
         // Rally buff applies a 1.5× multiplier to combat rate for its duration.
-        const rate = tileChance * this.config.ATTACK_RATE_MULT * ratioFactor * this._rallyMult(p) / (1 + def);
+        const rate = tileChance * this.config.ATTACK_RATE_MULT * ratioFactor * cleanupBonus * this._rallyMult(p) / (1 + def);
         if (Math.random() > rate) continue;
         if (goldPool() < cost) continue;
         if (p.troops < this.config.TROOP_COST_PER_ATTACK) continue;
