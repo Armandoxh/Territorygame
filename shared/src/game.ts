@@ -5066,22 +5066,19 @@ export class Game {
         let defenderPower = Math.max(1, defender?.troops ?? 1) * veteransDefMult;
         const defR = this.regions[chosen.y * W + chosen.x] ?? 0;
         if (defender) {
-          const ownedD = this.territory.counts[defender.id] || 1;
-          const tilesD = defR > 0 ? (this._tilesByRegion[defR]?.length ?? 1) : ownedD;
-          // Defender's regional troop fraction. The raw "even spread"
-          // model (region size / empire size) makes huge empires
-          // hilariously weak everywhere — a 2000-tile empire defending
-          // a 100-tile region brings only 5% of its troops, so a
-          // 1-tile enemy salient inside it can attack with FULL empire
-          // power vs ~5% defender power and grind unopposed (the
-          // "snake" bug). Floor the fraction so the defender can
-          // always concentrate at least 30% of their pool on any
-          // single region under attack — armies do reinforce.
-          const rawFrac = Math.min(1, tilesD / ownedD);
-          const fracD = Math.max(0.30, rawFrac);
-          const moraleD = defR > 0 ? (this._regionMorale[defR] ?? 1) : 1;
-          const garrisonD = this._settlementGarrison(defR, defender.id);
-          defenderPower = Math.max(1, defender.troops * fracD * moraleD * garrisonD * veteransDefMult);
+          // Defender brings their FULL empire troop pool to defend
+          // any region under attack — armies redeploy. The old
+          // "regionTiles / empireTiles" dilution gave a 200k-troop
+          // empire just 5% of its troops to defend a small region
+          // against a 1-tile encroaching salient, which is what
+          // made the snake bug feel like turrets didn't exist.
+          // Local modifiers (morale, garrison, veterans, turret
+          // defense via the cost multiplier) still differentiate
+          // regional outcomes, but the raw troop pool is empire-wide.
+          const defR2 = defR; // keep `defR` available outside this block
+          const moraleD = defR2 > 0 ? (this._regionMorale[defR2] ?? 1) : 1;
+          const garrisonD = this._settlementGarrison(defR2, defender.id);
+          defenderPower = Math.max(1, defender.troops * moraleD * garrisonD * veteransDefMult);
         }
         if (isVassalDriven) {
           const ownedA = this.territory.counts[p.id] || 1;

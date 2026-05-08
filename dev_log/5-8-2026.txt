@@ -237,3 +237,24 @@ empire-wide deep-defense fix wasn't enough because the
 underlying troop math gave the salient an asymmetric power
 advantage. Big empires are no longer paper tigers in their
 own territory.
+
+---
+
+[pending] gameplay: snake fix v3 — defender uses FULL empire pool
+
+WHAT: Dropped the regional troop fraction entirely on the
+defender side. Was `troops × fracD × morale × garrison × veterans`,
+now just `troops × morale × garrison × veterans`. So a 200k-troop
+empire defending its own land brings ALL 200k troops to bear,
+not 30% (or 5% before that). Local modifiers — morale, garrison,
+veterans, turret cost — still differentiate regional outcomes,
+but the raw troop pool is empire-wide.
+
+WHY: User pushed back on the 30% floor: "Why would I send 30%?
+I should use my full power of that vassal to destroy the
+encroaching enemy units." Right model — armies redeploy
+quickly, and a 1-tile salient inside your empire shouldn't
+face a curated subset of your forces. With this change a
+small enemy salient inside a big empire now faces a brutal
+ratio (their tiny attacker pool vs the defender's full pool)
+and almost always loses.
