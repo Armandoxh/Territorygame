@@ -121,22 +121,42 @@ async function boot(): Promise<void> {
       if (hud.tryBuildShipAt(wx, wy)) return;
       if (hud.tryPlaceAt(wx, wy)) return;
 
-      // Army interaction (battlefield mode). If an army is selected,
-      // ANY tap is a march order. Otherwise a tap on one of YOUR
-      // armies selects it (and consumes the tap). Mirrors the ship
-      // interaction model exactly.
+      // Army interaction (battlefield mode):
+      //   - tap your army → select
+      //   - tap selected army's own tile → DESELECT (the "esc" gesture)
+      //   - tap another of your armies → switch selection
+      //   - tap any other tile → march order
       const armySel = renderer.armies.selected();
+      const tx = Math.floor(wx), ty = Math.floor(wy);
       if (armySel > 0) {
-        if (game.setArmyTarget(armySel, Math.floor(wx), Math.floor(wy), 1) === null) {
-          hud.toast('marching');
+        const sa = game.getArmy(armySel);
+        if (!sa || sa.owner !== 1 || sa.strength <= 0) {
+          renderer.armies.setSelected(0);
+        } else if (sa.x === tx && sa.y === ty) {
+          renderer.armies.setSelected(0);
+          hud.toast('deselected');
           return;
+        } else {
+          // Switch to a different friendly army if the tap is on one.
+          const other = game.armyNear(wx, wy, 1, 4 / Math.max(1, renderer.zoom * 0.4));
+          if (other && other.id !== armySel) {
+            renderer.armies.setSelected(other.id);
+            hud.toast('switched · tap destination');
+            return;
+          }
+          // Otherwise, march order.
+          if (game.setArmyTarget(armySel, tx, ty, 1) === null) {
+            hud.toast('marching');
+            return;
+          }
+          renderer.armies.setSelected(0);
         }
-        renderer.armies.setSelected(0);
-      } else {
+      }
+      if (renderer.armies.selected() === 0) {
         const army = game.armyNear(wx, wy, 1, 4 / Math.max(1, renderer.zoom * 0.4));
         if (army) {
           renderer.armies.setSelected(army.id);
-          hud.toast(`Army selected · tap destination`);
+          hud.toast('Army selected · tap army again to deselect');
           return;
         }
       }

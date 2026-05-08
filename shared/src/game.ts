@@ -6525,6 +6525,12 @@ export class Game {
     return null;
   }
 
+  /** Public lookup — used by the client tap dispatch to detect when
+   *  the user is tapping the same selected army's tile (= deselect). */
+  getArmy(id: number): Army | null {
+    return this._armyById(id);
+  }
+
   /** Spawn an army at (x, y) for ownerId, merging if a friendly stack
    *  is already there. Returns the resulting army (existing or new). */
   spawnArmy(x: number, y: number, ownerId: PlayerId, strength: number): Army | null {
@@ -6608,7 +6614,12 @@ export class Game {
     }
   }
 
-  /** Per-tick simulation for all armies: movement, combat, tile claims. */
+  /** Per-tick simulation for all armies: regen + influence aura
+   *  (every tick) + movement + combat + tile claims (gated by
+   *  move cooldown). The regen + aura passes are what turn a
+   *  battalion from a 1×1 paintbrush into a real "presence" on the
+   *  map: it heals while parked on owned soil and claims neutrals
+   *  in a 5×5 area around it. */
   private _armyTick(): void {
     if (this.armies.length === 0) return;
     for (let i = this.armies.length - 1; i >= 0; i--) {
@@ -6618,6 +6629,8 @@ export class Game {
         this._removeArmy(i);
         continue;
       }
+      this._armyRegen(a);
+      this._armyAura(a);
       // Forced March (offense decree branches a/b) speeds up moves.
       // Boost is multiplicative ≥ 1; divide ARMY_MOVE_TICKS by it to
       // shorten cadence.
@@ -6625,15 +6638,65 @@ export class Game {
       if (a.moveCooldown > 0) continue;
       const moveBoost = this._expansionBoostFor(owner, false);
       a.moveCooldown = Math.max(1, Math.floor(this.config.ARMY_MOVE_TICKS / Math.max(1, moveBoost)));
-      // No order? hold.
       if (a.destX < 0 || a.destY < 0) continue;
-      // Already there? clear order.
       if (a.x === a.destX && a.y === a.destY) {
         a.destX = -1; a.destY = -1; a.manual = false;
         continue;
       }
       this._armyStep(a);
     }
+  }
+
+  /** Strength regen for an army standing on its owner's soil. Caps
+   *  at ARMY_BASE_STRENGTH × ARMY_MAX_STRENGTH_MULT. Adjacent friendly
+   *  settlements add +1 regen each — plant settlements near the front
+   *  to keep your battalions topped up. */
+  private _armyRegen(a: Army): void {
+    if (this.territory.getOwner(a.x, a.y) !== a.owner) return;
+    const cap = Math.floor(this.config.ARMY_BASE_STRENGTH * this.config.ARMY_MAX_STRENGTH_MULT);
+    if (a.strength >= cap) return;
+    let regen = this.config.ARMY_REGEN_PER_TICK;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+      const b = this.buildingAt(a.x + dx, a.y + dy);
+      if (b && b.type === 'settlement' && b.owner === a.owner) regen += 1;
+    }
+    a.strength = Math.min(cap, a.strength + regen);
+  }
+
+  /** Influence aura: claim ONE neutral tile within ARMY_AURA_RADIUS
+   *  that's adjacent to an existing tile of the army's owner. Tile
+   *  must be passable land. Capitals in radius are skipped. Picks
+   *  the closest qualifying tile so growth feels radial, not random. */
+  private _armyAura(a: Army): void {
+    const W = this.territory.width;
+    const H = this.territory.height;
+    const R = this.config.ARMY_AURA_RADIUS;
+    const r2 = R * R;
+    let bestX = -1, bestY = -1, bestD = Infinity;
+    for (let dy = -R; dy <= R; dy++) {
+      const ty = a.y + dy;
+      if (ty < 0 || ty >= H) continue;
+      for (let dx = -R; dx <= R; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > r2) continue;
+        if (d2 >= bestD) continue;
+        const tx = a.x + dx;
+        if (tx < 0 || tx >= W) continue;
+        if (this.territory.getOwner(tx, ty) !== 0) continue;
+        if (!this.territory.isPassable(tx, ty)) continue;
+        if (this._capitalIndexAt(tx, ty) >= 0) continue;
+        // Must touch the owner's existing territory (no leapfrogging).
+        let adjacent = false;
+        if (tx + 1 < W && this.territory.getOwner(tx + 1, ty) === a.owner) adjacent = true;
+        else if (tx > 0 && this.territory.getOwner(tx - 1, ty) === a.owner) adjacent = true;
+        else if (ty + 1 < H && this.territory.getOwner(tx, ty + 1) === a.owner) adjacent = true;
+        else if (ty > 0 && this.territory.getOwner(tx, ty - 1) === a.owner) adjacent = true;
+        if (!adjacent) continue;
+        bestD = d2; bestX = tx; bestY = ty;
+      }
+    }
+    if (bestX >= 0) this._claim(bestX, bestY, a.owner);
   }
 
   /** Single-tile move step + combat resolution for one army. Mirrors

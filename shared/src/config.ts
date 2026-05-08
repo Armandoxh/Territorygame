@@ -190,6 +190,16 @@ export interface GameConfig {
   ARMY_NEUTRAL_CLAIM_COST: number;
   /** Sim ticks between barracks auto-recruits (per barracks). */
   BARRACKS_RECRUIT_TICKS: number;
+  /** Influence radius around an army — neutral tiles inside this ring
+   *  that touch an existing owner tile get auto-claimed (one per tick
+   *  per army). Lets a single battalion cover ~5×5 area, not 1×1. */
+  ARMY_AURA_RADIUS: number;
+  /** Strength regen per tick when the army stands on owned soil.
+   *  Capped at base × ARMY_MAX_STRENGTH_MULT. Adjacent settlements
+   *  add a bonus regen rate per neighbor. */
+  ARMY_REGEN_PER_TICK: number;
+  /** Strength cap multiplier (cap = ARMY_BASE_STRENGTH * this). */
+  ARMY_MAX_STRENGTH_MULT: number;
 
   // Terrain
   TERRAIN_NOISE_SCALE: number;
@@ -363,8 +373,11 @@ export const DEFAULT_CONFIG: GameConfig = {
   ARMY_BASE_STRENGTH: 100,
   ARMY_MOVE_TICKS: 5,            // 0.5s per tile at 10Hz
   ARMY_COMBAT_RATE: 0.06,        // 2-3s engagements at equal strength
-  ARMY_NEUTRAL_CLAIM_COST: 2,
+  ARMY_NEUTRAL_CLAIM_COST: 0,    // free — aura handles territory growth
   BARRACKS_RECRUIT_TICKS: 300,   // 30s base recruit cadence
+  ARMY_AURA_RADIUS: 2,           // 5×5 influence area per army
+  ARMY_REGEN_PER_TICK: 1,        // +10/s on owned soil
+  ARMY_MAX_STRENGTH_MULT: 1.5,   // cap at 150 (base 100 × 1.5)
 
   TERRAIN_NOISE_SCALE: 0.025,
   TERRAIN_OCTAVES: 4,
