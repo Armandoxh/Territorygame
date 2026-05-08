@@ -2190,18 +2190,34 @@ export class Game {
   // --- Decree effect helpers (read at the call sites in income/troops/etc.) ---
 
   /** Income multiplier from Production Decree stacks. */
-  /** Compound stack helper: 1× at 0 stacks, (1+pctPerStack)^stacks
-   *  thereafter. Replaces the old linear `1 + pctPerStack*stacks`
-   *  form so specialists who go deep in one decree get exponential
-   *  payoff. Caller can additionally cap with `Math.min`. */
+  /** Compound stack helper: (1+pctPerStack)^stacks. Constant rate
+   *  per stack. Used for cost-reduction decrees where a steady
+   *  multiplicative discount is wanted. */
   private _compoundStack(stacks: number, pctPerStack: number): number {
     if (stacks <= 0) return 1;
     return Math.pow(1 + pctPerStack, stacks);
   }
 
+  /** Progressive stack helper — each stack k contributes
+   *  (rate × k)%, then multiplies. So stack 1 is a small jump
+   *  (rate×1), stack 5 includes a 5×rate component, etc. The
+   *  cumulative product accelerates: slow start, sharp ramp.
+   *  e.g. rate=0.02:  s1=1.02, s5=1.32, s10=2.66, s15=7.6.
+   *  Used for the main bonus decrees so the L1 stack feels like
+   *  a small commitment instead of a +20% cliff. */
+  private _progressiveStack(stacks: number, ratePerStack: number): number {
+    if (stacks <= 0) return 1;
+    let mul = 1;
+    for (let k = 1; k <= stacks; k++) mul *= 1 + ratePerStack * k;
+    return mul;
+  }
+
   private _productionMult(p: Player): number {
     const stacks = p.decreeStacks['production'] ?? 0;
-    return this._compoundStack(stacks, this.config.DECREE_PRODUCTION_BOOST);
+    // Progressive: stack 1 = +1.5%, ramps to +33% / +120% by 5/10
+    // stacks. Was constant +10%/stack which felt big at L1 but
+    // didn't really scale.
+    return this._progressiveStack(stacks, 0.015);
   }
 
   /** Tribute fraction taking Free Market into account. */
@@ -2218,25 +2234,21 @@ export class Game {
    *  silently turns off. */
   private _expansionBoostFor(p: Player, isVassalDriven: boolean = false): number {
     const stacks = p.decreeStacks['forced-march'] ?? 0;
-    // Forced March branches at L3:
-    //   • A (Vassal Initiative): branch stacks compound vassal pushes only ×1.30 each
-    //   • B (Direct Command):    branch stacks compound manual pushes only ×1.30 each
-    // Pre-fork stacks (L1, L2) compound ×1.20 across the board.
+    // Progressive ramp: pre-fork stacks (L1, L2) at rate 0.025
+    // (stack 1 = +2.5%, stack 2 = +7.6% cumulative). Branch
+    // stacks at rate 0.05 — sharper since you've committed.
     const forkAt = 3;
-    const baseStacks = Math.min(forkAt - 1, stacks); // 0..2
-    const branchStacks = Math.max(0, stacks - (forkAt - 1)); // 0..N for L3+
-    const baseMul = this._compoundStack(baseStacks, 0.20);
+    const baseStacks = Math.min(forkAt - 1, stacks);
+    const branchStacks = Math.max(0, stacks - (forkAt - 1));
+    const baseMul = this._progressiveStack(baseStacks, 0.025);
     let branchMul = 1;
     const branch = p.decreeBranches?.['forced-march'];
     if (branchStacks > 0 && branch) {
       const wantA = (branch === 'a' && isVassalDriven);
       const wantB = (branch === 'b' && !isVassalDriven);
-      if (wantA || wantB) branchMul = this._compoundStack(branchStacks, 0.30);
+      if (wantA || wantB) branchMul = this._progressiveStack(branchStacks, 0.05);
     } else if (branchStacks > 0) {
-      // Fallback for the L3+ stacks if branch wasn't set (shouldn't
-      // happen — buyDecree gates on branch). Treat as both-ways at
-      // the base 1.20 rate so investment isn't wasted.
-      branchMul = this._compoundStack(branchStacks, 0.20);
+      branchMul = this._progressiveStack(branchStacks, 0.025);
     }
     return this.config.VASSAL_EXPANSION_BOOST * baseMul * branchMul;
   }
@@ -2244,7 +2256,8 @@ export class Game {
   /** Troop cap multiplier from Standing Army stacks. */
   private _troopCapFor(p: Player): number {
     const stacks = p.decreeStacks['standing-army'] ?? 0;
-    return this.config.TROOP_CAP_PER_TILE * this._compoundStack(stacks, 0.50);
+    // Progressive 0.04: s1 = +4%, s5 = +33%, s10 = +120%.
+    return this.config.TROOP_CAP_PER_TILE * this._progressiveStack(stacks, 0.04);
   }
 
   /** Bomb-cooldown multiplier from Air Supremacy. */
@@ -2271,14 +2284,17 @@ export class Game {
     const baseStacks = Math.min(forkAt - 1, stacks);
     const branchStacks = Math.max(0, stacks - (forkAt - 1));
     const branch = p.decreeBranches?.['veterans'];
-    const baseMul = this._compoundStack(baseStacks, 0.05);
+    // Progressive 0.012 base, 0.025 branch. Combat is high-leverage
+    // so per-stack rate stays low to keep the curve fair. Cap 2.0
+    // so 30 stacks doesn't double DPS by itself.
+    const baseMul = this._progressiveStack(baseStacks, 0.012);
     let branchMul = 1;
     if (branchStacks > 0 && branch) {
       const wantA = (branch === 'a' && attacker);
       const wantB = (branch === 'b' && !attacker);
-      if (wantA || wantB) branchMul = this._compoundStack(branchStacks, 0.10);
+      if (wantA || wantB) branchMul = this._progressiveStack(branchStacks, 0.025);
     } else if (branchStacks > 0) {
-      branchMul = this._compoundStack(branchStacks, 0.05);
+      branchMul = this._progressiveStack(branchStacks, 0.012);
     }
     return Math.min(2.0, baseMul * branchMul);
   }
@@ -2294,15 +2310,17 @@ export class Game {
     const baseStacks = Math.min(forkAt - 1, stacks);
     const branchStacks = Math.max(0, stacks - (forkAt - 1));
     const branch = p.decreeBranches?.['reinforced-bunkers'];
-    const baseMul = this._compoundStack(baseStacks, 0.50);
+    // Progressive 0.04 base, 0.06 (Walls) / 0.08 (Garrison) branch.
+    // Pre-fork: s1=+4%, s2=+13% cumulative. Branch ramps faster.
+    const baseMul = this._progressiveStack(baseStacks, 0.04);
     let branchMul = 1;
     if (branchStacks > 0 && branch) {
       const wantA = (branch === 'a' && defense);
       const wantB = (branch === 'b' && !defense);
-      if (wantA) branchMul = this._compoundStack(branchStacks, 0.75);
-      else if (wantB) branchMul = this._compoundStack(branchStacks, 1.00);
+      if (wantA) branchMul = this._progressiveStack(branchStacks, 0.06);
+      else if (wantB) branchMul = this._progressiveStack(branchStacks, 0.08);
     } else if (branchStacks > 0) {
-      branchMul = this._compoundStack(branchStacks, 0.50);
+      branchMul = this._progressiveStack(branchStacks, 0.04);
     }
     return Math.min(3.0, baseMul * branchMul);
   }
@@ -2310,7 +2328,8 @@ export class Game {
   /** Ship-speed multiplier from Admiralty (lower move-ticks = faster). */
   private _admiraltySpeedDivisor(p: Player): number {
     const stacks = p.decreeStacks['admiralty'] ?? 0;
-    return Math.min(3.0, this._compoundStack(stacks, 0.20));
+    // Progressive 0.03: s1=+3%, s5=+34%, s10=+148% (capped at ×3).
+    return Math.min(3.0, this._progressiveStack(stacks, 0.03));
   }
 
   /** Ship-cost multiplier from Admiralty. Compound 20% discount per
@@ -4067,10 +4086,9 @@ export class Game {
         continue;
       }
       // Each side's Cartel decree stacks buff their OWN income from
-      // the route. Route flow stays the same; the multiplier just
-      // scales how much each side keeps.
-      const cartelA = 1 + 0.20 * (a.decreeStacks['cartel'] ?? 0);
-      const cartelB = 1 + 0.20 * (b.decreeStacks['cartel'] ?? 0);
+      // the route. Progressive ramp 0.03 — slow start, scales up.
+      const cartelA = this._progressiveStack(a.decreeStacks['cartel'] ?? 0, 0.03);
+      const cartelB = this._progressiveStack(b.decreeStacks['cartel'] ?? 0, 0.03);
       a.treasury += r.flow * cartelA;
       b.treasury += r.flow * cartelB;
     }

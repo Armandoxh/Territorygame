@@ -42,7 +42,7 @@ export type BranchChoice = 'a' | 'b' | 'none';
 export const DECREES: readonly Decree[] = [
   // ECONOMY
   { id: 'production',   branch: 'economy', tier: 1, name: 'Production Decree',
-    desc: 'Every owned tile generates more gold per second.', cost: 500, stackable: true },
+    desc: 'Every owned tile generates more gold per second. Slow start, ramps sharply with stacks.', cost: 500, stackable: true },
   { id: 'master-builder', branch: 'economy', tier: 1, name: 'Master Builder',
     desc: 'Buildings cost less gold + resources to construct.', cost: 700, stackable: true },
   { id: 'free-market',  branch: 'economy', tier: 2, name: 'Free Market',
@@ -169,45 +169,51 @@ export function decreePowerLabel(d: Decree): string {
  *  multiplier without prose. e.g. "+33% income" or "×2.49". */
 export function decreeCompactCurrent(d: Decree, stacks: number, branch?: 'a' | 'b'): string {
   if (stacks <= 0) return '—';
-  const compound = (s: number, pct: number): number => Math.pow(1 + pct, s);
+  // Progressive: each stack k contributes (rate × k)%, then multiplies.
+  // Slow start, sharp ramp. Mirrors Game._progressiveStack.
+  const progressive = (s: number, rate: number): number => {
+    if (s <= 0) return 1;
+    let m = 1; for (let k = 1; k <= s; k++) m *= 1 + rate * k;
+    return m;
+  };
   const fmt = (mul: number): string => {
     const pct = (mul - 1) * 100;
     if (pct >= 100) return `+${pct.toFixed(0)}%`;
     return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
   };
   switch (d.id) {
-    case 'production': return fmt(compound(stacks, 0.10));
+    case 'production': return fmt(progressive(stacks, 0.015));
     case 'master-builder': return fmt(Math.max(0.5, Math.pow(0.90, stacks)));
     case 'forced-march': {
       const baseStacks = Math.min(2, stacks);
       const branchStacks = Math.max(0, stacks - 2);
-      const baseMul = compound(baseStacks, 0.20);
-      const v = (branch === 'a') ? baseMul * compound(branchStacks, 0.30) : baseMul;
-      const m = (branch === 'b') ? baseMul * compound(branchStacks, 0.30) : baseMul;
+      const baseMul = progressive(baseStacks, 0.025);
+      const v = (branch === 'a') ? baseMul * progressive(branchStacks, 0.05) : baseMul;
+      const m = (branch === 'b') ? baseMul * progressive(branchStacks, 0.05) : baseMul;
       if (v === m) return fmt(v);
       return `V${fmt(v)} M${fmt(m)}`;
     }
     case 'veterans': {
       const bs = Math.min(2, stacks), brs = Math.max(0, stacks - 2);
-      const bm = compound(bs, 0.05);
-      const a = Math.min(2.0, (branch === 'a') ? bm * compound(brs, 0.10) : bm);
-      const dd = Math.min(2.0, (branch === 'b') ? bm * compound(brs, 0.10) : bm);
+      const bm = progressive(bs, 0.012);
+      const a = Math.min(2.0, (branch === 'a') ? bm * progressive(brs, 0.025) : bm);
+      const dd = Math.min(2.0, (branch === 'b') ? bm * progressive(brs, 0.025) : bm);
       if (a === dd) return fmt(a);
       return `A${fmt(a)} D${fmt(dd)}`;
     }
     case 'reinforced-bunkers': {
       const bs = Math.min(2, stacks), brs = Math.max(0, stacks - 2);
-      const bm = compound(bs, 0.50);
-      const v = Math.min(3.0, (branch === 'a') ? bm * compound(brs, 0.75) : bm);
-      const r = Math.min(3.0, (branch === 'b') ? bm * compound(brs, 1.00) : bm);
+      const bm = progressive(bs, 0.04);
+      const v = Math.min(3.0, (branch === 'a') ? bm * progressive(brs, 0.06) : bm);
+      const r = Math.min(3.0, (branch === 'b') ? bm * progressive(brs, 0.08) : bm);
       if (v === r) return `×${v.toFixed(2)}`;
       return `D×${v.toFixed(1)} R×${r.toFixed(1)}`;
     }
-    case 'standing-army': return `×${compound(stacks, 0.50).toFixed(2)}`;
-    case 'admiralty': return `×${compound(stacks, 0.20).toFixed(2)}`;
+    case 'standing-army': return `×${progressive(stacks, 0.04).toFixed(2)}`;
+    case 'admiralty': return `×${progressive(stacks, 0.03).toFixed(2)}`;
     case 'sabotage': return `${Math.min(50, stacks * 5)}%`;
     case 'embassy': return `+${stacks * 25}%`;
-    case 'cartel': return fmt(compound(stacks, 0.20));
+    case 'cartel': return fmt(progressive(stacks, 0.03));
     case 'conscription': return `×${stacks}`;
     case 'war-bonds': return `×${stacks}`;
     default: return stacks > 0 ? '✓' : '';
@@ -226,11 +232,15 @@ export function decreeEffectFor(
     const sign = pct >= 0 && signed ? '+' : '';
     return `${sign}${pct.toFixed(pct >= 100 ? 0 : 1)}%`;
   };
-  const compound = (s: number, pct: number): number => Math.pow(1 + pct, s);
+  const progressive = (s: number, rate: number): number => {
+    if (s <= 0) return 1;
+    let m = 1; for (let k = 1; k <= s; k++) m *= 1 + rate * k;
+    return m;
+  };
   switch (d.id) {
     case 'production': {
-      const cur = compound(stacks, 0.10);
-      const nxt = compound(stacks + 1, 0.10);
+      const cur = progressive(stacks, 0.015);
+      const nxt = progressive(stacks + 1, 0.015);
       return { current: `Empire-wide gold income ${fmtPct(cur)}.`, next: `Next stack: ${fmtPct(nxt)}.` };
     }
     case 'master-builder': {
@@ -240,70 +250,63 @@ export function decreeEffectFor(
                next: `Next stack: ${fmtPct(nxt)} (${(nxt * 100).toFixed(0)}% of base).` };
     }
     case 'forced-march': {
-      // Pre-fork (L1, L2): both vassal + manual compound 1.20.
-      // Post-fork: chosen branch compounds 1.30, other freezes at L2.
       const baseStacks = Math.min(2, stacks);
       const branchStacks = Math.max(0, stacks - 2);
-      const baseMul = compound(baseStacks, 0.20);
-      const vassalMul = (branch === 'a') ? baseMul * compound(branchStacks, 0.30) : baseMul;
-      const manualMul = (branch === 'b') ? baseMul * compound(branchStacks, 0.30) : baseMul;
-      // For pre-fork ranges, both sides identical.
+      const baseMul = progressive(baseStacks, 0.025);
+      const vassalMul = (branch === 'a') ? baseMul * progressive(branchStacks, 0.05) : baseMul;
+      const manualMul = (branch === 'b') ? baseMul * progressive(branchStacks, 0.05) : baseMul;
       const both = (vassalMul === manualMul);
       const cur = both
         ? `Expansion ${fmtPct(vassalMul)} (manual + vassal).`
         : `Vassal expansion ${fmtPct(vassalMul)}; manual ${fmtPct(manualMul)}.`;
-      const nextStacks = stacks + 1;
-      const nextBase = Math.min(2, nextStacks);
-      const nextBranch = Math.max(0, nextStacks - 2);
-      const nextBaseMul = compound(nextBase, 0.20);
-      const nextVassal = (branch === 'a') ? nextBaseMul * compound(nextBranch, 0.30) : nextBaseMul;
-      const nextManual = (branch === 'b') ? nextBaseMul * compound(nextBranch, 0.30) : nextBaseMul;
-      const nextDesc = (nextVassal === nextManual)
-        ? `Next: ${fmtPct(nextVassal)}.`
-        : `Next: vassal ${fmtPct(nextVassal)}, manual ${fmtPct(nextManual)}.`;
-      return { current: cur, next: nextDesc };
+      const ns = stacks + 1, nb = Math.min(2, ns), nbr = Math.max(0, ns - 2);
+      const nbm = progressive(nb, 0.025);
+      const nv = (branch === 'a') ? nbm * progressive(nbr, 0.05) : nbm;
+      const nmn = (branch === 'b') ? nbm * progressive(nbr, 0.05) : nbm;
+      const nx = (nv === nmn) ? `Next: ${fmtPct(nv)}.` : `Next: vassal ${fmtPct(nv)}, manual ${fmtPct(nmn)}.`;
+      return { current: cur, next: nx };
     }
     case 'veterans': {
       const baseStacks = Math.min(2, stacks);
       const branchStacks = Math.max(0, stacks - 2);
-      const baseMul = compound(baseStacks, 0.05);
-      const atk = Math.min(2.0, (branch === 'a') ? baseMul * compound(branchStacks, 0.10) : baseMul);
-      const def = Math.min(2.0, (branch === 'b') ? baseMul * compound(branchStacks, 0.10) : baseMul);
+      const baseMul = progressive(baseStacks, 0.012);
+      const atk = Math.min(2.0, (branch === 'a') ? baseMul * progressive(branchStacks, 0.025) : baseMul);
+      const def = Math.min(2.0, (branch === 'b') ? baseMul * progressive(branchStacks, 0.025) : baseMul);
       const cur = (atk === def)
         ? `Combat power ${fmtPct(atk)} (attacker + defender).`
         : `Attack ${fmtPct(atk)}; defense ${fmtPct(def)}.`;
       const ns = stacks + 1, nb = Math.min(2, ns), nbr = Math.max(0, ns - 2);
-      const nm = compound(nb, 0.05);
-      const na = Math.min(2.0, (branch === 'a') ? nm * compound(nbr, 0.10) : nm);
-      const nd = Math.min(2.0, (branch === 'b') ? nm * compound(nbr, 0.10) : nm);
+      const nm = progressive(nb, 0.012);
+      const na = Math.min(2.0, (branch === 'a') ? nm * progressive(nbr, 0.025) : nm);
+      const nd = Math.min(2.0, (branch === 'b') ? nm * progressive(nbr, 0.025) : nm);
       const nx = (na === nd) ? `Next: ${fmtPct(na)}.` : `Next: atk ${fmtPct(na)}, def ${fmtPct(nd)}.`;
       return { current: cur, next: nx };
     }
     case 'reinforced-bunkers': {
       const baseStacks = Math.min(2, stacks);
       const branchStacks = Math.max(0, stacks - 2);
-      const baseMul = compound(baseStacks, 0.50);
-      const dfn = Math.min(3.0, (branch === 'a') ? baseMul * compound(branchStacks, 0.75) : baseMul);
-      const ret = Math.min(3.0, (branch === 'b') ? baseMul * compound(branchStacks, 1.00) : baseMul);
+      const baseMul = progressive(baseStacks, 0.04);
+      const dfn = Math.min(3.0, (branch === 'a') ? baseMul * progressive(branchStacks, 0.06) : baseMul);
+      const ret = Math.min(3.0, (branch === 'b') ? baseMul * progressive(branchStacks, 0.08) : baseMul);
       const cur = (dfn === ret)
         ? `Turret defense + retaliation each ×${dfn.toFixed(2)}.`
         : `Turret defense ×${dfn.toFixed(2)}; retaliation ×${ret.toFixed(2)}.`;
       const ns = stacks + 1, nb = Math.min(2, ns), nbr = Math.max(0, ns - 2);
-      const nbm = compound(nb, 0.50);
-      const nd = Math.min(3.0, (branch === 'a') ? nbm * compound(nbr, 0.75) : nbm);
-      const nr = Math.min(3.0, (branch === 'b') ? nbm * compound(nbr, 1.00) : nbm);
+      const nbm = progressive(nb, 0.04);
+      const nd = Math.min(3.0, (branch === 'a') ? nbm * progressive(nbr, 0.06) : nbm);
+      const nr = Math.min(3.0, (branch === 'b') ? nbm * progressive(nbr, 0.08) : nbm);
       const nx = (nd === nr) ? `Next: ×${nd.toFixed(2)}.` : `Next: def ×${nd.toFixed(2)}, retal ×${nr.toFixed(2)}.`;
       return { current: cur, next: nx };
     }
     case 'standing-army': {
-      const cur = compound(stacks, 0.50);
-      const nxt = compound(stacks + 1, 0.50);
+      const cur = progressive(stacks, 0.04);
+      const nxt = progressive(stacks + 1, 0.04);
       return { current: `Troop cap ×${cur.toFixed(2)} per owned tile.`, next: `Next stack: ×${nxt.toFixed(2)}.` };
     }
     case 'admiralty': {
-      const speed = compound(stacks, 0.20);
+      const speed = progressive(stacks, 0.03);
       const cost  = Math.max(0.4, Math.pow(0.80, stacks));
-      const ns = compound(stacks + 1, 0.20);
+      const ns = progressive(stacks + 1, 0.03);
       const nc = Math.max(0.4, Math.pow(0.80, stacks + 1));
       return { current: `Ship speed ×${speed.toFixed(2)}, ship cost ×${cost.toFixed(2)}.`,
                next: `Next: speed ×${ns.toFixed(2)}, cost ×${nc.toFixed(2)}.` };
@@ -321,8 +324,8 @@ export function decreeEffectFor(
                next: `Next stack: +${next}%.` };
     }
     case 'cartel': {
-      const cur = compound(stacks, 0.20);
-      const nxt = compound(stacks + 1, 0.20);
+      const cur = progressive(stacks, 0.03);
+      const nxt = progressive(stacks + 1, 0.03);
       return { current: `Trade-route income ${fmtPct(cur)}.`, next: `Next stack: ${fmtPct(nxt)}.` };
     }
     case 'conscription': {
