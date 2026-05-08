@@ -291,35 +291,41 @@ export const DEFAULT_CONFIG: GameConfig = {
   TURRET_DEFENSE_BONUS: 4,      // (1 + 4) = 5x cost / 1/5 rate per stacked turret
   TURRET_RETALIATION_DAMAGE: 8, // attacker troops lost per turret on successful capture in radius
 
-  BOMB_COSTS:          { small: 60,  large: 240, ac130: 350,  stealth: 1000 },
+  BOMB_COSTS:          { small: 60,  large: 240, ac130: 350,  stealth: 1000, chopper: 600 },
   // Premium ordnance burns gems. Rough scaling: small = no gems
   // (cheap fast), large = light gem cost, ac130/stealth = real
   // gem investment so air mastery actively imports gems via trade.
+  // Chopper burns gems heavily — it's a surgical AA-killer dispatched
+  // any time you can pay, no cooldown, so resource cost is the gate.
   BOMB_RESOURCE_COSTS: {
     small:   {},
     large:   { gems: 3, oil: 5 },
     ac130:   { gems: 10, oil: 15 },
     stealth: { gems: 50, oil: 25 },
+    chopper: { gems: 8, oil: 12 },
   },
-  BOMB_RADII:          { small: 3,   large: 6,   ac130: 6,    stealth: 4   }, // ac130 = orbit zone; stealth = per-bomblet
-  BOMB_COOLDOWN_TICKS: { small: 80,  large: 250, ac130: 320,  stealth: 600 }, // 60s — premium long cd
-  PLANE_SPEED:         { small: 0.45, large: 0.30, ac130: 0.35, stealth: 0.55 }, // stealth flies fast
+  BOMB_RADII:          { small: 3,   large: 6,   ac130: 6,    stealth: 4,    chopper: 0 }, // chopper = single-tile AA kill
+  BOMB_COOLDOWN_TICKS: { small: 80,  large: 250, ac130: 320,  stealth: 600,  chopper: 0 },  // chopper has NO cd; spam-gated by gems/oil
+  PLANE_SPEED:         { small: 0.45, large: 0.30, ac130: 0.35, stealth: 0.55, chopper: 0.55 }, // chopper fast like stealth
 
   AA_RADIUS:     7,    // a bit bigger than turret radius — defensive umbrella
   AA_HIT_CHANCE: 0.75, // legacy; per-level rates live in _aaHitChanceFor
   PORT_RADIUS: 8,
   PORT_DAMAGE: 25,
 
-  GROUND_OP_COSTS:          { blitzkrieg: 300, artillery: 250, tanks: 400 },
+  GROUND_OP_COSTS:          { blitzkrieg: 300, artillery: 250, tanks: 400, paratroopers: 800 },
   // Ground ops also burn gems + oil — lighter than bombs but still
   // makes barracks-spam unsustainable without a resource economy.
+  // Paratroopers are the long-reach option (drop ANYWHERE on the map),
+  // so they cost the most and use the heaviest gems load.
   GROUND_OP_RESOURCE_COSTS: {
-    blitzkrieg: { gems: 5,  oil: 10 },
-    artillery:  { gems: 4,  oil: 8  },
-    tanks:      { gems: 8,  oil: 15 },
+    blitzkrieg:   { gems: 5,  oil: 10 },
+    artillery:    { gems: 4,  oil: 8  },
+    tanks:        { gems: 8,  oil: 15 },
+    paratroopers: { gems: 12, oil: 18 },
   },
-  GROUND_OP_COOLDOWN_TICKS: { blitzkrieg: 300, artillery: 200, tanks: 600 }, // 30s / 20s / 60s
-  GROUND_OP_RADII:          { blitzkrieg: 10,  artillery: 5,   tanks: 8 },   // bk = depth, arty = blast, tanks = line len
+  GROUND_OP_COOLDOWN_TICKS: { blitzkrieg: 300, artillery: 200, tanks: 600, paratroopers: 900 }, // 30s / 20s / 60s / 90s
+  GROUND_OP_RADII:          { blitzkrieg: 10,  artillery: 5,   tanks: 8,   paratroopers: 5 },   // bk = depth, arty = blast, tanks = line, paratroopers = drop circle
 
   /** AC-130 only. Ticks the gunship orbits the target after arrival. */
   AC130_ORBIT_TICKS:    150,  // 15s on station — buffed from 10s

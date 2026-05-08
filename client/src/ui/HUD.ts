@@ -3,7 +3,7 @@ import { DECREES, ABILITIES, MASTERIES, decreeEffectFor, decreePowerLabel, decre
 import { formatTroops } from '../render/OverlayLayer.js';
 
 const BUILD_TYPES: BuildingType[] = ['settlement', 'turret', 'airstrip', 'aa', 'port', 'barracks'];
-const BOMB_TYPES: BombType[] = ['small', 'large', 'ac130'];
+const BOMB_TYPES: BombType[] = ['small', 'large', 'ac130', 'stealth', 'chopper'];
 const SHIP_TYPES: ShipKind[] = ['scout', 'skirmisher', 'warship', 'submarine', 'destroyer'];
 const DECREE_BRANCHES: DecreeBranch[] = ['economy', 'defense', 'military', 'offense', 'espionage'];
 type CmdMode = 'abilities' | 'doctrines';
@@ -375,9 +375,10 @@ export class HUD {
     const err = this.game.tryGroundOp(type, x, y, 1);
     if (err === null) {
       const labels: Record<GroundOpType, string> = {
-        blitzkrieg: 'Blitzkrieg launched',
-        artillery:  'Artillery strike',
-        tanks:      'Tanks rolling',
+        blitzkrieg:   'Blitzkrieg launched',
+        artillery:    'Artillery strike',
+        tanks:        'Tanks rolling',
+        paratroopers: 'Paratroopers deployed',
       };
       this.toast(labels[type]);
       // Sticky so player can chain ops if multiple barracks ready.

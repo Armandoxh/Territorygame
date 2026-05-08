@@ -12,9 +12,9 @@ export type BuildingType = 'settlement' | 'turret' | 'airstrip' | 'aa' | 'port' 
 /** Ground deployments — fired from a Barracks like bombs are fired
  *  from an airstrip. Each has its own cost + cooldown stored on the
  *  Barracks building, parallel to airstrip's cooldownUntil. */
-export type GroundOpType = 'blitzkrieg' | 'artillery' | 'tanks';
+export type GroundOpType = 'blitzkrieg' | 'artillery' | 'tanks' | 'paratroopers';
 
-export type BombType = 'small' | 'large' | 'ac130' | 'stealth';
+export type BombType = 'small' | 'large' | 'ac130' | 'stealth' | 'chopper';
 
 export type ShipKind = 'scout' | 'skirmisher' | 'warship' | 'submarine' | 'destroyer';
 
@@ -273,7 +273,9 @@ export type GameEvent =
   | { type: 'trade-completed';  fromId: PlayerId; toId: PlayerId; gold: number; troops: number }
   | { type: 'trade-route-formed'; a: PlayerId; b: PlayerId }
   | { type: 'trade-route-broken'; a: PlayerId; b: PlayerId; brokenBy: PlayerId }
-  | { type: 'ground-op';        opType: GroundOpType; ownerId: PlayerId; x: number; y: number };
+  | { type: 'ground-op';        opType: GroundOpType; ownerId: PlayerId; x: number; y: number }
+  | { type: 'chopper-kill';     ownerId: PlayerId; victimId: PlayerId; x: number; y: number }
+  | { type: 'chopper-miss';     ownerId: PlayerId; x: number; y: number };
 
 export type RGBA = readonly [number, number, number, number];
 

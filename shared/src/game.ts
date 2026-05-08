@@ -1179,6 +1179,7 @@ export class Game {
     if (type === 'blitzkrieg') this._fireBlitzkrieg(owner, x, y);
     else if (type === 'artillery') this._fireArtilleryStrike(owner, x, y);
     else if (type === 'tanks') this._fireTankPush(owner, x, y);
+    else if (type === 'paratroopers') this._fireParatroopers(owner, x, y);
 
     this.events.push({ type: 'ground-op', opType: type, ownerId, x, y });
     return null;
@@ -1485,6 +1486,48 @@ export class Game {
     p.activeBuffs['tank-rush'] = this.tickCount + 120; // 12s (was 8s)
   }
 
+  /** Paratroopers: drop a 5-tile claim circle on ANY map tile (no
+   *  range gate, unlike blitz/tanks which require a frontier anchor).
+   *  Plants a fresh foothold deep behind enemy lines. Subject to the
+   *  defender-dominance skip like other ground ops, so dropping into
+   *  a fortified region only plants a sparse fraction of the disk. */
+  private _fireParatroopers(p: Player, tx: number, ty: number): void {
+    const RADIUS = this.config.GROUND_OP_RADII['paratroopers'];
+    const r2 = RADIUS * RADIUS;
+    const territory = this.territory;
+    let claimed = 0;
+    const drainPerOwner = new Map<PlayerId, number>();
+    for (let dy = -RADIUS; dy <= RADIUS; dy++) {
+      for (let dx = -RADIUS; dx <= RADIUS; dx++) {
+        if (dx * dx + dy * dy > r2) continue;
+        const ix = tx + dx, iy = ty + dy;
+        if (!territory.inBounds(ix, iy)) continue;
+        if (!territory.isPassable(ix, iy)) continue;
+        if (this._capitalIndexAt(ix, iy) >= 0) continue;
+        const o = territory.getOwner(ix, iy);
+        if (o === p.id) continue;
+        if (o > 0) {
+          if (this.areAllied(p.id, o)) continue;
+          if (!this.areAtWar(p.id, o)) continue;
+        }
+        const skip = this._groundOpSkipChance(ix, iy, p.id);
+        if (skip > 0 && Math.random() < skip) continue;
+        if (this._claim(ix, iy, p.id)) {
+          claimed++;
+          if (o > 0) drainPerOwner.set(o, (drainPerOwner.get(o) ?? 0) + 1);
+        }
+      }
+    }
+    void claimed;
+    // Light troop drain on each enemy that lost ground — paratroopers
+    // are infantry, not armor, so the drain is smaller than tank push.
+    for (const [oid, hits] of drainPerOwner) {
+      const enemy = this.players[oid];
+      if (!enemy) continue;
+      enemy.troops = Math.max(0, enemy.troops - hits * 25);
+    }
+  }
+
   /** null on success, error code otherwise. */
   /**
    * Build a building. If `fromVassalRegion` > 0, the cost is paid from that
@@ -1667,6 +1710,14 @@ export class Game {
     if (!this.isUnlocked(ownerId, 'bombs')) return 'locked';
     const cost = this.config.BOMB_COSTS[type];
     if (cost == null) return 'bad-type';
+    // Chopper requires the target tile to host an enemy AA building.
+    // It's a surgical anti-defense strike, not an area attack.
+    if (type === 'chopper') {
+      const aa = this.buildingAt(x, y);
+      if (!aa || aa.type !== 'aa') return 'bad-type';
+      if (aa.owner === ownerId) return 'bad-type';
+      if (this.areAllied(ownerId, aa.owner)) return 'bad-type';
+    }
     // Bombing an enemy's land is an act of war. Auto-declare against
     // the target tile's owner if peace is currently in effect.
     const targetOwner = this.territory.getOwner(x, y);
@@ -1745,6 +1796,35 @@ export class Game {
       destX: plane.destX, destY: plane.destY,
     });
     return null;
+  }
+
+  /** Anti-defense chopper impact: arrives at the targeted enemy AA
+   *  tile and destroys it. Single-target, no splash. The AA might
+   *  have been destroyed or moved between dispatch and arrival, in
+   *  which case the strike is wasted (still consumed gold/oil/gems
+   *  at dispatch). Capitals immune (AAs aren't built on capitals
+   *  anyway, but defensive). */
+  private _chopperImpact(x: number, y: number, ownerId: PlayerId): void {
+    const aa = this.buildingAt(x, y);
+    if (!aa || aa.type !== 'aa') {
+      this.events.push({ type: 'chopper-miss', ownerId, x, y });
+      return;
+    }
+    if (aa.owner === ownerId || this.areAllied(ownerId, aa.owner)) {
+      // Target became friendly mid-flight (alliance signed). Wasted strike.
+      this.events.push({ type: 'chopper-miss', ownerId, x, y });
+      return;
+    }
+    // Destroy the AA. Mirror the building-removal pattern used by
+    // _destroyBuildingsAt so caches stay correct.
+    for (let i = this.buildings.length - 1; i >= 0; i--) {
+      if (this.buildings[i] === aa) {
+        this.buildings.splice(i, 1);
+        break;
+      }
+    }
+    this.buildingsVersion++;
+    this.events.push({ type: 'chopper-kill', ownerId, victimId: aa.owner, x, y });
   }
 
   /** Detonate a bomb at (x, y) — the actual radius effect that used to
@@ -6602,6 +6682,10 @@ export class Game {
           // against the now-stationary gunship.
         } else if (pl.bombType === 'stealth') {
           this._carpetBomb(pl);
+          this.planes.splice(i, 1);
+          continue;
+        } else if (pl.bombType === 'chopper') {
+          this._chopperImpact(Math.floor(pl.destX), Math.floor(pl.destY), pl.owner);
           this.planes.splice(i, 1);
           continue;
         } else {
