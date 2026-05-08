@@ -522,14 +522,16 @@ export class Game {
     // Now spawn each player. _claim updates regionOwnedTiles + regionOwner.
     for (const s of spots) this._spawnPlayerAt(s.id, s.x, s.y);
 
-    // Naval mastery extra: plant 3 distant coastal colonies per naval
-    // player. The "real benefit of naval is troops on the ground
-    // wherever you want" — colonies give them three extra fronts on
-    // tick 1, while ground/air players push from one home spawn.
+    // Naval mastery extra: spawn a starter fleet of warships at the
+    // player's coast. Warships auto-flip coastal enemy tiles and claim
+    // adjacent neutrals, so the fleet does the empire-spreading on
+    // tick 1. The naval fantasy is "you brought your edge with you"
+    // — your fleet projects power before any other mastery has even
+    // built one. Ground/air builds an army; you arrive with one.
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
       if (!p || !p.alive) continue;
-      if (p.mastery === 'naval') this._plantNavalColonies(p.id);
+      if (p.mastery === 'naval') this._spawnStarterFleet(p.id);
     }
 
     // AI targets adjacent to their spawn (or random fallback).
@@ -2104,7 +2106,7 @@ export class Game {
     // has already expanded and a respawn would be disruptive.
     if (mastery === 'naval' && wasUnchosen) {
       this._relocateToCoast(playerId);
-      this._plantNavalColonies(playerId);
+      this._spawnStarterFleet(playerId);
     }
     return null;
   }
@@ -2158,61 +2160,66 @@ export class Game {
     this._spawnPlayerAt(playerId, best.x, best.y);
   }
 
-  /** Plant N distant coastal colonies for a naval player. Each colony
-   *  is a small claim disk on neutral coast, far from existing player
-   *  spawns / colonies. NO capitals — capitals stay at the home spawn
-   *  so the elimination rule (lose all capitals → die) stays clean.
-   *  The naval fantasy is reach + projection, not survival redundancy. */
-  private _plantNavalColonies(playerId: PlayerId): void {
+  /** Spawn a starter fleet (3 warships) for a naval player at coastal
+   *  water tiles around their home spawn. Bypasses the port + gold
+   *  gates that buildShip enforces — these ships are bonus equipment
+   *  for the naval mastery, not a build action. Ships fan out in
+   *  different directions so the fleet doesn't cluster on one tile.
+   *  Warships' existing autonomous behavior handles the rest:
+   *  cluster-landfall on coastal enemies, claim nearest neutral
+   *  coastal land when no fight is in range. */
+  private _spawnStarterFleet(playerId: PlayerId): void {
     const W = this.territory.width;
     const H = this.territory.height;
-    const COLONY_COUNT = 3;
-    const COLONY_RADIUS = 3;
-    const MIN_SEP_SQ = 28 * 28;
-
-    // Existing claim anchors = every other player's spawn centroid +
-    // already-planted colonies for THIS naval player. We compute
-    // "centroid" as the player's first capital (or any owned tile).
-    const anchors: Array<{ x: number; y: number }> = [];
-    for (const c of this.capitals) anchors.push({ x: c.x, y: c.y });
-
-    for (let n = 0; n < COLONY_COUNT; n++) {
-      let best = { x: -1, y: -1, score: -Infinity };
-      for (let attempt = 0; attempt < 1200; attempt++) {
-        const rx = (Math.random() * W) | 0;
-        const ry = (Math.random() * H) | 0;
-        if (!this.territory.isPassable(rx, ry)) continue;
-        if (this.territory.getOwner(rx, ry) !== 0) continue;
-        // Coastal (water cardinal neighbor)
-        let coastal = false;
-        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-          const nx = rx + dx, ny = ry + dy;
-          if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
-          if (!this.territory.isPassable(nx, ny)) { coastal = true; break; }
+    const FLEET_SIZE = 3;
+    // Find all water tiles adjacent to the player's coastal land.
+    // Sample broadly so we get spawn points around the perimeter,
+    // not all bunched at one corner.
+    const candidates: Array<{ x: number; y: number }> = [];
+    const owners = this.territory.owners;
+    for (let i = 0; i < owners.length; i++) {
+      if (owners[i] !== playerId) continue;
+      const x = i % W, y = (i - x) / W;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        if (this._isWaterTile(nx, ny)) {
+          candidates.push({ x: nx, y: ny });
+          break;
         }
-        if (!coastal) continue;
-        // Distance to nearest anchor
+      }
+    }
+    if (candidates.length === 0) return;
+    // Pick FLEET_SIZE spots spread around the perimeter — farthest-
+    // from-existing-pick greedy.
+    const picked: Array<{ x: number; y: number }> = [];
+    for (let n = 0; n < FLEET_SIZE; n++) {
+      let best = { x: -1, y: -1, score: -Infinity };
+      for (const c of candidates) {
         let nearest = Infinity;
-        for (const a of anchors) {
-          const dd = (a.x - rx) * (a.x - rx) + (a.y - ry) * (a.y - ry);
+        for (const p of picked) {
+          const dd = (c.x - p.x) * (c.x - p.x) + (c.y - p.y) * (c.y - p.y);
           if (dd < nearest) nearest = dd;
         }
-        if (nearest < MIN_SEP_SQ) continue;
-        if (nearest > best.score) best = { x: rx, y: ry, score: nearest };
+        // First pick: any candidate; later picks: maximize distance.
+        const score = picked.length === 0 ? Math.random() : nearest;
+        if (score > best.score) best = { x: c.x, y: c.y, score };
       }
-      if (best.x < 0) return;
-      // Plant the colony disk on neutral land tiles only.
-      for (let dy = -COLONY_RADIUS; dy <= COLONY_RADIUS; dy++) {
-        for (let dx = -COLONY_RADIUS; dx <= COLONY_RADIUS; dx++) {
-          if (dx * dx + dy * dy > COLONY_RADIUS * COLONY_RADIUS) continue;
-          const tx = best.x + dx, ty = best.y + dy;
-          if (!this.territory.inBounds(tx, ty)) continue;
-          if (!this.territory.isPassable(tx, ty)) continue;
-          if (this.territory.getOwner(tx, ty) !== 0) continue;
-          this._claim(tx, ty, playerId);
-        }
-      }
-      anchors.push({ x: best.x, y: best.y });
+      if (best.x < 0) break;
+      picked.push({ x: best.x, y: best.y });
+      // Spawn the warship.
+      const ship: Ship = {
+        id: this._shipNextId++,
+        owner: playerId,
+        kind: 'warship',
+        x: best.x, y: best.y,
+        destX: -1, destY: -1,
+        manual: false,
+        hp: this.config.SHIP_HP['warship'],
+        fireCooldown: 0,
+      };
+      this.ships.push(ship);
+      this.events.push({ type: 'ship-built', shipKind: 'warship', ownerId: playerId });
     }
   }
 
