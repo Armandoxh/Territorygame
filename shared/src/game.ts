@@ -531,7 +531,10 @@ export class Game {
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
       if (!p || !p.alive) continue;
-      if (p.mastery === 'naval') this._spawnStarterFleet(p.id);
+      if (p.mastery === 'naval') {
+        this._spawnStarterPort(p.id);
+        this._spawnStarterFleet(p.id);
+      }
     }
 
     // AI targets adjacent to their spawn (or random fallback).
@@ -2106,6 +2109,7 @@ export class Game {
     // has already expanded and a respawn would be disruptive.
     if (mastery === 'naval' && wasUnchosen) {
       this._relocateToCoast(playerId);
+      this._spawnStarterPort(playerId);
       this._spawnStarterFleet(playerId);
     }
     return null;
@@ -2114,30 +2118,25 @@ export class Game {
   /** Wipe the player's existing tiles + capitals and re-spawn them on a
    *  coastal patch. Called when a player picks NAVAL mastery on the
    *  first-time picker so they actually start near water. */
-  private _relocateToCoast(playerId: PlayerId): void {
+  /** Returns true on success (relocated), false if no coastal spot
+   *  was found (player kept where they were). Look-before-leap: we
+   *  only wipe the existing spawn AFTER finding a target, so a
+   *  failed search doesn't leave the player with zero tiles. */
+  private _relocateToCoast(playerId: PlayerId): boolean {
     const W = this.territory.width;
     const H = this.territory.height;
-    // Wipe existing claims for this player.
-    const owners = this.territory.owners;
-    for (let i = 0; i < owners.length; i++) {
-      if (owners[i] === playerId) this._claim(i % W, (i / W) | 0, 0);
-    }
-    // Wipe their capitals.
-    for (let i = this.capitals.length - 1; i >= 0; i--) {
-      if (this.capitals[i]!.owner === playerId) this.capitals.splice(i, 1);
-    }
-    // Find a coastal land tile (any land tile with a water neighbour)
-    // far enough from other players' spawns that we don't overlap.
+    // First, find a coastal land tile far enough from existing
+    // capitals to avoid overlap. Don't touch the player's tiles yet.
     const minSeparation = 30 * 30;
     const others: Array<{ x: number; y: number }> = [];
-    for (const c of this.capitals) others.push({ x: c.x, y: c.y });
+    for (const c of this.capitals) {
+      if (c.owner !== playerId) others.push({ x: c.x, y: c.y });
+    }
     let best = { x: -1, y: -1, score: -Infinity };
-    // Sample a chunk of coastal tiles, pick the one furthest from other spawns.
     for (let attempt = 0; attempt < 800; attempt++) {
       const rx = (Math.random() * W) | 0;
       const ry = (Math.random() * H) | 0;
       if (!this.territory.isPassable(rx, ry)) continue;
-      // Coastal check: any 4-neighbor is water
       let coastal = false;
       for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
         const nx = rx + dx, ny = ry + dy;
@@ -2145,7 +2144,6 @@ export class Game {
         if (!this.territory.isPassable(nx, ny)) { coastal = true; break; }
       }
       if (!coastal) continue;
-      // Distance from nearest other spawn (further is better).
       let nearestD2 = Infinity;
       for (const o of others) {
         const ddx = o.x - rx, ddy = o.y - ry;
@@ -2153,11 +2151,48 @@ export class Game {
         if (d2 < nearestD2) nearestD2 = d2;
       }
       if (nearestD2 < minSeparation) continue;
-      // Score = nearestD2 (further from rivals = better).
       if (nearestD2 > best.score) best = { x: rx, y: ry, score: nearestD2 };
     }
-    if (best.x < 0) return; // no good spot found; leave player wiped
+    if (best.x < 0) return false; // no good coast → keep them where they are
+    // Wipe existing claims + capitals, then spawn at the new coastal site.
+    const owners = this.territory.owners;
+    for (let i = 0; i < owners.length; i++) {
+      if (owners[i] === playerId) this._claim(i % W, (i / W) | 0, 0);
+    }
+    for (let i = this.capitals.length - 1; i >= 0; i--) {
+      if (this.capitals[i]!.owner === playerId) this.capitals.splice(i, 1);
+    }
     this._spawnPlayerAt(playerId, best.x, best.y);
+    return true;
+  }
+
+  /** Drop a free Defense Port on the player's coastal land so they can
+   *  build more ships from tick 1 (without the port, they can't replace
+   *  losses). Picks the first owned tile that has a water cardinal
+   *  neighbor. No-op if the player has no coastal tile (which would be
+   *  weird for naval but is defensive). */
+  private _spawnStarterPort(playerId: PlayerId): void {
+    const W = this.territory.width;
+    const H = this.territory.height;
+    const owners = this.territory.owners;
+    for (let i = 0; i < owners.length; i++) {
+      if (owners[i] !== playerId) continue;
+      const x = i % W, y = (i - x) / W;
+      let hasWaterNbr = false;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        if (this._isWaterTile(nx, ny)) { hasWaterNbr = true; break; }
+      }
+      if (!hasWaterNbr) continue;
+      // Skip if there's already a building (capital or anything else) here.
+      if (this.buildingAt(x, y)) continue;
+      if (this._capitalIndexAt(x, y) >= 0) continue;
+      // Direct port placement — bypass tryBuild gold/cooldown checks.
+      this.buildings.push({ x, y, owner: playerId, type: 'port', level: 1 });
+      this.buildingsVersion++;
+      return;
+    }
   }
 
   /** Spawn a starter fleet (3 warships) for a naval player at coastal
