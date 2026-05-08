@@ -284,6 +284,44 @@ playable instead of greyed-out placeholders.
 
 ---
 
+[pending] balance: trade rates uncap + scarcity pricing + gold trades + spread targets
+
+WHAT: User: "If there's a scarce resource on the map why is the
+offer capped at 15? Are AIs offering each other the same offers?
+Make offers fairer/logical, no cap, and AIs should also offer
+gold for resources."
+
+Four changes:
+  1. Removed the desperation cap (was clamped to 5 → max 15 res/s
+     offer). Now uncapped — desperation = 1 + (200 - need) / 50,
+     can grow significantly when AI is critically short.
+  2. New _resScarcity(k): scans live-player totals for resource k,
+     returns 1.0 (abundant, total >3000) up to 3.0 (rare, total
+     <500). Pricing factors this in:
+        ratio = scarcity(need) / scarcity(give)
+        aGivesPerSec = base × desperation × ratio
+     So an AI desperate for gems gives ×3 more food than an AI
+     desperate for food gives gems. Matches real-world value.
+  3. AI now proposes THREE trade types:
+        • _aiProposeResForRes  (existing): res ↔ res
+        • _aiProposeGoldForRes (NEW): gold → res, fires when
+          AI has gold > 1200 and needs a resource
+        • _aiProposeResForGold (NEW): res → gold, fires when
+          AI has gold < 1000 and a stockpile of >300 of some res
+  4. Target picker rewritten as weighted-random across all
+     candidates with adequate supply, with a 0.5× downweight on
+     human targets so AIs spread proposals across each other
+     instead of all targeting player 1 (who has the biggest
+     stockpile by default).
+
+WHY: User's complaints were spot-on. The 15/s cap throttled
+trading even when extreme imbalance warranted bigger offers; AIs
+never proposed gold trades despite gold being a tradeable
+currency; AI-to-AI trades were rare because the human kept
+winning the "biggest supply" target selection.
+
+---
+
 [pending] gameplay: snake fix v5 — non-dominant defender dilution
 + connectivity gate kills 1-wide snakes
 

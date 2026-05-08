@@ -3940,17 +3940,68 @@ export class Game {
   private _aiProposeResourceTrade(p: Player): void {
     if (p.isHuman || !p.alive) return;
     if (((this.tickCount + p.id * 23) % 200) !== 0) return; // every 20s, offset per id
-    // Find our shortest resource (under 150).
+    // Try strategies in priority order: trade resource-for-resource
+    // first (the bread-and-butter), then gold↔resource if gold
+    // imbalance is the bigger driver.
+    if (this._aiProposeResForRes(p)) return;
+    if (this._aiProposeGoldForRes(p)) return;
+    if (this._aiProposeResForGold(p)) return;
+  }
+
+  /** Compute a scarcity factor in [1, 3] for a resource based on
+   *  total supply across all live players. Rare resources (low
+   *  total) get higher factor → trades involving them use more
+   *  generous ratios. Gold treated as scarcity 1 (always abundant
+   *  enough as a medium of exchange). */
+  private _resScarcity(k: ResourceKind | 'gold'): number {
+    if (k === 'gold') return 1;
+    let total = 0;
+    for (const pl of this.players) {
+      if (pl && pl.alive) total += pl.resources[k] ?? 0;
+    }
+    return Math.max(1, Math.min(3, 3000 / Math.max(300, total)));
+  }
+
+  /** Pick a peer to propose a trade to. Weighted-random across
+   *  candidates that have enough of `needKind` to be worthwhile,
+   *  with a slight bias against the human so AIs spread trades
+   *  among each other instead of all targeting player 1 (who
+   *  tends to have the biggest stockpile by default). */
+  private _aiPickTradeTarget(p: Player, needKind: ResourceKind): PlayerId {
+    type C = { id: PlayerId; weight: number };
+    const cands: C[] = [];
+    for (let id = 1; id < this.players.length; id++) {
+      if (id === p.id) continue;
+      const o = this.players[id];
+      if (!o || !o.alive) continue;
+      if (this.resourceTradeBetween(p.id, id)) continue;
+      const supply = o.resources[needKind] ?? 0;
+      if (supply < 100) continue;
+      // Down-weight the human a bit so AIs don't all dogpile player 1.
+      const weight = supply * (o.isHuman ? 0.5 : 1.0);
+      cands.push({ id, weight });
+    }
+    if (cands.length === 0) return 0;
+    let totalW = 0; for (const c of cands) totalW += c.weight;
+    let r = Math.random() * totalW;
+    for (const c of cands) { r -= c.weight; if (r <= 0) return c.id; }
+    return cands[0]!.id;
+  }
+
+  /** Strategy 1: classic resource-for-resource. Pick our scarcest
+   *  resource, propose to give a surplus resource for it. Now uses
+   *  global-scarcity-aware pricing — rare needs cost more, rare
+   *  gives are offered in smaller amounts. */
+  private _aiProposeResForRes(p: Player): boolean {
+    const all: ResourceKind[] = ['food', 'wood', 'stone', 'oil', 'gems'];
     let needKind: ResourceKind | null = null;
     let needAmount = Infinity;
-    const all: ResourceKind[] = ['food', 'wood', 'stone', 'oil', 'gems'];
     for (const k of all) {
-      if (p.resources[k] < 150 && p.resources[k] < needAmount) {
+      if (p.resources[k] < 200 && p.resources[k] < needAmount) {
         needKind = k; needAmount = p.resources[k];
       }
     }
-    if (!needKind) return;
-    // Find our most surplus resource (over 200).
+    if (!needKind) return false;
     let giveKind: ResourceKind | null = null;
     let giveSurplus = 200;
     for (const k of all) {
@@ -3959,31 +4010,79 @@ export class Game {
         giveKind = k; giveSurplus = p.resources[k];
       }
     }
-    if (!giveKind) return;
-    // Pick a target peer: any alive non-allied non-self player who's
-    // not already trading with us. Prefer ones with surplus of our need.
-    let bestTarget: PlayerId = 0;
-    let bestScore = -Infinity;
+    if (!giveKind) return false;
+    const target = this._aiPickTradeTarget(p, needKind);
+    if (target === 0) return false;
+    // Rate math:
+    //   desperation = 1 + (200 - needAmount) / 50  (uncapped)
+    //   ratio = scarcity(need) / scarcity(give)  → fair value in give-units per need-unit
+    //   aGives  = base × desperation × ratio   (per-second of give)
+    //   bAsks   = base / desperation           (per-second of need; lower when desperate)
+    const desperation = Math.max(1, 1 + (200 - needAmount) / 50);
+    const ratio = this._resScarcity(needKind) / this._resScarcity(giveKind);
+    const aGivesPerSec = Math.max(1, Math.round(5 * desperation * ratio * 10) / 10);
+    const bGivesPerSec = Math.max(0.5, Math.round(5 / desperation * 10) / 10);
+    return this.proposeResourceTrade(p.id, target, giveKind, aGivesPerSec, needKind, bGivesPerSec) === null;
+  }
+
+  /** Strategy 2: spend gold to buy resources. Fires when AI has a
+   *  hefty treasury but is short on a resource. Quotes gold-per-sec
+   *  scaled by both desperation and the resource's scarcity. */
+  private _aiProposeGoldForRes(p: Player): boolean {
+    if (p.gold < 1200) return false;
+    const all: ResourceKind[] = ['food', 'wood', 'stone', 'oil', 'gems'];
+    let needKind: ResourceKind | null = null;
+    let needAmount = Infinity;
+    for (const k of all) {
+      if (p.resources[k] < 250 && p.resources[k] < needAmount) {
+        needKind = k; needAmount = p.resources[k];
+      }
+    }
+    if (!needKind) return false;
+    const target = this._aiPickTradeTarget(p, needKind);
+    if (target === 0) return false;
+    const desperation = Math.max(1, 1 + (250 - needAmount) / 50);
+    const scarcity = this._resScarcity(needKind);
+    // 20 gold/sec base, scales to 100+ for desperate buys of rare goods.
+    const goldPerSec = Math.max(5, Math.round(20 * desperation * scarcity * 10) / 10);
+    const resPerSec = Math.max(1, Math.round(5 / Math.max(1, desperation * 0.5) * 10) / 10);
+    return this.proposeResourceTrade(p.id, target, 'gold', goldPerSec, needKind, resPerSec) === null;
+  }
+
+  /** Strategy 3: sell surplus resources for gold. Fires when AI has
+   *  a stockpile they're not using and gold reserves are low. */
+  private _aiProposeResForGold(p: Player): boolean {
+    if (p.gold > 1000) return false;
+    const all: ResourceKind[] = ['food', 'wood', 'stone', 'oil', 'gems'];
+    let giveKind: ResourceKind | null = null;
+    let giveSurplus = 300;
+    for (const k of all) {
+      if (p.resources[k] > giveSurplus) {
+        giveKind = k; giveSurplus = p.resources[k];
+      }
+    }
+    if (!giveKind) return false;
+    // Find a peer with gold to spare.
+    type C = { id: PlayerId; weight: number };
+    const cands: C[] = [];
     for (let id = 1; id < this.players.length; id++) {
       if (id === p.id) continue;
       const o = this.players[id];
       if (!o || !o.alive) continue;
       if (this.resourceTradeBetween(p.id, id)) continue;
-      const supply = o.resources[needKind] ?? 0;
-      if (supply < 100) continue;
-      if (supply > bestScore) { bestScore = supply; bestTarget = id; }
+      if (o.gold < 1500) continue;
+      cands.push({ id, weight: o.gold * (o.isHuman ? 0.5 : 1.0) });
     }
-    if (bestTarget === 0) return;
-    // Desperation scaling: how short are we on what we need? Scales the
-    // offer asymmetrically — desperate AIs give more and ask less, so
-    // their proposals look like genuinely good deals to the recipient.
-    //   needAmount=0   → desperation 3.0 (offer 15 / ask 1.7)
-    //   needAmount=50  → desperation 2.5 (offer 12 / ask 2.0)
-    //   needAmount=150 → desperation 1.5 (offer 7.5 / ask 3.3)
-    const desperation = Math.min(5, Math.max(1, 1 + (200 - needAmount) / 100));
-    const aGivesPerSec = Math.round(5 * desperation * 10) / 10;
-    const bGivesPerSec = Math.max(1, Math.round((5 / desperation) * 10) / 10);
-    this.proposeResourceTrade(p.id, bestTarget, giveKind, aGivesPerSec, needKind, bGivesPerSec);
+    if (cands.length === 0) return false;
+    let totalW = 0; for (const c of cands) totalW += c.weight;
+    let r = Math.random() * totalW;
+    let target: PlayerId = cands[0]!.id;
+    for (const c of cands) { r -= c.weight; if (r <= 0) { target = c.id; break; } }
+    const scarcity = this._resScarcity(giveKind);
+    const resPerSec = Math.max(1, Math.round(5 * 10) / 10);
+    // Asking rate scales with scarcity — selling rare gems gets more gold.
+    const goldPerSec = Math.max(5, Math.round(15 * scarcity * 10) / 10);
+    return this.proposeResourceTrade(p.id, target, giveKind, resPerSec, 'gold', goldPerSec) === null;
   }
 
   /** Per-tick: drain resource upkeep for every owned building. If the
