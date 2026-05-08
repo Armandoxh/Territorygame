@@ -1212,10 +1212,24 @@ export class Game {
     owner.groundOpCooldowns[type] = this.tickCount + this.config.GROUND_OP_COOLDOWN_TICKS[type];
 
     // Apply effect.
-    if (type === 'blitzkrieg') this._fireBlitzkrieg(owner, x, y);
-    else if (type === 'artillery') this._fireArtilleryStrike(owner, x, y);
-    else if (type === 'tanks') this._fireTankPush(owner, x, y);
-    else if (type === 'paratroopers') this._fireParatroopers(owner, x, y);
+    // ARMY_MODE repurpose: ground ops are NO LONGER flood-claim
+    // bursts (which made no sense without flood expansion). They
+    // spawn armies / artillery units instead.
+    //   blitzkrieg → 3 armies at the closest frontier near target
+    //   tanks      → 1 strong army with the tank-rush combat buff
+    //   paratroopers → 1 medium army at ANY tapped tile
+    //   artillery  → unchanged (already a unit-killer)
+    if (this.config.ARMY_MODE) {
+      if (type === 'blitzkrieg') this._fireArmyDeployBlitz(owner, x, y);
+      else if (type === 'artillery') this._fireArtilleryStrike(owner, x, y);
+      else if (type === 'tanks') this._fireArmyDeployTanks(owner, x, y);
+      else if (type === 'paratroopers') this._fireArmyDeployParatroopers(owner, x, y);
+    } else {
+      if (type === 'blitzkrieg') this._fireBlitzkrieg(owner, x, y);
+      else if (type === 'artillery') this._fireArtilleryStrike(owner, x, y);
+      else if (type === 'tanks') this._fireTankPush(owner, x, y);
+      else if (type === 'paratroopers') this._fireParatroopers(owner, x, y);
+    }
 
     this.events.push({ type: 'ground-op', opType: type, ownerId, x, y });
     return null;
@@ -1562,6 +1576,61 @@ export class Game {
       if (!enemy) continue;
       enemy.troops = Math.max(0, enemy.troops - hits * 25);
     }
+  }
+
+  /** ARMY_MODE — Blitzkrieg repurpose: spawn 3 armies at owned tiles
+   *  closest to the target. Reads as "rapid mass deployment" without
+   *  flood-claiming half the map. Each army is light strength so the
+   *  burst is about saturating fronts, not steamrolling. */
+  private _fireArmyDeployBlitz(p: Player, tx: number, ty: number): void {
+    const W = this.territory.width;
+    const owners = this.territory.owners;
+    // Find up to 3 owned tiles closest to (tx, ty) — preferentially
+    // frontier tiles, but any owned tile is fine.
+    const cands: Array<{ x: number; y: number; d: number }> = [];
+    for (let i = 0; i < owners.length; i++) {
+      if (owners[i] !== p.id) continue;
+      const x = i % W, y = (i - x) / W;
+      const d = (x - tx) * (x - tx) + (y - ty) * (y - ty);
+      cands.push({ x, y, d });
+    }
+    cands.sort((a, b) => a.d - b.d);
+    const strength = Math.floor(this.config.ARMY_BASE_STRENGTH * 0.7);
+    for (let n = 0; n < Math.min(3, cands.length); n++) {
+      const c = cands[n]!;
+      this.spawnArmy(c.x, c.y, p.id, strength);
+    }
+  }
+
+  /** ARMY_MODE — Tank Push repurpose: spawn 1 strong army at the
+   *  nearest owned tile to target, plus apply the existing
+   *  tank-rush combat buff so its attacks hit hard for ~12s. */
+  private _fireArmyDeployTanks(p: Player, tx: number, ty: number): void {
+    const W = this.territory.width;
+    const owners = this.territory.owners;
+    let bestX = -1, bestY = -1, bestD = Infinity;
+    for (let i = 0; i < owners.length; i++) {
+      if (owners[i] !== p.id) continue;
+      const x = i % W, y = (i - x) / W;
+      const d = (x - tx) * (x - tx) + (y - ty) * (y - ty);
+      if (d < bestD) { bestD = d; bestX = x; bestY = y; }
+    }
+    if (bestX < 0) return;
+    const strength = Math.floor(this.config.ARMY_BASE_STRENGTH * 1.8);
+    this.spawnArmy(bestX, bestY, p.id, strength);
+    p.activeBuffs['tank-rush'] = this.tickCount + 120;
+  }
+
+  /** ARMY_MODE — Paratroopers repurpose: spawn 1 medium army at ANY
+   *  tapped land tile (the "deploy anywhere" pitch survives the
+   *  pivot). Subject to capital-immune rules but not to defender
+   *  dominance — the paradrop reaches behind enemy lines. */
+  private _fireArmyDeployParatroopers(p: Player, tx: number, ty: number): void {
+    if (!this.territory.inBounds(tx, ty)) return;
+    if (!this.territory.isPassable(tx, ty)) return;
+    if (this._capitalIndexAt(tx, ty) >= 0) return;
+    const strength = Math.floor(this.config.ARMY_BASE_STRENGTH * 1.2);
+    this.spawnArmy(tx, ty, p.id, strength);
   }
 
   /** null on success, error code otherwise. */
