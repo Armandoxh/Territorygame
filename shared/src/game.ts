@@ -894,8 +894,55 @@ export class Game {
     this._planesTick();
     this._portsTick();
     this._artilleryTick();
+    this._evaporateIsolatedSalients();
     this._checkEliminations();
     this._checkVictory();
+  }
+
+  /** Auto-neutralize "stuck salient" tiles — a tile owned by player P
+   *  that sits in a region SOMEONE ELSE dominates AND has zero same-
+   *  owner cardinal neighbors. These are the 1-pixel remnants the
+   *  user can't kill at peace and the salient owner can't defend.
+   *  Without this, peaceful 1-tile islands persisted forever.
+   *
+   *  Runs every ~6s, not every tick — flipping isolated tiles
+   *  rarely is fine, and walking every player's frontier on tick
+   *  would be wasteful. */
+  private _evaporateIsolatedSalients(): void {
+    if (this.tickCount % 60 !== 0) return;
+    const W = this.territory.width;
+    for (let id = 1; id < this.players.length; id++) {
+      const p = this.players[id];
+      if (!p || !p.alive) continue;
+      const frontier = this.territory.getFrontier(id);
+      const toFlip: number[] = [];
+      for (const i of frontier) {
+        const tileRegion = this.regions[i] ?? 0;
+        if (tileRegion === 0) continue;
+        const dom = this._regionDominant[tileRegion] ?? 0;
+        if (dom === 0 || dom === id) continue;
+        // Allies don't displace each other — leave allied-dominated
+        // regions' guest tiles alone.
+        if (this.areAllied(id, dom)) continue;
+        // Capitals are immune. (Should never be in a foreign-dominant
+        // region anyway, but defensive.)
+        if (this._capitalIndexAt(i % W, (i - (i % W)) / W) >= 0) continue;
+        const x = i % W;
+        const y = (i - x) / W;
+        let sameOwnerNbrs = 0;
+        if (this.territory.getOwner(x - 1, y) === id) sameOwnerNbrs++;
+        if (this.territory.getOwner(x + 1, y) === id) sameOwnerNbrs++;
+        if (this.territory.getOwner(x, y - 1) === id) sameOwnerNbrs++;
+        if (this.territory.getOwner(x, y + 1) === id) sameOwnerNbrs++;
+        if (sameOwnerNbrs === 0) toFlip.push(i);
+      }
+      // Defer the flips so we don't mutate the frontier set mid-iteration.
+      for (const i of toFlip) {
+        const x = i % W;
+        const y = (i - x) / W;
+        this._claim(x, y, 0);
+      }
+    }
   }
 
   /** Flip `alive = false` on any AI player who has been wiped to 0
@@ -5455,16 +5502,32 @@ export class Game {
       }
 
       // Build candidate list, filtered for actionability:
-      //   - neutral (owner 0) is always claimable
+      //   - neutral (owner 0) is claimable IF source tile is not a
+      //     foreign-dominant salient; salients can't claim free
+      //     neutral land inside someone else's empire (otherwise
+      //     they slowly snake into interior neutral gaps even at
+      //     peace, staying "alive" and growing without ever
+      //     fighting anyone).
       //   - allied players can never be attacked
       //   - peace neighbors can never be attacked (must be at war)
       // This filters out tiles we'd waste rolls on inside tryCapture.
       const cands = this._validTargets(x, y, p.id);
       if (cands.length === 0) continue;
+      // Foreign-salient gate: source tile is in a region someone else
+      // dominates → don't allow free neutral grabs here. Combined with
+      // the connectivity gate above, this kills the "stuck salient
+      // grows through interior neutral patches at peace" pattern.
+      const sourceForeign = !p.isHuman && tileRegion > 0
+        && (this._regionDominant[tileRegion] ?? 0) > 0
+        && (this._regionDominant[tileRegion] ?? 0) !== p.id;
       const actionable: ExpansionCandidate[] = [];
       for (const c of cands) {
         const o = this.territory.getOwner(c.x, c.y);
-        if (o === 0) { actionable.push(c); continue; }
+        if (o === 0) {
+          if (sourceForeign) continue;
+          actionable.push(c);
+          continue;
+        }
         if (this.areAllied(p.id, o)) continue;
         if (!this.areAtWar(p.id, o)) continue;
         actionable.push(c);
