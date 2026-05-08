@@ -240,6 +240,50 @@ own territory.
 
 ---
 
+[pending] gameplay: 7 "coming soon" decrees implemented
+
+WHAT: All seven previously-stubbed decrees now functional.
+  • industrial (T3 econ): per-tick (slow throttle), each owned
+    settlement has 1% chance per stack to auto-bump a level.
+  • watchtowers (T2 def): per-tick, players with the decree get
+    free L1 turret built on a frontier tile of a fully-owned
+    region. Cap 4 turrets per region.
+  • nuclear-program (T3 offense): each issue auto-fires a r12
+    nuke at the densest enemy cluster on the map. Capitals
+    immune, ignores AA, claims tiles back to neutral, destroys
+    everything in radius. oneShot + stackable like war-bonds.
+  • forced-labor (T2 esp): tiles you capture pay 2× gold income
+    for 30s after capture. Per-tile capture-tick stamps stored
+    in a new Int32Array; income calc reads them. Other players
+    captured-tile income unchanged (only owner with decree gets
+    the boost).
+  • coup-detat (T3 esp): each issue flips one enemy region to
+    neutral. Picks the largest region of a war-enemy (fallback
+    to any non-ally). Capitals exempt.
+  • privateer (T2 naval): each warship within 12 tiles of an
+    enemy trade-route endpoint siphons 25% of that route's
+    flow to the privateer's treasury. Multiple warships
+    compound (capped 80% combined skim). Trade route doesn't
+    break — it just bleeds.
+  • cold-war (T3 dipl): each issue shatters one alliance
+    between two non-allied non-self players. Prefers an
+    alliance involving someone you're at war with.
+
+AI mastery picklists extended — ground AIs lean toward
+watchtowers/industrial/forced-labor/coup-detat, air AIs grab
+nuclear-program/cold-war, naval AIs prioritize privateer.
+
+UI: decreePowerLabel + decreeCompactCurrent + decreeEffectFor
+all extended with cases for the seven new decrees so the
+commander tree shows the right power summary, NOW/AFTER stats,
+and stack count formatting.
+
+WHY: User asked "Fill out the commander trees perks. Let's
+see them all of the coming soon ones." All seven now
+playable instead of greyed-out placeholders.
+
+---
+
 [pending] gameplay: snake fix v3 — defender uses FULL empire pool
 
 WHAT: Dropped the regional troop fraction entirely on the

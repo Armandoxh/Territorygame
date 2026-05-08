@@ -65,6 +65,10 @@ export class Game {
   private _regionCentroids = new Float32Array(0);
   private _planeNextId = 1;
   readonly goldMultiplier: Float32Array;
+  /** Per-tile tick at which it was last captured (any owner change).
+   *  Used by Forced Labor decree to boost gold income for 30s after
+   *  the capture. 0 = never captured / spawn tile. */
+  private readonly _tileCapturedAt: Int32Array;
   tickCount: number;
   outcome: GameOutcome;
   private events: GameEvent[];
@@ -84,6 +88,7 @@ export class Game {
     this.capitals = [];
     this.buildings = [];
     this.goldMultiplier = new Float32Array(config.GRID_WIDTH * config.GRID_HEIGHT);
+    this._tileCapturedAt = new Int32Array(config.GRID_WIDTH * config.GRID_HEIGHT);
     this.tickCount = 0;
     this.outcome = null;
     this.events = [];
@@ -504,6 +509,12 @@ export class Game {
     const W = this.territory.width;
     const oldOwner = this.territory.getOwner(x, y);
     if (!this.territory.claim(x, y, newOwner)) return false;
+    // Forced-Labor: tag the capture tick so _earnGoldAll can boost
+    // the tile's income for 30s. Cheap O(1) write per claim.
+    if (newOwner > 0 && oldOwner !== newOwner) {
+      const idx = y * W + x;
+      if (this._tileCapturedAt) this._tileCapturedAt[idx] = this.tickCount;
+    }
     // Whenever a tile flips away from a real owner, the loser's
     // building on that tile falls. Without this, paths that skip
     // tryCapture (morale collapse, ship landings, etc.) leave
@@ -808,6 +819,7 @@ export class Game {
     this._flowResourceTrades();
     this._payBuildingUpkeep();
     this._growTroops();
+    this._doctrineTick();
     this._vassalsThink();
     for (let id = 1; id < this.players.length; id++) {
       const p = this.players[id];
@@ -2093,12 +2105,190 @@ export class Game {
     return null;
   }
 
+  /** Per-tick doctrine effects:
+   *   - Industrial Revolution: settlements have a slow chance to
+   *     auto-bump a level over time.
+   *   - Watchtowers: free L1 turrets auto-build on frontier tiles
+   *     of regions the player fully owns, capped per region. */
+  private _doctrineTick(): void {
+    const W = this.territory.width;
+    // Throttle the heavy work — every 30 ticks (~3s) is plenty.
+    const slowTick = (this.tickCount % 30) === 0;
+    if (!slowTick) return;
+    for (let id = 1; id < this.players.length; id++) {
+      const p = this.players[id];
+      if (!p || !p.alive) continue;
+      const indStacks = p.decreeStacks['industrial'] ?? 0;
+      const wtStacks  = p.decreeStacks['watchtowers'] ?? 0;
+      if (indStacks === 0 && wtStacks === 0) continue;
+
+      // Industrial: each settlement of this player has a 1% chance
+      // per slow-tick to auto-upgrade (if not already maxed).
+      if (indStacks > 0) {
+        for (const b of this.buildings) {
+          if (b.type !== 'settlement' || b.owner !== id) continue;
+          const lvl = b.level ?? 1;
+          if (lvl >= this._maxLevelFor('settlement')) continue;
+          if (Math.random() < 0.01 * indStacks) {
+            b.level = lvl + 1;
+            this.buildingsVersion++;
+          }
+        }
+      }
+
+      // Watchtowers: auto-build L1 turret on a frontier tile of a
+      // fully-owned region. Throttled to one turret per slow-tick
+      // per player; cap 4 turrets per region.
+      if (wtStacks > 0) {
+        const regionTurretCap = 4;
+        // Pick a random fully-owned region.
+        const owned: number[] = [];
+        for (let r = 1; r <= this.regionCount; r++) {
+          if (this._regionOwner[r] === id) owned.push(r);
+        }
+        if (owned.length === 0) continue;
+        const r = owned[(Math.random() * owned.length) | 0]!;
+        const turretsHere = this._regionTurretLevels[r * 256 + id] ?? 0;
+        if (turretsHere >= regionTurretCap) continue;
+        const tiles = this._tilesByRegion[r];
+        if (!tiles || tiles.length === 0) continue;
+        // Find a frontier tile without a building.
+        for (let attempt = 0; attempt < 20; attempt++) {
+          const i = tiles[(Math.random() * tiles.length) | 0]!;
+          const x = i % W, y = (i - x) / W;
+          if (this.territory.getOwner(x, y) !== id) continue;
+          if (this.buildingAt(x, y)) continue;
+          if (this._capitalIndexAt(x, y) >= 0) continue;
+          if (!this._isFrontierTile(x, y, id)) continue;
+          // Free build — push directly, skip cost charging.
+          this.buildings.push({ x, y, owner: id, type: 'turret', level: 1 });
+          this.buildingsVersion++;
+          this._turretCacheDirty = true;
+          this.events.push({ type: 'built', buildingType: 'turret', ownerId: id });
+          break;
+        }
+      }
+    }
+  }
+
   private _applyDecreeOneShot(p: Player, id: string): void {
     if (id === 'conscription') {
       p.troops += this.config.DECREE_CONSCRIPT_TROOPS;
     } else if (id === 'war-bonds') {
       p.troops += 5000;
+    } else if (id === 'nuclear-program') {
+      this._fireNuke(p);
+    } else if (id === 'coup-detat') {
+      this._fireCoup(p);
+    } else if (id === 'cold-war') {
+      this._fireColdWar(p);
     }
+  }
+
+  /** Fires a single nuke at the densest enemy cluster on the map.
+   *  Bypasses AA + airstrip cooldown — this is a doctrine, not a
+   *  bomber. r12 blast, capitals immune (consistent with all bomb
+   *  paths), destroys buildings, claims tiles to neutral. */
+  private _fireNuke(p: Player): void {
+    const W = this.territory.width;
+    let bestX = -1, bestY = -1, bestScore = -Infinity;
+    // Sample war-enemy regions for the densest hot spot.
+    for (let r = 1; r <= this.regionCount; r++) {
+      const dom = this._regionDominant[r] ?? 0;
+      if (dom <= 0 || dom === p.id) continue;
+      if (this.areAllied(p.id, dom)) continue;
+      const tiles = this._tilesByRegion[r];
+      if (!tiles || tiles.length === 0) continue;
+      const sample = Math.min(6, tiles.length);
+      for (let n = 0; n < sample; n++) {
+        const i = tiles[(Math.random() * tiles.length) | 0]!;
+        const o = this.territory.owners[i]!;
+        if (o === 0 || o === p.id || this.areAllied(p.id, o)) continue;
+        const x = i % W, y = (i - x) / W;
+        let enemies = 0;
+        const rr = 6;
+        for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (!this.territory.inBounds(nx, ny)) continue;
+          const oo = this.territory.getOwner(nx, ny);
+          if (oo > 0 && oo !== p.id && !this.areAllied(p.id, oo)) enemies++;
+        }
+        if (enemies > bestScore) { bestScore = enemies; bestX = x; bestY = y; }
+      }
+    }
+    if (bestX < 0) return;
+    // Massive blast — r12, ignores capital tiles and skips allies.
+    this._detonateBomb('large', bestX, bestY, p.id); // placeholder type; radius below.
+    // Manual radius blast since 'nuke' isn't a registered BombType.
+    const R = 12;
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+      if (dx * dx + dy * dy > R * R) continue;
+      const x = bestX + dx, y = bestY + dy;
+      if (!this.territory.inBounds(x, y)) continue;
+      if (this._capitalIndexAt(x, y) >= 0) continue;
+      const o = this.territory.getOwner(x, y);
+      if (o > 0 && (o === p.id || this.areAllied(p.id, o))) continue;
+      if (this.territory.isPassable(x, y)) {
+        this._claim(x, y, 0);
+      }
+    }
+    this.events.push({ type: 'bomb', bombType: 'large', x: bestX, y: bestY, radius: R, ownerId: p.id });
+  }
+
+  /** Coup d'État: flip every tile of one enemy region to neutral.
+   *  Picks the most-tiled enemy region the player is at war with
+   *  (fallback: any non-ally region with >0 tiles). */
+  private _fireCoup(p: Player): void {
+    let bestR = 0, bestSize = 0;
+    for (let r = 1; r <= this.regionCount; r++) {
+      const dom = this._regionDominant[r] ?? 0;
+      if (dom <= 0 || dom === p.id) continue;
+      if (this.areAllied(p.id, dom)) continue;
+      const atWar = this.areAtWar(p.id, dom);
+      const size = (this._tilesByRegion[r]?.length ?? 0);
+      // Prefer war-enemies — count their tiles 2× for ranking.
+      const score = size * (atWar ? 2 : 1);
+      if (score > bestSize) { bestSize = score; bestR = r; }
+    }
+    if (bestR === 0) return;
+    const tiles = this._tilesByRegion[bestR];
+    if (!tiles || tiles.length === 0) return;
+    const W = this.territory.width;
+    for (const i of tiles) {
+      const x = i % W, y = (i - x) / W;
+      if (this._capitalIndexAt(x, y) >= 0) continue;
+      const o = this.territory.getOwner(x, y);
+      if (o > 0 && o !== p.id && !this.areAllied(p.id, o)) {
+        this._claim(x, y, 0);
+      }
+    }
+  }
+
+  /** Cold War: shatter one alliance between non-allied non-self
+   *  players. Prefers an alliance involving a player you're at
+   *  war with. */
+  private _fireColdWar(p: Player): void {
+    type Hit = { a: PlayerId; b: PlayerId; score: number };
+    let best: Hit | null = null;
+    for (const key of this._alliances.keys()) {
+      const [aRaw, bRaw] = key.split('-').map(Number);
+      if (aRaw == null || bRaw == null) continue;
+      const a: PlayerId = aRaw, b: PlayerId = bRaw;
+      if (a === p.id || b === p.id) continue;
+      if (this.areAllied(p.id, a) || this.areAllied(p.id, b)) continue;
+      const aWar = this.areAtWar(p.id, a) ? 1 : 0;
+      const bWar = this.areAtWar(p.id, b) ? 1 : 0;
+      const score = aWar + bWar + 0.001 * Math.random();
+      if (!best || score > best.score) best = { a, b, score };
+    }
+    if (!best) return;
+    // Direct break — bypasses the usual breakAlliance route since
+    // we're not party to it. Mark by the breaker (caller) for the
+    // event log so the diplomacy panel reads "broken by you".
+    const key = this._allianceKey(best.a, best.b);
+    this._alliances.delete(key);
+    this.events.push({ type: 'alliance-broken', a: best.a, b: best.b, brokenBy: p.id });
+    this._dropTradeRouteBetween(best.a, best.b, p.id);
   }
 
   /** AI commander logic: spend treasury on decrees periodically so the
@@ -2122,16 +2312,19 @@ export class Game {
         'production', 'master-builder', 'iron-doctrine', 'border-patrol',
         'reinforced-bunkers', 'veterans', 'standing-army', 'conscription',
         'forced-march', 'free-market', 'spy-network', 'sabotage',
+        'watchtowers', 'industrial', 'forced-labor', 'coup-detat',
       ],
       air: [
         'production', 'master-builder', 'forced-march', 'air-supremacy',
         'veterans', 'standing-army', 'conscription', 'iron-doctrine',
         'free-market', 'spy-network', 'embassy', 'cartel',
+        'nuclear-program', 'sabotage', 'forced-labor', 'cold-war',
       ],
       naval: [
         'production', 'master-builder', 'admiralty', 'embassy', 'cartel',
         'forced-march', 'veterans', 'standing-army', 'conscription',
         'iron-doctrine', 'free-market', 'spy-network',
+        'privateer', 'cold-war', 'sabotage', 'industrial',
       ],
     };
     const list = masteryPicks[p.mastery ?? 'ground'];
@@ -2958,7 +3151,14 @@ export class Game {
       const r = regions[i]!;
       const settlementLvls = r > 0 ? (settLevels[r * 256 + id] ?? 0) : 0;
       const settlementBonus = settlementLvls * regionSettlement;
-      const tileGold = (base * (1 + mult[i]!) + settlementBonus) * decreeMult;
+      // Forced Labor: tiles you've captured in the last 30s (300
+      // ticks at SIM_HZ=10) yield 2× gold while p has the decree.
+      let forcedLaborMult = 1;
+      if ((p.decreeStacks['forced-labor'] ?? 0) > 0) {
+        const since = this.tickCount - this._tileCapturedAt[i]!;
+        if (since >= 0 && since < 300) forcedLaborMult = 2;
+      }
+      const tileGold = (base * (1 + mult[i]!) + settlementBonus) * decreeMult * forcedLaborMult;
       const net = siphon(id, tileGold);
       if (p.isHuman && r > 0 && dominant[r] === id) {
         // Vassal tribute flows to the leader's TREASURY (commander pool),
@@ -4089,8 +4289,36 @@ export class Game {
       // the route. Progressive ramp 0.03 — slow start, scales up.
       const cartelA = this._progressiveStack(a.decreeStacks['cartel'] ?? 0, 0.03);
       const cartelB = this._progressiveStack(b.decreeStacks['cartel'] ?? 0, 0.03);
-      a.treasury += r.flow * cartelA;
-      b.treasury += r.flow * cartelB;
+      let payA = r.flow * cartelA;
+      let payB = r.flow * cartelB;
+      // Privateer: any non-allied warship within 12 tiles of either
+      // route endpoint siphons that route's flow into the privateer
+      // owner's treasury, reducing the trader's take. Multiple
+      // warships compound (each one takes another share). The
+      // route itself doesn't break — privateering bleeds.
+      const PRIVATEER_R2 = 12 * 12;
+      for (const s of this.ships) {
+        if (s.kind !== 'warship') continue;
+        const sp = this.players[s.owner];
+        if (!sp || !sp.alive) continue;
+        if ((sp.decreeStacks['privateer'] ?? 0) === 0) continue;
+        if (s.owner === r.a || s.owner === r.b) continue;
+        if (this.areAllied(s.owner, r.a) || this.areAllied(s.owner, r.b)) continue;
+        const dxA = s.x - r.ax, dyA = s.y - r.ay;
+        const dxB = s.x - r.bx, dyB = s.y - r.by;
+        const inRange = (dxA * dxA + dyA * dyA) <= PRIVATEER_R2
+                     || (dxB * dxB + dyB * dyB) <= PRIVATEER_R2;
+        if (!inRange) continue;
+        // Skim 25% per warship. Capped at 80% combined so traders
+        // still get something through.
+        const siphonFromA = Math.min(payA * 0.25, payA * 0.80);
+        const siphonFromB = Math.min(payB * 0.25, payB * 0.80);
+        sp.treasury += siphonFromA + siphonFromB;
+        payA -= siphonFromA;
+        payB -= siphonFromB;
+      }
+      a.treasury += payA;
+      b.treasury += payB;
     }
   }
 

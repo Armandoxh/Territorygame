@@ -48,7 +48,7 @@ export const DECREES: readonly Decree[] = [
   { id: 'free-market',  branch: 'economy', tier: 2, name: 'Free Market',
     desc: 'Vassal tribute drops 10% → 5%. Your vassals keep more, build faster.', cost: 1500, prereq: 'production' },
   { id: 'industrial',   branch: 'economy', tier: 3, name: 'Industrial Revolution',
-    desc: 'Settlements gradually self-upgrade over time.', cost: 3000, prereq: 'free-market', comingSoon: true },
+    desc: 'Settlements gradually self-upgrade over time. ~1% chance per tick to bump a level.', cost: 3000, prereq: 'free-market' },
 
   // DEFENSE
   { id: 'border-patrol', branch: 'defense', tier: 1, name: 'Border Patrol',
@@ -66,7 +66,7 @@ export const DECREES: readonly Decree[] = [
     },
   },
   { id: 'watchtowers',   branch: 'defense', tier: 2, name: 'Watchtowers',
-    desc: 'Free L1 turrets auto-build on fully-owned region frontiers.', cost: 2000, prereq: 'border-patrol', comingSoon: true },
+    desc: 'Free L1 turrets auto-build on fully-owned region frontiers (~one per 6s, max 4 per region).', cost: 2000, prereq: 'border-patrol' },
 
   // MILITARY
   { id: 'conscription',  branch: 'military', tier: 1, name: 'Conscription',
@@ -100,7 +100,7 @@ export const DECREES: readonly Decree[] = [
   { id: 'air-supremacy',  branch: 'offense', tier: 2, name: 'Air Supremacy',
     desc: 'Empire-wide bomb cooldowns are halved. AC-130 / stealth ready twice as often.', cost: 1800, prereq: 'forced-march' },
   { id: 'nuclear-program', branch: 'offense', tier: 3, name: 'Nuclear Program',
-    desc: 'Unlocks Nuke — 2000g per drop, massive radius, nothing survives.', cost: 5000, prereq: 'air-supremacy', comingSoon: true },
+    desc: 'Each issue drops a NUKE on the densest enemy cluster. r12 blast, ignores AA, destroys all buildings (capitals immune).', cost: 5000, prereq: 'air-supremacy', oneShot: true, stackable: true },
 
   // ESPIONAGE
   { id: 'spy-network', branch: 'espionage', tier: 1, name: 'Spy Network',
@@ -108,15 +108,15 @@ export const DECREES: readonly Decree[] = [
   { id: 'sabotage',    branch: 'espionage', tier: 2, name: 'Sabotage',
     desc: 'Per stack, you skim 5% of every enemy\'s gold income into your treasury.', cost: 1500, prereq: 'spy-network', stackable: true },
   { id: 'forced-labor', branch: 'espionage', tier: 2, name: 'Forced Labor',
-    desc: 'Tiles you capture pay 2× gold for 30s after capture.', cost: 1800, prereq: 'sabotage', comingSoon: true },
+    desc: 'Tiles you capture pay 2× gold income for 30 seconds after capture.', cost: 1800, prereq: 'sabotage' },
   { id: 'coup-detat',  branch: 'espionage', tier: 3, name: "Coup d'État",
-    desc: 'One-time: flip a chosen enemy region to neutral instantly.', cost: 3000, prereq: 'sabotage', comingSoon: true },
+    desc: 'Each issue flips one enemy region to neutral — vacuums their tiles, destroys their buildings (capitals immune).', cost: 3000, prereq: 'sabotage', oneShot: true, stackable: true },
 
   // NAVAL
   { id: 'admiralty',   branch: 'naval', tier: 1, name: 'Admiralty',
     desc: 'Ships move faster and cost less to build per stack.', cost: 800, stackable: true },
   { id: 'privateer',   branch: 'naval', tier: 2, name: 'Privateer',
-    desc: 'Warships near enemy trade routes siphon the route\'s gold into your treasury.', cost: 2500, prereq: 'admiralty', comingSoon: true },
+    desc: 'Each warship within 12 tiles of an enemy trade-route endpoint siphons that route\'s flow into your treasury per tick.', cost: 2500, prereq: 'admiralty' },
 
   // DIPLOMACY
   { id: 'embassy',     branch: 'diplomacy', tier: 1, name: 'Embassy',
@@ -124,7 +124,7 @@ export const DECREES: readonly Decree[] = [
   { id: 'cartel',      branch: 'diplomacy', tier: 2, name: 'Cartel',
     desc: 'Your trade-route income (gold/sec from allies) is boosted per stack.', cost: 1500, prereq: 'embassy', stackable: true },
   { id: 'cold-war',    branch: 'diplomacy', tier: 3, name: 'Cold War',
-    desc: 'One-time: shatter any active alliance between two of your enemies.', cost: 3000, prereq: 'cartel', comingSoon: true },
+    desc: 'Each issue shatters one active alliance between two non-allied players (prefers enemies you\'re at war with).', cost: 3000, prereq: 'cartel', oneShot: true, stackable: true },
 ];
 
 export function decreeById(id: string): Decree | undefined {
@@ -154,12 +154,15 @@ export function decreePowerLabel(d: Decree): string {
     case 'spy-network': return 'Enemy intel';
     case 'sabotage': return 'Skim income';
     case 'forced-labor': return 'Capture bonus';
-    case 'coup-detat': return 'Region flip';
+    case 'coup-detat': return 'Flip region';
     case 'admiralty': return 'Ship perks';
-    case 'privateer': return 'Trade raiding';
+    case 'privateer': return 'Raid trade';
     case 'embassy': return 'Diplomacy';
     case 'cartel': return 'Trade income';
     case 'cold-war': return 'Break alliance';
+    case 'industrial': return 'Auto-upgrade';
+    case 'watchtowers': return 'Auto-turrets';
+    case 'nuclear-program': return 'Nuke';
     default: return '';
   }
 }
@@ -216,6 +219,9 @@ export function decreeCompactCurrent(d: Decree, stacks: number, branch?: 'a' | '
     case 'cartel': return fmt(progressive(stacks, 0.03));
     case 'conscription': return `×${stacks}`;
     case 'war-bonds': return `×${stacks}`;
+    case 'nuclear-program': return `${stacks} fired`;
+    case 'coup-detat': return `${stacks} flipped`;
+    case 'cold-war': return `${stacks} broken`;
     default: return stacks > 0 ? '✓' : '';
   }
 }
@@ -335,6 +341,35 @@ export function decreeEffectFor(
     case 'war-bonds': {
       return { current: stacks > 0 ? `Issued ${stacks}× so far.` : 'Spend 30% gold treasury for 5000 troops.',
                next: 'Next: 30% of treasury → 5000 troops.' };
+    }
+    case 'nuclear-program': {
+      return { current: stacks > 0 ? `Fired ${stacks} nuke${stacks === 1 ? '' : 's'} so far.` : 'Each issue auto-fires a r12 nuke at the densest enemy cluster.',
+               next: 'Next: drop one nuke, capitals immune, ignores AA.' };
+    }
+    case 'coup-detat': {
+      return { current: stacks > 0 ? `Flipped ${stacks} region${stacks === 1 ? '' : 's'} so far.` : 'Each issue vacuums one enemy region to neutral.',
+               next: 'Next: flip the largest enemy region you\'re at war with.' };
+    }
+    case 'cold-war': {
+      return { current: stacks > 0 ? `Broke ${stacks} alliance${stacks === 1 ? '' : 's'} so far.` : 'Each issue shatters one third-party alliance.',
+               next: 'Next: break an alliance involving an enemy of yours.' };
+    }
+    case 'industrial': {
+      const pct = (stacks * 1).toFixed(0);
+      return { current: stacks > 0 ? `Settlements bump a level ~${pct}% per slow tick.` : 'Settlements gradually self-upgrade.',
+               next: stacks > 0 ? `Next stack: +1% upgrade chance.` : 'Next: 1% per slow tick.' };
+    }
+    case 'watchtowers': {
+      return { current: stacks > 0 ? 'Free L1 turrets auto-build on owned region frontiers (cap 4 per region).' : 'Auto-turrets on fully-owned region frontiers.',
+               next: 'Next: nothing additional (effect doesn\'t scale).' };
+    }
+    case 'privateer': {
+      return { current: stacks > 0 ? 'Your warships within 12 tiles of enemy trade-route endpoints siphon route flow into your treasury.' : 'Warships near enemy trade routes act as raiders.',
+               next: 'Next: nothing additional (effect doesn\'t scale).' };
+    }
+    case 'forced-labor': {
+      return { current: stacks > 0 ? 'Tiles you capture pay 2× gold for 30 seconds.' : 'Captured tiles pay double gold briefly.',
+               next: 'Next: nothing additional (effect doesn\'t scale).' };
     }
     // Flat one-shots have no per-stack scaling.
     case 'border-patrol':
