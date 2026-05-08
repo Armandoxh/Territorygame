@@ -1164,6 +1164,12 @@ export class Game {
         if (!this.areAtWar(p.id, o)) continue;
       }
       if (this._capitalIndexAt(x, y) >= 0) continue;
+      // Defender-dominance skip: if this tile sits inside a region the
+      // defender dominates, roll the skip chance. Skipped tiles don't
+      // seed further BFS expansion, so dense defense naturally caps
+      // blitz penetration depth.
+      const skip = this._groundOpSkipChance(x, y, p.id);
+      if (skip > 0 && Math.random() < skip) continue;
       if (!this._claim(x, y, p.id)) continue;
       claimedThisFire.add(idx);
       claims++;
@@ -1380,6 +1386,12 @@ export class Game {
           if (this.areAllied(p.id, o)) continue;
           if (!this.areAtWar(p.id, o)) continue;
         }
+        // Defender-dominance skip: tank push into a fortified
+        // (defender-dominant) region only flips a fraction of the
+        // cone. Without this, a 90° wedge plants 70 tiles deep in
+        // an empire with no decree spending — the snake.
+        const skip = this._groundOpSkipChance(ix, iy, p.id);
+        if (skip > 0 && Math.random() < skip) continue;
         if (this._claim(ix, iy, p.id)) {
           claimed++;
           if (o > 0) drainPerOwner.set(o, (drainPerOwner.get(o) ?? 0) + 1);
@@ -2361,33 +2373,33 @@ export class Game {
     };
     const list = masteryPicks[p.mastery ?? 'ground'];
 
-    // Pick the FIRST affordable + available decree on the list. Stops
-    // after one purchase per tick so a wealthy AI doesn't blow its
-    // entire treasury on a single tick (still makes progress over time).
+    // Random pick from affordable + available decrees, NOT greedy first.
+    // The greedy pick was filling production/master-builder/forced-march
+    // (the cheapest stackables at the top of the list) for hundreds of
+    // ticks before the AI ever touched defense, veterans, or anything
+    // mid-tier. Random pick keeps the AI's build broad — over time
+    // every category gets some stacks.
+    const affordable: Array<{ id: string; branch?: 'a' | 'b' }> = [];
     for (const id of list) {
       const d = decreeById(id);
       if (!d || d.comingSoon) continue;
       if (!this.decreeAvailable(p.id, id)) continue;
-      // Skip non-stackable decrees we already own.
       if (!d.stackable && (p.decreeStacks[id] ?? 0) > 0) continue;
-      // Don't endlessly stack — soft cap at 8 stacks per decree so the
-      // AI diversifies instead of dumping 30 forced-march.
+      // Soft cap at 8 stacks per decree so AI diversifies instead of
+      // dumping 30 stacks into one doctrine.
       if ((p.decreeStacks[id] ?? 0) >= 8) continue;
-      // Use the ramped cost (decreeCostFor honors the curve) so the
-      // AI's wallet check matches what the buy will actually charge.
       const cost = this.decreeCostFor(p.id, id);
       if (p.treasury < cost) continue;
-      // Branchable decrees: AI pre-picks a branch by mastery before
-      // crossing the fork, so it doesn't get blocked on the
-      // 'branch-required' gate.
       let branch: 'a' | 'b' | undefined;
       if (d.branches && (p.decreeStacks[id] ?? 0) + 1 >= d.branches.forkAt
           && !p.decreeBranches[id]) {
         branch = this._aiPickBranch(p, id);
       }
-      this.buyDecree(p.id, id, branch);
-      return;
+      affordable.push({ id, branch });
     }
+    if (affordable.length === 0) return;
+    const pick = affordable[(Math.random() * affordable.length) | 0]!;
+    this.buyDecree(p.id, pick.id, pick.branch);
   }
 
   /** Pick an AI's branch for a branchable decree based on mastery
@@ -5336,11 +5348,14 @@ export class Game {
       const tileRegion = this.regions[i]!;
       const isVassal = tileRegion > 0 && this._regionDominant[tileRegion] === p.id;
 
-      // Connectivity gate (AI / vassal only): a tile must have at
-      // least 2 same-owner cardinal neighbors to act as a frontier
-      // source. This kills the "1-tile-wide snake" expansion
-      // pattern — a salient or column tip with 0-1 connections is
-      // a beachhead, not a basecamp, and can't project further.
+      // Connectivity gate (AI / vassal only): a frontier source tile
+      // must have at least 3 same-owner cardinal neighbors to project
+      // outward. This kills 1-tile-wide AND 2-tile-wide snake
+      // expansion through enemy territory. A 2-wide column tip has at
+      // most 2 same-owner cardinal neighbors (back + side); blocked.
+      // A 3-wide column's middle tip has 3 (back + 2 sides); allowed.
+      // So salients must be at least 3 wide to keep growing — they
+      // can't keep extending as a thin tendril.
       // Humans bypass the gate so peninsula pushes still work
       // when YOU drive them.
       if (!p.isHuman) {
@@ -5349,7 +5364,7 @@ export class Game {
         if (this.territory.getOwner(x + 1, y) === p.id) sameOwnerNbrs++;
         if (this.territory.getOwner(x, y - 1) === p.id) sameOwnerNbrs++;
         if (this.territory.getOwner(x, y + 1) === p.id) sameOwnerNbrs++;
-        if (sameOwnerNbrs < 2) continue;
+        if (sameOwnerNbrs < 3) continue;
       }
 
       // Build candidate list, filtered for actionability:
@@ -5655,6 +5670,37 @@ export class Game {
     // ground player with turrets feels genuinely fortress-like.
     if (defender?.mastery === 'ground') bonus = (bonus + 1) * 1.30 - 1;
     return bonus;
+  }
+
+  /** Probability that a "ignores defense" ground op SKIPS a tile claim
+   *  because the defender dominates the region. Tank push / blitzkrieg
+   *  used to plant 30-70 tiles deep into a fortified empire in one
+   *  volley regardless of how thick the defense was — that was the
+   *  ground "snake" the player saw, and it bypassed the v5 _expand
+   *  connectivity + dominance gates entirely.
+   *
+   *  Now: each candidate tile in a region the defender dominates rolls
+   *  a skip with probability = how dominant they are (own / regionSize,
+   *  capped 0.85). Result: tank push into a 90% dominant region only
+   *  flips ~10-15% of cone tiles, and the BFS-driven blitz can't seed
+   *  past the dropouts. The op still works for contested or
+   *  attacker-dominant regions.
+   *
+   *  Returns 0 for neutral / attacker-owned tiles (no skip). */
+  private _groundOpSkipChance(x: number, y: number, attackerId: PlayerId): number {
+    if (this.regionCount === 0) return 0;
+    const W = this.territory.width;
+    const r = this.regions[y * W + x] ?? 0;
+    if (r <= 0) return 0;
+    const dom = this._regionDominant[r] ?? 0;
+    if (dom <= 0 || dom === attackerId) return 0;
+    if (this.areAllied(attackerId, dom)) return 0;
+    const tiles = this._tilesByRegion[r];
+    const regionSize = tiles?.length ?? 0;
+    if (regionSize <= 0) return 0;
+    const ownInR = this._regionOwnedTiles[r * 256 + dom] ?? 0;
+    const dominance = Math.min(0.85, ownInR / regionSize);
+    return dominance;
   }
 
   /** Returns total turret retaliation damage at (x, y) against attackerId.

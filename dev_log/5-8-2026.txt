@@ -514,3 +514,61 @@ clear the v5 connectivity + dilution gates. Result: a
 landed beachhead either gets reinforced into a real foothold
 (spreads along the coast, builds a barracks, drops ground
 ops) or it dies under the defender's full troop pool.
+
+---
+
+[pending] gameplay: snake fix v7 — ground-ops dilution + tighter
+gate; AI decree picks now random not greedy
+
+WHAT: Three combined fixes for "snake of 1-2 tiles still
+walking through my territory" + "AI only buys 1-4 stacks of
+invasion speed, no defense, nothing else."
+
+(1) New _groundOpSkipChance(x, y, attackerId): if the target
+tile sits in a region the defender DOMINATES, each ground op
+claim rolls a skip with probability = how dominant they are
+(own / regionSize, capped 0.85). Applied inside _fireBlitz
+and _fireTankPush. Tank push into a 90% dominant region only
+flips ~10-15% of cone tiles instead of all 70. For blitz
+(BFS-driven), skipped tiles don't seed further expansion —
+so depth caps automatically when the defender's grip is
+strong. No effect for contested or attacker-dominant
+regions; a fair counter-attack still works.
+
+(2) _expand connectivity gate tightened from ≥2 to ≥3 same-
+owner cardinal neighbors for non-humans. Previous gate
+killed 1-tile snakes but let 2-wide salients keep pushing
+(2-wide column tip has 2 same-owner nbrs: side + back).
+With ≥3, a salient must be at least 3 tiles wide to project.
+Humans still bypass the gate, so peninsula expansion stays
+feel-natural for the player.
+
+(3) AI decree picker switched from greedy-first-affordable
+to random-from-affordable. Previous behavior: every 10s tick
+the AI bought the cheapest stackable at the top of its
+mastery list (production / master-builder / forced-march),
+filling those 8 stacks before EVER touching defense or
+veterans. User saw "1-4 stacks of invasion speed, no defense,
+nothing else." Random pick distributes purchases across the
+full list — over a full game an AI gets defense doctrines,
+military, espionage, and economy in roughly equal measure.
+
+WHY: User: "this straight line coming from the bottom from
+that territory. its unstoppable. it ignores my defense.
+that territroy hasnt spent any points on offnese. it eats
+my towers." + "I only see AI spending on 1-4 stacks of
+invasion speed, no defense, nothing else."
+
+Root cause the v6 ship-only fix missed: tank push and blitz
+go through _claim directly, ignoring _expand's connectivity
+gate, defender-dominance dilution, AND _defenseAt entirely.
+A single tank push planted a 70-tile cone deep into a
+fortified empire regardless of decree spending. That
+guaranteed a snake every 60s cooldown.
+
+With the v7 fixes: a fortified empire takes ~10% of an
+incoming volley (rest skipped by dominance gate). The
+remaining tiles form a small foothold which can't snake-
+push further because the connectivity gate is now ≥3
+nbrs. The defender's full troop pool finishes the salient
+within a few _expand ticks.
