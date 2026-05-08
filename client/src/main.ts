@@ -121,6 +121,26 @@ async function boot(): Promise<void> {
       if (hud.tryBuildShipAt(wx, wy)) return;
       if (hud.tryPlaceAt(wx, wy)) return;
 
+      // Army interaction (battlefield mode). If an army is selected,
+      // ANY tap is a march order. Otherwise a tap on one of YOUR
+      // armies selects it (and consumes the tap). Mirrors the ship
+      // interaction model exactly.
+      const armySel = renderer.armies.selected();
+      if (armySel > 0) {
+        if (game.setArmyTarget(armySel, Math.floor(wx), Math.floor(wy), 1) === null) {
+          hud.toast('marching');
+          return;
+        }
+        renderer.armies.setSelected(0);
+      } else {
+        const army = game.armyNear(wx, wy, 1, 4 / Math.max(1, renderer.zoom * 0.4));
+        if (army) {
+          renderer.armies.setSelected(army.id);
+          hud.toast(`Army selected · tap destination`);
+          return;
+        }
+      }
+
       // Ship interaction: if a ship is already selected, ANY tap retargets
       // it. Otherwise, a tap close to one of our ships selects it (and is
       // consumed — does not also retarget territory).
@@ -142,26 +162,29 @@ async function boot(): Promise<void> {
         }
       }
 
-      // If the tapped region is enemy-dominated and we're at peace,
-      // setHumanTargetRegion will auto-declare war. Toast the player
-      // before the engine call so the message reads as cause→effect.
-      const tappedRegion = game.regionAt(Math.floor(wx), Math.floor(wy));
-      const dom = tappedRegion > 0 ? game.regionDominantOwnerOf(tappedRegion) : 0;
-      const willDeclareWar = dom > 0 && dom !== 1
-        && !game.areAllied(1, dom)
-        && !game.areAtWar(1, dom);
-      const region = game.setHumanTargetRegion(wx, wy);
-      if (region <= 0) { hud.toast('No region here'); return; }
-      if (willDeclareWar) {
-        const target = game.players[dom];
-        const allies = game.alliesOf(dom);
-        if (target) {
-          if (allies.length > 0) {
-            hud.toast(`War on ${target.name} — ${allies.length} of their allies joined`);
-          } else {
-            hud.toast(`War declared on ${target.name}`);
+      // Legacy flood mode only: tap sets your manual region target,
+      // territory flows that way. In ARMY_MODE there's no flood — tile
+      // ownership only changes via army movement, so a stray tap on
+      // empty land does nothing (other than possibly hide the hint).
+      if (!game.config.ARMY_MODE) {
+        const tappedRegion = game.regionAt(Math.floor(wx), Math.floor(wy));
+        const dom = tappedRegion > 0 ? game.regionDominantOwnerOf(tappedRegion) : 0;
+        const willDeclareWar = dom > 0 && dom !== 1
+          && !game.areAllied(1, dom)
+          && !game.areAtWar(1, dom);
+        const region = game.setHumanTargetRegion(wx, wy);
+        if (region <= 0) { hud.toast('No region here'); return; }
+        if (willDeclareWar) {
+          const target = game.players[dom];
+          const allies = game.alliesOf(dom);
+          if (target) {
+            if (allies.length > 0) {
+              hud.toast(`War on ${target.name} — ${allies.length} of their allies joined`);
+            } else {
+              hud.toast(`War declared on ${target.name}`);
+            }
+            if (navigator.vibrate) try { navigator.vibrate(40); } catch { /* ignore */ }
           }
-          if (navigator.vibrate) try { navigator.vibrate(40); } catch { /* ignore */ }
         }
       }
       if (firstTap) { hud.hideHint(); firstTap = false; }

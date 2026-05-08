@@ -3,6 +3,7 @@ import type { Game, GameConfig } from '@territorygame/shared';
 import { TerritoryShaderLayer } from './TerritoryShaderLayer.js';
 import { OverlayLayer } from './OverlayLayer.js';
 import { ShipsLayer } from './ShipsLayer.js';
+import { ArmiesLayer } from './ArmiesLayer.js';
 import { PlanesLayer } from './PlanesLayer.js';
 import { FogLayer } from './FogLayer.js';
 import { TradeLayer } from './TradeLayer.js';
@@ -31,6 +32,7 @@ export class Renderer {
   readonly territoryLayer: TerritoryShaderLayer;
   readonly overlay: OverlayLayer;
   readonly ships!: ShipsLayer;
+  readonly armies!: ArmiesLayer;
   readonly planes!: PlanesLayer;
   readonly fog!: FogLayer;
   readonly trade!: TradeLayer;
@@ -145,6 +147,11 @@ export class Renderer {
     (this as { ships: ShipsLayer }).ships = new ShipsLayer(game, this);
     this.app.stage.addChild(this.ships.container);
 
+    // Battlefield armies (Risk-style ground stacks). Render above ships
+    // so they're visible against busy coastline geometry.
+    (this as { armies: ArmiesLayer }).armies = new ArmiesLayer(game, this);
+    this.app.stage.addChild(this.armies.container);
+
     // Planes (in flight bombers) render above ships.
     (this as { planes: PlanesLayer }).planes = new PlanesLayer(game, this);
     this.app.stage.addChild(this.planes.container);
@@ -229,6 +236,7 @@ export class Renderer {
     this.trade.update(now);
     this.overlay.update(now);
     this.ships.update(now);
+    this.armies.update(now);
     this.planes.update(now);
   }
 
