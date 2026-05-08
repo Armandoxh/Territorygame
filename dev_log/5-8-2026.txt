@@ -695,3 +695,63 @@ push from one home blob. Combined with the existing warship
 coastal-flip mechanic, naval becomes the "dominate the
 shoreline first, build up later" mastery — true to the
 spec's "project power from the sea" tagline.
+
+---
+
+[a8da293..6c62526] PIVOT: battlefield armies replace flood expansion
+
+WHAT: Five-commit pivot from flood-fill territorial expansion
+to discrete Risk-style army stacks. Tiles only flip ownership
+when an Army physically walks onto them. Each barracks recruits
+one army on a 30s cooldown. Combat resolves stack-vs-stack on
+the contested tile (both bleed strength until one dies).
+
+Phase A (engine): Army type {id, owner, x, y, strength,
+destX, destY, manual, moveCooldown}, armies[] storage,
+_armyByTile O(1) tile index, _armyTick (movement + combat +
+tile claim), _recruitTick (auto-spawn from every barracks),
+spawnArmy/recruitArmy/setArmyTarget/armyNear/armyAt APIs,
+_aiCommandArmies (marches idle armies to closest enemy
+capital, reserves one army per friendly capital).
+Bombs damage armies in radius. Master switch config.ARMY_MODE
+gates flood (_expand + _vassalsThink) so legacy still works
+for A/B testing.
+
+Phase B (render): ArmiesLayer.ts mirrors ShipsLayer node-map
+pattern. Each army = rounded square in owner color with two
+horizontal stripes (reads as a stack), white-on-dark
+strength label, pulsing white selection ring.
+
+Phase C (input): tap-an-army selection state, tap-anywhere
+march order. Mirrors ship interaction. ARMY_MODE bypasses
+the legacy "tap = set region target" path entirely.
+
+Phase D (AI): already wired in Phase A — _aiCommandArmies
+runs every 30 ticks per AI player.
+
+Phase E (cleanup): Blitz/Tanks/Paratroopers ground ops no
+longer flood-claim tiles; they spawn armies instead.
+- Blitz: 3 light armies at owned tiles near target.
+- Tank Push: 1 strong army + 12s tank-rush combat buff.
+- Paratroopers: 1 medium army at ANY tapped tile (the
+  "deploy behind enemy lines" pitch survives intact).
+- Artillery unchanged (already a unit-killer).
+
+Starter seed: every player begins with a free Barracks
+adjacent to their first capital + one starter army on each
+capital tile. Barracks build gate is universal in ARMY_MODE
+(every mastery can recruit; ground still gets cheaper builds
++ faster recruit via Master Builder).
+
+WHY: User: "instead of mindless expansion, I want to have it
+look like an actual battlefield. I can place armies,
+batallions, etc there. They stay on the map to do the ground
+expansion, hold fronts, etc."
+
+Through ~50 hours of playtest the flood model kept producing
+"snake" pathologies (1-tile salients walking through dominated
+territory, contested-region grow-anywhere bugs) that needed
+band-aid after band-aid. The pivot replaces the underlying
+model rather than patching symptoms. v1 ships ONE generic
+unit type; multi-unit-type taxonomy is deferred until the
+move/fight loop feels right on phone.
