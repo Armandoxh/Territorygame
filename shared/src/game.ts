@@ -522,6 +522,16 @@ export class Game {
     // Now spawn each player. _claim updates regionOwnedTiles + regionOwner.
     for (const s of spots) this._spawnPlayerAt(s.id, s.x, s.y);
 
+    // Naval mastery extra: plant 3 distant coastal colonies per naval
+    // player. The "real benefit of naval is troops on the ground
+    // wherever you want" — colonies give them three extra fronts on
+    // tick 1, while ground/air players push from one home spawn.
+    for (let id = 1; id < this.players.length; id++) {
+      const p = this.players[id];
+      if (!p || !p.alive) continue;
+      if (p.mastery === 'naval') this._plantNavalColonies(p.id);
+    }
+
     // AI targets adjacent to their spawn (or random fallback).
     for (let id = 2; id < this.players.length; id++) {
       const p = this.players[id];
@@ -2045,7 +2055,10 @@ export class Game {
     // spawn so they can actually use ships from tick 1. We only do this
     // on the very first pick (not re-picks) because by then the player
     // has already expanded and a respawn would be disruptive.
-    if (mastery === 'naval' && wasUnchosen) this._relocateToCoast(playerId);
+    if (mastery === 'naval' && wasUnchosen) {
+      this._relocateToCoast(playerId);
+      this._plantNavalColonies(playerId);
+    }
     return null;
   }
 
@@ -2096,6 +2109,64 @@ export class Game {
     }
     if (best.x < 0) return; // no good spot found; leave player wiped
     this._spawnPlayerAt(playerId, best.x, best.y);
+  }
+
+  /** Plant N distant coastal colonies for a naval player. Each colony
+   *  is a small claim disk on neutral coast, far from existing player
+   *  spawns / colonies. NO capitals — capitals stay at the home spawn
+   *  so the elimination rule (lose all capitals → die) stays clean.
+   *  The naval fantasy is reach + projection, not survival redundancy. */
+  private _plantNavalColonies(playerId: PlayerId): void {
+    const W = this.territory.width;
+    const H = this.territory.height;
+    const COLONY_COUNT = 3;
+    const COLONY_RADIUS = 3;
+    const MIN_SEP_SQ = 28 * 28;
+
+    // Existing claim anchors = every other player's spawn centroid +
+    // already-planted colonies for THIS naval player. We compute
+    // "centroid" as the player's first capital (or any owned tile).
+    const anchors: Array<{ x: number; y: number }> = [];
+    for (const c of this.capitals) anchors.push({ x: c.x, y: c.y });
+
+    for (let n = 0; n < COLONY_COUNT; n++) {
+      let best = { x: -1, y: -1, score: -Infinity };
+      for (let attempt = 0; attempt < 1200; attempt++) {
+        const rx = (Math.random() * W) | 0;
+        const ry = (Math.random() * H) | 0;
+        if (!this.territory.isPassable(rx, ry)) continue;
+        if (this.territory.getOwner(rx, ry) !== 0) continue;
+        // Coastal (water cardinal neighbor)
+        let coastal = false;
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+          const nx = rx + dx, ny = ry + dy;
+          if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+          if (!this.territory.isPassable(nx, ny)) { coastal = true; break; }
+        }
+        if (!coastal) continue;
+        // Distance to nearest anchor
+        let nearest = Infinity;
+        for (const a of anchors) {
+          const dd = (a.x - rx) * (a.x - rx) + (a.y - ry) * (a.y - ry);
+          if (dd < nearest) nearest = dd;
+        }
+        if (nearest < MIN_SEP_SQ) continue;
+        if (nearest > best.score) best = { x: rx, y: ry, score: nearest };
+      }
+      if (best.x < 0) return;
+      // Plant the colony disk on neutral land tiles only.
+      for (let dy = -COLONY_RADIUS; dy <= COLONY_RADIUS; dy++) {
+        for (let dx = -COLONY_RADIUS; dx <= COLONY_RADIUS; dx++) {
+          if (dx * dx + dy * dy > COLONY_RADIUS * COLONY_RADIUS) continue;
+          const tx = best.x + dx, ty = best.y + dy;
+          if (!this.territory.inBounds(tx, ty)) continue;
+          if (!this.territory.isPassable(tx, ty)) continue;
+          if (this.territory.getOwner(tx, ty) !== 0) continue;
+          this._claim(tx, ty, playerId);
+        }
+      }
+      anchors.push({ x: best.x, y: best.y });
+    }
   }
 
   // --- Commander decrees ---

@@ -667,3 +667,31 @@ Cross-buying broke that contract.
 "why can I see them but not myself." Build sheet still
 opens (long-press should still let you build), but the new
 top button is the bridge to the profile sheet.
+
+---
+
+[pending] mastery: naval colonies — 3 distant coastal blobs at spawn
+
+WHAT: Naval-mastery players now plant 3 small coastal colonies
+(radius 3 each) on distant shores at game start, in addition
+to their main spawn. Colonies are far from each other AND
+from other players' spawns (min 28-tile separation). NO
+extra capitals — only the home spawn carries the 2 capitals,
+so the elimination rule (lose all capitals → die) stays
+clean. The naval fantasy is reach + projection, not survival
+redundancy. Hooks fire from spawnAll for AIs (mastery known
+at spawn) and from chooseMastery when a human picks naval
+mid-game (relocate to coast, then plant colonies).
+
+WHY: User: "Naval feels a little weak. sure, the ships feel
+like mosquitos.. but they need to be more aggressive. like
+at the start of the game naval colonies should spread out.
+thats the real benefit of naval. troops on the ground,
+whenever you want it."
+
+A naval player now starts the game with 4 fronts of
+expansion (1 home + 3 colonies) while ground/air players
+push from one home blob. Combined with the existing warship
+coastal-flip mechanic, naval becomes the "dominate the
+shoreline first, build up later" mastery — true to the
+spec's "project power from the sea" tagline.
