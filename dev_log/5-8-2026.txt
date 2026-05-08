@@ -1,0 +1,211 @@
+SESSION: 2026-05-08
+=====================
+
+Big mobile-UX session. User playtesting on phone surfaced a long
+list of overlap / cutoff / missing-feature bugs; the second half
+shifted toward gameplay tuning (team spawning, decree balance,
+intel UI).
+
+Order: chronological, each a single commit + WHY.
+
+---
+
+[a0ddd6b] ux: long-press enemy / ally land → Nation Profile sheet
+
+WHAT: New modal triggered by long-press on any enemy or ally tile.
+At-a-glance intel about that nation: tiles + % map, troops (gated
+behind Spy Network), gold + treasury, building counts, resource
+stockpile, trade flow with you + their net flow, plus context-
+sensitive action buttons (trade / ally / war / peace). Replaces
+old "long-press = trade prompt" — trade is now the top button,
+so the gesture's muscle memory still works.
+
+WHY: User asked "long press on a territory (enemy or ally) gives
+stats about that nation, like exports, imports, military strength,
+# of settlements, etc."
+
+---
+
+[bf0a256] fix: nation-sheet close button + mobile resource bar overflow
+
+WHAT: (1) Trade-offer modal close button wasn't reliably firing
+on mobile because _refreshNationSheet ran every frame and called
+innerHTML='' on actions, destroying buttons mid-tap. Fixed by
+gating button rebuild on a relationship-state sig — body text
+still refreshes live, but action buttons only rebuild when
+allied/atWar/teammate/route changes. Plus bumped the X close
+button to 36×36 with -webkit-tap-highlight-color. (2) Resource
+bar overflowed on narrow mobile (5 chips × labels didn't fit a
+360px phone) — added a @media (max-width: 540px) block that
+drops resource labels (color encodes them anyway), shrinks fonts.
+
+WHY: User: "Exit out of the long press window isn't working but
+otherwise it looks great on mobile. Also in mobile my resource
+hud is cluttered and cut off."
+
+---
+
+[8a8d35d] graphics: bundle Noto Color Emoji subset for resource icons
+
+WHAT: Added a Google Fonts subset of Noto Color Emoji with just
+the 5 glyphs we use (🌾🌲⛰🛢💎, ~30 KB). Updated PIXI.Text style
+on map icons to use it; appended fallback to body font-family
+chain; main.ts awaits document.fonts.load before booting PIXI
+(800ms timeout race so offline reload still boots).
+
+WHY: User noticed mobile resource symbols looked nicer than
+desktop. Same code; different OS emoji fonts (Apple/Noto vs
+Linux fallback). Bundled font normalizes the look across
+devices.
+
+---
+
+[b7a0a31] fix: commander panel scrollable on mobile + always-visible X close
+
+WHAT: .cmd-card had max-height 92vh but no overflow-y, so the
+BUY button + bottom CLOSE button got clipped silently on mobile.
+Added overflow-y: auto. Tightened tree height (48vh → 34vh) on
+mobile so most phones fit without scrolling. Plus a sticky
+top-right ✕ on the card — always reachable regardless of
+scroll position.
+
+WHY: User: "not able to exit the commander tree page and the
+purchase button at the bottom is hidden."
+
+---
+
+[9926baf] fix: BUY button cut off when selecting a decree node on mobile
+
+WHAT: When a node is tapped, the side panel renders with its
+BUY at the bottom. Two fixes for visibility: click handler
+now calls scrollIntoView on the .dn-buy after re-render, AND
+.cms-foot is position: sticky; bottom: 0 with a gradient
+fade so the BUY stays pinned to the visible edge of the
+side panel even mid-scroll.
+
+WHY: User: "When I click a node the text opens up and the
+decree button is cut off at the bottom."
+
+---
+
+[57b3017] ux: mobile HUD cleanup — kill clutter, show treasury, label resources
+
+WHAT: Four mobile-UX fixes triggered by a single screenshot.
+(1) Removed the bottom-left vassal play-by-play log entirely
+(DOM, CSS, JS, event handlers). (2) Top stats: mobile @media
+drops "0% of map" + the .compact pair (routes/tiles) so
+troops + gold + treasury fit on a 360px phone. (3) Trade-offer
++ war-invite popups repositioned from top: 80px to top: calc
+(100px + safe-area-inset-top) so they sit BELOW the resource
+bar, not on top of it. (4) Resource bar now leads each chip
+with the matching emoji (🌾🌲⛰🛢💎) using the bundled font;
+mobile keeps the icon visible even when the text label is
+hidden, so the player always knows which number is which.
+
+WHY: User: "I don't need the play by play of every game event
+cluttering the UI. Remove it. I can't see my treasury income at
+the top on mobiles. The enemy trade offer pop up is covering my
+resources. Put the logo next to my resource so I know which one
+is for."
+
+---
+
+[5b0fd8c] ux: move nation roster to bottom (with troops); fixes top overlap
+
+WHAT: #enemies repositioned from top: 8px / right: 12px (where
+it crashed into #topbar on narrow phones) to a horizontal strip
+at bottom: 76px. Roster includes the human as the first badge
+(brighter border). Primary number is now TROOPS, not tiles —
+that's the threat indicator. Tile count moves to a small
+secondary "32t" tag. Own troops always visible; enemy troops
+gated behind Spy Network. Tap an enemy badge → opens that
+nation's profile sheet.
+
+WHY: User: "would you put the total troop count for each state
+at the bottom" + the screenshot showed the top-right badges
+overlapping the topbar's stats.
+
+---
+
+[ad561bf] gameplay: bigger team spawn clusters + non-overlapping team footprints
+
+WHAT: Two sizing bugs in the team spawn picker. (1) clusterR
+multiplier sqrt(N)*0.9 was too small — for teamSize=8 the disk
+came out ~50 tiles, but packing 8 members at 20-tile minSep
+needs ~56. Result: members landed on top of each other.
+Bumped to sqrt(N)*1.5. (2) Inter-team separation could shrink
+to half the cluster width when the loop fell through to lower
+factors — teams' cluster footprints could overlap. Now floored
+at 2.5× clusterR regardless of candidate-density formula.
+
+WHY: User screenshot of an 8-man game showed all nation labels
+crammed in one tight area with half the map empty.
+
+---
+
+[6557b2e] ux: distinguish you from teammates — wider hue spread + gold halo
+
+WHAT: (1) Wider intra-team palette spread. Was ±4° hue + small
+light/sat nudge per member (8-man teams looked like 8 nearly-
+identical reds). Now ±18° total hue spread (clamped via
+min(36°, teamSize×6)) plus a zig-zag light/sat pattern so
+adjacent member indices look unmistakably different. Team
+identity (red/blue/etc.) still reads. (2) Distinct GOLD halo
+on your own capital — strong gold pulse ring (thicker), double
+outer halo at 2.10× and 2.55× radius, bolder white outline on
+the diamond body itself. Find yourself instantly even on a
+crowded team-color map.
+
+WHY: User: "at the start, hard to find which unit is mine
+because they are all the same color."
+
+---
+
+[790e20f] fix: PLACING SETTLEMENT banner no longer covers resource bar
+
+WHAT: Banner was hard-coded at top: 56px which collided with
+the resource bar on iPhone where safe-area-inset-top pushes
+the bar down. Moved to top: calc(100px + safe-area-inset-top),
+matching the trade-offer / war-invite offsets.
+
+WHY: User screenshot showed the placement banner overlapping
+the resource bar after entering settlement-place mode.
+
+---
+
+[06a7783] balance: decree stacking curve — slow start, sharp ramp
+
+WHAT: Switched main bonus decrees from constant-rate compound
+(1+r)^N to a PROGRESSIVE formula where each stack k
+contributes (rate × k)%, then multiplies. Slow start, sharp
+accelerating ramp.
+  mul = product over k=1..stacks of (1 + rate * k)
+Per-decree rates retuned: production 0.015, forced-march
+0.025/0.05 branch, veterans 0.012/0.025, bunkers 0.04/0.06/0.08,
+standing-army 0.04, admiralty 0.03, cartel 0.03. Cost-reduction
+decrees (master-builder, admiralty cost) keep constant-rate
+compound — they have natural floors that bound the discount.
+UI helpers (decreeCompactCurrent, decreeEffectFor) updated to
+match. Engine cartel income also moved to progressive.
+
+WHY: User: "upgrades have to be weaker at the jump, like
+instead of 10% start at 1%. Since it compounds it'll scale
+harder than it feels now." Stack-1 buys feel like investments
+now, not "+20% all in" cliffs; combined with the geometric
+cost ramp, going deep becomes a real commitment with sharper
+late-stack payoff.
+
+---
+
+[4369d22] ux: hide button on trade-offer popup
+
+WHAT: Added a ✕ in the top-right of the trade-offer popup that
+suppresses the popup for 60 seconds. Even if new AI offers
+arrive in that window, the popup stays hidden. Pending offers
+are still queued and accessible via the diplomacy panel's
+TRADE STATUS section. Footer reads "More offers in Diplomacy
+· ✕ hides for 1 min" so the dismiss path is discoverable.
+
+WHY: User: "trade offer popup virtually never goes away,
+blocking every aspect of the UI. Add a hide indicator I can
+hide them."
