@@ -373,7 +373,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   ARMY_BASE_STRENGTH: 100,
   ARMY_MOVE_TICKS: 5,            // 0.5s per tile at 10Hz
   ARMY_COMBAT_RATE: 0.06,        // 2-3s engagements at equal strength
-  ARMY_NEUTRAL_CLAIM_COST: 0,    // free — aura handles territory growth
+  ARMY_NEUTRAL_CLAIM_COST: 2,    // strength bleed per claim (aura or walk)
   BARRACKS_RECRUIT_TICKS: 300,   // 30s base recruit cadence
   ARMY_AURA_RADIUS: 2,           // 5×5 influence area per army
   ARMY_REGEN_PER_TICK: 1,        // +10/s on owned soil

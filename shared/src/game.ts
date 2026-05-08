@@ -6696,7 +6696,14 @@ export class Game {
         bestD = d2; bestX = tx; bestY = ty;
       }
     }
-    if (bestX >= 0) this._claim(bestX, bestY, a.owner);
+    if (bestX >= 0) {
+      this._claim(bestX, bestY, a.owner);
+      // Attrition: every claim — aura or walk — costs strength. Once
+      // there are no more neutrals to claim, regen pulls the unit
+      // back up to cap. Floor at 1 so the army doesn't die mid-paint
+      // (it'd be a frustrating unit-death from passive expansion).
+      a.strength = Math.max(1, a.strength - this.config.ARMY_NEUTRAL_CLAIM_COST);
+    }
   }
 
   /** Single-tile move step + combat resolution for one army. Mirrors
