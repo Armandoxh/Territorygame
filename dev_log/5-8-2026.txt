@@ -209,3 +209,31 @@ TRADE STATUS section. Footer reads "More offers in Diplomacy
 WHY: User: "trade offer popup virtually never goes away,
 blocking every aspect of the UI. Add a hide indicator I can
 hide them."
+
+---
+
+[pending] gameplay: snake fix v2 — defender troop fraction floor
++ stronger deep-defense bonus
+
+WHAT: Two changes to the regional combat math.
+  1. Defender's regional troop fraction now floors at 0.30
+     (was raw `regionTiles / empireTiles`). For a 2000-tile
+     empire defending a 100-tile region, the old math gave 5%
+     of the empire's troops as local defense — a 1-tile enemy
+     salient could attack with FULL empire power vs 5% defender
+     and grind unopposed. With a 30% floor, defenders always
+     bring meaningful force to repel an invasion, regardless
+     of empire size.
+  2. Deep-defense bonus (when no in-region turret covers a
+     tile) bumped from +0.4/turret cap +2.5 to +0.6/turret
+     cap +5.0. So 9 turrets owned anywhere in your empire
+     now means 6× cost-per-claim against snake attacks
+     through interior regions, vs 3.5× before.
+
+WHY: User reported the snake is STILL happening: "a unit will
+live on my land with like 1 tile. When they expand, it's
+almost like my defense unit and towers don't exist." Earlier
+empire-wide deep-defense fix wasn't enough because the
+underlying troop math gave the salient an asymmetric power
+advantage. Big empires are no longer paper tigers in their
+own territory.

@@ -5068,7 +5068,17 @@ export class Game {
         if (defender) {
           const ownedD = this.territory.counts[defender.id] || 1;
           const tilesD = defR > 0 ? (this._tilesByRegion[defR]?.length ?? 1) : ownedD;
-          const fracD = ownedD > 0 ? Math.min(1, tilesD / ownedD) : 1;
+          // Defender's regional troop fraction. The raw "even spread"
+          // model (region size / empire size) makes huge empires
+          // hilariously weak everywhere — a 2000-tile empire defending
+          // a 100-tile region brings only 5% of its troops, so a
+          // 1-tile enemy salient inside it can attack with FULL empire
+          // power vs ~5% defender power and grind unopposed (the
+          // "snake" bug). Floor the fraction so the defender can
+          // always concentrate at least 30% of their pool on any
+          // single region under attack — armies do reinforce.
+          const rawFrac = Math.min(1, tilesD / ownedD);
+          const fracD = Math.max(0.30, rawFrac);
           const moraleD = defR > 0 ? (this._regionMorale[defR] ?? 1) : 1;
           const garrisonD = this._settlementGarrison(defR, defender.id);
           defenderPower = Math.max(1, defender.troops * fracD * moraleD * garrisonD * veteransDefMult);
@@ -5146,12 +5156,14 @@ export class Game {
     // back to a smaller empire-wide bonus scaled by total turret
     // investment. Stops blitz-salient "snake" attacks from rolling
     // unopposed through interior regions that couldn't host a turret
-    // (no frontier to build on while the wall held). Capped so
-    // turret-spam in deep interior doesn't dominate.
+    // (no frontier to build on while the wall held). Bumped cap +
+    // rate so a real wall investment makes a real bite — was +0.4
+    // per turret cap +2.5 (3.5× cost), now +0.6 per turret cap +5
+    // (6× cost-per-claim once you've built ~9 turrets).
     if (!inRegionTurret && this._isFrontierTile(x, y, defenderId)) {
       const totalTurrets = this._turretCountByOwner[defenderId] ?? 0;
       if (totalTurrets > 0) {
-        bonus = Math.min(totalTurrets * 0.4, 2.5);
+        bonus = Math.min(totalTurrets * 0.6, 5.0);
       }
     }
     // Reinforced Bunkers buffs the turret bonus specifically (not the
