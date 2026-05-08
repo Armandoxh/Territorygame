@@ -55,6 +55,9 @@ html, body {
   padding: 6px 12px;
   border-radius: 10px;
   width: fit-content;
+  max-width: calc(100% - 24px);
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 #topbar .dot {
   display: inline-block;
@@ -64,11 +67,22 @@ html, body {
   box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
   flex-shrink: 0;
 }
-#topbar .stat { display: flex; align-items: baseline; gap: 5px; }
+#topbar .stat { display: flex; align-items: baseline; gap: 5px; flex-shrink: 0; }
 #topbar .stat b { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
 #topbar .stat i { font-style: normal; opacity: 0.55; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
 #topbar .stat.compact b { font-size: 12px; opacity: 0.65; }
 #topbar .stat.compact i { font-size: 10px; }
+/* Mobile: drop the chatty stats (% of map, routes) and tighten
+ * gaps so troops + gold + treasury + tiles all fit on a 360px
+ * phone without clipping treasury off the right edge. */
+@media (max-width: 540px) {
+  #topbar { gap: 9px; padding: 5px 9px; font-size: 12px; }
+  #topbar .stat b { font-size: 13px; }
+  #topbar .stat i { font-size: 9px; letter-spacing: 0.5px; }
+  #topbar .stat.compact { display: none; }     /* drops routes + tiles */
+  #topbar .stat.stat-pct { display: none; }    /* drops "0% of map" */
+  #my-mastery { padding: 2px 6px; font-size: 9px; }
+}
 
 #resourcebar {
   position: absolute;
@@ -102,6 +116,13 @@ html, body {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+#resourcebar .rs-icon {
+  font-size: 14px;
+  line-height: 1;
+  /* Use the bundled Noto Color Emoji subset so the icon looks
+   * the same on every device (matches the map glyphs). */
+  font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
 }
 /* Narrow screens: drop the resource label (color already encodes
  * which one), shrink the flow chip, tighten gaps. The bar fits
@@ -275,14 +296,16 @@ html, body {
 
 #war-invite {
   position: absolute;
-  top: 80px; left: 50%;
+  /* Sit below the resource bar so it doesn't cover the resources. */
+  top: calc(100px + env(safe-area-inset-top, 0));
+  left: 50%;
   transform: translateX(-50%);
   background: rgba(20, 8, 8, 0.92);
   border: 1px solid rgba(232, 74, 74, 0.65);
   padding: 12px 14px;
   border-radius: 12px;
   font-size: 13px;
-  max-width: 320px;
+  max-width: min(320px, calc(100% - 24px));
   box-shadow: 0 6px 24px rgba(0,0,0,0.45);
   z-index: 50;
   pointer-events: auto;
@@ -391,14 +414,17 @@ html, body {
 
 #resource-offer {
   position: absolute;
-  top: 80px; left: 50%;
+  /* Sit below the resource bar (which lives at ~46px + 36px tall
+   * + safe-area). Was at 80px which overlapped the bar on mobile. */
+  top: calc(100px + env(safe-area-inset-top, 0));
+  left: 50%;
   transform: translateX(-50%);
   background: rgba(20, 20, 8, 0.94);
   border: 1px solid rgba(232, 192, 74, 0.65);
   padding: 12px 14px;
   border-radius: 12px;
   font-size: 13px;
-  max-width: 340px;
+  max-width: min(340px, calc(100% - 24px));
   box-shadow: 0 6px 24px rgba(0,0,0,0.45);
   z-index: 50;
   pointer-events: auto;
@@ -448,46 +474,6 @@ html, body {
   background: transparent; border: 0; color: #9aa3ad;
   padding: 8px; font-size: 11px; letter-spacing: 1.5px;
   text-transform: uppercase; cursor: pointer; font-family: inherit;
-}
-
-#vassal-log {
-  position: absolute;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0));
-  left: 12px;
-  width: min(240px, 50vw);
-  max-height: 40vh;
-  overflow: hidden;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  z-index: 11;
-}
-#vassal-log .log-entry {
-  background: rgba(0, 0, 0, 0.55);
-  border-left: 2px solid rgba(255,255,255,0.25);
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 11px;
-  line-height: 1.35;
-  color: #d6dee8;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  opacity: 0;
-  transform: translateX(-8px);
-  animation: logEntryIn 0.25s ease-out forwards;
-}
-#vassal-log .log-entry.fading {
-  animation: logEntryOut 0.4s ease-in forwards;
-}
-#vassal-log .log-entry b {
-  color: #e8c04a;
-  font-weight: 600;
-}
-@keyframes logEntryIn {
-  to { opacity: 0.95; transform: translateX(0); }
-}
-@keyframes logEntryOut {
-  to { opacity: 0; transform: translateX(-8px); }
 }
 
 #hint {

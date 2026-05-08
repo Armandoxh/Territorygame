@@ -97,7 +97,6 @@ export class HUD {
     barracksSheet:  this._byId('barrackssheet'),
     gopEmpireGold:  this._byId('gop-empire-gold'),
     leaderbar:    this._byId('leaderbar'),
-    vassalLog:    this._byId('vassal-log'),
     commander:    this._byId('commander'),
     crownBtn:     this._byId('crown-btn'),
     cmdTreasury:  this._byId('cmd-treasury'),
@@ -214,23 +213,6 @@ export class HUD {
   onBombEvent?: (x: number, y: number, radius: number) => void;
 
   // --- public ---
-
-  // Append a vassal-decision line to the persistent log on the bottom-left.
-  // Caps at 6 visible entries; oldest fade out after a few seconds.
-  private _logVassal(html: string): void {
-    if (!this.el.vassalLog) return;
-    const entry = document.createElement('div');
-    entry.className = 'log-entry';
-    entry.innerHTML = html;
-    this.el.vassalLog.appendChild(entry);
-    while (this.el.vassalLog.childElementCount > 6) {
-      this.el.vassalLog.firstElementChild?.remove();
-    }
-    setTimeout(() => {
-      entry.classList.add('fading');
-      setTimeout(() => entry.remove(), 500);
-    }, 6000);
-  }
 
   toast(msg: string): void {
     if (!this.el.toast) return;
@@ -3078,13 +3060,9 @@ export class HUD {
       } else if (e.type === 'region-conquered' && e.ownerId === 1) {
         const name = this.game.regionNameOf(e.regionId) || `Region ${e.regionId}`;
         this.toast(`${name} fortified`);
-        this._logVassal(`Conquered <b>${name}</b>`);
-      } else if (e.type === 'vassal-built' && e.ownerId === 1) {
-        const name = this.game.regionNameOf(e.regionId) || `Region ${e.regionId}`;
-        this._logVassal(`<b>${name}</b> built a ${e.buildingType}`);
       } else if (e.type === 'vassal-bombed' && e.ownerId === 1) {
-        const name = this.game.regionNameOf(e.regionId) || `Region ${e.regionId}`;
-        this._logVassal(`<b>${name}</b> dropped a ${e.bombType} bomb`);
+        // Bomb visuals still play (smoke + craters); the play-by-play
+        // text log was removed for being too cluttered on mobile.
         this.onBombEvent?.(e.x, e.y, this.game.config.BOMB_RADII[e.bombType]);
       }
     }
