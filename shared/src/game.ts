@@ -6392,29 +6392,56 @@ export class Game {
       // No ships in range — fall through to land bombardment below.
     }
 
-    // SUBMARINE: doesn't direct-fire. Launches a missile (a Plane
-    // configured as a small bomb) toward the nearest enemy land tile
-    // in range. The missile flies, can be hit by AA en route, and
-    // detonates as a small bomb on arrival. Means subs project power
-    // inland from far offshore.
+    // SUBMARINE: artillery support for the fleet — softens coastal
+    // defenses ahead of warship landings. Launches a missile (a Plane
+    // configured as a small bomb) toward an enemy target. Targeting
+    // priority (best to worst):
+    //   1. Coastal turret / AA buildings — clear the way for warships
+    //      and inbound bombers.
+    //   2. Other coastal enemy land tiles — soften the beach itself.
+    //   3. Inland enemy land if no coast in range.
+    // Missile flies, can be intercepted by AA en route, detonates as
+    // a small bomb on arrival.
     if (s.kind === 'submarine') {
-      let tx = -1, ty = -1, bestD = Infinity;
-      const W2 = this.territory.width;
-      for (let dy = -range; dy <= range; dy++) {
-        for (let dx = -range; dx <= range; dx++) {
-          const d2 = dx * dx + dy * dy;
-          if (d2 > r2) continue;
-          const cx = Math.floor(s.x + dx), cy = Math.floor(s.y + dy);
-          if (!this.territory.inBounds(cx, cy)) continue;
-          if (!this.territory.isPassable(cx, cy)) continue;
-          const o = this.territory.getOwner(cx, cy);
-          if (o <= 0 || o === s.owner) continue;
-          if (this.areAllied(s.owner, o)) continue;
-          if (!this.areAtWar(s.owner, o)) continue;
-          if (d2 < bestD) { bestD = d2; tx = cx; ty = cy; }
+      let tx = -1, ty = -1, bestScore = Infinity;
+      // Pre-index enemy defensive buildings within range for fast lookup.
+      // Just scan the global building list; in a typical mid-game it's
+      // a few hundred entries — cheap.
+      for (const b of this.buildings) {
+        if (b.owner === s.owner) continue;
+        if (this.areAllied(s.owner, b.owner)) continue;
+        if (!this.areAtWar(s.owner, b.owner)) continue;
+        if (b.type !== 'turret' && b.type !== 'aa' && b.type !== 'port') continue;
+        const dx = b.x - s.x, dy = b.y - s.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > r2) continue;
+        if (!this._isCoastalLand(b.x, b.y)) continue;
+        // Strong priority bonus for defensive buildings. AA > turret > port.
+        const priority = b.type === 'aa' ? 0 : b.type === 'turret' ? 100 : 200;
+        const score = priority + d2;
+        if (score < bestScore) { bestScore = score; tx = b.x; ty = b.y; }
+      }
+      // No defensive building in range? Fall back to the closest enemy
+      // coastal tile — softening the beach is still useful.
+      if (tx < 0) {
+        let bestD = Infinity;
+        for (let dy = -range; dy <= range; dy++) {
+          for (let dx = -range; dx <= range; dx++) {
+            const d2 = dx * dx + dy * dy;
+            if (d2 > r2) continue;
+            const cx = Math.floor(s.x + dx), cy = Math.floor(s.y + dy);
+            if (!this.territory.inBounds(cx, cy)) continue;
+            if (!this.territory.isPassable(cx, cy)) continue;
+            const o = this.territory.getOwner(cx, cy);
+            if (o <= 0 || o === s.owner) continue;
+            if (this.areAllied(s.owner, o)) continue;
+            if (!this.areAtWar(s.owner, o)) continue;
+            const isCoast = this._isCoastalLand(cx, cy);
+            const score = d2 + (isCoast ? 0 : 9999);
+            if (score < bestD) { bestD = score; tx = cx; ty = cy; }
+          }
         }
       }
-      void W2;
       if (tx < 0) return;
       // Spawn a missile (plane) from the sub's tile flying to the target.
       const missile: Plane = {
@@ -6494,29 +6521,52 @@ export class Game {
             if (ap) ap.troops = Math.max(0, ap.troops - d);
           }
         }
-        // CLUSTER LANDFALL — beachhead at the shoreline. Primary tile
-        // flips if the warship is within reach (md <= 3). Adjacents
-        // flip ONLY if they are themselves coastal (water-adjacent).
-        // Inland tiles are off-limits to naval gunfire — naval guns
-        // storm the beach, ground forces push inland. Without this
-        // gate the warship walks its bombardment inland one tile per
-        // reload, snaking through enemy territory bypassing the
-        // _expand connectivity gate + defender-dominance dilution.
-        // Capitals still immune.
+        // CLUSTER LANDFALL — beachhead at the shoreline. Warship must
+        // be ADJACENT to the target (md ≤ 1) AND have held position
+        // for ~3s before the cluster drops. Without these gates,
+        // landings happened with the ship still 3 tiles offshore and
+        // troops appeared "from nowhere" — felt unfair to the player
+        // and visually disconnected from where the ship actually is.
+        // The charge delay also gives the defender a window to
+        // counter-bombard the parked warship.
         const md = Math.abs(bestEX - s.x) + Math.abs(bestEY - s.y);
-        if (md <= 3 && this._capitalIndexAt(bestEX, bestEY) < 0
-            && this._isCoastalLand(bestEX, bestEY)) {
-          this.tryCapture(bestEX, bestEY, s.owner);
-          // 4-direction adjacents — must also be coastal to flip.
-          for (const [adx, ady] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-            const ax = bestEX + adx, ay = bestEY + ady;
-            if (!this.territory.inBounds(ax, ay)) continue;
-            if (this._capitalIndexAt(ax, ay) >= 0) continue;
-            if (!this.territory.isPassable(ax, ay)) continue;
-            if (!this._isCoastalLand(ax, ay)) continue;
-            const ao = this.territory.getOwner(ax, ay);
-            if (ao > 0 && ao !== s.owner && !this.areAllied(s.owner, ao)) {
-              this.tryCapture(ax, ay, s.owner);
+        const inDropRange = md <= 1
+          && this._capitalIndexAt(bestEX, bestEY) < 0
+          && this._isCoastalLand(bestEX, bestEY);
+        if (inDropRange) {
+          if (s.landingChargingFrom == null) {
+            s.landingChargingFrom = this.tickCount;
+          }
+          const CHARGE_TICKS = 30;
+          if (this.tickCount - s.landingChargingFrom >= CHARGE_TICKS) {
+            this.tryCapture(bestEX, bestEY, s.owner);
+            // 4-direction adjacents — must also be coastal to flip.
+            for (const [adx, ady] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+              const ax = bestEX + adx, ay = bestEY + ady;
+              if (!this.territory.inBounds(ax, ay)) continue;
+              if (this._capitalIndexAt(ax, ay) >= 0) continue;
+              if (!this.territory.isPassable(ax, ay)) continue;
+              if (!this._isCoastalLand(ax, ay)) continue;
+              const ao = this.territory.getOwner(ax, ay);
+              if (ao > 0 && ao !== s.owner && !this.areAllied(s.owner, ao)) {
+                this.tryCapture(ax, ay, s.owner);
+              }
+            }
+            s.landingChargingFrom = undefined;
+          }
+        } else {
+          s.landingChargingFrom = undefined;
+          // Out of drop range — nudge toward a water tile adjacent to
+          // the best coastal target so the warship actively SAILS to
+          // the beach rather than firing offshore. Skip when the
+          // player has set a manual destination.
+          if (!s.manual && this._isCoastalLand(bestEX, bestEY)) {
+            for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+              const nx = bestEX + dx, ny = bestEY + dy;
+              if (this._isWaterTile(nx, ny)) {
+                s.destX = nx; s.destY = ny;
+                break;
+              }
             }
           }
         }

@@ -34,6 +34,13 @@ export interface Ship {
   hp: number;
   /** Ticks remaining until the ship can fire again. */
   fireCooldown: number;
+  /** Warships only — first tick this ship started "preparing" a coastal
+   *  landing (in range of a valid drop target). The cluster only fires
+   *  after the warship has held position for ~30 ticks (3s), so the
+   *  player visually sees the ship parked at the coast before troops
+   *  appear. Cleared whenever the warship loses LOS or moves out of
+   *  position. */
+  landingChargingFrom?: number;
 }
 
 export type ShipBuildError =
