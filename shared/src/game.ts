@@ -5348,21 +5348,23 @@ export class Game {
       const tileRegion = this.regions[i]!;
       const isVassal = tileRegion > 0 && this._regionDominant[tileRegion] === p.id;
 
-      // Connectivity gate (AI / vassal only): for salient tiles INSIDE
-      // a region that someone else dominates, require ≥3 same-owner
-      // cardinal neighbors to project outward — a true thick foothold,
-      // not a thin finger. For tiles inside the player's OWN dominant
-      // region (their natural border), only ≥1 is required so corner
-      // and peninsula expansion stays fluid. Humans bypass the gate
-      // entirely.
-      if (!p.isHuman) {
-        let sameOwnerNbrs = 0;
-        if (this.territory.getOwner(x - 1, y) === p.id) sameOwnerNbrs++;
-        if (this.territory.getOwner(x + 1, y) === p.id) sameOwnerNbrs++;
-        if (this.territory.getOwner(x, y - 1) === p.id) sameOwnerNbrs++;
-        if (this.territory.getOwner(x, y + 1) === p.id) sameOwnerNbrs++;
-        const minNbrs = isVassal ? 1 : 3;
-        if (sameOwnerNbrs < minNbrs) continue;
+      // Connectivity gate (AI / vassal only): if the source tile sits
+      // inside a region that SOMEONE ELSE dominates, require ≥3 same-
+      // owner cardinal neighbors to project outward — a true thick
+      // foothold, not a thin finger. Neutral / contested / your-own
+      // dominant regions are unrestricted, so spawn expansion, normal
+      // border push, and contested-zone fights all work normally.
+      // Humans bypass the gate entirely.
+      if (!p.isHuman && tileRegion > 0) {
+        const regionDom = this._regionDominant[tileRegion] ?? 0;
+        if (regionDom > 0 && regionDom !== p.id) {
+          let sameOwnerNbrs = 0;
+          if (this.territory.getOwner(x - 1, y) === p.id) sameOwnerNbrs++;
+          if (this.territory.getOwner(x + 1, y) === p.id) sameOwnerNbrs++;
+          if (this.territory.getOwner(x, y - 1) === p.id) sameOwnerNbrs++;
+          if (this.territory.getOwner(x, y + 1) === p.id) sameOwnerNbrs++;
+          if (sameOwnerNbrs < 3) continue;
+        }
       }
 
       // Build candidate list, filtered for actionability:

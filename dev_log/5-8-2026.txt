@@ -597,3 +597,39 @@ already got muscle in your own region; ≥1 nbr is enough)
 while keeping the snake gate active for foreign salients
 (you need a 3-wide foothold to push deeper into someone
 else's territory).
+
+---
+
+[pending] hotfix: gate now only fires inside ENEMY-dominant regions
+
+WHAT: Refined the connectivity gate one more time. The
+previous version applied ≥3 anywhere outside the player's
+dominant region, which killed early-game expansion: at
+spawn, an AI's small blob covers <1% of a large region —
+NO ONE dominates that region yet (dom = 0), so the gate
+read "not your dominant region → ≥3" and blocked all push
+from the spawn blob's frontier (typical spawn frontier
+tiles have only 1-2 same-owner cardinal nbrs).
+
+Now the gate is gated on ENEMY dominance specifically:
+  - Region has no dominator (dom = 0, neutral / contested):
+    no gate. Early-game AI / vassal expansion through fresh
+    land works normally.
+  - Region dominated by you: no gate. Natural border push.
+  - Region dominated by SOMEONE ELSE: ≥3 same-owner nbrs
+    required. This is the foreign-salient / snake case.
+
+Humans still bypass entirely.
+
+WHY: User: "Whatever change you just did made the game so
+unfun. people are not expanding anymore, and the start of
+the game is me just steamrolling through. why isnt anyone
+else im playing against expanding?"
+
+Spawn-blob expansion was completely frozen by the previous
+gate. Pretty much every region at game start has dom = 0
+(no one owns 50%+ yet), so every AI/vassal frontier tile
+hit the ≥3 gate and stalled. Now they push freely until
+they collide with another player's dominant region — and
+only at that boundary do they have to maintain a thick
+foothold.
