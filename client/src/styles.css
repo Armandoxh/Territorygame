@@ -1091,7 +1091,45 @@ html, body {
   padding: 24px 22px 18px;
   width: min(680px, 96vw);
 }
-.cmd-card { max-height: 92vh; display: flex; flex-direction: column; }
+.cmd-card {
+  max-height: 92vh;
+  display: flex; flex-direction: column;
+  position: relative;
+  /* Card itself scrolls when content (tree + side panel + close)
+   * is taller than 92vh — was clipping on mobile, hiding the
+   * buy button and the CLOSE button at the bottom. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* Always-visible top-right X close button on big modal cards.
+ * Pinned to the card via position: sticky so it stays reachable
+ * even mid-scroll. Bigger tap target than the bottom CLOSE link. */
+.card-x {
+  position: sticky;
+  top: 0;
+  align-self: flex-end;
+  margin: -8px -8px 0 0;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #c6d8d0;
+  width: 36px; height: 36px;
+  font-size: 18px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  z-index: 5;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.12);
+}
+.card-x:hover { background: rgba(255,255,255,0.10); color: #fff; }
+.card-x:active { transform: scale(0.94); }
+@media (max-height: 700px), (max-width: 540px) {
+  /* Tighter tree on mobile so the side panel + buy + close all
+   * fit. The card scrolls if it still doesn't, but most phones
+   * with this height adjustment land within one viewport. */
+  .cmd-tree { max-height: 34vh; }
+  #commander .card { padding: 18px 14px 14px; }
+}
 #commander h2 {
   margin: 0 0 6px;
   font-size: 22px;

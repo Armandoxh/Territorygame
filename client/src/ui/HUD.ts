@@ -110,6 +110,7 @@ export class HUD {
     cmdTreeWrap:  this._byId('cmd-tree-wrap'),
     cmdSelected:  this._byId('cmd-selected'),
     cmdCancel:    this._byId('commander-cancel'),
+    cmdX:         this._byId<HTMLButtonElement>('commander-x'),
     masteryPanel: this._byId('mastery'),
     masteryGrid:  this._byId('mastery-grid'),
     masteryTitle: this._byId('mastery-title'),
@@ -1090,6 +1091,7 @@ export class HUD {
   private _wireCommander(): void {
     this.el.crownBtn?.addEventListener('click', () => this.showCommander());
     this.el.cmdCancel?.addEventListener('click', () => this.hideCommander());
+    this.el.cmdX?.addEventListener('click', () => this.hideCommander());
     this.el.commander?.addEventListener('click', (e) => {
       if (e.target === this.el.commander) this.hideCommander();
     });
