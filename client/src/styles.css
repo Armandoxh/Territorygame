@@ -74,7 +74,7 @@ html, body {
   position: absolute;
   top: calc(46px + env(safe-area-inset-top, 0));
   left: 12px; right: 12px;
-  display: flex; gap: 8px; flex-wrap: wrap;
+  display: flex; gap: 6px;
   background: rgba(20, 24, 30, 0.78);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 9px;
@@ -82,12 +82,18 @@ html, body {
   pointer-events: auto;
   font-family: inherit;
   z-index: 11;
+  /* Wide screens: even row of chips. Narrow: clip-allowed but
+   * each chip gets equal share so nothing falls off the edge. */
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 #resourcebar .rs {
   display: flex; align-items: baseline; gap: 4px;
   font-size: 12px;
-  flex: 1 1 auto; min-width: 0;
+  flex: 1 1 0; min-width: 0;
   justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
 }
 #resourcebar .rs b { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14px; }
 #resourcebar .rs i {
@@ -96,6 +102,16 @@ html, body {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+/* Narrow screens: drop the resource label (color already encodes
+ * which one), shrink the flow chip, tighten gaps. The bar fits
+ * 5 chips + flow indicators on a 360px-wide phone without clip. */
+@media (max-width: 540px) {
+  #resourcebar { padding: 5px 8px; gap: 4px; }
+  #resourcebar .rs { font-size: 11px; gap: 3px; }
+  #resourcebar .rs b { font-size: 13px; }
+  #resourcebar .rs i { display: none; }
+  #resourcebar .rs-flow { font-size: 9px; padding: 1px 4px; }
 }
 #resourcebar .rs-food b  { color: #b8d77a; }
 #resourcebar .rs-wood b  { color: #9bbd6c; }
@@ -1378,11 +1394,21 @@ html, body {
 .ns-tag.war      { background: rgba(232,74,74,0.22); color: #ff6b6b; }
 .ns-tag.route    { background: rgba(234,199,104,0.18); color: #eac768; }
 .ns-close {
-  background: transparent; border: 0; color: #9aa3ad;
-  font-size: 16px; padding: 4px 8px; cursor: pointer;
-  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #c6d8d0;
+  font-size: 18px; line-height: 1;
+  width: 36px; height: 36px;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  font-family: inherit;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.12);
 }
-.ns-close:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.ns-close:hover { background: rgba(255,255,255,0.10); color: #fff; }
+.ns-close:active { transform: scale(0.94); }
 
 .ns-body { display: flex; flex-direction: column; gap: 4px; }
 .ns-header {

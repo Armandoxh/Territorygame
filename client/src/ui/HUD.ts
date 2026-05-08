@@ -164,6 +164,7 @@ export class HUD {
   private _lastBuyAt = 0;
   private _tradeTargetId: PlayerId = 0;
   private _nationSheetId: PlayerId = 0;
+  private _nationSheetSig = '';
 
   // Debug HUD live stats — set by main.ts loop
   fps = 0;
@@ -2422,11 +2423,13 @@ export class HUD {
     const p = this.game.players[playerId];
     if (!p || !p.alive) return;
     this._nationSheetId = playerId;
+    this._nationSheetSig = ''; // force header + actions rebuild on first render
     this._refreshNationSheet();
     this.el.nationSheet?.classList.remove('hidden');
   }
   hideNationSheet(): void {
     this._nationSheetId = 0;
+    this._nationSheetSig = '';
     this.el.nationSheet?.classList.add('hidden');
   }
 
@@ -2437,12 +2440,21 @@ export class HUD {
     const p = this.game.players[id];
     if (!p) return;
 
-    // Header — color, name, tags (mastery, team, status badges).
+    const allied = this.game.areAllied(1, id);
+    const teammate = this.game.areTeammates(1, id);
+    const atWar = this.game.areAtWar(1, id);
+    const route = this.game.externalTradeRouteBetween(1, id);
+    const sig = `${id}|${allied ? 1 : 0}|${teammate ? 1 : 0}|${atWar ? 1 : 0}|${route ? 1 : 0}`;
+    const sigChanged = sig !== this._nationSheetSig;
+
+    // Header — color, name, tags. Color + name update every refresh
+    // (cheap textContent / style swap; doesn't recreate any DOM that
+    // could be mid-tap). Tags only rebuild when relationship changes.
     const palette = this.game.config.PLAYER_COLORS;
     const c = palette[id];
     if (this.el.nsDot && c) this.el.nsDot.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
     if (this.el.nsName) this.el.nsName.textContent = p.name;
-    if (this.el.nsTags) {
+    if (sigChanged && this.el.nsTags) {
       this.el.nsTags.innerHTML = '';
       const mk = (cls: string, txt: string): void => {
         const s = document.createElement('span');
@@ -2451,16 +2463,16 @@ export class HUD {
         this.el.nsTags!.appendChild(s);
       };
       if (p.mastery) mk(`mastery-${p.mastery}`, p.mastery.toUpperCase());
-      if (this.game.areTeammates(1, id)) mk('teammate', 'TEAMMATE');
-      else if (this.game.areAllied(1, id)) mk('ally', 'ALLY');
-      else if (this.game.areAtWar(1, id))  mk('war',  'AT WAR');
-      const route = this.game.externalTradeRouteBetween(1, id);
+      if (teammate) mk('teammate', 'TEAMMATE');
+      else if (allied) mk('ally', 'ALLY');
+      else if (atWar)  mk('war',  'AT WAR');
       if (route) mk('route', `ROUTE +${(route.flow * this.game.config.SIM_HZ).toFixed(1)}♛/s`);
     }
 
-    // Body — stat blocks. Spy-network reveals troops + targets;
-    // without it, hide the troop count and military breakdown
-    // (everything else is map-visible info anyway).
+    // Body — stat blocks. Live numbers update every frame; the stat
+    // structure itself is stable (rows are static text, no buttons),
+    // so rebuilding inside body never disrupts a tap on the close
+    // button or action buttons (those live OUTSIDE body).
     const body = this.el.nsBody!;
     body.innerHTML = '';
     const spy = (this.game.human().decreeStacks['spy-network'] ?? 0) > 0;
@@ -2551,12 +2563,17 @@ export class HUD {
       addRow('Their trades', `${theirCount} active`);
     }
 
-    // Action buttons — context-sensitive.
+    // Action buttons — context-sensitive. ONLY rebuild when the
+    // relationship sig changes, otherwise a 30-fps refresh
+    // destroys mid-tap touch events (race between touchstart and
+    // click). When sig is stable, leave the existing buttons alone.
+    if (!sigChanged) {
+      this._nationSheetSig = sig;
+      return;
+    }
+    this._nationSheetSig = sig;
     const actions = this.el.nsActions!;
     actions.innerHTML = '';
-    const allied = this.game.areAllied(1, id);
-    const teammate = this.game.areTeammates(1, id);
-    const atWar = this.game.areAtWar(1, id);
     const mkBtn = (cls: string, label: string, action: () => void, disabled = false): void => {
       const b = document.createElement('button');
       b.type = 'button';
