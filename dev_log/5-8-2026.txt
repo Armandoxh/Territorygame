@@ -284,6 +284,39 @@ playable instead of greyed-out placeholders.
 
 ---
 
+[pending] ux: MILITARY section on Nation Profile + clustered resource placement
+
+WHAT: Two requests.
+
+(1) Long-press on a vassal/enemy now also shows a MILITARY block
+    so the user can see WHY their attacks bounce. New
+    Game.combatSummaryFor(playerId) exposes the multipliers the
+    UI used to know about only via private helpers:
+        Mastery, Atk power (veterans attacker), Def power
+        (veterans defender), Wall bonus (reinforced bunkers),
+        Expansion (forced-march), total decree stacks owned.
+    Each rendered as ×N.NN (+P%) so it reads at a glance.
+
+(2) Resource map placement is now CLUSTERED: each resource type
+    gets exactly 2 contiguous clusters of regions, seeds spread
+    far apart via "farthest from existing seed" iteration, then
+    BFS round-robin grows each cluster one region per round so
+    cluster sizes stay balanced. Replaced the random-hash
+    assignment that scattered resource types across the map
+    with no spatial coherence. Now you'll see distinct food
+    valleys, oil basins, gem mountains, etc. Two clusters per
+    type means each resource has two trade hot-spots geographically
+    separated — claiming one of them gives you a regional
+    monopoly worth raiding for.
+
+WHY: User: "When I long press I also wanna see the stats of
+that vassal. Cause sometimes I can't get past their defenses.
+Why? I'd like to know. Also when you create the map can you
+cluster all of one type of resources together, and make 2
+clusters of each resource per game, one resource per territory."
+
+---
+
 [pending] balance: trade rates uncap + scarcity pricing + gold trades + spread targets
 
 WHAT: User: "If there's a scarce resource on the map why is the

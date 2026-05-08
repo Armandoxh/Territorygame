@@ -310,6 +310,33 @@ export class Game {
     return sum;
   }
 
+  /** Public combat summary for the Nation Profile sheet. Surfaces
+   *  the multipliers the player would face if attacking / defending
+   *  this nation, so the user can see WHY their pushes fail. */
+  combatSummaryFor(playerId: PlayerId): {
+    attackerMul: number;
+    defenderMul: number;
+    bunkerMul: number;
+    expansionMul: number;
+    decreeStacks: number;
+    mastery: string;
+  } {
+    const p = this.players[playerId];
+    if (!p) {
+      return { attackerMul: 1, defenderMul: 1, bunkerMul: 1, expansionMul: 1, decreeStacks: 0, mastery: '—' };
+    }
+    let stacks = 0;
+    for (const v of Object.values(p.decreeStacks)) stacks += v;
+    return {
+      attackerMul: this._veteransMult(p, true),
+      defenderMul: this._veteransMult(p, false),
+      bunkerMul: this._reinforcedBunkersMult(p, true),
+      expansionMul: this._expansionBoostFor(p, false),
+      decreeStacks: stacks,
+      mastery: p.mastery ?? 'unset',
+    };
+  }
+
   /** Per-second NET production rate per resource for `playerId` —
    *  regional generation minus building upkeep. Trade flow is NOT
    *  included so callers can compose it with `resourceTrades`
@@ -3674,17 +3701,95 @@ export class Game {
   private _assignRegionResources(): void {
     this.regionResources = [];
     this.regionResources[0] = null; // water
+    if (this.regionCount === 0) return;
+
+    // Clustered placement: each resource type gets exactly 2 contiguous
+    // clusters of regions. 5 resources × 2 = 10 clusters total. Seeds
+    // are spread far apart (Poisson-disk-ish via "farthest from
+    // existing" iteration), then BFS-grow round-robin so each cluster
+    // gains one region per round — keeps cluster sizes balanced.
+    const allKinds: ResourceKind[] = ['food', 'wood', 'stone', 'oil', 'gems'];
+    const NUM_CLUSTERS_PER_KIND = 2;
+    const totalClusters = allKinds.length * NUM_CLUSTERS_PER_KIND;
+
+    // Map each cluster index to a kind. Interleave so the order we
+    // process clusters spreads kinds: c0=food, c1=wood, c2=stone, ...
+    // c5=food (2nd cluster), etc. The "farthest from existing seeds"
+    // selection is biased toward spread regardless, so two clusters
+    // of the same kind end up at opposite map sides.
+    const clusterKind: ResourceKind[] = [];
+    for (let i = 0; i < totalClusters; i++) {
+      clusterKind.push(allKinds[i % allKinds.length]!);
+    }
+
+    // Pick 10 seed regions. First random, then each next is the region
+    // with the maximum minimum-distance to existing seeds.
+    const seeds: number[] = [];
+    seeds.push(1 + ((Math.random() * this.regionCount) | 0));
+    while (seeds.length < Math.min(totalClusters, this.regionCount)) {
+      let bestR = 0, bestMinD2 = -1;
+      for (let r = 1; r <= this.regionCount; r++) {
+        if (seeds.includes(r)) continue;
+        const cx = this._regionCentroids[r * 2]!;
+        const cy = this._regionCentroids[r * 2 + 1]!;
+        let minD2 = Infinity;
+        for (const s of seeds) {
+          const sx = this._regionCentroids[s * 2]!;
+          const sy = this._regionCentroids[s * 2 + 1]!;
+          const dx = cx - sx, dy = cy - sy;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < minD2) minD2 = d2;
+        }
+        if (minD2 > bestMinD2) { bestMinD2 = minD2; bestR = r; }
+      }
+      if (bestR === 0) break;
+      seeds.push(bestR);
+    }
+
+    // BFS round-robin: each cluster expands by one region per round
+    // until no growth is possible (every region is claimed or no
+    // cluster has unclaimed adjacent regions left).
+    const regionCluster = new Array<number>(this.regionCount + 1).fill(-1);
+    const fronts: number[][] = [];
+    for (let i = 0; i < seeds.length; i++) {
+      regionCluster[seeds[i]!] = i;
+      fronts.push([seeds[i]!]);
+    }
+    let progress = true;
+    while (progress) {
+      progress = false;
+      for (let c = 0; c < fronts.length; c++) {
+        const front = fronts[c]!;
+        // Try the head of the front list — claim one unclaimed
+        // adjacent region. If the head has none left, drop it and
+        // try the next. Stop after one claim or when front is empty.
+        while (front.length > 0) {
+          const r = front[0]!;
+          const adj = this._regionAdjacency[r];
+          if (!adj) { front.shift(); continue; }
+          let claimed = -1;
+          for (const nr of adj) {
+            if (regionCluster[nr] === -1) { claimed = nr; break; }
+          }
+          if (claimed === -1) { front.shift(); continue; }
+          regionCluster[claimed] = c;
+          front.push(claimed);
+          progress = true;
+          break;
+        }
+      }
+    }
+
+    // Assign resources from cluster index → kind. Disconnected
+    // regions (not reached by any BFS) fall back to a hash-based
+    // assignment so they're not all "no resource".
     for (let r = 1; r <= this.regionCount; r++) {
-      // Cheap deterministic hash on regionId.
-      const h1 = Math.sin(r * 12.9898 + 78.233) * 43758.5453;
-      const h = h1 - Math.floor(h1); // 0..1
-      let kind: ResourceKind;
-      if      (h < 0.30) kind = 'food';
-      else if (h < 0.55) kind = 'wood';
-      else if (h < 0.77) kind = 'stone';
-      else if (h < 0.92) kind = 'oil';
-      else               kind = 'gems';
-      this.regionResources[r] = kind;
+      const c = regionCluster[r];
+      if (c !== undefined && c >= 0) {
+        this.regionResources[r] = clusterKind[c]!;
+      } else {
+        this.regionResources[r] = allKinds[r % allKinds.length]!;
+      }
     }
     // Denormalize to a per-tile lookup (Uint8Array) so the territory
     // shader can pack the resource id into its texture without a JS

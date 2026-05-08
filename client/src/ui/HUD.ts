@@ -2539,6 +2539,23 @@ export class HUD {
     }
     addRow('Gold', `${Math.floor(p.gold).toLocaleString()}♛  ·  treasury ${Math.floor(p.treasury).toLocaleString()}♛`);
 
+    // MILITARY section — surfaces the combat multipliers so the
+    // player can see WHY their attacks bounce. Shows mastery,
+    // veterans / bunker / expansion mults, and total decree stacks.
+    const cs = this.game.combatSummaryFor(id);
+    const fmtMul = (m: number): string => {
+      const pct = (m - 1) * 100;
+      if (Math.abs(pct) < 0.05) return `×1.00 (no buff)`;
+      return `×${m.toFixed(2)} (${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%)`;
+    };
+    addHeader('MILITARY');
+    addRow('Mastery', cs.mastery);
+    addRow('Atk power', fmtMul(cs.attackerMul));
+    addRow('Def power', fmtMul(cs.defenderMul));
+    addRow('Wall bonus', fmtMul(cs.bunkerMul));
+    addRow('Expansion', fmtMul(cs.expansionMul));
+    addRow('Decrees', `${cs.decreeStacks} stack${cs.decreeStacks === 1 ? '' : 's'} owned`);
+
     addHeader('BUILDINGS');
     const buildList = [
       `${settlements} settlement${settlements === 1 ? '' : 's'}`,
