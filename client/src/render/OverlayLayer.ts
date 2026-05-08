@@ -245,6 +245,7 @@ export class OverlayLayer {
         icon = new Text({
           text: RESOURCE_GLYPHS[kind] ?? '·',
           style: {
+            fontFamily: '"Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif',
             fontSize: 30,
             fill: 0xffffff,
             stroke: { color: 0x000000, width: 4, alpha: 0.85 },

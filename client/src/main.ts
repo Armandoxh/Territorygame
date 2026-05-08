@@ -69,6 +69,20 @@ async function boot(): Promise<void> {
   game.generateTerrain();
   game.spawnAll();
 
+  // Wait for the bundled emoji font (resource map icons) to load
+  // before PIXI rasterizes any text — otherwise the first frame
+  // bakes the OS fallback emoji and we'd need to recreate every
+  // icon on font swap. Don't block forever; race a short timeout
+  // so an offline reload still boots.
+  if ('fonts' in document) {
+    try {
+      await Promise.race([
+        document.fonts.load('30px "Noto Color Emoji"'),
+        new Promise((res) => setTimeout(res, 800)),
+      ]);
+    } catch { /* offline / blocked — fall back to OS emoji */ }
+  }
+
   // --- Pixi ---
   const app = new Application();
   await app.init({
