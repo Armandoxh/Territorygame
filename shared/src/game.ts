@@ -327,10 +327,23 @@ export class Game {
     }
     let stacks = 0;
     for (const v of Object.values(p.decreeStacks)) stacks += v;
+    // Fold mastery passives into the displayed mults so the MILITARY
+    // block reflects what's actually applied in the engine. Ground
+    // mastery's +30% tile defense and +50% turret retaliation are real
+    // multipliers in _defenseAt / _turretRetaliationAt, but were never
+    // surfaced to the player — at game start every line read ×1.00 even
+    // for a ground build that already had a 1.3× / 1.5× advantage.
+    let attackerMul = this._veteransMult(p, true);
+    let defenderMul = this._veteransMult(p, false);
+    let bunkerMul = this._reinforcedBunkersMult(p, true);
+    if (p.mastery === 'ground') {
+      defenderMul *= 1.30;  // +30% tile defense
+      bunkerMul   *= 1.50;  // +50% turret retaliation
+    }
     return {
-      attackerMul: this._veteransMult(p, true),
-      defenderMul: this._veteransMult(p, false),
-      bunkerMul: this._reinforcedBunkersMult(p, true),
+      attackerMul,
+      defenderMul,
+      bunkerMul,
       expansionMul: this._expansionBoostFor(p, false),
       decreeStacks: stacks,
       mastery: p.mastery ?? 'unset',
