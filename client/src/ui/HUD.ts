@@ -61,6 +61,13 @@ export class HUD {
     bpBName:              this._byId('bp-b-name'),
     bpBDesc:              this._byId('bp-b-desc'),
     bpCancel:             this._byId<HTMLButtonElement>('bp-cancel'),
+    nationSheet:          this._byId('nation-sheet'),
+    nsDot:                this._byId('ns-dot'),
+    nsName:               this._byId('ns-name'),
+    nsTags:               this._byId('ns-tags'),
+    nsBody:               this._byId('ns-body'),
+    nsActions:            this._byId('ns-actions'),
+    nsClose:              this._byId<HTMLButtonElement>('ns-close'),
     debug:        this._byId('debug'),
     stop:         this._byId('stop-btn'),
     hotbar:       this._byId('hotbar'),
@@ -156,6 +163,7 @@ export class HUD {
   private _selectedDecree: string | null = null;
   private _lastBuyAt = 0;
   private _tradeTargetId: PlayerId = 0;
+  private _nationSheetId: PlayerId = 0;
 
   // Debug HUD live stats — set by main.ts loop
   fps = 0;
@@ -183,6 +191,7 @@ export class HUD {
     this._wireDiplomacy();
     this._wireWarInvite();
     this._wireTradePrompt();
+    this._wireNationSheet();
     this._wireMastery();
     // Show the welcome tutorial automatically on first launch.
     try {
@@ -601,6 +610,9 @@ export class HUD {
     if (this.el.fleetSheet?.classList.contains('show')) this._refreshFleetSheetButtons();
     if (this.el.commander?.classList.contains('show')) this._refreshCommander();
     if (this.el.diploPanel?.classList.contains('show')) this._renderDiplomacy();
+    if (this.el.nationSheet && !this.el.nationSheet.classList.contains('hidden') && this._nationSheetId > 0) {
+      this._refreshNationSheet();
+    }
     this._refreshLeaderBar();
     this._refreshWarInvite();
     this._refreshResourceOffer();
@@ -2391,6 +2403,195 @@ export class HUD {
     this.tradePromptTarget = 0;
     this.game.paused = false;
     this.el.tradePrompt?.classList.add('hidden');
+  }
+
+  private _wireNationSheet(): void {
+    this.el.nsClose?.addEventListener('click', () => this.hideNationSheet());
+    this.el.nationSheet?.addEventListener('click', (e) => {
+      if (e.target === this.el.nationSheet) this.hideNationSheet();
+    });
+  }
+
+  /** Open the Nation Profile sheet for `playerId`. Long-press on
+   *  enemy / ally land surfaces this — at-a-glance intel about
+   *  tile count, troops, gold, resources, buildings, fleet, and
+   *  trade flow + diplomacy buttons (trade, ally, war, peace). */
+  showNationSheet(playerId: PlayerId): void {
+    if (this.game.outcome) return;
+    if (playerId <= 0 || playerId === 1) return;
+    const p = this.game.players[playerId];
+    if (!p || !p.alive) return;
+    this._nationSheetId = playerId;
+    this._refreshNationSheet();
+    this.el.nationSheet?.classList.remove('hidden');
+  }
+  hideNationSheet(): void {
+    this._nationSheetId = 0;
+    this.el.nationSheet?.classList.add('hidden');
+  }
+
+  private _refreshNationSheet(): void {
+    if (!this.el.nationSheet) return;
+    const id = this._nationSheetId;
+    if (id <= 0) return;
+    const p = this.game.players[id];
+    if (!p) return;
+
+    // Header — color, name, tags (mastery, team, status badges).
+    const palette = this.game.config.PLAYER_COLORS;
+    const c = palette[id];
+    if (this.el.nsDot && c) this.el.nsDot.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
+    if (this.el.nsName) this.el.nsName.textContent = p.name;
+    if (this.el.nsTags) {
+      this.el.nsTags.innerHTML = '';
+      const mk = (cls: string, txt: string): void => {
+        const s = document.createElement('span');
+        s.className = `ns-tag ${cls}`;
+        s.textContent = txt;
+        this.el.nsTags!.appendChild(s);
+      };
+      if (p.mastery) mk(`mastery-${p.mastery}`, p.mastery.toUpperCase());
+      if (this.game.areTeammates(1, id)) mk('teammate', 'TEAMMATE');
+      else if (this.game.areAllied(1, id)) mk('ally', 'ALLY');
+      else if (this.game.areAtWar(1, id))  mk('war',  'AT WAR');
+      const route = this.game.externalTradeRouteBetween(1, id);
+      if (route) mk('route', `ROUTE +${(route.flow * this.game.config.SIM_HZ).toFixed(1)}♛/s`);
+    }
+
+    // Body — stat blocks. Spy-network reveals troops + targets;
+    // without it, hide the troop count and military breakdown
+    // (everything else is map-visible info anyway).
+    const body = this.el.nsBody!;
+    body.innerHTML = '';
+    const spy = (this.game.human().decreeStacks['spy-network'] ?? 0) > 0;
+    const tiles = this.game.territory.counts[id] ?? 0;
+    const land = this.game.totalLand || 1;
+    const tilePct = (tiles / land) * 100;
+
+    const settlements = this.game.countBuildings(id, 'settlement');
+    const turrets = this.game.countBuildings(id, 'turret');
+    const airstrips = this.game.countBuildings(id, 'airstrip');
+    const aas = this.game.countBuildings(id, 'aa');
+    const ports = this.game.countBuildings(id, 'port');
+    const barracks = this.game.countBuildings(id, 'barracks');
+    let ships = 0; for (const s of this.game.ships) if (s.owner === id) ships++;
+
+    const addRow = (label: string, value: string): void => {
+      const row = document.createElement('div');
+      row.className = 'ns-row';
+      const l = document.createElement('span'); l.className = 'ns-row-l'; l.textContent = label;
+      const v = document.createElement('span'); v.className = 'ns-row-v'; v.textContent = value;
+      row.appendChild(l); row.appendChild(v);
+      body.appendChild(row);
+    };
+    const addHeader = (text: string): void => {
+      const h = document.createElement('div');
+      h.className = 'ns-header';
+      h.textContent = text;
+      body.appendChild(h);
+    };
+
+    addHeader('TERRITORY');
+    addRow('Tiles', `${tiles.toLocaleString()} (${tilePct.toFixed(1)}% of map)`);
+    if (spy) {
+      addRow('Troops', formatTroops(p.troops));
+    } else {
+      addRow('Troops', '🔒 Buy Spy Network for intel');
+    }
+    addRow('Gold', `${Math.floor(p.gold).toLocaleString()}♛  ·  treasury ${Math.floor(p.treasury).toLocaleString()}♛`);
+
+    addHeader('BUILDINGS');
+    const buildList = [
+      `${settlements} settlement${settlements === 1 ? '' : 's'}`,
+      `${turrets} turret${turrets === 1 ? '' : 's'}`,
+      `${airstrips} airstrip${airstrips === 1 ? '' : 's'}`,
+      `${barracks} barrack${barracks === 1 ? '' : 's'}`,
+      `${aas} AA`,
+      `${ports} port${ports === 1 ? '' : 's'}`,
+    ].filter(s => !s.startsWith('0 ')).join(' · ');
+    addRow('Built', buildList || 'none');
+    if (ships > 0) addRow('Ships', `${ships}`);
+
+    addHeader('RESOURCES');
+    const r = p.resources;
+    addRow('Stockpile', `food ${Math.floor(r.food)} · wood ${Math.floor(r.wood)} · stone ${Math.floor(r.stone)} · oil ${Math.floor(r.oil)} · gems ${Math.floor(r.gems)}`);
+
+    // Trade flow with you (active) + their global net.
+    const myTrade = this.game.resourceTradeBetween(1, id);
+    const theirNet: Record<string, number> = { food: 0, wood: 0, stone: 0, oil: 0, gems: 0, gold: 0 };
+    let theirCount = 0;
+    for (const t of this.game.resourceTrades) {
+      if (t.a !== id && t.b !== id) continue;
+      theirCount++;
+      const give = t.a === id ? t.aGives : t.bGives;
+      const giveAmt = t.a === id ? t.aGivesPerSec : t.bGivesPerSec;
+      const get  = t.a === id ? t.bGives : t.aGives;
+      const getAmt = t.a === id ? t.bGivesPerSec : t.aGivesPerSec;
+      theirNet[give] -= giveAmt;
+      theirNet[get]  += getAmt;
+    }
+    addHeader('TRADE');
+    if (myTrade) {
+      const youGive = myTrade.a === 1 ? myTrade.aGives : myTrade.bGives;
+      const youGiveAmt = myTrade.a === 1 ? myTrade.aGivesPerSec : myTrade.bGivesPerSec;
+      const youGet = myTrade.a === 1 ? myTrade.bGives : myTrade.aGives;
+      const youGetAmt = myTrade.a === 1 ? myTrade.bGivesPerSec : myTrade.aGivesPerSec;
+      addRow('With you', `you give ${youGiveAmt} ${youGive}/s · you get ${youGetAmt} ${youGet}/s`);
+    } else {
+      addRow('With you', '— no active trade —');
+    }
+    if (theirCount > 0) {
+      const parts: string[] = [];
+      for (const [k, v] of Object.entries(theirNet)) {
+        if (Math.abs(v) < 0.05) continue;
+        parts.push(`${k} ${v > 0 ? '+' : ''}${v.toFixed(1)}/s`);
+      }
+      addRow('Their net flow', parts.join(' · ') || '— net zero —');
+    } else {
+      addRow('Their trades', `${theirCount} active`);
+    }
+
+    // Action buttons — context-sensitive.
+    const actions = this.el.nsActions!;
+    actions.innerHTML = '';
+    const allied = this.game.areAllied(1, id);
+    const teammate = this.game.areTeammates(1, id);
+    const atWar = this.game.areAtWar(1, id);
+    const mkBtn = (cls: string, label: string, action: () => void, disabled = false): void => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `ns-btn ${cls}`;
+      b.textContent = label;
+      b.disabled = disabled;
+      b.addEventListener('click', action);
+      actions.appendChild(b);
+    };
+    if (allied && !teammate) {
+      mkBtn('alt', 'Trade Route',
+        () => { this.hideNationSheet(); this._proposeTradeRoute(id); });
+      mkBtn('alt', 'Quick Trade',
+        () => { this.hideNationSheet(); this._openTrade(id); });
+      mkBtn('danger', 'Break Alliance',
+        () => { this.hideNationSheet(); this._breakAlliance(id); });
+    } else if (teammate) {
+      mkBtn('alt', 'Trade Route',
+        () => { this.hideNationSheet(); this._proposeTradeRoute(id); });
+      mkBtn('alt', 'Quick Trade',
+        () => { this.hideNationSheet(); this._openTrade(id); });
+      // Teammates can't break alliance.
+    } else {
+      mkBtn('alt', 'Resource Trade',
+        () => { this.hideNationSheet(); this.showTradePrompt(id); });
+      mkBtn('alt', 'Propose Alliance',
+        () => { this.hideNationSheet(); this._proposeAlliance(id); });
+      if (atWar) {
+        mkBtn('alt', 'Sue for Peace',
+          () => { this.hideNationSheet(); this._suePeace(id); });
+      } else {
+        mkBtn('danger', 'Declare War',
+          () => { this.hideNationSheet(); this._declareWar(id); });
+      }
+    }
   }
 
   private _refreshTradePrompt(): void {

@@ -1336,6 +1336,85 @@ html, body {
   font-weight: 700;
 }
 .dn-empty { padding: 24px; text-align: center; opacity: 0.55; font-size: 12px; }
+
+/* Nation Profile sheet — long-press on enemy / ally land. Backdrop
+ * + centered card with stats and diplomacy actions. */
+#nation-sheet {
+  position: absolute; inset: 0;
+  background: rgba(8, 10, 12, 0.78);
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: auto;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 32;
+}
+#nation-sheet.hidden { display: none; }
+.ns-card {
+  background: #181c22;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  padding: 16px 18px 14px;
+  width: min(440px, 96vw);
+  max-height: 88vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+}
+.ns-head {
+  display: flex; align-items: center; gap: 10px;
+}
+.ns-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; background: #888; }
+.ns-id { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.ns-name { font-size: 16px; font-weight: 800; letter-spacing: 0.5px; }
+.ns-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.ns-tag {
+  font-size: 9px; font-weight: 800; letter-spacing: 1px;
+  padding: 2px 7px; border-radius: 999px;
+  background: rgba(255,255,255,0.06); color: #c6d8d0;
+}
+.ns-tag.mastery-ground { background: rgba(146,196,98,0.18); color: #b5d878; }
+.ns-tag.mastery-air    { background: rgba(155,217,234,0.18); color: #9bd9ea; }
+.ns-tag.mastery-naval  { background: rgba(108,156,250,0.18); color: #93b8ff; }
+.ns-tag.teammate { background: rgba(85,200,110,0.18); color: #6ee68a; }
+.ns-tag.ally     { background: rgba(85,200,110,0.18); color: #6ee68a; }
+.ns-tag.war      { background: rgba(232,74,74,0.22); color: #ff6b6b; }
+.ns-tag.route    { background: rgba(234,199,104,0.18); color: #eac768; }
+.ns-close {
+  background: transparent; border: 0; color: #9aa3ad;
+  font-size: 16px; padding: 4px 8px; cursor: pointer;
+  border-radius: 6px;
+}
+.ns-close:hover { background: rgba(255,255,255,0.06); color: #fff; }
+
+.ns-body { display: flex; flex-direction: column; gap: 4px; }
+.ns-header {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 1.5px;
+  color: #8a92a0;
+  margin-top: 6px; margin-bottom: 2px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.ns-row {
+  display: flex; gap: 10px;
+  font-size: 12px; line-height: 1.5;
+  padding: 2px 0;
+}
+.ns-row-l { color: #8a92a0; flex: 0 0 90px; }
+.ns-row-v { flex: 1 1 auto; word-break: break-word; }
+
+.ns-actions {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  margin-top: 4px;
+}
+.ns-btn {
+  background: #2a3440; color: #d6dee8;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; padding: 10px 12px;
+  font-family: inherit; font-size: 12px; font-weight: 700;
+  letter-spacing: 0.5px; cursor: pointer;
+}
+.ns-btn:active:not(:disabled) { transform: scale(0.98); background: #364252; }
+.ns-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ns-btn.alt    { background: #2a3440; }
+.ns-btn.danger { background: rgba(232,74,74,0.16); color: #ff8c8c; border-color: rgba(232,74,74,0.45); }
 /* Tier-column layout: T1 / T2 / T3 side-by-side so prereq
  * progression reads left-to-right like a real tech tree. */
 .cmd-tier-cols {

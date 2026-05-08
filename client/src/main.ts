@@ -155,22 +155,16 @@ async function boot(): Promise<void> {
     onLongPress: (wx, wy) => {
       if (game.outcome) return;
       if (!game.territory.inBounds(wx, wy)) return;
-      // If the long-press lands on enemy territory, treat it as a quick
-      // trade-alliance gesture: propose alliance + open trade route in
-      // one action. Long-press on your own / neutral land still opens
+      // Long-press on enemy / ally land opens the Nation Profile
+      // sheet — at-a-glance intel (tiles, troops, gold, buildings,
+      // resources, trade flow) plus diplomacy actions (trade, ally,
+      // war, peace). Long-press on own / neutral land still opens
       // the build sheet.
       const tx = Math.floor(wx);
       const ty = Math.floor(wy);
       const owner = game.territory.getOwner(tx, ty);
       if (owner > 0 && owner !== 1) {
-        // Long-press enemy land opens the resource-trade prompt
-        // (pauses the game). Allies get redirected to the alliance
-        // shortcut by showTradePrompt.
-        if (game.areAllied(1, owner)) {
-          hud.quickProposeTradeAlliance(owner);
-        } else {
-          hud.showTradePrompt(owner);
-        }
+        hud.showNationSheet(owner);
         return;
       }
       hud.showBuildSheet(wx, wy);

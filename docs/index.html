@@ -7,8 +7,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0c0f12">
 <title>Territory</title>
-  <script type="module" crossorigin src="/Territorygame/assets/index-BAq62GtY.js"></script>
-  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-BPKrK7RC.css">
+  <script type="module" crossorigin src="/Territorygame/assets/index-TbupqdLl.js"></script>
+  <link rel="stylesheet" crossorigin href="/Territorygame/assets/index-BqLsEaGf.css">
 </head>
 <body>
   <div id="app"></div>
@@ -132,6 +132,20 @@
         <span class="bp-desc" id="bp-b-desc"></span>
       </button>
       <button class="bp-cancel" id="bp-cancel" type="button">Cancel</button>
+    </div>
+    <div id="nation-sheet" class="hidden">
+      <div class="ns-card">
+        <div class="ns-head">
+          <span class="ns-dot" id="ns-dot"></span>
+          <div class="ns-id">
+            <span class="ns-name" id="ns-name">—</span>
+            <span class="ns-tags" id="ns-tags"></span>
+          </div>
+          <button class="ns-close" id="ns-close" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="ns-body" id="ns-body"></div>
+        <div class="ns-actions" id="ns-actions"></div>
+      </div>
     </div>
     <div id="hint">tap regions to attack (declares war) &middot; long-press own land to build &middot; long-press enemy land to trade resources</div>
     <div id="vassal-log" aria-live="polite"></div>

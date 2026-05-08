@@ -1169,3 +1169,35 @@ WHY: Earlier iterations built the tree but failed quality bar:
 truncated text on nodes, descriptions cut off in side panel,
 nodes too cramped, layout that didn't show hierarchy. This
 revision fixes all four explicit complaints at once.
+
+---
+
+[pending] ux: long-press enemy / ally land → Nation Profile sheet
+
+WHAT: New sheet that pops on long-press of enemy or ally land.
+Shows at-a-glance intel about that nation:
+  • Header: name, color, mastery tag, status (TEAMMATE / ALLY /
+    AT WAR / ROUTE).
+  • Territory: tile count + % of map, troops (gated behind Spy
+    Network — without it, "🔒 Buy Spy Network for intel"),
+    gold + treasury.
+  • Buildings: settlements, turrets, airstrips, barracks, AA,
+    ports counts. Plus ship count if any.
+  • Resources: their current 5-resource stockpile.
+  • Trade: any active trade with you (give/get per second);
+    their global net flow across all their other trades.
+  • Actions (context-sensitive):
+      - Allies / teammates: Trade Route, Quick Trade, Break
+        Alliance (teammates skip break — locked)
+      - Strangers: Resource Trade, Propose Alliance, Declare
+        War (or Sue for Peace if at war)
+
+Replaces the previous behavior where long-press on enemy land
+went straight to the trade prompt — now you get the intel
+first, with the trade button right there if you still want it.
+
+WHY: User asked "long press on a territory (enemy or ally)
+gives stats about that nation, like exports, imports, military
+strength, # of settlements, etc." Direct implementation; the
+old "long-press = trade" gesture is preserved as the first
+button on the sheet so muscle memory still works.
