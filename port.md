@@ -27,31 +27,78 @@ carry forward and what to leave behind.
   to a regiment cap. Captured regions add capacity.
 - **Win = capture all enemy capitals OR control N% of the map.**
   Single clear win condition.
-- **Two-scale view, one simulation.** Pinch / scroll zooms
-  smoothly between a strategic map (regiments as colored blobs,
-  solid-color territory, region labels — make decisions here) and
-  a tactical view (pixel-art soldier sprites in formation grids,
-  pixel-textured ground — watch and nudge here). When zoomed in
-  past a threshold, tapping an engagement snaps the camera to it
-  for a locked-in tactical framing. Same simulation throughout —
-  no mode switch, no separate battle screen. Total War vibe, but
-  battles resolve in tens of seconds, not 20 minutes.
+- **Three-tier view, one simulation.** Pinch / scroll zooms
+  smoothly between two **manual** tiers, plus a third **battle**
+  tier that's reachable only when fighting begins.
 
-## Hard cuts (do NOT port from v1)
+  1. **Strategic** (zoomed out) — whole map, regions as colored
+     blobs, big picture. Decide where to push.
+  2. **Operational** (zoomed in via pinch) — your nation's land
+     in detail. Capital, settlements, armies as formation icons.
+     Enemy territory still visible but less detailed. **Manual
+     pinch caps here** — zooming further does not reveal
+     individual soldiers.
+  3. **Tactical** (battle only) — pixel-art individual soldiers
+     in formation grids on pixel-textured ground (the screenshot
+     reference, see "Tactical aesthetic reference" below).
+     Camera locks to the engagement. Entered either by
+     **(a)** issuing an attack order that starts a battle
+     (auto-snap), or **(b)** tapping a "battle in progress"
+     badge from strategic / operational view. Same simulation
+     throughout — no mode switch, just camera + layer toggles.
+
+  Battles resolve in tens of seconds, not Total War's 20 minutes.
+
+## Hard cuts (forever — do NOT port from v1)
+
+These belong to v1's failure mode and will not return.
 
 - ❌ Decrees (all 24), commander tree, masteries, doctrine system
-- ❌ Bombs, ground ops (artillery / blitz / tank / paratrooper),
-  nukes
-- ❌ Ships (warship / destroyer / sub), planes, airstrips, AA,
-  naval colonies
-- ❌ Trade, alliances, war invites, diplomacy menu, nation profile
-  sheets
-- ❌ Resources beyond gold (no food / wood / stone / oil / gems)
 - ❌ Vassal-as-region with separate gold pools
 - ❌ ARMY_MODE flag (there is only one mode in v2)
+- ❌ Diplomacy as a menu system (relation panels, treaty UI,
+  nation profile sheets, war/peace formal declarations)
 
-These come back as **expansions** if and only if the core loop is
-fun without them. Not before.
+## Deferred scope (in the long-term v2 vision, NOT being built now)
+
+User confirmed (2026-05-09) that v2 is intended to grow toward a
+full settlement / building system over time: **barracks,
+airstrips, warship factories, energy factories, markets, houses,
+mines**, etc. Air, naval, and multi-resource layers are part of
+that long-term vision.
+
+**Crucial guardrail (lesson #4):** none of this gets built until
+the core loop — *move army → take territory → win* — is fun on
+phone. If we add System B before System A is fun, we re-create v1.
+
+What's deferred:
+
+- 🕓 Buildings / settlements beyond the capital. The full list
+  (barracks, airstrips, warship factory, energy factory,
+  markets, houses, mines) lives here, **frozen**, until the core
+  loop earns them.
+- 🕓 Ships (warship / destroyer / sub) and naval combat.
+- 🕓 Planes, airstrips, AA, air combat.
+- 🕓 Resources beyond gold (food / wood / stone / oil / gems /
+  energy).
+- 🕓 Bombs, ground ops (artillery / blitz / tank / paratrooper),
+  nukes.
+- 🕓 Trade routes / markets as a mechanic.
+
+When any of these is un-deferred, it gets its own paragraph in
+this file — what it is, why it earns its place, and what
+existing system it composes with.
+
+## Open questions
+
+- **Sea travel.** Map gen produces small islands disconnected
+  from the main continent. Decision to make: (a) tune gen to
+  favor a single connected landmass (cleanest while ships are
+  deferred); (b) keep islands as decorative unreachable scenery;
+  (c) un-defer ships earlier than the rest of the building
+  system to make islands meaningful. **Current default: (a)**
+  — bias gen toward one continent in a follow-up tweak to
+  nail #2 if it remains an issue.
 
 ## Tactical aesthetic reference
 

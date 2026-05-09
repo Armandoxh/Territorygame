@@ -463,3 +463,57 @@ sit on top of it.
 Bundle: ~220 KB gz total (main entry 74 KB gz). Typecheck
 clean, build clean. Awaiting user thumbs-up on phone before
 Nail #3.
+
+[FOLLOWUP] User: "It looks fine enough. Just islands are there
+which we haven't decided if sea travel is a thing." Soft
+thumbs-up; islands flagged as an open question (now captured in
+port.md "Open questions").
+
+---
+
+[uncommitted] docs: port.md — 3-tier view + future-scope un-cut
+
+WHAT: Big port.md restructure driven by user's view-model
+proposal and long-term scope confirmation.
+
+  Pillar #6 rewritten as "Three-tier view, one simulation":
+    Strategic (zoomed out) / Operational (zoomed in, manual cap)
+    / Tactical (battle only, sprite-art view, entered via attack
+    order auto-snap OR tap on a battle-in-progress badge).
+    Manual pinch CAPS at operational — never reaches the
+    sprite-art tactical visuals. Tactical earns its specialness
+    by being where battles happen, not where the user happens to
+    pinch deep enough.
+
+  Cuts split into two sections:
+    "Hard cuts (forever)" — decrees, commander tree, masteries,
+      doctrine, vassal-as-region, ARMY_MODE flag, diplomacy
+      menu system. These are v1's failure mode and don't come
+      back.
+    "Deferred scope (NOT being built now)" — full settlement +
+      building system (barracks, airstrips, warship factory,
+      energy factory, markets, houses, mines), ships, planes,
+      multi-resource, ground ops, bombs/nukes, trade markets.
+      These ARE part of long-term v2. Frozen until core loop is
+      fun on phone. Lesson #4 cited inline as the guardrail.
+
+  New "Open questions" section:
+    Sea travel + islands. Default decision: bias gen toward one
+    connected continent until ships are un-deferred.
+
+WHY: User: "How about this behavior: allow the zoom in but
+don't directly go into the full tactical zoom yet. I should
+see all of my nations land and settlements and building /
+armies. If I send army into battle, the view should go to that
+full tactical view then." Plus user confirmed the building list
+("barracks, air strips, war ship factory, energy factory,
+markets, houses, mines") is long-term scope but "not there
+yet, when we get to that stage we'll perfect it." Captured the
+3-tier model AND the un-cut-but-frozen scope BEFORE writing any
+code so the rebuild has one authoritative reference and the
+deferred items are visibly fenced behind the "core loop first"
+rule.
+
+Next: ask user which nail #3 to pick (player ownership /
+manual zoom cap / capital marker / single-continent map gen
+fix). Mantra: one thing at a time.

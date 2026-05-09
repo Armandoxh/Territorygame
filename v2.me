@@ -12,6 +12,45 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  port.md: 3-tier view + future-scope un-cut + open Qs
+  WHAT: Three structural updates to port.md after the user
+        proposed a refined view model and confirmed long-term
+        building/settlement scope:
+        1. Pillar #6 rewritten as "Three-tier view, one
+           simulation":
+             • Strategic (zoomed out)
+             • Operational (zoomed in, manual cap) — your
+               nation in detail, armies as formation icons.
+               Manual pinch caps here. No individual soldiers.
+             • Tactical (battle only) — pixel-art sprite-and-
+               formation view; entered ONLY via attack order
+               (auto-snap) or tap on a battle-in-progress badge.
+        2. Hard cuts split into two sections:
+             • Hard cuts (forever): decrees, commander tree,
+               masteries, doctrine, vassal-as-region,
+               ARMY_MODE flag, diplomacy menu system.
+             • Deferred scope (long-term v2, NOT now): barracks,
+               airstrips, warship factory, energy factory,
+               markets, houses, mines, plus ships, planes,
+               multi-resource, ground ops, bombs/nukes, trade
+               markets. Frozen until the core loop is fun
+               (lesson #4 cited explicitly as the guardrail).
+        3. Open questions section: sea travel & island
+           handling, with default = bias gen toward one
+           connected continent until ships are un-deferred.
+  WHY:  User: "How about this behavior: allow the zoom in but
+        don't directly go into the full tactical zoom yet. I
+        should see all of my nations land and settlements and
+        building / armies. If I send army into battle, the view
+        should go to that full tactical view then." Plus
+        confirmed full building list is the long-term vision
+        ("but not there yet"). Captured BEFORE any code so the
+        new model has a single authoritative reference and the
+        un-cut scope is visibly fenced behind the "core loop
+        first" guardrail. Nail #3 candidates discussed next.
+
+---
+
 2026-05-09  Nail #2: map gen + strategic-scale render
   WHAT: Replaced the placeholder grid with a real procedural
         map. Three new things:
