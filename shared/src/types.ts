@@ -76,6 +76,10 @@ export interface Army {
    *  strength cap so a battle-hardened battalion is meaningfully
    *  stronger than a fresh recruit. */
   kills: number;
+  /** True when the aura has drained the army to ~0 strength and it's
+   *  waiting to regen back to ARMY_AURA_RESUME before resuming flood
+   *  expansion. Cleared once strength climbs back to the resume floor. */
+  recovering: boolean;
 }
 
 export type ArmyOrderError =

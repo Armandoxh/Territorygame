@@ -608,26 +608,19 @@ export class HUD {
     this._refreshWarInvite();
     this._refreshResourceOffer();
     this._refreshDiploBadge();
-    const spy = (me.decreeStacks['spy-network'] ?? 0) > 0;
     for (const [id, ref] of this.enemyEls) {
       const p = this.game.players[id];
       if (!p) continue;
       const cnt = this.game.territory.counts[id]!;
-      // Show TROOPS as the primary number — that's what tells you
-      // how dangerous a nation is. Tile count moves to the intel
-      // sub-text. Own badge always shows troops; enemy troops
-      // gated by Spy Network.
-      const isHuman = id === 1;
-      if (isHuman || spy) {
-        ref.num.textContent = formatTroops(p.troops);
-      } else {
-        ref.num.textContent = String(cnt);
-      }
+      // Primary number: nation's offense / defense MULTIPLIERS — the
+      // strategic stat. "1.5/1.2" reads as "their attacks hit ×1.5,
+      // their defenses absorb ×1.2." Mults are visible without spy
+      // network (this isn't troop count, it's just a fingerprint of
+      // their decree investment).
+      const cs = this.game.combatSummaryFor(id);
+      ref.num.textContent = `${cs.attackerMul.toFixed(1)}/${cs.defenderMul.toFixed(1)}`;
       ref.wrap.classList.toggle('dead', cnt === 0);
-      if (spy && cnt > 0) {
-        ref.intel.textContent = `${cnt}t`;
-        ref.wrap.classList.add('with-intel');
-      } else if (isHuman && cnt > 0) {
+      if (cnt > 0) {
         ref.intel.textContent = `${cnt}t`;
         ref.wrap.classList.add('with-intel');
       } else {

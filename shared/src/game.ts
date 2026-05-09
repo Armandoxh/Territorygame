@@ -6570,6 +6570,7 @@ export class Game {
       moveCooldown: this.config.ARMY_MOVE_TICKS,
       fortifyTicks: 0,
       kills: 0,
+      recovering: false,
     };
     this.armies.push(a);
     this._armyByTile.set(this._tileKey(a.x, a.y), a);
@@ -6694,76 +6695,122 @@ export class Game {
     }
   }
 
-  /** Influence aura: claim tiles inside the army's CURRENT region.
-   *  This is the "place a battalion in a vassal, the battalion captures
-   *  the whole vassal" model — the army acts as a regional governor,
-   *  not a 1-tile paintbrush.
-   *  - Neutral region (no owner): up to 3 claims/tick. Cheap attrition.
-   *  - Enemy-held region: up to 1 claim/tick. Higher attrition that
-   *    scales with defender's defense (Iron Doctrine, turrets) and
-   *    attacker's offense mult (Veterans, tank-rush). Capitals are
-   *    skipped — those still need an army to physically step on them.
-   *  - Already 100% your region: skip (just regen).
-   *  Tiles must touch a player-owned tile to qualify (no leapfrog).
-   *  Capped scan: up to 256 tile checks per tick to keep the cost
-   *  bounded on huge regions. */
+  /** Idle flood: claim tiles webbing OUT from the army's current
+   *  tile until the army drains to ARMY_AURA_EXHAUST_AT, then sleep
+   *  until regen restores it to ARMY_AURA_RESUME_AT, then resume.
+   *
+   *  Behavior:
+   *   - Only fires when the army is idle (no destination + not in
+   *     manual march). A marching army doesn't paint.
+   *   - The first claim is the army's OWN tile if it's not already
+   *     ours: a paratrooper drop / blitz spawn instantly establishes
+   *     a foothold so subsequent webs have something to grow from.
+   *   - Up to 3 neutral + 1 enemy claim per tick, both within
+   *     ARMY_AURA_RADIUS of the army and adjacent to a player tile.
+   *   - Strength bleeds on every claim (cheaper for neutrals, scaled
+   *     by atk/def for enemies). Floored at ARMY_AURA_EXHAUST_AT — an
+   *     exhausted army does NOT die, it parks and regens.
+   *   - Allies and capitals are off-limits. */
   private _armyAura(a: Army): void {
-    const W = this.territory.width;
-    const armyRegion = this.regions[a.y * W + a.x];
-    if (!armyRegion) return;
-    if (this._regionOwner[armyRegion] === a.owner) return;
-    const regionTiles = this._tilesByRegion[armyRegion];
-    if (!regionTiles || regionTiles.length === 0) return;
+    // Marching armies don't paint. Manual + auto-dispatched destinations
+    // both block the flood. When the army arrives, destX/destY clears
+    // and the flood resumes.
+    const idle = a.destX < 0 || a.destY < 0;
+    if (!idle) return;
+
+    // Drain → wait → resume cycle.
+    if (a.recovering) {
+      if (a.strength >= this.config.ARMY_AURA_RESUME_AT) a.recovering = false;
+      else return;
+    }
+    if (a.strength <= this.config.ARMY_AURA_EXHAUST_AT) {
+      a.recovering = true;
+      return;
+    }
 
     const ownerP = this.players[a.owner];
     const attritionMult = ownerP ? this._fieldLogisticsMult(ownerP) : 1;
     const baseCost = this.config.ARMY_NEUTRAL_CLAIM_COST * attritionMult;
     const atkMul = ownerP ? this._veteransMult(ownerP, true) : 1;
 
+    // Establish a foothold: claim the tile under the army first if
+    // it isn't already ours. Critical for paratrooper drops on neutral
+    // / enemy land — without this seed there's no owner-adjacent tile
+    // for the flood to grow from.
+    const myHere = this.territory.getOwner(a.x, a.y);
+    if (myHere !== a.owner && this._capitalIndexAt(a.x, a.y) < 0
+        && !(myHere > 0 && this.areAllied(a.owner, myHere))) {
+      if (myHere === 0) {
+        if (this._claim(a.x, a.y, a.owner)) {
+          a.strength = Math.max(this.config.ARMY_AURA_EXHAUST_AT, a.strength - baseCost);
+        }
+      } else {
+        if (!this.areAtWar(a.owner, myHere)) {
+          this.declareWar(a.owner, myHere, 'aggression');
+        }
+        if (this.tryCapture(a.x, a.y, a.owner)) {
+          a.strength = Math.max(this.config.ARMY_AURA_EXHAUST_AT, a.strength - baseCost * 2);
+          a.kills += 0.2;
+        }
+      }
+    }
+
     let neutralBudget = 3;
     let enemyBudget = 1;
-    const scanCap = Math.min(regionTiles.length, 256);
-    // Walk the region tiles starting from a tick-rotated offset so
-    // multiple armies in the same region don't fight over the same
-    // candidate every tick. Cheap pseudo-shuffle.
-    const offset = (this.tickCount + a.id) % regionTiles.length;
+
+    const W = this.territory.width;
+    const H = this.territory.height;
+    const R = this.config.ARMY_AURA_RADIUS;
+    const x0 = Math.max(0, a.x - R);
+    const x1 = Math.min(W - 1, a.x + R);
+    const y0 = Math.max(0, a.y - R);
+    const y1 = Math.min(H - 1, a.y + R);
+    const xLen = x1 - x0 + 1;
+    const yLen = y1 - y0 + 1;
+    const total = xLen * yLen;
+    if (total <= 0) return;
+    const scanCap = Math.min(total, 256);
+    // Rotated start so multiple armies don't fight over the same tile
+    // every tick. Cheap pseudo-shuffle.
+    const offset = (this.tickCount + a.id) % total;
+
     for (let n = 0; n < scanCap; n++) {
       if (neutralBudget <= 0 && enemyBudget <= 0) break;
-      const ti = regionTiles[(offset + n) % regionTiles.length]!;
-      const tx = ti % W;
-      const ty = (ti - tx) / W;
+      const idx = (offset + n) % total;
+      const dx = idx % xLen;
+      const dy = (idx - dx) / xLen;
+      const tx = x0 + dx;
+      const ty = y0 + dy;
       const tileOwner = this.territory.getOwner(tx, ty);
       if (tileOwner === a.owner) continue;
       if (!this.territory.isPassable(tx, ty)) continue;
       if (this._capitalIndexAt(tx, ty) >= 0) continue;
-      // Allies are off-limits.
       if (tileOwner > 0 && this.areAllied(a.owner, tileOwner)) continue;
-      // Must touch player territory (no leapfrog).
+      // Web rule: must touch player territory (no leapfrog over gaps).
       if (!this._tileTouchesOwner(tx, ty, a.owner)) continue;
 
       if (tileOwner === 0) {
         if (neutralBudget <= 0) continue;
         if (!this._claim(tx, ty, a.owner)) continue;
-        a.strength = Math.max(1, a.strength - baseCost);
+        a.strength = Math.max(this.config.ARMY_AURA_EXHAUST_AT, a.strength - baseCost);
         neutralBudget--;
       } else {
         if (enemyBudget <= 0) continue;
-        // Enemy: stats matter. Offense × defense determines drain.
-        // Auto-declare if not at war so the first contact registers.
         if (!this.areAtWar(a.owner, tileOwner)) {
           this.declareWar(a.owner, tileOwner, 'aggression');
         }
         const defMul = 1 + this._defenseAt(tx, ty, tileOwner);
         const cost = baseCost * 2 * (defMul / Math.max(0.1, atkMul));
-        if (a.strength <= cost + 1) {
-          // Not enough strength to break through — skip; let the army
-          // wait or retreat.
-          continue;
-        }
+        if (a.strength <= cost + this.config.ARMY_AURA_EXHAUST_AT) continue;
         if (!this.tryCapture(tx, ty, a.owner)) continue;
-        a.strength = Math.max(1, a.strength - cost);
-        a.kills += 0.2; // partial XP per enemy tile cleared
+        a.strength = Math.max(this.config.ARMY_AURA_EXHAUST_AT, a.strength - cost);
+        a.kills += 0.2;
         enemyBudget--;
+      }
+      // Enter recovery the moment we hit the floor — no point scanning more.
+      if (a.strength <= this.config.ARMY_AURA_EXHAUST_AT) {
+        a.recovering = true;
+        return;
       }
     }
   }
@@ -6914,72 +6961,48 @@ export class Game {
    *  that don't already have a manual order. Marches the closest
    *  enemy capital. Reserves at least one army per friendly capital
    *  for defense. Only runs when the AI player is alive. */
-  /** Per-vassal army autonomy. Runs for every alive player (human + AI).
-   *  Each region a player dominates is a "vassal"; that vassal commands
-   *  the player's non-manual armies parked inside it.
+  /** Per-vassal army autonomy. Runs for every alive player.
    *
-   *  Priorities, top-down:
-   *    1. DEFENSE — any enemy army inside the vassal region: dispatch the
-   *       nearest local army at the closest enemy stack.
-   *    2. EXPANSION — no threat in region: dispatch local armies to the
-   *       nearest enemy/neutral tile bordering the region. War-enemy
-   *       tiles preferred over neutrals so vassals press an active war.
-   *    3. FOREIGN PUSH — armies that wandered into a non-vassal region
-   *       (e.g. a paratrooper drop, a Blitz spawn near the front, an
-   *       army mid-conquest) keep pushing toward the closest hostile
-   *       tile in that region instead of stalling.
+   *  Defense-only: if an enemy army is inside one of the player's
+   *  dominant regions ("vassal soil"), dispatch the nearest local
+   *  non-manual army at the closest enemy stack. Otherwise armies
+   *  STAY PUT and flood-expand from where they stand (handled by
+   *  _armyAura). This is the "drop on neutral, web outward, drain
+   *  to 0, regen to 80, drain again" loop the player asked for.
    *
-   *  Manual orders (set via setArmyTarget — i.e. player tap-march) are
-   *  honored: armies with manual=true are skipped entirely. When a
-   *  manual march completes, the army's manual flag clears and the
-   *  vassal picks the army back up. */
+   *  Manual orders (set via setArmyTarget — i.e. player tap-march)
+   *  are honored: manual=true armies are skipped. When a manual
+   *  march completes, the manual flag clears and the army goes
+   *  back into the autonomous pool. */
   private _vassalCommandArmies(p: Player): void {
     if (!p.alive) return;
     if (this.armies.length === 0) return;
-    // Throttle: re-evaluate every ~3s (30 ticks), staggered per player so
-    // we don't churn every army's destination on the same frame.
     if (((this.tickCount + p.id * 7) % 30) !== 0) return;
 
     const W = this.territory.width;
 
-    // Bucket p's non-manual armies by the region they're currently in.
-    const armiesByRegion = new Map<number, Army[]>();
-    for (const a of this.armies) {
-      if (a.owner !== p.id) continue;
-      if (a.manual) continue;
-      const r = this.regions[a.y * W + a.x] ?? 0;
-      if (r === 0) continue;
-      let arr = armiesByRegion.get(r);
-      if (!arr) { arr = []; armiesByRegion.set(r, arr); }
-      arr.push(a);
-    }
-
-    for (const [regionId, armies] of armiesByRegion) {
-      const dom = this._regionDominant[regionId] ?? 0;
-      if (dom === p.id) {
-        this._vassalArmiesAct(armies, regionId, p);
-      } else {
-        this._foreignArmiesAct(armies, regionId, p);
-      }
-    }
-  }
-
-  /** Defense-first, then expansion, for armies inside a vassal region. */
-  private _vassalArmiesAct(armies: Army[], regionId: number, p: Player): void {
-    const W = this.territory.width;
-
-    // Defense: enemy armies sitting in OUR region right now.
-    const threats: Army[] = [];
+    // Threats per region: enemy stacks sitting in regions p dominates.
+    const threatsByRegion = new Map<number, Army[]>();
     for (const e of this.armies) {
       if (e.owner === p.id) continue;
       if (e.strength <= 0) continue;
       if (this.areAllied(p.id, e.owner)) continue;
       const er = this.regions[e.y * W + e.x] ?? 0;
-      if (er === regionId) threats.push(e);
+      if (er === 0) continue;
+      if ((this._regionDominant[er] ?? 0) !== p.id) continue;
+      let arr = threatsByRegion.get(er);
+      if (!arr) { arr = []; threatsByRegion.set(er, arr); }
+      arr.push(e);
     }
+    if (threatsByRegion.size === 0) return;
 
-    if (threats.length > 0) {
-      for (const a of armies) {
+    // Friendly armies in those threatened regions.
+    for (const [regionId, threats] of threatsByRegion) {
+      for (const a of this.armies) {
+        if (a.owner !== p.id) continue;
+        if (a.manual) continue;
+        const ar = this.regions[a.y * W + a.x] ?? 0;
+        if (ar !== regionId) continue;
         let bx = -1, by = -1, bd = Infinity;
         for (const t of threats) {
           const d = Math.abs(t.x - a.x) + Math.abs(t.y - a.y);
@@ -6987,84 +7010,7 @@ export class Game {
         }
         if (bx >= 0) { a.destX = bx; a.destY = by; }
       }
-      return;
     }
-
-    // Expansion: nearest enemy/neutral tile bordering this region.
-    const target = this._pickVassalExpansionTarget(regionId, p);
-    if (!target) return;
-    for (const a of armies) {
-      a.destX = target.x; a.destY = target.y;
-    }
-  }
-
-  /** Armies that wandered into a region not dominated by their owner.
-   *  Push them at the closest hostile tile inside that region so a
-   *  drop / blitz / mid-conquest army doesn't stall. */
-  private _foreignArmiesAct(armies: Army[], regionId: number, p: Player): void {
-    const tiles = this._tilesByRegion[regionId];
-    if (!tiles || tiles.length === 0) return;
-    const W = this.territory.width;
-    for (const a of armies) {
-      let bx = -1, by = -1, bd = Infinity;
-      for (const i of tiles) {
-        const o = this.territory.owners[i]!;
-        if (o === p.id) continue;
-        if (o > 0 && this.areAllied(p.id, o)) continue;
-        const tx = i % W, ty = (i - tx) / W;
-        const d = Math.abs(tx - a.x) + Math.abs(ty - a.y);
-        if (d < bd) { bd = d; bx = tx; by = ty; }
-      }
-      if (bx >= 0) { a.destX = bx; a.destY = by; }
-    }
-  }
-
-  /** Find the closest enemy or neutral tile that touches one of this
-   *  region's tiles. War-enemies preferred over neutrals (vassals press
-   *  the war). Falls back to the nearest hostile capital if the region
-   *  has no fresh border to push into. */
-  private _pickVassalExpansionTarget(regionId: number, p: Player): { x: number; y: number } | null {
-    const tiles = this._tilesByRegion[regionId];
-    if (!tiles || tiles.length === 0) return null;
-    const W = this.territory.width;
-    const H = this.territory.height;
-    let warX = -1, warY = -1;
-    let neutralX = -1, neutralY = -1;
-    for (const i of tiles) {
-      const tx = i % W, ty = (i - tx) / W;
-      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-        const nx = tx + dx, ny = ty + dy;
-        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-        if (!this.territory.isPassable(nx, ny)) continue;
-        const o = this.territory.getOwner(nx, ny);
-        if (o === p.id) continue;
-        if (o > 0 && this.areAllied(p.id, o)) continue;
-        if (o > 0 && this.areAtWar(p.id, o)) {
-          if (warX < 0) { warX = nx; warY = ny; }
-        } else if (o === 0) {
-          if (neutralX < 0) { neutralX = nx; neutralY = ny; }
-        } else if (neutralX < 0) {
-          // Non-war enemy (truce / peace by default). Treat as
-          // expansion target only if no neutral bordered.
-          neutralX = nx; neutralY = ny;
-        }
-      }
-    }
-    if (warX >= 0) return { x: warX, y: warY };
-    if (neutralX >= 0) return { x: neutralX, y: neutralY };
-    // No border target — march on the closest hostile capital from the
-    // region's first tile (rough centroid surrogate, cheap).
-    const i0 = tiles[0]!;
-    const ox = i0 % W, oy = (i0 - ox) / W;
-    let bx = -1, by = -1, bd = Infinity;
-    for (const c of this.capitals) {
-      if (c.owner === p.id) continue;
-      if (this.areAllied(p.id, c.owner)) continue;
-      const d = Math.hypot(c.x - ox, c.y - oy);
-      if (d < bd) { bd = d; bx = c.x; by = c.y; }
-    }
-    if (bx >= 0) return { x: bx, y: by };
-    return null;
   }
 
   /** Per-tick simulation for all ships: movement, patrol target choice,

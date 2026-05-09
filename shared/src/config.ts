@@ -209,6 +209,14 @@ export interface GameConfig {
   /** Strength cap bonus per kill — a unit that's killed 5 enemy
    *  stacks raises its cap by ARMY_KILL_STRENGTH_BONUS × 5. */
   ARMY_KILL_STRENGTH_BONUS: number;
+  /** When the idle flood drains an army to ARMY_AURA_EXHAUST_AT or
+   *  below, the army stops claiming and only regens. Stays alive
+   *  at this floor — not destroyed. */
+  ARMY_AURA_EXHAUST_AT: number;
+  /** Strength threshold a recovering army must reach before flood
+   *  expansion resumes. Drives the "drain to floor → wait → resume"
+   *  cycle. */
+  ARMY_AURA_RESUME_AT: number;
   /** Hard ceiling on strength regardless of veteran level. */
   ARMY_STRENGTH_HARD_CAP: number;
 
@@ -386,7 +394,9 @@ export const DEFAULT_CONFIG: GameConfig = {
   ARMY_COMBAT_RATE: 0.06,        // 2-3s engagements at equal strength
   ARMY_NEUTRAL_CLAIM_COST: 2,    // strength bleed per claim (aura or walk)
   BARRACKS_RECRUIT_TICKS: 300,   // 30s base recruit cadence
-  ARMY_AURA_RADIUS: 3,           // 7×7 influence area per army (legacy fallback)
+  ARMY_AURA_RADIUS: 10,          // 21×21 flood-claim search around army
+  ARMY_AURA_EXHAUST_AT: 1,       // strength floor — army stops claiming here
+  ARMY_AURA_RESUME_AT: 80,       // regen back to this before resuming flood
   ARMY_REGEN_PER_TICK: 1,        // +10/s on owned soil
   ARMY_MAX_STRENGTH_MULT: 1.5,   // cap at 150 (base 100 × 1.5)
   ARMY_FORTIFY_THRESHOLD: 50,    // 5s on owned soil = dug in
