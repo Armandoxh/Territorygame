@@ -6564,6 +6564,8 @@ export class Game {
       destX: -1, destY: -1,
       manual: false,
       moveCooldown: this.config.ARMY_MOVE_TICKS,
+      fortifyTicks: 0,
+      kills: 0,
     };
     this.armies.push(a);
     this._armyByTile.set(this._tileKey(a.x, a.y), a);
@@ -6631,6 +6633,7 @@ export class Game {
       }
       this._armyRegen(a);
       this._armyAura(a);
+      this._armyFortifyTick(a);
       // Forced March (offense decree branches a/b) speeds up moves.
       // Boost is multiplicative ≥ 1; divide ARMY_MOVE_TICKS by it to
       // shorten cadence.
@@ -6647,13 +6650,15 @@ export class Game {
     }
   }
 
-  /** Strength regen for an army standing on its owner's soil. Caps
-   *  at ARMY_BASE_STRENGTH × ARMY_MAX_STRENGTH_MULT. Adjacent friendly
-   *  settlements add +1 regen each — plant settlements near the front
-   *  to keep your battalions topped up. */
+  /** Strength regen for an army standing on its owner's soil. Cap
+   *  rises with veteran XP: a fresh recruit caps at base × 1.5,
+   *  every kill adds ARMY_KILL_STRENGTH_BONUS, hard-capped at
+   *  ARMY_STRENGTH_HARD_CAP. Adjacent friendly settlements add +1
+   *  regen each — plant settlements near the front to keep your
+   *  battalions topped up. */
   private _armyRegen(a: Army): void {
     if (this.territory.getOwner(a.x, a.y) !== a.owner) return;
-    const cap = Math.floor(this.config.ARMY_BASE_STRENGTH * this.config.ARMY_MAX_STRENGTH_MULT);
+    const cap = this._armyStrengthCap(a);
     if (a.strength >= cap) return;
     let regen = this.config.ARMY_REGEN_PER_TICK;
     for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
@@ -6661,6 +6666,28 @@ export class Game {
       if (b && b.type === 'settlement' && b.owner === a.owner) regen += 1;
     }
     a.strength = Math.min(cap, a.strength + regen);
+  }
+
+  /** Per-army strength cap. Floor = base × MAX_MULT for fresh recruits;
+   *  rises with veteran kills; hard-capped at ARMY_STRENGTH_HARD_CAP. */
+  private _armyStrengthCap(a: Army): number {
+    const base = Math.floor(this.config.ARMY_BASE_STRENGTH * this.config.ARMY_MAX_STRENGTH_MULT);
+    const veteranBonus = Math.floor(a.kills * this.config.ARMY_KILL_STRENGTH_BONUS);
+    return Math.min(this.config.ARMY_STRENGTH_HARD_CAP, base + veteranBonus);
+  }
+
+  /** Tick the fortify timer. Idle on owned soil → counter rises;
+   *  any move or non-owned tile → reset. The combat resolver checks
+   *  fortifyTicks to apply the dug-in damage reduction. */
+  private _armyFortifyTick(a: Army): void {
+    const onOwnedSoil = this.territory.getOwner(a.x, a.y) === a.owner;
+    const idle = a.destX < 0 || a.destY < 0;
+    if (onOwnedSoil && idle) {
+      const max = this.config.ARMY_FORTIFY_THRESHOLD * 2;
+      if (a.fortifyTicks < max) a.fortifyTicks++;
+    } else {
+      a.fortifyTicks = 0;
+    }
   }
 
   /** Influence aura: claim tiles inside the army's CURRENT region.
@@ -6731,6 +6758,7 @@ export class Game {
         }
         if (!this.tryCapture(tx, ty, a.owner)) continue;
         a.strength = Math.max(1, a.strength - cost);
+        a.kills += 0.2; // partial XP per enemy tile cleared
         enemyBudget--;
       }
     }
@@ -6804,6 +6832,8 @@ export class Game {
         const ownerP = this.players[a.owner];
         const attritionMult = ownerP ? this._fieldLogisticsMult(ownerP) : 1;
         a.strength = Math.max(1, a.strength - this.config.ARMY_NEUTRAL_CLAIM_COST * attritionMult);
+        // Veteran XP if we just took an enemy tile (not a neutral one).
+        if (tileOwner > 0 && tileOwner !== a.owner) a.kills += 0.2;
       }
       // Move the army onto the tile.
       this._armyByTile.delete(this._tileKey(a.x, a.y));
@@ -6824,8 +6854,18 @@ export class Game {
     const defMul = defP ? this._veteransMult(defP, false) : 1;
     const wallBonus = 1 + this._defenseAt(dx, dy, defender.owner);
     const rate = this.config.ARMY_COMBAT_RATE;
-    const dmgToDefender = Math.max(1, Math.floor(attacker.strength * rate * atkMul));
-    const dmgToAttacker = Math.max(1, Math.floor(defender.strength * rate * defMul * wallBonus));
+    let dmgToDefender = Math.max(1, Math.floor(attacker.strength * rate * atkMul));
+    let dmgToAttacker = Math.max(1, Math.floor(defender.strength * rate * defMul * wallBonus));
+    // Fortify: dug-in defenders take less damage. Symmetric: attackers
+    // who happen to be fortified (rare — they're moving) get the same
+    // mitigation, but in practice attacker.fortifyTicks is 0 since
+    // movement just reset it.
+    if (defender.fortifyTicks >= this.config.ARMY_FORTIFY_THRESHOLD) {
+      dmgToDefender = Math.max(1, Math.floor(dmgToDefender * this.config.ARMY_FORTIFY_DEFENSE_MULT));
+    }
+    if (attacker.fortifyTicks >= this.config.ARMY_FORTIFY_THRESHOLD) {
+      dmgToAttacker = Math.max(1, Math.floor(dmgToAttacker * this.config.ARMY_FORTIFY_DEFENSE_MULT));
+    }
     attacker.strength = Math.max(0, attacker.strength - dmgToAttacker);
     defender.strength = Math.max(0, defender.strength - dmgToDefender);
     this.events.push({ type: 'army-engaged', attackerId: attacker.owner, defenderId: defender.owner, x: dx, y: dy });
@@ -6833,14 +6873,17 @@ export class Game {
     if (defender.strength <= 0 && attacker.strength > 0) {
       this.events.push({ type: 'army-killed', ownerId: defender.owner, armyId: defender.id, x: dx, y: dy, killedBy: attacker.owner });
       this._removeArmyById(defender.id);
+      attacker.kills += 1; // veteran XP for clearing a stack
       // Attacker advances and takes the tile.
       this.tryCapture(dx, dy, attacker.owner);
       this._armyByTile.delete(this._tileKey(attacker.x, attacker.y));
       attacker.x = dx; attacker.y = dy;
       this._armyByTile.set(this._tileKey(attacker.x, attacker.y), attacker);
+      attacker.fortifyTicks = 0; // moved
     } else if (attacker.strength <= 0) {
       this.events.push({ type: 'army-killed', ownerId: attacker.owner, armyId: attacker.id, x: attacker.x, y: attacker.y, killedBy: defender.owner });
       this._removeArmyById(attacker.id);
+      defender.kills += 1; // defender survived, gains XP
     }
     // Otherwise both survive — combat continues next tick on the same tile.
   }

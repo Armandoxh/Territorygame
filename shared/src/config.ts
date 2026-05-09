@@ -200,6 +200,17 @@ export interface GameConfig {
   ARMY_REGEN_PER_TICK: number;
   /** Strength cap multiplier (cap = ARMY_BASE_STRENGTH * this). */
   ARMY_MAX_STRENGTH_MULT: number;
+  /** Idle ticks on owned soil before an army is "dug in" (gets the
+   *  fortify defensive bonus). 50 ticks = 5s at 10Hz. */
+  ARMY_FORTIFY_THRESHOLD: number;
+  /** Damage taken multiplier when a defender is fortified.
+   *  0.5 = -50% incoming damage. */
+  ARMY_FORTIFY_DEFENSE_MULT: number;
+  /** Strength cap bonus per kill — a unit that's killed 5 enemy
+   *  stacks raises its cap by ARMY_KILL_STRENGTH_BONUS × 5. */
+  ARMY_KILL_STRENGTH_BONUS: number;
+  /** Hard ceiling on strength regardless of veteran level. */
+  ARMY_STRENGTH_HARD_CAP: number;
 
   // Terrain
   TERRAIN_NOISE_SCALE: number;
@@ -375,9 +386,13 @@ export const DEFAULT_CONFIG: GameConfig = {
   ARMY_COMBAT_RATE: 0.06,        // 2-3s engagements at equal strength
   ARMY_NEUTRAL_CLAIM_COST: 2,    // strength bleed per claim (aura or walk)
   BARRACKS_RECRUIT_TICKS: 300,   // 30s base recruit cadence
-  ARMY_AURA_RADIUS: 3,           // 7×7 influence area per army
+  ARMY_AURA_RADIUS: 3,           // 7×7 influence area per army (legacy fallback)
   ARMY_REGEN_PER_TICK: 1,        // +10/s on owned soil
   ARMY_MAX_STRENGTH_MULT: 1.5,   // cap at 150 (base 100 × 1.5)
+  ARMY_FORTIFY_THRESHOLD: 50,    // 5s on owned soil = dug in
+  ARMY_FORTIFY_DEFENSE_MULT: 0.5,// -50% damage to fortified defenders
+  ARMY_KILL_STRENGTH_BONUS: 25,  // +25 cap per kill
+  ARMY_STRENGTH_HARD_CAP: 400,   // never exceed regardless of XP
 
   TERRAIN_NOISE_SCALE: 0.025,
   TERRAIN_OCTAVES: 4,

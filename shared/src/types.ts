@@ -67,6 +67,15 @@ export interface Army {
   manual: boolean;
   /** Ticks remaining until the next 1-tile move step. */
   moveCooldown: number;
+  /** Ticks the army has been idle on owned soil. Above the fortify
+   *  threshold, the unit is "dug in" and takes reduced damage. Reset
+   *  to 0 on any move or when standing on neutral/enemy ground. */
+  fortifyTicks: number;
+  /** Combat XP. Increments on stack kills (+1) and claimed enemy
+   *  tiles (+0.2). Drives both visible chevrons and a rising max-
+   *  strength cap so a battle-hardened battalion is meaningfully
+   *  stronger than a fresh recruit. */
+  kills: number;
 }
 
 export type ArmyOrderError =

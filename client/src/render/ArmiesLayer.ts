@@ -12,6 +12,11 @@ interface ArmyNode {
    *  many armies. We coarsen to multiples of 5 so the rasterizer
    *  fires ~5× less often without hiding meaningful changes. */
   lastShown: number;
+  /** Last veteran tier rendered (0 = recruit, 1+ = chevrons). Avoids
+   *  redrawing the hull every frame. */
+  lastTier: number;
+  /** Last fortified state rendered (0 = mobile, 1 = dug in). */
+  lastFortified: number;
 }
 
 // Renders battlefield army stacks as Risk-style icons on top of the
@@ -60,6 +65,19 @@ export class ArmiesLayer {
         node.label.text = String(shown);
         node.lastShown = shown;
       }
+      // Veteran chevrons + fortify outline. Cheap redraws when state
+      // crosses a threshold; the hull is tiny so re-rendering costs
+      // are bounded.
+      const tier = Math.min(5, Math.floor(a.kills / 2));
+      const fortified = a.fortifyTicks >= 50 ? 1 : 0;
+      if (tier !== node.lastTier || fortified !== node.lastFortified) {
+        node.lastTier = tier;
+        node.lastFortified = fortified;
+        const palette = this.game.config.PLAYER_COLORS;
+        const c = palette[a.owner] ?? [255, 255, 255, 255];
+        const tint = (c[0] << 16) | (c[1] << 8) | c[2];
+        drawHull(node.hull, tint, tier, fortified === 1);
+      }
       const z = Math.max(0.7, Math.min(2.2, this.renderer.zoom * 0.18));
       node.hull.scale.set(z);
       node.ring.scale.set(z);
@@ -88,14 +106,10 @@ export class ArmiesLayer {
     const palette = this.game.config.PLAYER_COLORS;
     const c = palette[a.owner] ?? [255, 255, 255, 255];
     const tint = (c[0] << 16) | (c[1] << 8) | c[2];
-    // Hull = rounded square in owner color (tank/squad icon).
+    const tier = Math.min(5, Math.floor(a.kills / 2));
+    const fortified = a.fortifyTicks >= 50;
     const hull = new Graphics();
-    hull.roundRect(-7, -7, 14, 14, 2)
-      .fill({ color: tint, alpha: 0.95 })
-      .stroke({ color: 0x000000, width: 1.2, alpha: 0.7 });
-    // Two horizontal stripes — reads as "stack" not "single soldier".
-    hull.rect(-5, -3, 10, 1.4).fill({ color: 0x000000, alpha: 0.5 });
-    hull.rect(-5,  1.6, 10, 1.4).fill({ color: 0x000000, alpha: 0.5 });
+    drawHull(hull, tint, tier, fortified);
     // Selection ring (hidden unless selected).
     const ring = new Graphics();
     ring.circle(0, 0, 13).stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
@@ -113,6 +127,36 @@ export class ArmiesLayer {
       },
     });
     label.anchor.set(0.5, -0.55);
-    return { hull, ring, label, lastShown: Math.round(a.strength / 5) * 5 };
+    return {
+      hull, ring, label,
+      lastShown: Math.round(a.strength / 5) * 5,
+      lastTier: Math.min(5, Math.floor(a.kills / 2)),
+      lastFortified: a.fortifyTicks >= 50 ? 1 : 0,
+    };
   }
+}
+
+/** Draw the army icon. Veteran tier adds gold chevrons inside the
+ *  hull (1 chevron per tier, up to 3 visible). Fortified adds a
+ *  gold border so dug-in defenders are obvious at a glance. */
+function drawHull(g: Graphics, tint: number, tier: number, fortified: boolean): void {
+  g.clear();
+  const borderColor = fortified ? 0xf6c447 : 0x000000;
+  const borderWidth = fortified ? 2 : 1.2;
+  const borderAlpha = fortified ? 0.95 : 0.7;
+  g.roundRect(-7, -7, 14, 14, 2)
+    .fill({ color: tint, alpha: 0.95 })
+    .stroke({ color: borderColor, width: borderWidth, alpha: borderAlpha });
+  // Two horizontal stripes (stack reading).
+  g.rect(-5, -3, 10, 1.4).fill({ color: 0x000000, alpha: 0.5 });
+  g.rect(-5,  1.6, 10, 1.4).fill({ color: 0x000000, alpha: 0.5 });
+  // Veteran chevrons (gold). 1-3 visible; 4-5 turn the second row red.
+  const chevTint = tier >= 4 ? 0xff8c2a : 0xf6c447;
+  const drawChev = (cy: number) => {
+    g.poly([-3, cy + 1, 0, cy - 1, 3, cy + 1])
+      .stroke({ color: chevTint, width: 1.0, alpha: 0.95 });
+  };
+  if (tier >= 1) drawChev(-3);
+  if (tier >= 2) drawChev(1.6);
+  if (tier >= 3) drawChev(5.0);
 }
