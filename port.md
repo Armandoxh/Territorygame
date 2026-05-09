@@ -30,10 +30,12 @@ carry forward and what to leave behind.
 - **Two-scale view, one simulation.** Pinch / scroll zooms
   smoothly between a strategic map (regiments as colored blobs,
   solid-color territory, region labels — make decisions here) and
-  a tactical view (individual soldier sprites scrapping, terrain
-  detail — watch and nudge here). No mode switch, no separate
-  battle screen. Total War vibe, but battles resolve in tens of
-  seconds, not 20 minutes.
+  a tactical view (pixel-art soldier sprites in formation grids,
+  pixel-textured ground — watch and nudge here). When zoomed in
+  past a threshold, tapping an engagement snaps the camera to it
+  for a locked-in tactical framing. Same simulation throughout —
+  no mode switch, no separate battle screen. Total War vibe, but
+  battles resolve in tens of seconds, not 20 minutes.
 
 ## Hard cuts (do NOT port from v1)
 
@@ -50,6 +52,32 @@ carry forward and what to leave behind.
 
 These come back as **expansions** if and only if the core loop is
 fun without them. Not before.
+
+## Tactical aesthetic reference
+
+A screenshot shared 2026-05-09 of u/Fabian_Viking's Grand RTS
+(r/RealTimeStrategy, "DSS 2: War Industry") is the visual anchor
+for the tactical view. What we **borrow**:
+
+- **Soldiers as tiny pixel-art sprites** (3-4 px tall) in tight
+  rectangular formation grids. A regiment reads as a block of
+  identical soldiers; rows and columns visible.
+- **Pixel-textured ground** at tactical zoom — subtle tile texture,
+  not smooth flat color.
+- **Owner color = unit color**, terrain stays ground-colored (green
+  grass, etc.). No territory tint at full tactical zoom.
+- **Minimal HUD** — small nation badge in a corner; that's it.
+
+What we explicitly **do not** borrow (re-affirming the hard cuts):
+
+- Buildings / settlements / the entire DSS 2 "War Industry"
+  city-building mechanic. We have only the capital.
+- Diplomacy HUD (relation badges, profile sheets, war/peace UI).
+- Multiple resource icons / inventories.
+- Map-screen UI for trading, alliances, treaties.
+
+The reference is for the **look at tactical zoom**, not for the
+systems behind it.
 
 ## First milestone (one playable build)
 

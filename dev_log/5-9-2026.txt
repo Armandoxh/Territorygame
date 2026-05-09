@@ -348,3 +348,40 @@ Bundle: ~210 KB gz total. typecheck clean. Build clean. No
 lint, no tests — lean per the constraint. If pinch feels jumpy
 on phone we add target-lerp smoothing in a follow-up; shipping
 without it first to know whether smoothing is needed.
+
+[FOLLOWUP — verified] User on phone: "Yes, it follows the
+finger. Zoom is nice." Nail #1 thumbs-up confirmed.
+
+---
+
+[uncommitted] docs: hybrid mechanism + tactical aesthetic ref
+captured in port.md after Nail #1 thumbs-up
+
+WHAT: Two port.md edits driven by user's screenshot share
+(u/Fabian_Viking's Grand RTS, r/RealTimeStrategy, "DSS 2: War
+Industry"):
+
+  1. Pillar #6 reworded. Added: (a) "pixel-art soldier sprites
+     in formation grids" + "pixel-textured ground" as the
+     tactical aesthetic on the pillar itself; (b) the hybrid
+     mechanism — when zoomed in past threshold, tapping an
+     engagement snaps the camera to it for locked-in tactical
+     framing. Reaffirmed "same simulation, no mode switch."
+
+  2. New section "Tactical aesthetic reference." Pinned to the
+     screenshot. Explicit borrow list (tiny pixel sprites in
+     formations, pixel ground, owner-color = unit-color, minimal
+     HUD) and explicit DO-NOT-borrow list (buildings, diplomacy
+     HUD, multi-resource, treaty UI) so the visual reference
+     doesn't drag in the hard-cut systems.
+
+Also v2.me logged the shift.
+
+WHY: User shared the reference image and asked "can we get a
+view like this." Captured the visual target before writing any
+code so future-Claude has a fixed reference to anchor on. User
+confirmed: not too fast, not out of scope, proceed to Nail #2.
+
+Next (Nail #2): map gen at strategic scale (terrain + regions,
+no soldiers yet). Asking 3-4 clarifying questions on world size
+/ region style / placeholder owner colors before code.

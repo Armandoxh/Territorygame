@@ -12,6 +12,31 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  port.md: hybrid mechanism + tactical aesthetic ref
+  WHAT: Two updates after Nail #1 verified working on phone:
+        1. Pillar #6 reworded — added the hybrid mechanism
+           (zoomed-in tap on an engagement snaps the camera to
+           it for a locked-in tactical framing). Same sim, no
+           mode switch — just a camera move. Also folded in
+           "pixel-art soldier sprites in formation grids" and
+           "pixel-textured ground" so the tactical aesthetic
+           is on the pillar itself.
+        2. New section "Tactical aesthetic reference" — pinned
+           to the user's screenshot of u/Fabian_Viking's Grand
+           RTS. Explicit list of what we borrow (sprites,
+           formations, pixel-ground, owner=unit color, minimal
+           HUD) and what we do NOT borrow (buildings, diplomacy
+           HUD, multi-resource, treaty UI) so the aesthetic
+           doesn't drag in the hard-cut systems.
+  WHY:  User shared a reference image and asked for that look at
+        tactical zoom. Captured BEFORE writing the code so future
+        Claude has a fixed visual target. Per the mantra ("ask a
+        LOT of clarifying questions"), the user confirmed both
+        the mechanism and that we proceed to Nail #2 (map gen at
+        strategic scale). Nail #2 starts next.
+
+---
+
 2026-05-09  Commit B: dual-scale zoom on placeholder grid (Nail #1)
   WHAT: Five new files in swarm/src/
         - camera.ts      Pure math. zoom + panX + panY state.
