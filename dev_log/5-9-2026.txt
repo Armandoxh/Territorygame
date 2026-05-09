@@ -228,3 +228,33 @@ to ask a LOT of clarifying questions." Anchoring the mantra in
 swarm/CLAUDE.md means future-Claude reads it on every session
 start (Claude Code auto-loads scoped CLAUDE.md), so the rebuild
 doesn't drift.
+
+---
+
+[uncommitted] v2 commit A: swarm/ scaffold builds + deploys
+
+WHAT: Standalone vite + TS + Pixi 8 + zustand project at
+swarm/. Files:
+  swarm/package.json     pixi.js ^8.6 + zustand ^5; vite ^5,
+                         typescript ^5.6 dev. No lint/test (lean).
+  swarm/tsconfig.json    strict + noUncheckedIndexedAccess.
+  swarm/vite.config.ts   base = /Territorygame/swarm/ in prod,
+                         outDir = ../docs/swarm, sourcemap off.
+  swarm/index.html       full-window canvas + a fixed-position
+                         #readout (top-left debug text).
+                         touch-action:none + overscroll:none so
+                         pinch on phone goes to canvas.
+  swarm/src/main.ts      boot Pixi, write "scaffold ok" to
+                         readout. No camera, no input, no zoom.
+  swarm/.gitignore       node_modules, dist, .vite, etc.
+  docs/swarm/            built artifacts (committed for Pages).
+
+WHY: Per the mantra ("nail one aspect"), the scaffold ships as
+its own discrete commit before the actual zoom feature lands.
+Verifies the build → /docs/swarm/ → Pages pipeline end-to-end.
+Bundle is ~140 KB gzipped — pixi auto-chunks into webgl/gpu/
+canvas paths, main entry only 38 KB gz. Lean per user note about
+not inflating the codebase.
+
+Next (commit B): camera (smooth pinch/wheel/kb zoom), 50×50
+placeholder grid, strategic↔tactical crossfade.

@@ -12,6 +12,25 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Commit A: swarm/ scaffold builds + deploys to /docs/swarm/
+  WHAT: Standalone vite + TS + Pixi 8 + zustand project under
+        swarm/. Builds to ../docs/swarm with base
+        /Territorygame/swarm/, so GH Pages serves v2 at
+        /Territorygame/swarm/ alongside v1 at /Territorygame/.
+        main.ts is the minimum: boot Pixi, full-window canvas,
+        write "scaffold ok" to a debug readout. No game state,
+        no input, no zoom yet. Sourcemaps off, no lint/test
+        scaffolding (lean per user's "don't inflate" note).
+        Deps: pixi.js ^8.6, zustand ^5. That's it.
+  WHY:  Per the mantra, ship the scaffold as its own discrete
+        step before the actual nail. Verifies the
+        build → docs/swarm/ → Pages pipeline so when commit B
+        adds the zoom, any breakage points at the feature, not
+        the plumbing. Bundle: ~140 KB gzipped (pixi auto-chunked
+        into webgl/gpu/canvas paths).
+
+---
+
 2026-05-09  swarm/ created + swarm/CLAUDE.md
   WHAT: Created swarm/ directory and swarm/CLAUDE.md. The
         CLAUDE.md captures the v2 mantra ("nail one aspect
