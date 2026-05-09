@@ -640,3 +640,35 @@ reproducibility for nail handoffs while giving you variety on
 demand. URL ?seed= param deferred; can add later if needed.
 
 Build clean, typecheck clean.
+
+---
+
+[uncommitted] v2 Nail #5a: capital markers
+
+User asked for capital markers + placeholder army with
+drag-to-move. Per the mantra (one nail at a time), shipping
+capitals first; army goes in a separate commit once these are
+verified.
+
+Design calls captured up front:
+- Drag-and-drop interaction for army (locks pan/zoom while a
+  drag is in progress).
+- Position-only semantics — moving the army doesn't claim/
+  conquer the destination. Pure adjacency demo. Combat is its
+  own future nail.
+
+mapRender.ts: new `capitalLayer` (Graphics), added as the 5th
+and topmost layer. Per-region: filled circle at centroid in
+region color, thin dark outline. Player capital: bigger
+(radius 10 vs 6 world units) with a white outer ring (2.5px
+wide). Drawn in WORLD space so it scales with zoom; sizes
+tuned so the marker is visible at min zoom (~0.4x) and not
+oversized at max (2x).
+
+main.ts: addLayers / loadMap teardown extended to handle the
+new layer.
+
+Build clean, typecheck clean. Awaiting visual confirmation:
+- 25 colored dots at region centroids.
+- Yours has a white ring + is bigger than the others.
+- "new map" button rebuilds them along with everything else.

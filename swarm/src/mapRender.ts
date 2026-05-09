@@ -5,6 +5,7 @@
 //   tint     — region owner color tints. Player region full alpha; others dim.
 //   borders  — vector lines along boundaries (region-vs-region, land-vs-water).
 //   player   — extra-thick bright outline along the player's region only.
+//   capital  — per-region centroid markers; player's is bigger with a white ring.
 
 import { Graphics } from 'pixi.js';
 import { type World, TERRAIN_WATER, TERRAIN_SAND } from './world';
@@ -24,11 +25,21 @@ const PLAYER_BORDER_COLOR = 0xffffff;
 const PLAYER_BORDER_WIDTH = 3;
 const PLAYER_BORDER_ALPHA = 0.95;
 
+// Capital marker sizes in world units (1 unit = 1px at zoom 1.0).
+// Tile is 16 units, so a 6-unit radius = ~3/8 of a tile.
+const CAPITAL_RADIUS_OTHER = 6;
+const CAPITAL_RADIUS_PLAYER = 10;
+const CAPITAL_OUTLINE_WIDTH = 1.5;
+const CAPITAL_OUTLINE_COLOR = 0x111111;
+const CAPITAL_PLAYER_RING_COLOR = 0xffffff;
+const CAPITAL_PLAYER_RING_WIDTH = 2.5;
+
 export interface MapLayers {
   terrainLayer: Graphics;
   tintLayer: Graphics;
   borderLayer: Graphics;
   playerLayer: Graphics;
+  capitalLayer: Graphics;
 }
 
 export function buildMapLayers(world: World, tileSize: number): MapLayers {
@@ -105,5 +116,29 @@ export function buildMapLayers(world: World, tileSize: number): MapLayers {
   }
   playerLayer.stroke({ width: PLAYER_BORDER_WIDTH, color: PLAYER_BORDER_COLOR, alpha: PLAYER_BORDER_ALPHA });
 
-  return { terrainLayer, tintLayer, borderLayer, playerLayer };
+  // 5. Capital markers at each region's centroid, drawn over everything.
+  //    Centroid is in tile-coords; convert to world units. Player capital
+  //    is bigger and gets an extra white ring so it reads at strategic zoom.
+  const capitalLayer = new Graphics();
+  for (const region of regions) {
+    const cx = region.centroidX * tileSize + tileSize / 2;
+    const cy = region.centroidY * tileSize + tileSize / 2;
+    const isPlayer = region.id === playerRegionId;
+    const radius = isPlayer ? CAPITAL_RADIUS_PLAYER : CAPITAL_RADIUS_OTHER;
+    capitalLayer.circle(cx, cy, radius).fill(region.color);
+    capitalLayer.circle(cx, cy, radius).stroke({
+      width: CAPITAL_OUTLINE_WIDTH,
+      color: CAPITAL_OUTLINE_COLOR,
+      alpha: 1,
+    });
+    if (isPlayer) {
+      capitalLayer.circle(cx, cy, radius + CAPITAL_PLAYER_RING_WIDTH).stroke({
+        width: CAPITAL_PLAYER_RING_WIDTH,
+        color: CAPITAL_PLAYER_RING_COLOR,
+        alpha: 1,
+      });
+    }
+  }
+
+  return { terrainLayer, tintLayer, borderLayer, playerLayer, capitalLayer };
 }

@@ -12,6 +12,27 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #5a: capital markers
+  WHAT: New `capitalLayer` Graphics, drawn above everything,
+        renders a filled circle at each region's centroid in
+        the region's color with a thin dark outline. Radius
+        in world units (6 for AI, 10 for player). Player
+        capital additionally gets a white outer ring so it
+        pops at strategic zoom.
+  WHY:  Adjacency graph (nail #4) gave us "who borders whom";
+        capital markers give us "where does each nation LIVE
+        on the map" — a stable, single-point identity for
+        every region. Future: army icons render on these,
+        movement origins/targets snap to these, vassal links
+        will be rendered as lines between them. Player visual
+        differentiator (size + ring) keeps "this is YOU"
+        unmistakable even at min zoom. Drawn in WORLD space
+        (not screen) so they zoom with the map; sizes were
+        tuned so the marker reads at 0.4x but doesn't dominate
+        at 2x.
+
+---
+
 2026-05-09  "new map" button + seed display
   WHAT: Top-right button regenerates the world with a fresh
         random seed. Old layers .destroy()ed so Pixi releases

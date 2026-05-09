@@ -48,6 +48,7 @@ function addLayers(l: MapLayers) {
   worldContainer.addChild(l.tintLayer);
   worldContainer.addChild(l.borderLayer);
   worldContainer.addChild(l.playerLayer);
+  worldContainer.addChild(l.capitalLayer);
 }
 
 function loadMap(seed: number) {
@@ -57,6 +58,7 @@ function loadMap(seed: number) {
   layers.tintLayer.destroy();
   layers.borderLayer.destroy();
   layers.playerLayer.destroy();
+  layers.capitalLayer.destroy();
   worldContainer.removeChildren();
 
   world = generateWorld({
