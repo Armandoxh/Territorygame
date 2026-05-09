@@ -3,7 +3,8 @@ import { createCamera } from './camera';
 import { generateWorld, type World } from './world';
 import { buildMapLayers, type MapLayers } from './mapRender';
 import { attachInput, type DragHandler } from './input';
-import { createArmy, type Army } from './army';
+import { createArmy, type Army, type Regiment } from './army';
+import { UNIT_DEFS } from './units';
 import { readoutStore, type ViewLabel } from './store';
 
 const TILE_SIZE = 16;
@@ -71,6 +72,10 @@ interface EnemyState {
   glyph: Graphics;
   pos: { x: number; y: number };
   regionId: number;
+  // Per Q2 of nail #6.1: identical composition to the player. When AI /
+  // recruitment / asymmetric matchups land in their own nails this seed
+  // becomes per-nation config.
+  regiments: Regiment[];
 }
 
 function spawnEnemy(w: World): EnemyState | null {
@@ -89,7 +94,20 @@ function spawnEnemy(w: World): EnemyState | null {
     .stroke({ width: 1.5, color: 0x111111 });
   glyph.position.set(x, y);
 
-  return { glyph, pos: { x, y }, regionId: enemyRegionId };
+  return {
+    glyph,
+    pos: { x, y },
+    regionId: enemyRegionId,
+    regiments: [
+      { type: 'infantry', count: 50 },
+      { type: 'cavalry', count: 20 },
+    ],
+  };
+}
+
+function formatRegiments(regs: readonly Regiment[]): string {
+  if (regs.length === 0) return '∅';
+  return regs.map((r) => `${UNIT_DEFS[r.type].shortLabel} ${r.count}`).join(' · ');
 }
 
 function addLayers(l: MapLayers) {
@@ -242,6 +260,7 @@ function renderReadout() {
           : '?';
     armyLine = `army @ ${where} · drag to march`;
   }
+  const armyComp = formatRegiments(army.getRegiments());
   let enemyLine: string;
   if (!enemy) {
     enemyLine = 'no enemy (no neighbors)';
@@ -252,12 +271,15 @@ function renderReadout() {
   } else {
     enemyLine = `enemy @ #${enemy.regionId} · march onto it`;
   }
+  const enemyComp = enemy ? formatRegiments(enemy.regiments) : '';
   readoutEl.textContent =
     `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
     `seed ${currentSeed}\n` +
     `nation #${world.playerRegionId} · ${playerRegion.neighbors.length} borders\n` +
     armyLine + '\n' +
-    enemyLine;
+    `  yours: ${armyComp}\n` +
+    enemyLine +
+    (enemyComp ? `\n  theirs: ${enemyComp}` : '');
 }
 readoutStore.subscribe(renderReadout);
 renderReadout();

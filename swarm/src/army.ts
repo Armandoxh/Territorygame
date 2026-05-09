@@ -18,6 +18,22 @@
 
 import { Container, Graphics } from 'pixi.js';
 import type { World } from './world';
+import type { UnitType } from './units';
+
+// One homogeneous block of soldiers of a single unit type. An army holds
+// an array of these. Per-regiment combat state (HP, morale, facing) lands
+// in later combat nails; for now we only track type + headcount.
+export interface Regiment {
+  type: UnitType;
+  count: number;
+}
+
+// Default starting composition for a fresh army (player or enemy).
+// User picked: identical comps both sides, 2 unit types this nail.
+const DEFAULT_REGIMENTS: Readonly<Regiment[]> = [
+  { type: 'infantry', count: 50 },
+  { type: 'cavalry', count: 20 },
+];
 
 const ARMY_SIZE = 12;
 const ARMY_OUTLINE_WIDTH = 1.5;
@@ -65,6 +81,9 @@ export interface Army {
   tick(dtSec: number): void;
   getStatus(): ArmyStatus;
   getPos(): { x: number; y: number };
+  // Returns the army's regiments. Read-only snapshot — mutate only via
+  // future combat / recruitment APIs.
+  getRegiments(): readonly Regiment[];
   hitTest(sx: number, sy: number): boolean;
   startDrag(sx: number, sy: number): void;
   updateDrag(sx: number, sy: number): void;
@@ -85,6 +104,7 @@ export function createArmy(deps: ArmyDeps): Army {
   };
   let march: { toX: number; toY: number } | null = null;
   let dragging = false;
+  const regiments: Regiment[] = DEFAULT_REGIMENTS.map((r) => ({ ...r }));
 
   const container = new Container();
   const marchLine = new Graphics();
@@ -222,6 +242,7 @@ export function createArmy(deps: ArmyDeps): Army {
     tick,
     getStatus,
     getPos: () => ({ x: pos.x, y: pos.y }),
+    getRegiments: () => regiments,
     hitTest,
     startDrag,
     updateDrag,

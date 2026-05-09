@@ -156,37 +156,41 @@ systems behind it.
 
 ## Army composition model
 
-User confirmed 2026-05-09 (after seeing the tactical reference):
-the on-map controllable thing is a **battalion** (one player
-can have many) and a battalion is a **mixed force** internally
-composed of multiple **regiments**, each regiment being a
-homogeneous block of one unit type.
-
-The hierarchy:
+User confirmed 2026-05-09 the hierarchy is **three levels**,
+matching the map-control instinct (one glyph = one army):
 
 ```
 nation
-  └─ N battalions   (each is one map glyph, drag-marched independently)
-       └─ M regiments (each homogeneous, one unit type)
+  └─ N armies      (each is one map glyph, drag-marched independently)
+       └─ M regiments  (each homogeneous, one unit type)
             └─ K individual soldier sprites (only rendered at tactical zoom)
 ```
 
-What this means for data shape (when we get there):
+"Battalion" is **not** a system-level concept in this game.
+Earlier draft of this section used it; it has been dropped to
+avoid the real-world military naming collision (where battalion
+is below regiment). The dragable map thing is an *army*; the
+homogeneous block inside it is a *regiment*; the visible
+pixel-art thing in tactical zoom is a *soldier*.
 
-- A battalion is `{ regiments: Regiment[] }`, NOT a flat
+What this means for data shape:
+
+- An army is `{ regiments: Regiment[] }`, NOT a flat
   `{ infantry: 100, cavalry: 20 }` map. Each regiment is its
-  own object so it can have per-regiment state (HP, morale,
-  facing) later.
-- A nation owns an array of battalions, not a single army.
-- Recruitment ultimately produces *regiments* (or fills them),
-  not loose soldiers. Tactical view renders one formation
-  block per regiment, drawn from per-type sprite atlases.
+  own object so it can have per-regiment state (count, type,
+  HP / morale / facing once those land) later.
+- A nation owns an array of armies. Multiple armies on the
+  same nation = multiple glyphs on the map, each separately
+  drag-marched.
+- Recruitment will ultimately produce *regiments* (or fill
+  them), not loose soldiers. Tactical view renders one
+  formation block per regiment, drawn from per-type sprite
+  atlases.
 
 **This section describes the shape we are building toward.**
-None of it gets implemented until the core loop earns it
-(lesson #4). Combat lands first against the current
-single-glyph army; recruitment / battalion composition arrive
-in a later wave once combat is fun.
+Multiple armies per nation, recruitment, building system, AI
+all arrive in their own nails. Combat lands first against the
+single-army state; everything else builds on top.
 
 ## First milestone (one playable build)
 

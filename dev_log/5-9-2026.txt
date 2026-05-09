@@ -903,3 +903,62 @@ Awaiting visual confirmation:
 - Trigger fires only ONCE per map (drag away + back doesn't
   retrigger; that's intentional for this nail).
 - New map button respawns a new enemy, resets the trigger.
+
+[update] Boot was broken on first deploy of #6.0. spawnEnemy
+called at module-init line 70 but its const dependencies
+(ENEMY_GLYPH_SIZE etc) were declared further down — TDZ
+ReferenceError. Reordered constants/helpers above the call
+site. Lesson: typecheck + build pass don't catch runtime TDZ;
+should boot-test UI nails before pushing.
+
+[update] User saw "BATTLE TRIGGERED" then asked for a
+"RETREATING" state on the first move out of range. Replaced
+the boolean combatTriggered with a state machine:
+idle | engaged | retreating. Transitions logged to console.
+Single line in the readout reflects the current state.
+
+---
+
+[uncommitted] Nail #6.1: regiment data model
+
+User reviewed the proposed nail breakdown then pivoted Q3
+(visual representation) to surface a vocabulary issue: they
+used "army" and "battalion" as DIFFERENT things. My port.md
+spec accidentally inverted the real military hierarchy.
+
+Surfaced the inconsistency (battalion < regiment in real
+military), offered three reconciliations. User picked option 1:
+drop battalion entirely. Hierarchy is now:
+  nation -> armies -> regiments -> soldiers (3 levels)
+
+port.md "Army composition model" rewritten. "Battalion" notes
+explicitly call out the dropped term so future Claude doesn't
+re-introduce it.
+
+Other answers in this nail's design pass:
+- 2 unit types in scope: infantry + cavalry
+- Player & enemy starting compositions identical
+- No visual glyph change yet (single square per army)
+
+Code:
+- New units.ts: UnitType union, UNIT_DEFS catalog with
+  displayName + shortLabel. Stats deferred to #6.6 sim.
+- army.ts: new Regiment interface (type + count). DEFAULT_REGIMENTS
+  constant seeds infantry 50 + cavalry 20. createArmy stamps a
+  per-instance copy via .map(spread). New getRegiments() in the
+  Army interface returns readonly Regiment[].
+- main.ts:
+  - EnemyState gains `regiments: Regiment[]` field
+  - spawnEnemy seeds the same default composition
+  - new formatRegiments helper produces "inf 50 · cav 20"
+  - readout grew two indented lines: "yours: ..." and
+    "theirs: ..." showing each side's composition
+  - imports Regiment + UNIT_DEFS at top
+
+Build clean, typecheck clean.
+
+Awaiting visual confirmation:
+- Readout shows "yours: inf 50 · cav 20" under the army line
+- "theirs: inf 50 · cav 20" under the enemy line
+- Composition persists through march, engage, retreat, new map
+- (No combat math yet — counts don't change. That's #6.6.)

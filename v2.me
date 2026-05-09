@@ -12,6 +12,38 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #6.1: regiment data model
+  WHAT: New `units.ts` module with a UnitType union (currently
+        'infantry' | 'cavalry') and a UNIT_DEFS catalog mapping
+        each to display metadata. New `Regiment` type in army.ts:
+        `{ type: UnitType, count: number }`. Both player and
+        enemy now hold an array of regiments instead of being
+        opaque single-soldier glyphs. Default starting comp:
+        infantry 50 + cavalry 20 (identical for both sides per
+        user pick). Readout now shows per-army composition under
+        the existing army/enemy lines.
+  WHY:  Locks in the data shape that every later combat nail
+        depends on. Tactical formation render (#6.3) iterates
+        regiments and lays one block per regiment. Per-soldier
+        sim (#6.6) treats `count` as the live soldier head-count.
+        HUD card strip (#6.7) renders one card per regiment.
+        Heterogeneous-ready from day one (no flat `{infantry: 50}`
+        map) so adding a third type later is a one-line config
+        change, not a refactor.
+
+  Vocabulary fixed: dropped "battalion" as a system-level
+        concept. Hierarchy is now `nation -> armies -> regiments
+        -> soldiers` (3 levels). port.md "Army composition model"
+        section rewritten to match. The dragable map glyph is an
+        ARMY; the homogeneous block inside it is a REGIMENT.
+
+  No visual change to the strategic glyph this nail — still a
+        single colored square per army. Glyph variation
+        (multiple armies = multiple glyphs) lands when nation
+        owns more than one army.
+
+---
+
 2026-05-09  Nail #6.0: test enemy + combat trigger
   WHAT: One stationary enemy battalion glyph (square in the
         enemy region's color, same shape as the player's army)
