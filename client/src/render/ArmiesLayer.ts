@@ -12,6 +12,9 @@ interface ArmyNode {
    *  many armies. We coarsen to multiples of 5 so the rasterizer
    *  fires ~5× less often without hiding meaningful changes. */
   lastShown: number;
+  /** Cached owner-name segment of the label (changes only if the
+   *  owner's display name changes — basically never). */
+  lastName: string;
   /** Last veteran tier rendered (0 = recruit, 1+ = chevrons). Avoids
    *  redrawing the hull every frame. */
   lastTier: number;
@@ -59,11 +62,15 @@ export class ArmiesLayer {
       node.ring.position.set(sp.x, sp.y);
       node.label.position.set(sp.x, sp.y + 1);
       // Throttle label rasterization: only update when the rounded-to-5
-      // value changes. Avoids per-tick text relayout on mobile.
+      // strength OR the owner's name (basically never) changes. Avoids
+      // per-tick text relayout on mobile.
       const shown = Math.round(a.strength / 5) * 5;
-      if (shown !== node.lastShown) {
-        node.label.text = String(shown);
+      const ownerP = this.game.players[a.owner];
+      const name = shortName(ownerP?.name ?? `P${a.owner}`);
+      if (shown !== node.lastShown || name !== node.lastName) {
+        node.label.text = `${name}\n${shown}`;
         node.lastShown = shown;
+        node.lastName = name;
       }
       // Veteran chevrons + fortify outline. Cheap redraws when state
       // crosses a threshold; the hull is tiny so re-rendering costs
@@ -114,9 +121,13 @@ export class ArmiesLayer {
     const ring = new Graphics();
     ring.circle(0, 0, 13).stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
     ring.visible = false;
-    // Strength badge — short white-on-dark text below the icon.
+    // Two-line label below the icon: nation name on top (light), strength
+    // on the bottom (bold). Reads as "Korthal · 123" without needing the
+    // separator.
+    const ownerP = this.game.players[a.owner];
+    const name = shortName(ownerP?.name ?? `P${a.owner}`);
     const label = new Text({
-      text: String(a.strength | 0),
+      text: `${name}\n${Math.round(a.strength / 5) * 5}`,
       style: {
         fontFamily: 'system-ui, -apple-system, sans-serif',
         fontSize: 9,
@@ -124,16 +135,28 @@ export class ArmiesLayer {
         fill: 0xffffff,
         stroke: { color: 0x000000, width: 3, alpha: 0.85 },
         align: 'center',
+        lineHeight: 10,
       },
     });
-    label.anchor.set(0.5, -0.55);
+    label.anchor.set(0.5, -0.40);
     return {
       hull, ring, label,
       lastShown: Math.round(a.strength / 5) * 5,
+      lastName: name,
       lastTier: Math.min(5, Math.floor(a.kills / 2)),
       lastFortified: a.fortifyTicks >= 50 ? 1 : 0,
     };
   }
+}
+
+/** Trim long names to fit under the army icon. Strips a leading
+ *  prefix word ("Kingdom of X" → "X") then caps to 10 chars. */
+function shortName(full: string): string {
+  let s = full;
+  const ofIdx = s.indexOf(' of ');
+  if (ofIdx >= 0) s = s.slice(ofIdx + 4);
+  if (s.length > 10) s = s.slice(0, 9) + '…';
+  return s;
 }
 
 /** Draw the army icon. Veteran tier adds gold chevrons inside the
