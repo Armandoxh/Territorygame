@@ -12,6 +12,60 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  #6.2 follow-up #2: rounds sim + commitment + cooldown
+  WHAT: Rewrote Simulate's combat resolver as a rounds-based
+        loop using real per-soldier stats (atk, def, hp on
+        infantry and cavalry). Each round, both sides exchange
+        damage simultaneously; after every round each side
+        checks two retreat conditions (force ratio < 0.4 OR
+        casualties > 60% of starting power). First side to
+        either condition retreats; both at once → mutual rout.
+        Result panel now shows the outcome label ("ENEMY
+        ROUTED" / "PLAYER ROUTED" / "MUTUAL ROUT" / "ENEMY
+        ANNIHILATED" / "PLAYER ANNIHILATED"). Once the player
+        touches the enemy they are committed — the old
+        "drag away during 500ms pre-roll cancels battle" path
+        is gone. Army movement is frozen from the moment of
+        contact through the entire battle scene. After the
+        exit transition, the engagement enters a 5-second
+        cooldown; touching the enemy again does nothing until
+        the timer expires (readout shows "regrouping...").
+  WHY:  The old single-shot head-count comparison gave both
+        sides equal hits and felt arbitrary. Real stats +
+        rounds gives the simulation the "fight until one side
+        breaks" feel the user asked for, and lets unit type
+        composition matter (cavalry: heavier hitter, no armor;
+        infantry: balanced + armored). Commitment + cooldown
+        close the loophole where you could either chicken out
+        before pre-roll completed, or instantly re-attack the
+        same enemy after a loss. With the cooldown the loser
+        gets breathing room to either retreat physically or
+        accept they can't take this region.
+
+  Implementation: units.ts grew atk/def/hp fields on UnitDef.
+        battleSim.ts rewritten: per-round simultaneous damage
+        with hp-share distribution and per-regiment armor
+        reduction (DAMAGE_SCALE=0.5, DEF_SCALE=0.3, capped at
+        MAX_ROUNDS=30 as a stalemate guard). New SimOutcome
+        union; old SimResult shape preserved + outcome and
+        rounds added. battleMenu.ts maps outcome to a header
+        label, otherwise unchanged. main.ts simplified
+        CombatState from idle|engaged|retreating to
+        idle|engaged|cooldown; engagement detection gated on
+        idle; cooldown ticks back to idle in the ticker;
+        zoom/drag lock keyed off `combatState === 'engaged'`
+        which now covers both pre-roll and in-battle. Battle
+        exit transition completion sets the cooldown timer.
+
+  Tuning notes (in case it feels off):
+   - 50 inf vs 50 inf → ~5 rounds, mutual rout
+   - 50+20 vs 50+20 (mixed) → ~4 rounds, mutual rout
+   - 70 inf vs 50 inf → ~2 rounds, enemy routed
+   - Single units / glass cannons → cavalry gets minced fast
+     unless paired with infantry to absorb hits
+
+---
+
 2026-05-09  #6.2 follow-up: action menu + slowed transition
   WHAT: Slowed the battle entry/exit crossfade from 600ms to
         1000ms (per user request — felt rushed). After the

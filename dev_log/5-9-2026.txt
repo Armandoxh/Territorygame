@@ -1108,3 +1108,99 @@ What I want eyes on:
   the menu visible. User must pick Simulate or press B to
   exit. This is intentional but might be confusing — open to
   changing it.
+
+---
+
+[uncommitted] #6.2 follow-up #2: rounds-based sim + commitment + cooldown
+
+User loved the gameplay loop and asked for smarter sim:
+> they should fight until AI determines retreat is the best
+> option (outmatched in stats) or absolutely no chance in
+> winning. They should not be able to retreat from battles
+> they engage.
+
+Asked four clarifying questions:
+- Stats source → "Full stat block" (pulls #6.6 design forward)
+- Visualization → "Compute, single counter" (preserve current
+  feel, smarter math under the hood)
+- Loser fate → "Engagement cooldown" (no movement; lock out
+  re-engagement for ~5s)
+- Retreat trigger → "Either condition" (force ratio < 40% OR
+  casualties > 60%)
+
+Stat block (units.ts):
+- infantry: atk=1, def=1, hp=1   (baseline grunt, armored)
+- cavalry:  atk=2, def=0, hp=1.5 (glass cannon)
+
+Sim model (battleSim.ts, rewrite):
+- Each round, both sides simultaneously deal damage equal to
+  sum(count × atk) × DAMAGE_SCALE (0.5)
+- Damage distributed to opponent's regiments by hp-share
+  (count × hp / opponent_total_hp)
+- Each regiment subtracts count × def × DEF_SCALE (0.3) from
+  incoming
+- Soldiers killed = floor(effective / hp), capped at count
+- After each round, BOTH sides independently check:
+   1. current_power / opponent_power < 0.4 → outmatched
+   2. (start - current) / start > 0.6     → casualty break
+  If either fires, that side retreats.
+- Both retreat in same round → mutual_rout
+- Either side hits 0 power → *_destroyed (annihilated)
+- MAX_ROUNDS = 30 stalemate guard (in practice never hits)
+
+Power formula: count × (atk + hp) per soldier. Combines bulk
+and offense into one scalar so the retreat checks have
+something single-dimensional to compare.
+
+Outcomes (new SimOutcome union):
+  enemy_routed | player_routed | mutual_rout |
+  enemy_destroyed | player_destroyed
+Result panel header text changes to match.
+
+Hand-traced numbers:
+- 50 inf vs 50 inf: ~5 rounds, mutual rout
+- 50+20 vs 50+20 mixed: ~4 rounds, mutual rout
+- 70 inf vs 50 inf: ~2 rounds, enemy routed (force-ratio check
+  fires before casualty check on the underdog)
+
+Commitment + cooldown (main.ts):
+- CombatState union: idle | engaged | retreating  →
+                     idle | engaged | cooldown
+- Removed: the entire pre-roll cancel branch (dragging away
+  during the 500ms pre-roll no longer aborts the battle)
+- 'engaged' now covers BOTH pre-roll and in-battle. army.tick
+  is gated on `combatState !== 'engaged'` so movement freezes
+  at contact and stays frozen through dismiss
+- input.ts getZoomLocked still gates zoom + drag-handler;
+  switched its predicate from `inBattle` to
+  `combatState === 'engaged'` (matches the new freeze window)
+- Battle exit transition completion: combatState = 'cooldown',
+  combatCooldownUntil = now + 5000ms
+- Ticker checks: when cooldown elapses, combatState → 'idle',
+  renderReadout() so the UI updates
+- Engagement detection gated on `combatState === 'idle'`, so
+  contact during cooldown is silently ignored
+
+Readout:
+- 'engaged' → '>>> BATTLE TRIGGERED <<<' (unchanged)
+- 'cooldown' → 'regrouping... · enemy @ #X' (no live seconds
+  counter — readout doesn't render every frame and a static
+  message reads fine for 5s)
+
+Known divergence from "no retreat" rule:
+- Pressing B during the actual battle scene still exits via
+  startExitBattle. This is intentional for now — until Attack
+  and Intimidate are real, B is our only escape if the user
+  picks one of them. B-exit still triggers cooldown so it's
+  not a free re-engagement, just a way out of the menu.
+
+What I want eyes on:
+- Does the sim feel right? Tunable: DAMAGE_SCALE, DEF_SCALE,
+  RETREAT_RATIO, RETREAT_CASUALTIES in battleSim.ts
+- Does cavalry feel meaningfully different from infantry? With
+  the default 50 inf + 20 cav both sides, cav wipes fast
+  because no def — that may be too punishing
+- Cooldown duration: 5s feels right? Tunable via
+  COMBAT_COOLDOWN_MS
+- The "regrouping..." readout text: keep, change to something
+  else, or drop entirely?

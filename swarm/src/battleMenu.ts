@@ -9,7 +9,15 @@
 
 import { UNIT_DEFS, type UnitType } from './units';
 import type { Regiment } from './army';
-import type { SimResult } from './battleSim';
+import type { SimResult, SimOutcome } from './battleSim';
+
+const OUTCOME_LABELS: Record<SimOutcome, string> = {
+  enemy_routed: 'ENEMY ROUTED',
+  player_routed: 'PLAYER ROUTED',
+  mutual_rout: 'MUTUAL ROUT',
+  enemy_destroyed: 'ENEMY ANNIHILATED',
+  player_destroyed: 'PLAYER ANNIHILATED',
+};
 
 export interface BattleMenuActions {
   onAttack(): void;
@@ -43,11 +51,12 @@ export function createBattleMenu(actions: BattleMenuActions): BattleMenu {
   const root = document.getElementById('battle-menu') as HTMLDivElement | null;
   const cardsEl = document.getElementById('battle-menu-cards') as HTMLDivElement | null;
   const resultEl = document.getElementById('battle-menu-result') as HTMLDivElement | null;
+  const titleEl = document.getElementById('battle-result-title') as HTMLDivElement | null;
   const playerLineEl = document.getElementById('battle-result-player') as HTMLDivElement | null;
   const enemyLineEl = document.getElementById('battle-result-enemy') as HTMLDivElement | null;
   const dismissBtn = document.getElementById('battle-result-dismiss') as HTMLButtonElement | null;
 
-  if (!root || !cardsEl || !resultEl || !playerLineEl || !enemyLineEl || !dismissBtn) {
+  if (!root || !cardsEl || !resultEl || !titleEl || !playerLineEl || !enemyLineEl || !dismissBtn) {
     throw new Error('battle menu DOM nodes missing');
   }
 
@@ -79,6 +88,7 @@ export function createBattleMenu(actions: BattleMenuActions): BattleMenu {
     cardsEl!.hidden = true;
     resultEl!.hidden = false;
 
+    titleEl!.textContent = OUTCOME_LABELS[result.outcome];
     // Initial render: pre-sim counts. Then animate to post-sim.
     playerLineEl!.textContent = formatRegimentLines(result.player.before);
     enemyLineEl!.textContent = formatRegimentLines(result.enemy.before);

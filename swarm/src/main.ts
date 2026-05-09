@@ -30,6 +30,10 @@ const TIER_THRESHOLD_PX = 18;  // strategic if cellPixelSize <= this, else opera
 const TACTICAL_ZOOM = 6.0;
 const BATTLE_ENTRY_DELAY_MS = 500;
 const BATTLE_TRANSITION_MS = 1000;
+// Re-engagement lockout after a battle resolves. Stops the loser from
+// being instantly eaten by the same enemy (or instantly re-attacking it).
+// Drag is allowed during cooldown — only the engagement trigger is gated.
+const COMBAT_COOLDOWN_MS = 5000;
 
 const app = new Application();
 await app.init({
@@ -151,8 +155,18 @@ let world: World = generateWorld({
 let layers: MapLayers = buildMapLayers(world, TILE_SIZE);
 let army: Army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
 let enemy: EnemyState | null = spawnEnemy(world);
-type CombatState = 'idle' | 'engaged' | 'retreating';
+// Combat lifecycle:
+//   idle     — no engagement; touching the enemy starts one
+//   engaged  — covers BOTH the 500ms pre-roll AND the in-battle scene.
+//              Army movement is frozen, the army can't be dragged,
+//              zoom is locked. Once entered, the only way out is via
+//              the battle menu (or via loadMap which force-exits).
+//   cooldown — battle just resolved; re-engagement is gated for
+//              COMBAT_COOLDOWN_MS so a defeated army doesn't loop
+//              straight back into another fight. Drag is free.
+type CombatState = 'idle' | 'engaged' | 'cooldown';
 let combatState: CombatState = 'idle';
+let combatCooldownUntil = 0;
 addLayers(layers);
 strategicLayer.addChild(army.container);
 if (enemy) strategicLayer.addChild(enemy.glyph);
@@ -184,6 +198,7 @@ function loadMap(seed: number) {
   army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
   enemy = spawnEnemy(world);
   combatState = 'idle';
+  combatCooldownUntil = 0;
   addLayers(layers);
   strategicLayer.addChild(army.container);
   if (enemy) strategicLayer.addChild(enemy.glyph);
@@ -281,6 +296,8 @@ function forceExitBattle() {
   strategicLayer.alpha = 1;
   battleSceneLayer.alpha = 0;
   battleMenu.hide();
+  // No cooldown — the world is being torn down anyway. loadMap resets
+  // combatState to 'idle' immediately after.
   if (preBattleCamera) {
     camera.zoom = preBattleCamera.zoom;
     camera.panX = preBattleCamera.panX;
@@ -317,6 +334,12 @@ function tickBattleSystem(dtMs: number) {
       if (dir === 'out') {
         inBattle = false;
         preBattleCamera = null;
+        // Battle resolved → enter cooldown. combatState stays out of
+        // 'idle' until the cooldown timer expires (handled in the
+        // ticker), so the player can't re-engage immediately.
+        combatState = 'cooldown';
+        combatCooldownUntil = performance.now() + COMBAT_COOLDOWN_MS;
+        renderReadout();
       } else {
         // Entry crossfade just completed — surface the action menu.
         battleMenu.show();
@@ -372,7 +395,10 @@ attachInput({
   camera,
   getViewport: () => ({ w: app.screen.width, h: app.screen.height }),
   getDragHandler: () => armyDragHandler,
-  getZoomLocked: () => inBattle,
+  // Lock zoom + drag from the moment engagement starts (covers the
+  // 500ms pre-roll AND the in-battle scene). Cooldown leaves these
+  // free — the player can pan/drag/zoom freely while the timer ticks.
+  getZoomLocked: () => combatState === 'engaged',
 });
 
 // Battle exit key. Only acts while in battle; otherwise B does nothing.
@@ -391,30 +417,30 @@ app.ticker.add(() => {
   const vh = app.screen.height;
   const dtMs = app.ticker.deltaMS;
 
-  // Freeze the army's march while we are in battle (or transitioning).
-  if (!inBattle) {
+  // Freeze the army's march while we are committed to battle (covers
+  // both the 500ms pre-roll and the in-battle scene). Once contact
+  // happens, the army can no longer walk away — that's the "no retreat
+  // from a battle you engage" rule. Cooldown lets the army move again.
+  if (combatState !== 'engaged') {
     army.tick(dtMs / 1000);
   }
 
-  // Combat-state detection is gated on overworld mode. Once we enter
-  // battle, the strategic combatState stops updating until exit.
-  if (enemy && !inBattle) {
+  // Cooldown timer. Returns to 'idle' once the lockout elapses.
+  if (combatState === 'cooldown' && performance.now() >= combatCooldownUntil) {
+    combatState = 'idle';
+    renderReadout();
+  }
+
+  // Engagement detection. Only fires when the army is free to engage —
+  // i.e. not already engaged and not on a re-engagement cooldown.
+  if (enemy && combatState === 'idle') {
     const ap = army.getPos();
     const dx = ap.x - enemy.pos.x;
     const dy = ap.y - enemy.pos.y;
-    const inRange = Math.hypot(dx, dy) <= COMBAT_TRIGGER_RADIUS;
-    if (inRange && combatState !== 'engaged') {
+    if (Math.hypot(dx, dy) <= COMBAT_TRIGGER_RADIUS) {
       combatState = 'engaged';
       console.log('[combat] engaged with region', enemy.regionId);
       startEnterBattle();
-      renderReadout();
-    } else if (!inRange && combatState === 'engaged') {
-      // First step out of the engagement zone after touching the enemy.
-      combatState = 'retreating';
-      console.log('[combat] retreating from region', enemy.regionId);
-      // The user may have left the engagement zone before the entry
-      // delay elapsed. Cancel any pending entry.
-      battleEntryTimer = null;
       renderReadout();
     }
   }
@@ -471,8 +497,8 @@ function renderReadout() {
     enemyLine = 'no enemy (no neighbors)';
   } else if (combatState === 'engaged') {
     enemyLine = '>>> BATTLE TRIGGERED <<<';
-  } else if (combatState === 'retreating') {
-    enemyLine = `RETREATING from #${enemy.regionId}`;
+  } else if (combatState === 'cooldown') {
+    enemyLine = `regrouping... · enemy @ #${enemy.regionId}`;
   } else {
     enemyLine = `enemy @ #${enemy.regionId} · march onto it`;
   }
