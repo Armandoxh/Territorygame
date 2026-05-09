@@ -153,3 +153,30 @@ confusion: tap-canvas-does-nothing AND select-and-order-feels-
 janky. Persistent banner addresses both — every tap now has an
 in-context expectation ("this tap will...") shown on screen,
 not after-the-fact toast.
+
+---
+
+[uncommitted] docs: port.md, lessons.md, v2.me — plan of record
+for v2 (soldier-swarm rebuild)
+
+WHAT: Three new top-level docs.
+  port.md    — v2 plan of record. New game in 5 bullets. Hard
+               cuts from v1 (decrees, masteries, ships/planes,
+               ground ops, multi-resource, ARMY_MODE flag,
+               diplomacy menu). First-milestone scope. Process
+               rules (every new system gets a paragraph here
+               first; every change logged in v2.me).
+  lessons.md — 12 lessons distilled from v1, each anchored in a
+               concrete v1 incident. Visual style locks the
+               engine. One mode at a time. Don't ship pivots
+               without finishing them. Mobile is the spec, not a
+               port. Tunables in one file. Save/load early. Etc.
+  v2.me      — running changelog for v2 work. Seeded with the
+               first entry (these docs). Will move with v2 when
+               it lands in its own repo.
+
+WHY: User asked to start v2 in a new repo. Before any new code,
+anchor the rebuild so we don't repeat the pivot-without-design
+loop that buried v1. v2 will be scaffolded under swarm/ on this
+branch until a fresh GitHub repo exists; v1 stays here as
+reference.
