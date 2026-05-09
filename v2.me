@@ -12,6 +12,43 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  #6.2 follow-up: action menu + slowed transition
+  WHAT: Slowed the battle entry/exit crossfade from 600ms to
+        1000ms (per user request — felt rushed). After the
+        entry transition completes, three floating cards
+        appear centered over the dirt: Attack, Simulate,
+        Intimidate. Picking Simulate runs a placeholder
+        head-count combat resolver, applies the casualties to
+        both sides' regiments, and replaces the cards with a
+        result panel that animates regiment counts down to
+        survivors over ~800ms (ease-out cubic). Dismissing the
+        result triggers the normal exit fade. Attack and
+        Intimidate are stubs (console.log only) per user pick:
+        Intimidate design is deferred to its own future nail
+        and Attack waits on the per-soldier sim.
+  WHY:  The 600ms transition felt punchy but rushed; doubling
+        it (almost) gives the camera move room to read as
+        intentional. The action menu is the smallest possible
+        scaffolding to make "what do you do once in battle"
+        a real choice — without it, hitting an enemy is just
+        a camera demo. Even with two stub buttons, having the
+        menu in place lets us nail the transition + UI flow
+        before the actual combat systems land.
+
+  Implementation: new battleSim.ts (placeholder formula:
+        head-count comparison, deterministic, LOSS_SCALE=0.6,
+        comments call out that real combat math is #6.6's
+        problem). New battleMenu.ts wraps a static HTML
+        overlay (#battle-menu in index.html) — three cards on
+        first show, swaps to a result panel after Simulate.
+        Cards / dismiss button are screen-space so they don't
+        move with camera pan. Army gained setRegiments() for
+        applying casualties; enemy regiments are mutated
+        directly (zero-count regiments dropped). Menu hides
+        on both startExitBattle and forceExitBattle paths.
+
+---
+
 2026-05-09  Nail #6.2: battle scene scaffolding
   WHAT: Touching the enemy now triggers a 500ms strategic-zoom
         beat ("BATTLE TRIGGERED" stays on screen) followed by a

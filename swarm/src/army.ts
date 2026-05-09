@@ -82,8 +82,11 @@ export interface Army {
   getStatus(): ArmyStatus;
   getPos(): { x: number; y: number };
   // Returns the army's regiments. Read-only snapshot — mutate only via
-  // future combat / recruitment APIs.
+  // setRegiments / future recruitment APIs.
   getRegiments(): readonly Regiment[];
+  // Replace the army's regiment list. Used by combat resolution to apply
+  // casualties. Empty / zero-count regiments are dropped.
+  setRegiments(next: readonly Regiment[]): void;
   hitTest(sx: number, sy: number): boolean;
   startDrag(sx: number, sy: number): void;
   updateDrag(sx: number, sy: number): void;
@@ -243,6 +246,12 @@ export function createArmy(deps: ArmyDeps): Army {
     getStatus,
     getPos: () => ({ x: pos.x, y: pos.y }),
     getRegiments: () => regiments,
+    setRegiments: (next) => {
+      regiments.length = 0;
+      for (const r of next) {
+        if (r.count > 0) regiments.push({ type: r.type, count: r.count });
+      }
+    },
     hitTest,
     startDrag,
     updateDrag,

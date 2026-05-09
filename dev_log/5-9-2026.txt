@@ -1038,3 +1038,73 @@ Awaiting visual confirmation:
 - "new map" mid-battle instantly exits and rebuilds the world
 - If you retreat (move army away) during the 500ms pre-roll,
   battle never starts
+
+---
+
+[uncommitted] #6.2 follow-up: action menu + slowed transition
+
+User asked for two adjustments while we're still here:
+1. "Slow the zoom a little more" — bumped BATTLE_TRANSITION_MS
+   from 600 → 1000. Smoothstep easing unchanged. Feels less
+   rushed; gives camera move room to read.
+2. Three options (Attack / Simulate / Intimidate). Asked four
+   clarifying questions before coding:
+   - Scope: roll into #6.2 (vs new nail)
+   - Form factor: three floating cards (centered, over dirt)
+   - Simulate: instant calc with animated counter
+   - Intimidate: punt — design later
+
+So Attack and Intimidate ship as console.log stubs. Simulate
+is the only fully-wired action.
+
+Sim formula (battleSim.ts):
+- Total head-count comparison. Deterministic.
+- enemyShare = enemyTotal / (playerTotal + enemyTotal)
+- player_loss_frac = enemyShare × 0.6
+- enemy_loss_frac  = (1 − enemyShare) × 0.6
+- Apply per regiment, floor, but always leave ≥1 survivor in
+  any non-empty regiment (avoid total wipe on bad sim).
+- File header explicitly says this is placeholder; real combat
+  math is #6.6's design space.
+
+Menu UI (battleMenu.ts + index.html):
+- Static HTML overlay #battle-menu, hidden by default
+- .visible class fades it in (220ms)
+- Inside: #battle-menu-cards (three .battle-card buttons) and
+  #battle-menu-result (player + enemy regiment lines + Dismiss)
+- Toggling between cards and result is via the `hidden`
+  attribute, with a CSS override because UA `[hidden]` rule
+  loses to my `#id { display: flex }` on specificity
+- Result counter animates over 800ms via requestAnimationFrame,
+  ease-out cubic, lerping each regiment count from before→after
+
+Wiring (main.ts):
+- battleMenu instance created with onAttack / onSimulate /
+  onIntimidate / onResultDismiss callbacks
+- onSimulate: builds SimResult, immediately mutates army +
+  enemy regiments to .after values (so any other system that
+  reads regiments mid-animation sees the post-sim state),
+  shows result panel, calls renderReadout
+- onResultDismiss: startExitBattle (normal exit fade)
+- battleMenu.show() fires inside tickBattleSystem when entry
+  transition completes (direction === 'in', t >= 1)
+- battleMenu.hide() called in both startExitBattle and
+  forceExitBattle paths
+
+Army API:
+- New setRegiments(next) replaces the regiment list, dropping
+  zero-count entries. Used only by combat resolution.
+
+What I want eyes on:
+- Does the menu animate in cleanly after the slower 1s zoom?
+  Should the menu fade-in delay until *after* the camera move
+  fully settles? It does — show() only fires at t>=1.
+- Are the three cards readable on phone? 360px viewport with
+  three cards at flex 1/1/0, 8px gaps, max-width 110px each.
+- Does Simulate's animated counter feel right at 800ms? Numbers
+  are integers via Math.round so they don't show fractional
+  flicker.
+- Stubs (Attack / Intimidate): clicking them logs but leaves
+  the menu visible. User must pick Simulate or press B to
+  exit. This is intentional but might be confusing — open to
+  changing it.

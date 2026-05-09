@@ -38,12 +38,149 @@
         touch-action: manipulation;
       }
       #newmap:active { background: rgba(60, 60, 60, 0.8); }
+
+      /* Battle action menu — three floating cards centered over the
+         dirt scene. Hidden by default; main.ts adds .visible after the
+         entry crossfade completes and removes it before exit. */
+      #battle-menu {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 0 12px;
+        pointer-events: none;
+        z-index: 10;
+      }
+      #battle-menu.visible {
+        display: flex;
+        animation: battle-menu-fade 220ms ease-out;
+      }
+      @keyframes battle-menu-fade {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      #battle-menu-cards {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+        max-width: 360px;
+        justify-content: center;
+      }
+      /* The id selector beats the UA's `[hidden] { display: none }`,
+         so we need an explicit override for the hidden attribute to
+         actually hide the cards/result panels when toggled. */
+      #battle-menu-cards[hidden],
+      #battle-menu-result[hidden] { display: none; }
+      .battle-card {
+        pointer-events: auto;
+        flex: 1 1 0;
+        min-height: 96px;
+        max-width: 110px;
+        padding: 10px 8px;
+        background: rgba(20, 18, 12, 0.86);
+        color: #f0e8d8;
+        border: 1px solid rgba(255, 235, 180, 0.22);
+        border-radius: 10px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+        font-family: system-ui, -apple-system, sans-serif;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        touch-action: manipulation;
+      }
+      .battle-card:active {
+        background: rgba(45, 38, 22, 0.92);
+        transform: translateY(1px);
+      }
+      .battle-card .title {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+      }
+      .battle-card .sub {
+        font-size: 10px;
+        opacity: 0.7;
+        line-height: 1.2;
+      }
+
+      /* Simulate result panel — replaces the three cards inline. */
+      #battle-menu-result {
+        pointer-events: auto;
+        background: rgba(20, 18, 12, 0.92);
+        color: #f0e8d8;
+        border: 1px solid rgba(255, 235, 180, 0.22);
+        border-radius: 10px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+        padding: 14px 14px 10px;
+        width: 100%;
+        max-width: 320px;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      #battle-menu-result .result-title {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        opacity: 0.7;
+        text-align: center;
+        margin-bottom: 10px;
+      }
+      #battle-menu-result .result-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font: 13px/1.4 ui-monospace, Menlo, monospace;
+        margin: 4px 0;
+      }
+      #battle-menu-result .result-row .who {
+        opacity: 0.65;
+      }
+      #battle-result-dismiss {
+        margin-top: 12px;
+        width: 100%;
+        min-height: 38px;
+        background: rgba(80, 60, 30, 0.7);
+        color: #f0e8d8;
+        border: 1px solid rgba(255, 235, 180, 0.3);
+        border-radius: 6px;
+        font: 12px/1 ui-monospace, Menlo, monospace;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      #battle-result-dismiss:active { background: rgba(110, 84, 42, 0.85); }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="readout">booting…</div>
     <button id="newmap" type="button">new map</button>
+    <div id="battle-menu">
+      <div id="battle-menu-cards">
+        <button class="battle-card" data-action="attack" type="button">
+          <span class="title">ATTACK</span>
+          <span class="sub">Engage in real time</span>
+        </button>
+        <button class="battle-card" data-action="simulate" type="button">
+          <span class="title">SIMULATE</span>
+          <span class="sub">Instant resolution</span>
+        </button>
+        <button class="battle-card" data-action="intimidate" type="button">
+          <span class="title">INTIMIDATE</span>
+          <span class="sub">Demand tribute</span>
+        </button>
+      </div>
+      <div id="battle-menu-result" hidden>
+        <div class="result-title">SIMULATED</div>
+        <div class="result-row"><span class="who">player</span><span id="battle-result-player"></span></div>
+        <div class="result-row"><span class="who">enemy</span><span id="battle-result-enemy"></span></div>
+        <button id="battle-result-dismiss" type="button">DISMISS</button>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

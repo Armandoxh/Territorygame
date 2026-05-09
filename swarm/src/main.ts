@@ -6,6 +6,8 @@ import { attachInput, type DragHandler } from './input';
 import { createArmy, type Army, type Regiment } from './army';
 import { UNIT_DEFS } from './units';
 import { createBattleScene } from './battleScene';
+import { createBattleMenu } from './battleMenu';
+import { simulateBattle } from './battleSim';
 import { readoutStore, type ViewLabel } from './store';
 
 const TILE_SIZE = 16;
@@ -27,7 +29,7 @@ const TIER_THRESHOLD_PX = 18;  // strategic if cellPixelSize <= this, else opera
 // operational manual cap (2.0); user can't reach this zoom by pinching.
 const TACTICAL_ZOOM = 6.0;
 const BATTLE_ENTRY_DELAY_MS = 500;
-const BATTLE_TRANSITION_MS = 600;
+const BATTLE_TRANSITION_MS = 1000;
 
 const app = new Application();
 await app.init({
@@ -257,6 +259,7 @@ function commitEnterBattle() {
 
 function startExitBattle() {
   if (!inBattle || battleTransition !== null || !preBattleCamera) return;
+  battleMenu.hide();
   battleTransition = {
     startMs: performance.now(),
     duration: BATTLE_TRANSITION_MS,
@@ -277,6 +280,7 @@ function forceExitBattle() {
   battleTransition = null;
   strategicLayer.alpha = 1;
   battleSceneLayer.alpha = 0;
+  battleMenu.hide();
   if (preBattleCamera) {
     camera.zoom = preBattleCamera.zoom;
     camera.panX = preBattleCamera.panX;
@@ -313,10 +317,45 @@ function tickBattleSystem(dtMs: number) {
       if (dir === 'out') {
         inBattle = false;
         preBattleCamera = null;
+      } else {
+        // Entry crossfade just completed — surface the action menu.
+        battleMenu.show();
       }
     }
   }
 }
+
+// Battle action menu. Stays in screen-space (HTML overlay), so no camera
+// wiring needed. Wires its three buttons back into the battle state
+// machine. Attack and Intimidate are stubs for future nails (per
+// user pick #6.2: punt Intimidate); Simulate runs the placeholder
+// resolver and animates regiment counts down to survivors.
+const battleMenu = createBattleMenu({
+  onAttack: () => {
+    console.log('[battle] attack — not implemented yet (real-time combat lands in a later nail)');
+  },
+  onSimulate: () => {
+    if (!enemy) return;
+    const result = simulateBattle(
+      { regiments: army.getRegiments() },
+      { regiments: enemy.regiments },
+    );
+    // Apply casualties immediately. The result panel animates a visual
+    // tickdown over ~800ms but the underlying state is already updated,
+    // which keeps the readout / future nails consistent if anything
+    // queries regiment counts mid-animation.
+    army.setRegiments(result.player.after);
+    enemy.regiments = result.enemy.after.filter((r) => r.count > 0);
+    battleMenu.showResult(result);
+    renderReadout();
+  },
+  onIntimidate: () => {
+    console.log('[battle] intimidate — design deferred to a later nail');
+  },
+  onResultDismiss: () => {
+    startExitBattle();
+  },
+});
 
 // Bridge the army to the input layer. `army` is reassigned by loadMap, so
 // we re-derive the handler each pointerdown rather than capturing a stale
