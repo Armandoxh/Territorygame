@@ -3,7 +3,7 @@
 Real-time territorial expansion game. Single-player vs AI now; multiplayer (Colyseus) next.
 
 Live: https://armandoxh.github.io/Territorygame/
-
+https://armandoxh.github.io/Territorygame/swarm/
 ## Stack
 
 - **Client** — TypeScript + [PixiJS 8](https://pixijs.com/) + [Vite](https://vitejs.dev/)
