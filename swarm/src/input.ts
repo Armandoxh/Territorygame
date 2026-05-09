@@ -15,10 +15,14 @@ export interface AttachInputOpts {
   camera: Camera;
   getViewport: () => { w: number; h: number };
   getDragHandler?: () => DragHandler | null;
+  // When true: pinch, wheel, +/- keys ignored (zoom locked); drag-handler
+  // hit-tests skipped (army not draggable). Single-pointer pan still
+  // works. Used to honor "pan free, zoom locked" behavior during battle.
+  getZoomLocked?: () => boolean;
 }
 
 export function attachInput(opts: AttachInputOpts) {
-  const { target, camera, getViewport, getDragHandler } = opts;
+  const { target, camera, getViewport, getDragHandler, getZoomLocked } = opts;
 
   const pointers = new Map<number, { x: number; y: number }>();
   let lastPinchDist = 0;
@@ -29,7 +33,8 @@ export function attachInput(opts: AttachInputOpts) {
     if (dragPointerId !== null) return;
 
     const handler = getDragHandler?.() ?? null;
-    if (handler && pointers.size === 0 && handler.hitTest(e.clientX, e.clientY)) {
+    const zoomLocked = getZoomLocked?.() ?? false;
+    if (handler && !zoomLocked && pointers.size === 0 && handler.hitTest(e.clientX, e.clientY)) {
       target.setPointerCapture(e.pointerId);
       dragPointerId = e.pointerId;
       handler.onStart(e.clientX, e.clientY);
@@ -66,6 +71,8 @@ export function attachInput(opts: AttachInputOpts) {
     }
 
     if (pointers.size === 2) {
+      // Pinch-zoom is suppressed when zoom is locked.
+      if (getZoomLocked?.()) return;
       const vals = [...pointers.values()];
       const a = vals[0]!;
       const b = vals[1]!;
@@ -97,6 +104,7 @@ export function attachInput(opts: AttachInputOpts) {
   // Mouse wheel — zoom around cursor.
   target.addEventListener('wheel', (e) => {
     e.preventDefault();
+    if (getZoomLocked?.()) return;
     // 1.0015^-deltaY: ~14% zoom-out per 100-px notch, smooth on trackpad.
     const factor = Math.pow(1.0015, -e.deltaY);
     const vp = getViewport();
@@ -105,6 +113,7 @@ export function attachInput(opts: AttachInputOpts) {
 
   // Keyboard — zoom around screen center.
   window.addEventListener('keydown', (e) => {
+    if (getZoomLocked?.()) return;
     let factor = 1;
     if (e.key === '+' || e.key === '=') factor = 1.2;
     else if (e.key === '-' || e.key === '_') factor = 1 / 1.2;

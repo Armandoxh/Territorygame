@@ -5,6 +5,7 @@ import { buildMapLayers, type MapLayers } from './mapRender';
 import { attachInput, type DragHandler } from './input';
 import { createArmy, type Army, type Regiment } from './army';
 import { UNIT_DEFS } from './units';
+import { createBattleScene } from './battleScene';
 import { readoutStore, type ViewLabel } from './store';
 
 const TILE_SIZE = 16;
@@ -22,6 +23,12 @@ const WORLD_H = TILE_SIZE * WORLD_TILES_Y;
 const MAX_MANUAL_ZOOM = 2.0;
 const TIER_THRESHOLD_PX = 18;  // strategic if cellPixelSize <= this, else operational
 
+// Battle scene constants. Tactical zoom is well past the strategic /
+// operational manual cap (2.0); user can't reach this zoom by pinching.
+const TACTICAL_ZOOM = 6.0;
+const BATTLE_ENTRY_DELAY_MS = 500;
+const BATTLE_TRANSITION_MS = 600;
+
 const app = new Application();
 await app.init({
   resizeTo: window,
@@ -32,8 +39,22 @@ await app.init({
 });
 document.getElementById('app')!.appendChild(app.canvas);
 
+// Layer structure under the camera transform:
+//   worldContainer
+//     ├─ strategicLayer  — terrain, tints, borders, capitals, army glyphs
+//     └─ battleSceneLayer — dirt + (later) soldier sprites
+// The two crossfade during battle transitions; only one is meaningfully
+// visible at a time.
 const worldContainer = new Container();
+const strategicLayer = new Container();
+const battleSceneLayer = new Container();
+battleSceneLayer.alpha = 0;
+worldContainer.addChild(strategicLayer);
+worldContainer.addChild(battleSceneLayer);
 app.stage.addChild(worldContainer);
+
+const battleScene = createBattleScene();
+battleSceneLayer.addChild(battleScene.container);
 
 const initialZoom = Math.min(window.innerWidth / WORLD_W, window.innerHeight / WORLD_H) * 0.9;
 
@@ -111,11 +132,11 @@ function formatRegiments(regs: readonly Regiment[]): string {
 }
 
 function addLayers(l: MapLayers) {
-  worldContainer.addChild(l.terrainLayer);
-  worldContainer.addChild(l.tintLayer);
-  worldContainer.addChild(l.borderLayer);
-  worldContainer.addChild(l.playerLayer);
-  worldContainer.addChild(l.capitalLayer);
+  strategicLayer.addChild(l.terrainLayer);
+  strategicLayer.addChild(l.tintLayer);
+  strategicLayer.addChild(l.borderLayer);
+  strategicLayer.addChild(l.playerLayer);
+  strategicLayer.addChild(l.capitalLayer);
 }
 
 let currentSeed = DEFAULT_SEED;
@@ -131,12 +152,17 @@ let enemy: EnemyState | null = spawnEnemy(world);
 type CombatState = 'idle' | 'engaged' | 'retreating';
 let combatState: CombatState = 'idle';
 addLayers(layers);
-worldContainer.addChild(army.container);
-if (enemy) worldContainer.addChild(enemy.glyph);
+strategicLayer.addChild(army.container);
+if (enemy) strategicLayer.addChild(enemy.glyph);
 
 function loadMap(seed: number) {
   currentSeed = seed;
-  // Tear down old layers (releases GPU buffers).
+  // If a battle is in progress, abort it instantly — no fade out — since
+  // the underlying world is being replaced.
+  forceExitBattle();
+
+  // Tear down old strategic content (releases GPU buffers). Leaves the
+  // battleSceneLayer alone.
   layers.terrainLayer.destroy();
   layers.tintLayer.destroy();
   layers.borderLayer.destroy();
@@ -144,7 +170,7 @@ function loadMap(seed: number) {
   layers.capitalLayer.destroy();
   army.destroy();
   if (enemy) enemy.glyph.destroy();
-  worldContainer.removeChildren();
+  strategicLayer.removeChildren();
 
   world = generateWorld({
     width: WORLD_TILES_X,
@@ -157,8 +183,8 @@ function loadMap(seed: number) {
   enemy = spawnEnemy(world);
   combatState = 'idle';
   addLayers(layers);
-  worldContainer.addChild(army.container);
-  if (enemy) worldContainer.addChild(enemy.glyph);
+  strategicLayer.addChild(army.container);
+  if (enemy) strategicLayer.addChild(enemy.glyph);
 
   // Recenter camera; new map may have a different land shape.
   camera.panX = WORLD_W / 2;
@@ -170,6 +196,126 @@ function loadMap(seed: number) {
   lastArmyRegionId = s.regionId;
   lastArmyTarget = s.targetRegionId;
   renderReadout();
+}
+
+// ----- Battle state machine (nail #6.2) -----
+// `inBattle` is true from the moment the entry transition begins to the
+// moment the exit transition completes. While true, army movement is
+// frozen, zoom is locked at TACTICAL_ZOOM (pan stays free per user
+// pick), and the strategic layer is hidden under the dirt.
+let inBattle = false;
+// ms remaining before the entry crossfade starts, after the player's
+// army first touches the enemy. null = no pending entry.
+let battleEntryTimer: number | null = null;
+// Active interpolation. null when not transitioning.
+let battleTransition:
+  | {
+      startMs: number;
+      duration: number;
+      direction: 'in' | 'out';
+      fromZoom: number;
+      toZoom: number;
+      fromPanX: number;
+      toPanX: number;
+      fromPanY: number;
+      toPanY: number;
+    }
+  | null = null;
+// Camera state captured at entry so we can restore on exit.
+let preBattleCamera: { zoom: number; panX: number; panY: number } | null = null;
+
+function smoothstep(t: number): number {
+  const c = Math.max(0, Math.min(1, t));
+  return c * c * (3 - 2 * c);
+}
+
+function startEnterBattle() {
+  if (inBattle || battleEntryTimer !== null || battleTransition !== null) return;
+  battleEntryTimer = BATTLE_ENTRY_DELAY_MS;
+}
+
+function commitEnterBattle() {
+  if (inBattle || !enemy) return;
+  preBattleCamera = { zoom: camera.zoom, panX: camera.panX, panY: camera.panY };
+  const ap = army.getPos();
+  const midX = (ap.x + enemy.pos.x) / 2;
+  const midY = (ap.y + enemy.pos.y) / 2;
+  battleScene.setCenter(midX, midY);
+  battleTransition = {
+    startMs: performance.now(),
+    duration: BATTLE_TRANSITION_MS,
+    direction: 'in',
+    fromZoom: camera.zoom,
+    toZoom: TACTICAL_ZOOM,
+    fromPanX: camera.panX,
+    toPanX: midX,
+    fromPanY: camera.panY,
+    toPanY: midY,
+  };
+  inBattle = true;
+}
+
+function startExitBattle() {
+  if (!inBattle || battleTransition !== null || !preBattleCamera) return;
+  battleTransition = {
+    startMs: performance.now(),
+    duration: BATTLE_TRANSITION_MS,
+    direction: 'out',
+    fromZoom: camera.zoom,
+    toZoom: preBattleCamera.zoom,
+    fromPanX: camera.panX,
+    toPanX: preBattleCamera.panX,
+    fromPanY: camera.panY,
+    toPanY: preBattleCamera.panY,
+  };
+}
+
+// Instant exit (no fade). Used when the world is replaced underneath us.
+function forceExitBattle() {
+  inBattle = false;
+  battleEntryTimer = null;
+  battleTransition = null;
+  strategicLayer.alpha = 1;
+  battleSceneLayer.alpha = 0;
+  if (preBattleCamera) {
+    camera.zoom = preBattleCamera.zoom;
+    camera.panX = preBattleCamera.panX;
+    camera.panY = preBattleCamera.panY;
+    preBattleCamera = null;
+  }
+}
+
+function tickBattleSystem(dtMs: number) {
+  if (battleEntryTimer !== null) {
+    battleEntryTimer -= dtMs;
+    if (battleEntryTimer <= 0) {
+      battleEntryTimer = null;
+      commitEnterBattle();
+    }
+  }
+
+  if (battleTransition) {
+    const t = (performance.now() - battleTransition.startMs) / battleTransition.duration;
+    const e = smoothstep(t);
+    camera.zoom = battleTransition.fromZoom + (battleTransition.toZoom - battleTransition.fromZoom) * e;
+    camera.panX = battleTransition.fromPanX + (battleTransition.toPanX - battleTransition.fromPanX) * e;
+    camera.panY = battleTransition.fromPanY + (battleTransition.toPanY - battleTransition.fromPanY) * e;
+    if (battleTransition.direction === 'in') {
+      strategicLayer.alpha = 1 - e;
+      battleSceneLayer.alpha = e;
+    } else {
+      strategicLayer.alpha = e;
+      battleSceneLayer.alpha = 1 - e;
+    }
+    if (t >= 1) {
+      const dir = battleTransition.direction;
+      battleTransition = null;
+      if (dir === 'out') {
+        inBattle = false;
+        preBattleCamera = null;
+      }
+    }
+  }
 }
 
 // Bridge the army to the input layer. `army` is reassigned by loadMap, so
@@ -187,6 +333,14 @@ attachInput({
   camera,
   getViewport: () => ({ w: app.screen.width, h: app.screen.height }),
   getDragHandler: () => armyDragHandler,
+  getZoomLocked: () => inBattle,
+});
+
+// Battle exit key. Only acts while in battle; otherwise B does nothing.
+window.addEventListener('keydown', (e) => {
+  if ((e.key === 'b' || e.key === 'B') && inBattle) {
+    startExitBattle();
+  }
 });
 
 let lastArmyMarching = army.getStatus().marching;
@@ -196,10 +350,16 @@ let lastArmyTarget = army.getStatus().targetRegionId;
 app.ticker.add(() => {
   const vw = app.screen.width;
   const vh = app.screen.height;
+  const dtMs = app.ticker.deltaMS;
 
-  army.tick(app.ticker.deltaMS / 1000);
+  // Freeze the army's march while we are in battle (or transitioning).
+  if (!inBattle) {
+    army.tick(dtMs / 1000);
+  }
 
-  if (enemy) {
+  // Combat-state detection is gated on overworld mode. Once we enter
+  // battle, the strategic combatState stops updating until exit.
+  if (enemy && !inBattle) {
     const ap = army.getPos();
     const dx = ap.x - enemy.pos.x;
     const dy = ap.y - enemy.pos.y;
@@ -207,14 +367,20 @@ app.ticker.add(() => {
     if (inRange && combatState !== 'engaged') {
       combatState = 'engaged';
       console.log('[combat] engaged with region', enemy.regionId);
+      startEnterBattle();
       renderReadout();
     } else if (!inRange && combatState === 'engaged') {
       // First step out of the engagement zone after touching the enemy.
       combatState = 'retreating';
       console.log('[combat] retreating from region', enemy.regionId);
+      // The user may have left the engagement zone before the entry
+      // delay elapsed. Cancel any pending entry.
+      battleEntryTimer = null;
       renderReadout();
     }
   }
+
+  tickBattleSystem(dtMs);
 
   worldContainer.scale.set(camera.zoom);
   worldContainer.position.set(vw / 2 - camera.panX * camera.zoom, vh / 2 - camera.panY * camera.zoom);

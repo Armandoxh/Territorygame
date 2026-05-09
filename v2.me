@@ -12,6 +12,43 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #6.2: battle scene scaffolding
+  WHAT: Touching the enemy now triggers a 500ms strategic-zoom
+        beat ("BATTLE TRIGGERED" stays on screen) followed by a
+        600ms eased crossfade into a tactical view: camera pans
+        to the engagement midpoint and zooms to TACTICAL_ZOOM
+        (6.0, well past the 2.0 manual cap), the strategic
+        layer fades to alpha 0 while a dirt-colored placeholder
+        background fades to alpha 1. Pressing B reverses the
+        crossfade and restores the pre-battle camera state.
+        While in battle: army movement is frozen, pinch / wheel
+        / +- keys are ignored (zoom locked), single-pointer pan
+        is still free per user pick. New "new map" mid-battle
+        force-exits instantly with no fade so the underlying
+        world swap stays consistent.
+  WHY:  Combat as a multi-nail track needs the strategic↔tactical
+        camera plumbing in place before any of the formation /
+        sim / HUD work makes sense. Doing it as its own nail
+        means we can verify the transition feel and the input-
+        lock semantics without the noise of soldiers moving
+        around. The 500ms pre-roll gives the player a beat to
+        register *where* they engaged before being yanked into
+        battle. Layer split (strategicLayer + battleSceneLayer
+        as siblings under the camera-transformed worldContainer)
+        is the foundation #6.3 needs to render formations
+        without disturbing strategic layers.
+
+  Implementation: new battleScene.ts module (just the dirt
+        rect + setCenter API for now). main.ts gained a battle
+        state machine — `inBattle`, `battleEntryTimer`,
+        `battleTransition`, `preBattleCamera` — driven from the
+        ticker via tickBattleSystem(dtMs). smoothstep easing.
+        input.ts gained a `getZoomLocked` callback hook which
+        suppresses pinch / wheel / keyboard zoom and skips the
+        drag-handler hit-test path while the flag is true.
+
+---
+
 2026-05-09  Nail #6.1: regiment data model
   WHAT: New `units.ts` module with a UnitType union (currently
         'infantry' | 'cavalry') and a UNIT_DEFS catalog mapping

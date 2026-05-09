@@ -962,3 +962,79 @@ Awaiting visual confirmation:
 - "theirs: inf 50 · cav 20" under the enemy line
 - Composition persists through march, engage, retreat, new map
 - (No combat math yet — counts don't change. That's #6.6.)
+
+---
+
+[uncommitted] Nail #6.2: battle scene scaffolding
+
+User picks for this nail:
+- Brief delay (~500ms) at strategic zoom showing BATTLE TRIGGERED
+- Crossfade 600ms into tactical (smoothstep easing)
+- Pan free, zoom locked during battle
+- Dirt only, no overlay text in the scene (just a clean
+  dirt-colored backdrop; B key exits)
+
+Architecture:
+- New layer split under worldContainer:
+  worldContainer → { strategicLayer, battleSceneLayer }
+  Both transformed by the camera; we crossfade their alphas
+  rather than fading the parent.
+- New battleScene.ts: just a dirt-colored 800-wu Graphics rect
+  with a setCenter(x,y) API. Real pixel-textured ground arrives
+  with the sprite atlas in a later nail.
+- main.ts gained a battle state machine:
+  - inBattle: bool (true from entry-fade-start to exit-fade-end)
+  - battleEntryTimer: ms remaining before crossfade-in starts
+  - battleTransition: { startMs, duration, direction, from/to
+    zoom + pan } | null
+  - preBattleCamera: snapshot of zoom/pan at entry, restored
+    on exit
+  - tickBattleSystem(dtMs) advances the timer & interpolation
+- forceExitBattle() for instant teardown when loadMap fires
+  mid-battle (world is being replaced, no point fading).
+
+Input lock:
+- input.ts grew getZoomLocked?: () => boolean. When true:
+  pinch in pointermove returns early, wheel handler returns
+  early, +/- keydown handler returns early, drag-handler hit-
+  test is skipped. Single-pointer pan is unaffected so
+  panning continues to work in battle.
+- main.ts wires getZoomLocked: () => inBattle.
+
+Trigger flow:
+- combatState transition idle/retreating → engaged calls
+  startEnterBattle(), which sets battleEntryTimer = 500.
+- If user retreats during the 500ms pre-roll (range opens
+  back up), battleEntryTimer is cleared. Battle never enters.
+- After 500ms, commitEnterBattle: snapshot camera, center
+  the dirt patch on the engagement midpoint, kick off the
+  600ms crossfade, set inBattle = true.
+- Combat-state detection itself is gated on !inBattle so
+  engaged/retreating don't keep firing while in battle.
+
+Exit:
+- window keydown 'b' or 'B' while inBattle → startExitBattle.
+- 600ms reverse interpolation back to preBattleCamera.
+- On completion: inBattle = false, preBattleCamera = null.
+
+TACTICAL_ZOOM = 6.0 (manual cap is 2.0; only the battle
+transition reaches this zoom). Camera doesn't enforce a max
+on direct .zoom assignment — only its zoomAt/panBy methods
+clamp — so writing camera.zoom = 6 directly works.
+
+Build clean, typecheck clean. Manual TDZ check on declaration
+order: forceExitBattle and tickBattleSystem are function
+declarations (hoisted); the let-bindings they reference are
+initialized at module top before any user-triggered or
+ticker-driven call site fires.
+
+Awaiting visual confirmation:
+- Drag army onto enemy → BATTLE TRIGGERED for ~500ms at
+  strategic zoom → camera smoothly zooms to tactical, dirt
+  fades in, strategic stuff fades out
+- Press B → reverse fade, camera returns to where it was
+- Pan during battle works (drag with one finger to move)
+- Pinch during battle does nothing (zoom locked)
+- "new map" mid-battle instantly exits and rebuilds the world
+- If you retreat (move army away) during the 500ms pre-roll,
+  battle never starts
