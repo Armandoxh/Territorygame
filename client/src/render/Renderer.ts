@@ -285,6 +285,8 @@ export class Renderer {
 
   // Rebuild the territory-outline graphics if the simulation has advanced
   // since the last build. Cheap enough to do every tick (~150K tile reads).
+  // Two-pass stroke gives a soft halo + crisp edge, so empires read as
+  // antialiased silhouettes rather than pixel staircases.
   private _maybeRebuildOutlines(): void {
     if (this._outlinesDirtyAtTick === this.game.tickCount) return;
     this._outlinesDirtyAtTick = this.game.tickCount;
@@ -294,33 +296,34 @@ export class Renderer {
     const owners = territory.owners;
     const W = territory.width;
     const H = territory.height;
-    // For each owned tile, emit a line segment for each side that borders a
-    // tile of a different owner (or the map edge). Pixi batches everything
-    // into one stroke call at the end.
+    // Single pass that records every owner-boundary segment. Pixi batches
+    // them into one stroke; we then stroke twice (halo + sharp line)
+    // without redoing the geometry.
     for (let y = 0; y < H; y++) {
       const row = y * W;
       for (let x = 0; x < W; x++) {
         const o = owners[row + x]!;
         if (o === 0) continue;
-        // Left edge (x | y) -- (x | y+1)
         if (x === 0 || owners[row + x - 1] !== o) {
           g.moveTo(x, y).lineTo(x, y + 1);
         }
-        // Right edge (x+1 | y) -- (x+1 | y+1)
         if (x === W - 1 || owners[row + x + 1] !== o) {
           g.moveTo(x + 1, y).lineTo(x + 1, y + 1);
         }
-        // Top edge (x | y) -- (x+1 | y)
         if (y === 0 || owners[row - W + x] !== o) {
           g.moveTo(x, y).lineTo(x + 1, y);
         }
-        // Bottom edge (x | y+1) -- (x+1 | y+1)
         if (y === H - 1 || owners[row + W + x] !== o) {
           g.moveTo(x, y + 1).lineTo(x + 1, y + 1);
         }
       }
     }
-    g.stroke({ color: 0x05080b, alpha: 0.85, width: 0.18 });
+    // Single thicker stroke with round joins/caps. Combined with the
+    // territory texture's linear filtering, this reads as a crisp
+    // antialiased ink line on softened color blocks instead of a thin
+    // hairline on pixel staircases. Width 0.35 balances visibility
+    // when zoomed-out vs. not overwhelming the view when zoomed-in.
+    g.stroke({ color: 0x05080b, alpha: 0.85, width: 0.35, cap: 'round', join: 'round' });
   }
 
   // --- private ---

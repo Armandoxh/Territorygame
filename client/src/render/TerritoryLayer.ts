@@ -49,14 +49,15 @@ export class TerritoryLayer {
     this.ctx.putImageData(this.imageData, 0, 0);
 
     this.texture = Texture.from(this.canvas);
-    // Crisp pixels — no blur on upscale. The nearest filter keeps every tile
-    // boundary as a hard edge no matter how far you zoom in. The map looks
-    // pixelated by design, never smudged.
-    this.texture.source.scaleMode = 'nearest';
+    // Linear filtering on upscale so tile-to-tile boundaries smooth into
+    // each other instead of staircasing into hard pixel zigzags. The
+    // pixel grid still informs the look (per-tile shading + region
+    // colors) but the silhouette of each empire reads as a soft
+    // antialiased shape, not a Microsoft-Paint blob. Vector outline
+    // pass on top keeps the boundary crisp where it matters.
+    this.texture.source.scaleMode = 'linear';
     this.sprite = new Sprite(this.texture);
-    // Snap to integer screen pixels so adjacent tiles never get a half-pixel
-    // gap or smear from sub-pixel positioning.
-    this.sprite.roundPixels = true;
+    this.sprite.roundPixels = false;
   }
 
   flushDirty(): void {
