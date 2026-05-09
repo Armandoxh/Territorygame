@@ -6695,30 +6695,34 @@ export class Game {
     }
   }
 
-  /** Idle flood: claim tiles webbing OUT from the army's current
-   *  tile until the army drains to ARMY_AURA_EXHAUST_AT, then sleep
-   *  until regen restores it to ARMY_AURA_RESUME_AT, then resume.
+  /** Idle flood: claim tiles webbing OUT from the army's own foothold
+   *  until the army drains to ARMY_AURA_EXHAUST_AT, then sleep until
+   *  regen restores it to ARMY_AURA_RESUME_AT, then resume.
+   *
+   *  The foothold is found by BFS from the army's tile through OWNED
+   *  tiles, bounded to ARMY_AURA_RADIUS cardinal hops. Claim candidates
+   *  are non-owner tiles cardinally adjacent to ANY foothold tile —
+   *  i.e. the frontier of the army's local owned blob, not the
+   *  empire's whole frontier. This is what makes the expansion read
+   *  as "from the army" instead of empire-wide flood.
    *
    *  Behavior:
    *   - Only fires when the army is idle (no destination + not in
    *     manual march). A marching army doesn't paint.
-   *   - The first claim is the army's OWN tile if it's not already
-   *     ours: a paratrooper drop / blitz spawn instantly establishes
-   *     a foothold so subsequent webs have something to grow from.
-   *   - Up to 3 neutral + 1 enemy claim per tick, both within
-   *     ARMY_AURA_RADIUS of the army and adjacent to a player tile.
+   *   - Foothold step (always): claim the army's OWN tile if it's
+   *     not already ours. Required so paratrooper drops on neutral
+   *     / enemy land have a seed for the BFS to grow from.
+   *   - Up to 3 neutral + 1 enemy claim per tick at the foothold's
+   *     frontier.
    *   - Strength bleeds on every claim (cheaper for neutrals, scaled
-   *     by atk/def for enemies). Floored at ARMY_AURA_EXHAUST_AT — an
-   *     exhausted army does NOT die, it parks and regens.
-   *   - Allies and capitals are off-limits. */
+   *     by atk/def for enemies). Floored at ARMY_AURA_EXHAUST_AT.
+   *   - When the foothold has no frontier (army's local blob is
+   *     fully surrounded within R hops by its own tiles), the aura
+   *     no-ops. The army is "settled"; move it to expand a new area. */
   private _armyAura(a: Army): void {
-    // Marching armies don't paint. Manual + auto-dispatched destinations
-    // both block the flood. When the army arrives, destX/destY clears
-    // and the flood resumes.
     const idle = a.destX < 0 || a.destY < 0;
     if (!idle) return;
 
-    // Drain → wait → resume cycle.
     if (a.recovering) {
       if (a.strength >= this.config.ARMY_AURA_RESUME_AT) a.recovering = false;
       else return;
@@ -6733,10 +6737,9 @@ export class Game {
     const baseCost = this.config.ARMY_NEUTRAL_CLAIM_COST * attritionMult;
     const atkMul = ownerP ? this._veteransMult(ownerP, true) : 1;
 
-    // Establish a foothold: claim the tile under the army first if
-    // it isn't already ours. Critical for paratrooper drops on neutral
-    // / enemy land — without this seed there's no owner-adjacent tile
-    // for the flood to grow from.
+    // Foothold step: claim the army's own tile if it isn't already
+    // ours. Critical for paratrooper drops — otherwise the BFS below
+    // has no seed.
     const myHere = this.territory.getOwner(a.x, a.y);
     if (myHere !== a.owner && this._capitalIndexAt(a.x, a.y) < 0
         && !(myHere > 0 && this.areAllied(a.owner, myHere))) {
@@ -6755,39 +6758,55 @@ export class Game {
       }
     }
 
-    let neutralBudget = 3;
-    let enemyBudget = 1;
-
+    // BFS from army's tile through OWNED tiles, bounded to R hops.
+    // Build the foothold + its non-owner frontier in one pass.
     const W = this.territory.width;
     const H = this.territory.height;
     const R = this.config.ARMY_AURA_RADIUS;
-    const x0 = Math.max(0, a.x - R);
-    const x1 = Math.min(W - 1, a.x + R);
-    const y0 = Math.max(0, a.y - R);
-    const y1 = Math.min(H - 1, a.y + R);
-    const xLen = x1 - x0 + 1;
-    const yLen = y1 - y0 + 1;
-    const total = xLen * yLen;
-    if (total <= 0) return;
-    const scanCap = Math.min(total, 256);
-    // Rotated start so multiple armies don't fight over the same tile
-    // every tick. Cheap pseudo-shuffle.
-    const offset = (this.tickCount + a.id) % total;
+    const owners = this.territory.owners;
+    const startK = a.y * W + a.x;
+    if (owners[startK] !== a.owner) return; // foothold step failed
 
-    for (let n = 0; n < scanCap; n++) {
+    const visited = new Set<number>([startK]);
+    // Flat queue: pairs of [k, dist, k, dist, ...].
+    const queue: number[] = [startK, 0];
+    let head = 0;
+    const candidates: number[] = [];
+    while (head < queue.length) {
+      const k = queue[head++]!;
+      const dist = queue[head++]!;
+      const cx = k % W;
+      const cy = (k - cx) / W;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const nk = ny * W + nx;
+        if (visited.has(nk)) continue;
+        visited.add(nk);
+        const o = owners[nk]!;
+        if (o === a.owner) {
+          if (dist + 1 < R) queue.push(nk, dist + 1);
+        } else {
+          candidates.push(nk);
+        }
+      }
+    }
+
+    if (candidates.length === 0) return; // army settled — no local frontier
+
+    let neutralBudget = 3;
+    let enemyBudget = 1;
+    const offset = (this.tickCount + a.id) % candidates.length;
+
+    for (let i = 0; i < candidates.length; i++) {
       if (neutralBudget <= 0 && enemyBudget <= 0) break;
-      const idx = (offset + n) % total;
-      const dx = idx % xLen;
-      const dy = (idx - dx) / xLen;
-      const tx = x0 + dx;
-      const ty = y0 + dy;
-      const tileOwner = this.territory.getOwner(tx, ty);
-      if (tileOwner === a.owner) continue;
+      const tk = candidates[(offset + i) % candidates.length]!;
+      const tx = tk % W;
+      const ty = (tk - tx) / W;
       if (!this.territory.isPassable(tx, ty)) continue;
       if (this._capitalIndexAt(tx, ty) >= 0) continue;
+      const tileOwner = owners[tk]!;
       if (tileOwner > 0 && this.areAllied(a.owner, tileOwner)) continue;
-      // Web rule: must touch player territory (no leapfrog over gaps).
-      if (!this._tileTouchesOwner(tx, ty, a.owner)) continue;
 
       if (tileOwner === 0) {
         if (neutralBudget <= 0) continue;
@@ -6807,7 +6826,7 @@ export class Game {
         a.kills += 0.2;
         enemyBudget--;
       }
-      // Enter recovery the moment we hit the floor — no point scanning more.
+
       if (a.strength <= this.config.ARMY_AURA_EXHAUST_AT) {
         a.recovering = true;
         return;
