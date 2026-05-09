@@ -12,6 +12,20 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Commit A verified live on phone (both URLs)
+  WHAT: User opened both URLs on phone after Pages rebuild:
+        v1 → /Territorygame/    → loads (existing game intact).
+        v2 → /Territorygame/swarm/ → loads (scaffold "ok" text).
+        Both confirmed working. port.md updated with the locked
+        stack/deploy section and a Nail-1 spec section so future
+        Claude doesn't re-derive these decisions.
+  WHY:  Mantra checkpoint. Per "nail one aspect before the next,"
+        commit A (the scaffold + Pages plumbing) is officially
+        nailed: works on phone, no TODOs, logged. Cleared to
+        start commit B (camera + grid + crossfade + input).
+
+---
+
 2026-05-09  Commit A: swarm/ scaffold builds + deploys to /docs/swarm/
   WHAT: Standalone vite + TS + Pixi 8 + zustand project under
         swarm/. Builds to ../docs/swarm with base

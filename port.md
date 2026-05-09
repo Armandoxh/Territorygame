@@ -79,11 +79,52 @@ anything.
 
 ## Where v2 lives
 
-Until a new GitHub repo is set up, v2 will be scaffolded under
+Until a new GitHub repo is set up, v2 lives under
 `/home/user/Territorygame/swarm/` on this branch. v1 (the current
 pixel-territory game) stays on `claude/territorial-game-mobile-xXdYn`
 as reference. When milestone 1 feels right, the user creates a
 fresh GitHub repo and we move `swarm/` there with clean history.
+
+## Stack & deployment (decided 2026-05-09, verified live)
+
+- **Stack:** Vite + TypeScript + Pixi 8 + Zustand. No additional
+  libraries unless a concrete need arises.
+- **Project shape:** `swarm/` is fully standalone — its own
+  `package.json`, its own `node_modules`. When v2 graduates to a
+  new repo it's a clean `mv swarm /new-repo` with zero workspace
+  untangling.
+- **Build → deploy path:** `npm run build` (inside `swarm/`)
+  writes to `../docs/swarm/`. GH Pages serves `/docs` from this
+  branch, so v2 is live at
+  **https://armandoxh.github.io/Territorygame/swarm/**.
+  v1 stays untouched at **https://armandoxh.github.io/Territorygame/**.
+  Both confirmed working as of commit `ef704bf`.
+- **Mobile testing flow:** commit + push → Pages rebuild
+  (~30-60 s) → load on phone. No tunnels, no LAN setup. Cost: a
+  build artifact in `/docs/swarm/` goes into git on every push
+  that wants to be tested on phone.
+- **Lean constraint:** no sourcemaps in prod, no lint/test/CI
+  scaffolding in early nails. Add only when there's a concrete
+  need, not preemptively. (Per the user note: "I don't want the
+  code base to get inflated so hard.")
+
+## Nail-1 spec (dual-scale zoom on a placeholder map)
+
+Decisions locked 2026-05-09:
+
+- **Placeholder content:** 50×50 grid of colored cells in 2-3
+  colors. Cheap, gives clear reference for zoom feel without
+  committing to any final map look.
+- **Zoom behavior:** smooth continuous (any zoom level via pinch /
+  scroll). Strategic vs tactical visual styles **crossfade** as
+  zoom crosses a threshold. Not discrete snap.
+- **Zoom input:** pinch (mobile) + mouse wheel (desktop) + keyboard
+  `+` / `-`. No on-screen buttons.
+- **Pan:** single-finger drag = pan (so you can move around to feel
+  the zoom). Drag-to-select for units comes in a later nail.
+- **Done = on phone, you can pinch the placeholder grid in and out
+  and the strategic↔tactical look crossfades smoothly.** Then we
+  stop and move to the next nail.
 
 ## Process rules
 

@@ -258,3 +258,31 @@ not inflating the codebase.
 
 Next (commit B): camera (smooth pinch/wheel/kb zoom), 50×50
 placeholder grid, strategic↔tactical crossfade.
+
+---
+
+[uncommitted] docs: lock stack/deploy + Nail-1 spec into port.md
+after commit A verified live
+
+WHAT: User confirmed both URLs load on phone after the commit-A
+push:
+  v1 → https://armandoxh.github.io/Territorygame/        ✓
+  v2 → https://armandoxh.github.io/Territorygame/swarm/  ✓
+
+Updated port.md with two new sections:
+  "Stack & deployment (decided 2026-05-09, verified live)"
+    — Vite + TS + Pixi 8 + Zustand. swarm/ standalone (own
+      package.json/node_modules). Build → ../docs/swarm. Mobile
+      flow = commit + push + Pages rebuild. Lean constraint
+      (no sourcemaps, no lint/test in early nails).
+  "Nail-1 spec (dual-scale zoom on a placeholder map)"
+    — 50×50 grid of colored cells, 2-3 colors. Smooth continuous
+      zoom with strategic↔tactical crossfade. Pinch + wheel +
+      keyboard +/-. Single-finger drag = pan. Done = "you can
+      pinch the placeholder and the look crossfades."
+
+v2.me logged the verification + the doc updates.
+
+WHY: User: "Log this change and everything else in our port and
+detail files." Lock the decisions in writing so future-Claude
+reads port.md and gets the full picture without re-asking.
