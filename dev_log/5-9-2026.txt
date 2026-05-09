@@ -88,3 +88,41 @@ Combined: drop army → claim tile + web 10 tiles → drain to 1
 → park ~8s for regen → repeat. Manual tap-march overrides.
 Defense AI still pulls armies off the flood when an invader
 walks into the region.
+
+---
+
+[f147be6] ux: persistent mode bar — always shows what your next
+tap will do
+
+WHAT: Replaced the old #place-banner (which only appeared during
+build/bomb/ship modes) with #mode-bar — always visible, full
+state machine, with a big visible ✕ that drops every active
+mode + selection in one tap. Reads in priority order:
+  default — "Tap an army · Long-press your land to build"
+  bomb    — "💣 SMALL BOMB — tap target tile" (red)
+  op      — "🚀 BLITZKRIEG — tap enemy land" (orange)
+  ship    — "⚓ WARSHIP — tap a coastal tile" (blue)
+  place   — "🏗 PLACING SETTLEMENT — tap your land" (gold)
+  army    — "⚔️ ARMY ×123 — tap destination" (green)
+  ship sel— "🚢 WARSHIP ×80 HP — tap destination" (green)
+
+Selection mirrors:
+  - HUD tracks selectedArmyId / selectedShipId.
+  - main.ts calls hud.setArmySelection / setShipSelection on
+    every selection change (select / switch / deselect / order).
+  - Stale ids (unit died) auto-clear inside _refreshModeBar.
+  - Strength / HP updates each frame so "ARMY ×123" is live.
+
+Cancel pipe: hud.onCancelRequested wired in main.ts clears
+renderer-side selection (HUD never reaches the renderer directly).
+cancelAllModes() drops every mode + selection + fires "Cancelled"
+toast. Toasts pruned — "Army selected" / "deselected" were
+redundant once the banner shows persistent state.
+
+WHY: User: "The controls are very non intuitive and it isn't
+clear what needs to be done. Can you overhaul the controls and
+make it obvious what's being clicked." Picked moments-of-
+confusion: tap-canvas-does-nothing AND select-and-order-feels-
+janky. Persistent banner addresses both — every tap now has an
+in-context expectation ("this tap will...") shown on screen,
+not after-the-fact toast.
