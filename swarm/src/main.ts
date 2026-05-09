@@ -1,17 +1,22 @@
 import { Application, Container } from 'pixi.js';
 import { createCamera } from './camera';
-import { createPlaceholder } from './placeholder';
+import { generateWorld } from './world';
+import { buildMapLayers } from './mapRender';
 import { attachInput } from './input';
 import { readoutStore, type ViewLabel } from './store';
 
-const TILE_SIZE = 32;
-const CELLS_X = 50;
-const CELLS_Y = 50;
-const WORLD_W = TILE_SIZE * CELLS_X;
-const WORLD_H = TILE_SIZE * CELLS_Y;
+const TILE_SIZE = 16;
+const WORLD_TILES_X = 100;
+const WORLD_TILES_Y = 100;
+const REGION_COUNT = 25;
+const WORLD_SEED = 1337;
 
-// Crossfade thresholds in cell-pixel-size on screen.
-// Below MIN: pure strategic (detail alpha 0). Above MAX: pure tactical (1).
+const WORLD_W = TILE_SIZE * WORLD_TILES_X;
+const WORLD_H = TILE_SIZE * WORLD_TILES_Y;
+
+// Crossfade — strategic content (region tints, borders) fades out as cells
+// get bigger on screen. At MIN_PX or below: fully visible (strategic).
+// At MAX_PX or above: fully gone (tactical).
 const CROSSFADE_MIN_PX = 24;
 const CROSSFADE_MAX_PX = 64;
 
@@ -25,10 +30,22 @@ await app.init({
 });
 document.getElementById('app')!.appendChild(app.canvas);
 
-const world = new Container();
-app.stage.addChild(world);
+const worldContainer = new Container();
+app.stage.addChild(worldContainer);
 
-// Initial zoom fits the grid in the viewport with a small margin.
+const world = generateWorld({
+  width: WORLD_TILES_X,
+  height: WORLD_TILES_Y,
+  regionCount: REGION_COUNT,
+  seed: WORLD_SEED,
+});
+
+const layers = buildMapLayers(world, TILE_SIZE);
+worldContainer.addChild(layers.terrainLayer);
+worldContainer.addChild(layers.tintLayer);
+worldContainer.addChild(layers.borderLayer);
+
+// Initial zoom fits the world in the viewport with a small margin.
 const initialZoom = Math.min(window.innerWidth / WORLD_W, window.innerHeight / WORLD_H) * 0.9;
 
 const camera = createCamera({
@@ -39,10 +56,6 @@ const camera = createCamera({
   maxZoom: 8,
 });
 
-const placeholder = createPlaceholder({ cellsX: CELLS_X, cellsY: CELLS_Y, cellSize: TILE_SIZE });
-world.addChild(placeholder.strategicLayer);
-world.addChild(placeholder.detailLayer);
-
 attachInput({
   target: app.canvas as HTMLCanvasElement,
   camera,
@@ -52,21 +65,22 @@ attachInput({
 app.ticker.add(() => {
   const vw = app.screen.width;
   const vh = app.screen.height;
-  world.scale.set(camera.zoom);
-  world.position.set(vw / 2 - camera.panX * camera.zoom, vh / 2 - camera.panY * camera.zoom);
+  worldContainer.scale.set(camera.zoom);
+  worldContainer.position.set(vw / 2 - camera.panX * camera.zoom, vh / 2 - camera.panY * camera.zoom);
 
   const cellPixelSize = TILE_SIZE * camera.zoom;
-  const crossfade = Math.max(0, Math.min(1, (cellPixelSize - CROSSFADE_MIN_PX) / (CROSSFADE_MAX_PX - CROSSFADE_MIN_PX)));
-  placeholder.detailLayer.alpha = crossfade;
+  const fadeOut = Math.max(0, Math.min(1, (cellPixelSize - CROSSFADE_MIN_PX) / (CROSSFADE_MAX_PX - CROSSFADE_MIN_PX)));
+  layers.tintLayer.alpha = 1 - fadeOut;
+  layers.borderLayer.alpha = 1 - fadeOut;
 
-  const view: ViewLabel = crossfade < 0.05 ? 'STRATEGIC' : crossfade > 0.95 ? 'TACTICAL' : 'MID';
+  const view: ViewLabel = fadeOut < 0.05 ? 'STRATEGIC' : fadeOut > 0.95 ? 'TACTICAL' : 'MID';
   const prev = readoutStore.getState();
   if (
-    Math.abs(prev.crossfade - crossfade) > 0.01 ||
+    Math.abs(prev.crossfade - fadeOut) > 0.01 ||
     prev.view !== view ||
     Math.abs(prev.zoom - camera.zoom) > 0.001
   ) {
-    readoutStore.setState({ zoom: camera.zoom, view, crossfade });
+    readoutStore.setState({ zoom: camera.zoom, view, crossfade: fadeOut });
   }
 });
 
@@ -78,7 +92,7 @@ function renderReadout() {
     const pct = Math.round(crossfade * 100);
     label = `STRATEGIC→TACTICAL ${pct}%`;
   }
-  readoutEl.textContent = `swarm v2 — zoom ${zoom.toFixed(2)}x — ${label}`;
+  readoutEl.textContent = `swarm v2 — zoom ${zoom.toFixed(2)}x — ${label} — ${world.regions.length} regions`;
 }
 readoutStore.subscribe(renderReadout);
 renderReadout();

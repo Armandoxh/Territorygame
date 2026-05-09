@@ -12,6 +12,40 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #2: map gen + strategic-scale render
+  WHAT: Replaced the placeholder grid with a real procedural
+        map. Three new things:
+        - world.ts (~140 LOC) Pure data. Mulberry32 RNG.
+          Bilinear value-noise (two octaves) + radial continent
+          falloff → land/water mask. Sand pass marks any grass
+          tile cardinally adjacent to water. Region seeds picked
+          on land with min-spacing rejection sampling. Multi-
+          source BFS with shuffled neighbor order grows organic
+          blobs across all land. Per-region centroid + tile count.
+          Placeholder owner colors via golden-ratio hue rotation
+          on HSL.
+        - mapRender.ts Builds three Pixi Graphics layers from
+          a World: terrain (water/sand/grass colors), tint
+          (region.color over land at alpha 0.55), borders
+          (vector strokes along boundaries between differing
+          regions or land-vs-water).
+        - main.ts rewired: drop placeholder, instantiate world
+          (100x100, 25 regions, seed 1337, TILE_SIZE=16). Same
+          camera + input. Crossfade now fades OUT tint + borders
+          as zoom goes tactical (was fade IN of grid lines on the
+          placeholder). Readout shows region count.
+        Deleted: placeholder.ts.
+  WHY:  Per the mantra, Nail #2 = the next single aspect:
+        strategic-scale terrain + regions, no soldiers yet, per
+        port.md's "First milestone" list. Visual style locks the
+        engine (lesson #1) so getting the strategic look right
+        before adding units is intentional. Still ~210-220 KB gz
+        bundle. Typecheck clean, build clean. To be tested on
+        phone for thumbs-up before Nail #3 (probably soldier
+        sprites + formations to start the tactical aesthetic).
+
+---
+
 2026-05-09  CLAUDE.md (root): announce v2 pivot at the top
   WHAT: New first section in /CLAUDE.md announcing the v2
         rebuild. Tells future-Claude to read port.md +

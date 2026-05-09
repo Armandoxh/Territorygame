@@ -405,3 +405,61 @@ of record the very first thing any new Claude session reads.
 
 (Nail #2 code is in progress in working tree — this commit is
 docs-only so the meta-change has its own clean commit.)
+
+---
+
+[uncommitted] v2 Nail #2: procedural map gen + strategic render
+
+WHAT: Replaced the 50x50 placeholder grid with a 100x100
+procedural world.
+
+  world.ts (~140 LOC, pure data, no Pixi)
+    Mulberry32 RNG seeded by opts.seed (currently 1337 — fixed
+    for reproducibility this nail). Bilinear value-noise on a
+    coarse cell grid: two octaves at freq 14 and 6, weighted
+    0.6/0.4. Radial continent falloff (1 - distance-from-center)
+    + (noise - 0.5) * 0.85. Threshold 0.18 → grass/water binary.
+    Sand pass: every grass tile with any cardinal water
+    neighbor becomes sand. Region seeds via rejection sampling
+    on land with min-spacing of sqrt(area / regionCount) * 0.6.
+    Multi-source BFS with neighbor-order shuffle (per-pop
+    Fisher-Yates) so boundaries are slightly noisy. 25 regions.
+    Placeholder owner colors: HSL with hue = (idx * golden) % 1,
+    S=0.55, L=0.55 → distinct adjacent colors.
+
+  mapRender.ts (~70 LOC)
+    Three Graphics layers built from a World:
+    - terrain: rect.fill per tile (water 0x3a6090, sand 0xc9b070,
+      grass 0x4a7a3e). Always alpha 1.
+    - tint: rect.fill per land tile at region.color, alpha 0.55.
+      Visible at strategic, fades at tactical.
+    - borders: stroke along right/bottom edges where regionOf
+      differs (covers region-vs-region AND land-vs-water).
+      Single stroke({ width: 1.5, color: 0x111111, alpha: 0.85 })
+      after all subpaths emitted. Visible at strategic, fades at
+      tactical.
+
+  main.ts (rewritten, ~85 LOC)
+    Constants now at top: TILE_SIZE=16, WORLD_TILES_X=Y=100,
+    REGION_COUNT=25, WORLD_SEED=1337. World is 1600x1600 world
+    units (same physical size as the 50x50 * 32 placeholder).
+    Adds three layers in order: terrain, tint, borders.
+    Crossfade now: at strategic (cellPixelSize <= 24), tint+border
+    alpha = 1; at tactical (>= 64), alpha = 0; linear between.
+    Readout extends to "... — N regions" so we can sanity-check
+    gen succeeded.
+
+  Deleted: placeholder.ts (no longer used).
+
+WHY: Per the mantra, Nail #2 = the next single aspect from
+port.md's milestone list ("Map gen: ~150x150 tile world,
+regions, water/land, capital placement"). Stayed scoped:
+terrain + regions only, no capitals, no soldiers, no AI yet.
+World is 100x100 not 150x150 (user picked Medium for
+phone-friendliness). Visual identity at strategic locks first
+(lesson #1: visual style locks the engine) before any units
+sit on top of it.
+
+Bundle: ~220 KB gz total (main entry 74 KB gz). Typecheck
+clean, build clean. Awaiting user thumbs-up on phone before
+Nail #3.
