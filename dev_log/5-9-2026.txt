@@ -793,3 +793,56 @@ Awaiting visual confirmation:
   (same animation, same pace).
 - Faint march line connects current pos to destination during
   motion.
+
+---
+
+[uncommitted] port.md spec lockdown: tactical view + army shape
+
+User asked to start on recruitment (nail #6 per port.md
+sequence). Asked clarifying questions about soldier
+accumulation model. User answered with a much richer vision:
+capital produces RESOURCES not soldiers, tiered barracks
+buildings gate unit production, terrain modifies regen,
+multiple resource types, manual army composition.
+
+This collides with port.md lines 70-72 — lesson #4 guardrail
+that froze buildings/economy until the move-fight-win loop
+is fun. I surfaced the conflict and asked for direction
+rather than silently bypassing the guardrail.
+
+User picked: skip recruitment entirely, build combat first.
+This is the most port.md-faithful path and exactly what
+lesson #4 demands.
+
+While that conversation was happening, user shared a second
+tactical-view screenshot (DSS-2-style; matches the existing
+port.md reference). Used it to make the spec concrete:
+
+port.md changes:
+- Rewrote "Tactical aesthetic reference" with specifics from
+  the image: regiment = homogeneous tight grid of one unit
+  type, army = several regiments of different types
+  side-by-side, dirt-textured ground, owner-color sprites,
+  bottom HUD strip of regiment portrait cards. Replaces the
+  vaguer prior description.
+- New "Army composition model" section locking the
+  battalion → regiments → soldiers three-tier hierarchy. Data
+  shape spec: battalion has Regiment[], not a flat
+  {type: count} map. Each regiment carries its own state.
+  Recruitment will eventually produce regiments, not loose
+  soldiers.
+- Section explicitly notes: this is the SHAPE we build
+  toward; nothing here implements until the loop earns it.
+
+v2.me + dev_log entries reflect the sequencing change. Next
+coding nail = combat against the current single-army state.
+
+User's combat scope picks (already collected):
+- One test enemy at a known neighbor's capital
+- Glyph-collision triggers battle
+- Enemy stationary
+
+Open question for the next round: does combat in this nail
+include rendering the tactical view (sprite system,
+formation grids, per-soldier sim) — or stays at strategic
+zoom with a flash + winner-remains? Asking next.

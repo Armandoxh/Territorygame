@@ -109,27 +109,84 @@ existing system it composes with.
 
 A screenshot shared 2026-05-09 of u/Fabian_Viking's Grand RTS
 (r/RealTimeStrategy, "DSS 2: War Industry") is the visual anchor
-for the tactical view. What we **borrow**:
+for the tactical view. User re-shared a second tactical
+screenshot 2026-05-09 confirming the reference. What we
+**borrow**:
 
-- **Soldiers as tiny pixel-art sprites** (3-4 px tall) in tight
-  rectangular formation grids. A regiment reads as a block of
-  identical soldiers; rows and columns visible.
-- **Pixel-textured ground** at tactical zoom — subtle tile texture,
-  not smooth flat color.
-- **Owner color = unit color**, terrain stays ground-colored (green
-  grass, etc.). No territory tint at full tactical zoom.
-- **Minimal HUD** — small nation badge in a corner; that's it.
+- **Soldiers as tiny pixel-art sprites** (~4-6 px tall) in tight
+  rectangular formation grids.
+- **A regiment is a homogeneous block** — every sprite inside
+  one regiment is the same unit type. Rows and columns are
+  visible; spacing is tight; orientation is consistent across
+  the regiment.
+- **An army contains multiple regiments of different unit
+  types** placed side-by-side. In the reference image: small
+  infantry blocks, mounted/cavalry blocks (larger sprite
+  silhouettes), and heavy/distinct unit blocks all coexist
+  within one team's army.
+- **Pixel-textured ground** at tactical zoom — subtle dirt /
+  sand tile texture, not smooth flat color. Regions of grass
+  / forest at the edges are also pixel-textured.
+- **Owner color = unit color** on every sprite (white team vs
+  red team in the reference). Terrain stays ground-colored —
+  no territory tint at full tactical zoom.
+- **Minimal HUD** — only a small nation/unit badge area, an
+  HP / morale strip near the top, and a minimap in a corner.
+  No floating panels, no command grids on top of the field.
+- **A bottom HUD strip of regiment portraits** (compact cards
+  showing each regiment in the selected army; roster-style
+  affordance). This is the only meaningful UI element on the
+  field at tactical zoom.
+
+This visually confirms the **army → regiments → individual
+soldiers** three-tier hierarchy (see "Army composition model"
+section).
 
 What we explicitly **do not** borrow (re-affirming the hard cuts):
 
 - Buildings / settlements / the entire DSS 2 "War Industry"
-  city-building mechanic. We have only the capital.
+  city-building mechanic. We have only the capital (for now —
+  see deferred scope).
 - Diplomacy HUD (relation badges, profile sheets, war/peace UI).
 - Multiple resource icons / inventories.
 - Map-screen UI for trading, alliances, treaties.
 
 The reference is for the **look at tactical zoom**, not for the
 systems behind it.
+
+## Army composition model
+
+User confirmed 2026-05-09 (after seeing the tactical reference):
+the on-map controllable thing is a **battalion** (one player
+can have many) and a battalion is a **mixed force** internally
+composed of multiple **regiments**, each regiment being a
+homogeneous block of one unit type.
+
+The hierarchy:
+
+```
+nation
+  └─ N battalions   (each is one map glyph, drag-marched independently)
+       └─ M regiments (each homogeneous, one unit type)
+            └─ K individual soldier sprites (only rendered at tactical zoom)
+```
+
+What this means for data shape (when we get there):
+
+- A battalion is `{ regiments: Regiment[] }`, NOT a flat
+  `{ infantry: 100, cavalry: 20 }` map. Each regiment is its
+  own object so it can have per-regiment state (HP, morale,
+  facing) later.
+- A nation owns an array of battalions, not a single army.
+- Recruitment ultimately produces *regiments* (or fills them),
+  not loose soldiers. Tactical view renders one formation
+  block per regiment, drawn from per-type sprite atlases.
+
+**This section describes the shape we are building toward.**
+None of it gets implemented until the core loop earns it
+(lesson #4). Combat lands first against the current
+single-glyph army; recruitment / battalion composition arrive
+in a later wave once combat is fun.
 
 ## First milestone (one playable build)
 

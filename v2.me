@@ -12,6 +12,34 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  port.md update: tactical reference + army model
+  WHAT: Two new sections in port.md.
+        (1) "Tactical aesthetic reference" was rewritten with
+        concrete specifics from a second tactical screenshot
+        the user shared: regiment = homogeneous tight grid of
+        one unit type, army = multiple regiments of different
+        types side-by-side, dirt-textured ground, owner-color
+        sprites, bottom HUD strip of regiment portrait cards.
+        (2) New "Army composition model" section locks in the
+        three-tier hierarchy (battalion → regiments → soldier
+        sprites). User confirmed: many battalions per nation,
+        each a mixed force; regiments are homogeneous blocks.
+  WHY:  After being asked to start on recruitment, the user
+        surfaced a much richer mental model (resources →
+        buildings → tiered barracks → manual army composition).
+        We ran into lesson #4's guardrail directly. User chose
+        path: skip recruitment, build combat first, save the
+        economy for after the loop is fun. But the army-
+        composition shape is now LOCKED IN port.md so future
+        recruitment / unit-type nails build toward it without
+        re-deriving. Tactical reference is also locked so
+        whoever builds tactical zoom has a precise spec.
+
+  Sequencing change: next coding nail = combat (was: nail #6
+  recruitment). Recruitment / economy parked in deferred scope.
+
+---
+
 2026-05-09  Nail #5b refinement: drop-position + slow march
   WHAT: Two changes to the placeholder army.
         (1) Drop position is now where the finger releases —
