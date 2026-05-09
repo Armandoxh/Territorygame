@@ -286,3 +286,65 @@ v2.me logged the verification + the doc updates.
 WHY: User: "Log this change and everything else in our port and
 detail files." Lock the decisions in writing so future-Claude
 reads port.md and gets the full picture without re-asking.
+
+---
+
+[uncommitted] v2 commit B: dual-scale zoom on placeholder grid (Nail #1)
+
+WHAT: Five new src/ files inside swarm/.
+
+  camera.ts (~30 LOC)
+    Plain object — zoom, panX, panY. Two methods.
+    zoomAt(factor, sx, sy, vw, vh) clamps the new zoom into
+    [minZoom, maxZoom] then adjusts pan so the world point that
+    was under the cursor/finger stays under it (focal-point
+    zoom). panBy(dxScreen, dyScreen) translates pan in world
+    space (dx/zoom).
+
+  placeholder.ts (~50 LOC)
+    50x50 grid. cellColor(x, y) hashes (x*12.9898 + y*78.233) →
+    deterministic 3-color pattern: 10% water, 15% sand, 75% grass.
+    Strategic layer: 2500 rect fills in one Graphics.
+    Detail layer: 51+51 grid lines (1px stroke, alpha 0.45) +
+    2500 center dots (r=2, alpha 0.6). detail.alpha=0 at start;
+    main.ts drives it from camera zoom.
+
+  input.ts (~60 LOC)
+    pointerdown/move/up/cancel + wheel + keydown.
+    Pointers tracked in Map<id, {x,y}>. On pointermove: 1 active
+    → camera.panBy(dx, dy). 2 active → recompute pinch distance,
+    factor = newDist/oldDist, zoom around midpoint of two
+    pointers. lastPinchDist resets when count drops below 2.
+    Wheel: factor = 1.0015^-deltaY (smooth on trackpad,
+    snappy enough on click-wheel). Keyboard: +/- → 1.2x / 0.83x
+    around screen center.
+    setPointerCapture so drags don't drop when finger leaves
+    canvas. preventDefault on wheel so the page doesn't scroll.
+
+  store.ts (~12 LOC)
+    Zustand vanilla store with { zoom, view, crossfade }. view
+    is 'STRATEGIC' | 'MID' | 'TACTICAL'. Subscribed by the DOM
+    readout. Per-tick setState gated by a deadband (crossfade
+    delta > 0.01 OR view changed OR zoom delta > 0.001) so we
+    don't churn 60 times/sec on idle.
+
+  main.ts (rewritten, ~70 LOC)
+    Constants: TILE_SIZE=32, CELLS_X=CELLS_Y=50 (so world is
+    1600x1600). Initial zoom fits the grid in viewport with
+    a 0.9 margin; minZoom = initialZoom*0.5, maxZoom = 8.
+    Per-frame: world.scale.set(zoom); world.position.set(
+    vw/2 - panX*zoom, vh/2 - panY*zoom). Crossfade from
+    cellPixelSize: 0 below 24px, 1 above 64px, linear between.
+    Push to store with deadband. DOM readout shows
+    "swarm v2 — zoom 1.20x — STRATEGIC→TACTICAL 40%" or similar.
+
+WHY: Nail #1 done end-to-end. Per the mantra ("nail one aspect
+before moving to the next"), this is the *only* thing — no map
+gen, no soldiers, no selection, no anything else. Once user
+thumbs-up on phone, the next nail (probably map gen at the
+strategic scale, replacing the hashed-color placeholder) opens.
+
+Bundle: ~210 KB gz total. typecheck clean. Build clean. No
+lint, no tests — lean per the constraint. If pinch feels jumpy
+on phone we add target-lerp smoothing in a follow-up; shipping
+without it first to know whether smoothing is needed.

@@ -12,6 +12,45 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Commit B: dual-scale zoom on placeholder grid (Nail #1)
+  WHAT: Five new files in swarm/src/
+        - camera.ts      Pure math. zoom + panX + panY state.
+                         zoomAt(factor, screenX, screenY) keeps the
+                         world point under the cursor/finger fixed
+                         across the zoom (focal-point zoom). panBy
+                         translates in world space.
+        - placeholder.ts 50x50 grid in 3 hashed colors (grass/sand/
+                         water). Strategic layer = flat fills.
+                         Detail layer = grid lines (1px, alpha 0.45)
+                         + center dots (r=2, alpha 0.6).
+        - input.ts       Pointer events: 1-finger drag = pan,
+                         2-finger pinch = zoom around midpoint.
+                         Wheel = zoom around cursor (1.0015^-deltaY,
+                         smooth on trackpad). Keyboard +/- = zoom
+                         around screen center.
+        - store.ts       Zustand vanilla store. Holds the readout
+                         state (zoom, view label, crossfade). Used
+                         by the DOM readout subscriber, set by the
+                         tick when values change meaningfully
+                         (deadband to avoid 60Hz updates).
+        - main.ts        Boots Pixi, builds the world container,
+                         wires camera + placeholder + input. Per
+                         tick: applies camera transform, computes
+                         crossfade from cellPixelSize (24px = 0,
+                         64px = 1), sets detailLayer.alpha, pushes
+                         throttled state to readoutStore.
+  WHY:  Nail #1 done end-to-end per port.md "Nail-1 spec":
+        - Placeholder content: 50x50 hashed grid, 3 colors. ✓
+        - Smooth continuous zoom + crossfade between strategic
+          (flat colors) and tactical (lines + dots overlay). ✓
+        - Pinch + wheel + keyboard +/-. ✓
+        - Single-finger drag = pan. ✓
+        Bundle ~210 KB gz. Per the mantra: this is one aspect,
+        end-to-end, before anything else. Next aspect (map gen,
+        soldiers, selection, etc.) waits for user thumbs-up here.
+
+---
+
 2026-05-09  Commit A verified live on phone (both URLs)
   WHAT: User opened both URLs on phone after Pages rebuild:
         v1 → /Territorygame/    → loads (existing game intact).
