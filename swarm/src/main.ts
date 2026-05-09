@@ -110,7 +110,8 @@ let world: World = generateWorld({
 let layers: MapLayers = buildMapLayers(world, TILE_SIZE);
 let army: Army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
 let enemy: EnemyState | null = spawnEnemy(world);
-let combatTriggered = false;
+type CombatState = 'idle' | 'engaged' | 'retreating';
+let combatState: CombatState = 'idle';
 addLayers(layers);
 worldContainer.addChild(army.container);
 if (enemy) worldContainer.addChild(enemy.glyph);
@@ -136,7 +137,7 @@ function loadMap(seed: number) {
   layers = buildMapLayers(world, TILE_SIZE);
   army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
   enemy = spawnEnemy(world);
-  combatTriggered = false;
+  combatState = 'idle';
   addLayers(layers);
   worldContainer.addChild(army.container);
   if (enemy) worldContainer.addChild(enemy.glyph);
@@ -180,13 +181,19 @@ app.ticker.add(() => {
 
   army.tick(app.ticker.deltaMS / 1000);
 
-  if (enemy && !combatTriggered) {
+  if (enemy) {
     const ap = army.getPos();
     const dx = ap.x - enemy.pos.x;
     const dy = ap.y - enemy.pos.y;
-    if (Math.hypot(dx, dy) <= COMBAT_TRIGGER_RADIUS) {
-      combatTriggered = true;
-      console.log('[combat] triggered against region', enemy.regionId);
+    const inRange = Math.hypot(dx, dy) <= COMBAT_TRIGGER_RADIUS;
+    if (inRange && combatState !== 'engaged') {
+      combatState = 'engaged';
+      console.log('[combat] engaged with region', enemy.regionId);
+      renderReadout();
+    } else if (!inRange && combatState === 'engaged') {
+      // First step out of the engagement zone after touching the enemy.
+      combatState = 'retreating';
+      console.log('[combat] retreating from region', enemy.regionId);
       renderReadout();
     }
   }
@@ -236,12 +243,14 @@ function renderReadout() {
     armyLine = `army @ ${where} · drag to march`;
   }
   let enemyLine: string;
-  if (combatTriggered) {
-    enemyLine = '>>> BATTLE TRIGGERED <<<';
-  } else if (enemy) {
-    enemyLine = `enemy @ #${enemy.regionId} · march onto it`;
-  } else {
+  if (!enemy) {
     enemyLine = 'no enemy (no neighbors)';
+  } else if (combatState === 'engaged') {
+    enemyLine = '>>> BATTLE TRIGGERED <<<';
+  } else if (combatState === 'retreating') {
+    enemyLine = `RETREATING from #${enemy.regionId}`;
+  } else {
+    enemyLine = `enemy @ #${enemy.regionId} · march onto it`;
   }
   readoutEl.textContent =
     `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
