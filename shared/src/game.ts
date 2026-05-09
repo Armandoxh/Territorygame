@@ -6663,55 +6663,89 @@ export class Game {
     a.strength = Math.min(cap, a.strength + regen);
   }
 
-  /** Influence aura: claim ONE neutral tile within ARMY_AURA_RADIUS
-   *  that's adjacent to an existing tile of the army's owner.
-   *  Each claim costs ARMY_NEUTRAL_CLAIM_COST strength, scaled by
-   *  Field Logistics decree (less attrition per stack). Floor at 1
-   *  so passive painting can't outright kill the unit.
-   *  At radius 3 = 7×7 area, one claim per tick fills naturally
-   *  while the army holds position, and the wake during marching
-   *  stays light. Multi-claim-per-tick was tried briefly but
-   *  thrashed the army strength labels' text rasterizer on mobile
-   *  (every claim shifts strength → relayout per Text node). */
+  /** Influence aura: claim tiles inside the army's CURRENT region.
+   *  This is the "place a battalion in a vassal, the battalion captures
+   *  the whole vassal" model — the army acts as a regional governor,
+   *  not a 1-tile paintbrush.
+   *  - Neutral region (no owner): up to 3 claims/tick. Cheap attrition.
+   *  - Enemy-held region: up to 1 claim/tick. Higher attrition that
+   *    scales with defender's defense (Iron Doctrine, turrets) and
+   *    attacker's offense mult (Veterans, tank-rush). Capitals are
+   *    skipped — those still need an army to physically step on them.
+   *  - Already 100% your region: skip (just regen).
+   *  Tiles must touch a player-owned tile to qualify (no leapfrog).
+   *  Capped scan: up to 256 tile checks per tick to keep the cost
+   *  bounded on huge regions. */
   private _armyAura(a: Army): void {
-    this._auraClaimOne(a);
-  }
-
-  private _auraClaimOne(a: Army): boolean {
     const W = this.territory.width;
-    const H = this.territory.height;
-    const R = this.config.ARMY_AURA_RADIUS;
-    const r2 = R * R;
-    let bestX = -1, bestY = -1, bestD = Infinity;
-    for (let dy = -R; dy <= R; dy++) {
-      const ty = a.y + dy;
-      if (ty < 0 || ty >= H) continue;
-      for (let dx = -R; dx <= R; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        const d2 = dx * dx + dy * dy;
-        if (d2 > r2) continue;
-        if (d2 >= bestD) continue;
-        const tx = a.x + dx;
-        if (tx < 0 || tx >= W) continue;
-        if (this.territory.getOwner(tx, ty) !== 0) continue;
-        if (!this.territory.isPassable(tx, ty)) continue;
-        if (this._capitalIndexAt(tx, ty) >= 0) continue;
-        let adjacent = false;
-        if (tx + 1 < W && this.territory.getOwner(tx + 1, ty) === a.owner) adjacent = true;
-        else if (tx > 0 && this.territory.getOwner(tx - 1, ty) === a.owner) adjacent = true;
-        else if (ty + 1 < H && this.territory.getOwner(tx, ty + 1) === a.owner) adjacent = true;
-        else if (ty > 0 && this.territory.getOwner(tx, ty - 1) === a.owner) adjacent = true;
-        if (!adjacent) continue;
-        bestD = d2; bestX = tx; bestY = ty;
+    const armyRegion = this.regions[a.y * W + a.x];
+    if (!armyRegion) return;
+    if (this._regionOwner[armyRegion] === a.owner) return;
+    const regionTiles = this._tilesByRegion[armyRegion];
+    if (!regionTiles || regionTiles.length === 0) return;
+
+    const ownerP = this.players[a.owner];
+    const attritionMult = ownerP ? this._fieldLogisticsMult(ownerP) : 1;
+    const baseCost = this.config.ARMY_NEUTRAL_CLAIM_COST * attritionMult;
+    const atkMul = ownerP ? this._veteransMult(ownerP, true) : 1;
+
+    let neutralBudget = 3;
+    let enemyBudget = 1;
+    const scanCap = Math.min(regionTiles.length, 256);
+    // Walk the region tiles starting from a tick-rotated offset so
+    // multiple armies in the same region don't fight over the same
+    // candidate every tick. Cheap pseudo-shuffle.
+    const offset = (this.tickCount + a.id) % regionTiles.length;
+    for (let n = 0; n < scanCap; n++) {
+      if (neutralBudget <= 0 && enemyBudget <= 0) break;
+      const ti = regionTiles[(offset + n) % regionTiles.length]!;
+      const tx = ti % W;
+      const ty = (ti - tx) / W;
+      const tileOwner = this.territory.getOwner(tx, ty);
+      if (tileOwner === a.owner) continue;
+      if (!this.territory.isPassable(tx, ty)) continue;
+      if (this._capitalIndexAt(tx, ty) >= 0) continue;
+      // Allies are off-limits.
+      if (tileOwner > 0 && this.areAllied(a.owner, tileOwner)) continue;
+      // Must touch player territory (no leapfrog).
+      if (!this._tileTouchesOwner(tx, ty, a.owner)) continue;
+
+      if (tileOwner === 0) {
+        if (neutralBudget <= 0) continue;
+        if (!this._claim(tx, ty, a.owner)) continue;
+        a.strength = Math.max(1, a.strength - baseCost);
+        neutralBudget--;
+      } else {
+        if (enemyBudget <= 0) continue;
+        // Enemy: stats matter. Offense × defense determines drain.
+        // Auto-declare if not at war so the first contact registers.
+        if (!this.areAtWar(a.owner, tileOwner)) {
+          this.declareWar(a.owner, tileOwner, 'aggression');
+        }
+        const defMul = 1 + this._defenseAt(tx, ty, tileOwner);
+        const cost = baseCost * 2 * (defMul / Math.max(0.1, atkMul));
+        if (a.strength <= cost + 1) {
+          // Not enough strength to break through — skip; let the army
+          // wait or retreat.
+          continue;
+        }
+        if (!this.tryCapture(tx, ty, a.owner)) continue;
+        a.strength = Math.max(1, a.strength - cost);
+        enemyBudget--;
       }
     }
-    if (bestX < 0) return false;
-    this._claim(bestX, bestY, a.owner);
-    const owner = this.players[a.owner];
-    const attritionMult = owner ? this._fieldLogisticsMult(owner) : 1;
-    const cost = this.config.ARMY_NEUTRAL_CLAIM_COST * attritionMult;
-    a.strength = Math.max(1, a.strength - cost);
-    return true;
+  }
+
+  /** Quick adjacency test: does (x, y) cardinally touch a tile owned
+   *  by ownerId? Used by the region aura to gate leapfrog claims. */
+  private _tileTouchesOwner(x: number, y: number, ownerId: PlayerId): boolean {
+    const W = this.territory.width;
+    const H = this.territory.height;
+    if (x + 1 < W && this.territory.getOwner(x + 1, y) === ownerId) return true;
+    if (x > 0 && this.territory.getOwner(x - 1, y) === ownerId) return true;
+    if (y + 1 < H && this.territory.getOwner(x, y + 1) === ownerId) return true;
+    if (y > 0 && this.territory.getOwner(x, y - 1) === ownerId) return true;
+    return false;
   }
 
   /** Field Logistics decree: each stack compounds 0.85× attrition.
