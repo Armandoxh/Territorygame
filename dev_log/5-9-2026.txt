@@ -672,3 +672,60 @@ Build clean, typecheck clean. Awaiting visual confirmation:
 - 25 colored dots at region centroids.
 - Yours has a white ring + is bigger than the others.
 - "new map" button rebuilds them along with everything else.
+
+User noted capitals should eventually be castle/capital sprites
+(art coming later). Logged as a deferred entry in port.md
+("Capital art") and a TODO(art) comment in mapRender.ts where
+the swap will happen. Continued without waiting.
+
+---
+
+[uncommitted] v2 Nail #5b: placeholder army + drag-to-move
+
+User picks: square-next-to-capital, drag-and-drop, position-
+only (no claim).
+
+New `army.ts`:
+- Container holding a player-colored square sprite (12 world
+  units), a translucent ghost (also a square), and a graphics
+  for the drag-line.
+- API: getRegionId, hitTest(sx,sy), startDrag, updateDrag,
+  endDrag → returns new region id on commit, null on cancel.
+- Hit-test in screen space with a fixed 22px radius — at
+  strategic zoom the army shrinks to ~5px on screen but the
+  finger target stays usable. Decoupling visual size from hit
+  size is exactly what was missed in v1's drag-select.
+- Commit rule: dropped tile must be land AND its region must
+  be in `region.neighbors` of the army's current region. Else
+  cancel and snap back.
+
+`input.ts` extended with optional `getDragHandler` callback.
+Why a callback rather than a stored handler ref: the army is
+recreated on `loadMap`, so input needs to re-fetch the live
+handler each pointerdown. While dragging, additional pointers
+are dropped entirely — pan and pinch are locked until release.
+Implementation: a single `dragPointerId: number | null` gates
+all the existing pan/zoom paths.
+
+`main.ts`:
+- Reordered: camera + screen<->world helpers now declared
+  before world+army (which need them). No behavior change.
+- `screenToWorld` / `worldToScreen` derived directly from the
+  camera transform applied in the ticker — verified by inverting
+  the formula manually.
+- Readout grew a fourth line: "army @ home" or "army @ #N",
+  followed by "drag to a neighbor" affordance hint.
+
+Tradeoff captured: no neighbor-region highlight while dragging.
+Decided not to ship it in this nail — the line + the snap-back
+on invalid drops should be enough feedback for v1 of the
+interaction. If user finds it confusing, easy follow-up to
+pulse-outline neighbors during drag.
+
+Build clean, typecheck clean. Awaiting visual confirmation:
+- Square sits to the right of the player capital dot.
+- Touch-drag it → ghost follows finger, line trails back.
+- Release on a bordering region → army moves there.
+- Release on water / non-neighbor → snap back to source.
+- Pan/pinch suppressed during drag.
+- "new map" button replaces army with one in the new home.

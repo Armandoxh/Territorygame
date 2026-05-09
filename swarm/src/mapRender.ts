@@ -119,6 +119,8 @@ export function buildMapLayers(world: World, tileSize: number): MapLayers {
   // 5. Capital markers at each region's centroid, drawn over everything.
   //    Centroid is in tile-coords; convert to world units. Player capital
   //    is bigger and gets an extra white ring so it reads at strategic zoom.
+  //    TODO(art): swap circles for castle/capital sprites once art lands.
+  //    See port.md "Capital art" deferred entry.
   const capitalLayer = new Graphics();
   for (const region of regions) {
     const cx = region.centroidX * tileSize + tileSize / 2;

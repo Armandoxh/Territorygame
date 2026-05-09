@@ -12,6 +12,35 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #5b: placeholder army + drag-to-move
+  WHAT: One army glyph (small player-colored square) sits next
+        to the player's capital dot. Touch-and-drag it: a
+        translucent ghost follows the finger with a connecting
+        line back to the source. Release on a region that is
+        a graph-neighbor of the army's current region → army
+        commits there. Release anywhere else → snap back. Pan
+        and pinch are locked while a drag is in progress. New
+        modules: `army.ts` (state + visuals + hit-test); input
+        layer extended with optional `DragHandler` that hijacks
+        the first pointer when its hit-test matches.
+  WHY:  This is the smallest possible round-trip exercise of
+        the adjacency graph from nail #4. It proves the data
+        model end-to-end (centroids, neighbors, region lookup
+        from a screen tap) without committing to any combat,
+        claim, or unit-count semantics — those land in their
+        own nails. Position-only by design (per port.md): if
+        the demo were tangled with claim logic, the next nail
+        couldn't iterate on movement without breaking gameplay.
+        Generous fixed screen-space hit radius (22px) keeps the
+        army draggable at strategic zoom where its visual
+        footprint shrinks below finger-size.
+
+  TODO(art): capital markers and the army are placeholder
+        shapes. User has castle / soldier sprites coming. See
+        port.md "Capital art" deferred entry.
+
+---
+
 2026-05-09  Nail #5a: capital markers
   WHAT: New `capitalLayer` Graphics, drawn above everything,
         renders a filled circle at each region's centroid in

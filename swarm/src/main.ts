@@ -2,7 +2,8 @@ import { Application, Container } from 'pixi.js';
 import { createCamera } from './camera';
 import { generateWorld, type World } from './world';
 import { buildMapLayers, type MapLayers } from './mapRender';
-import { attachInput } from './input';
+import { attachInput, type DragHandler } from './input';
+import { createArmy, type Army } from './army';
 import { readoutStore, type ViewLabel } from './store';
 
 const TILE_SIZE = 16;
@@ -33,6 +34,30 @@ document.getElementById('app')!.appendChild(app.canvas);
 const worldContainer = new Container();
 app.stage.addChild(worldContainer);
 
+const initialZoom = Math.min(window.innerWidth / WORLD_W, window.innerHeight / WORLD_H) * 0.9;
+
+const camera = createCamera({
+  initialZoom,
+  initialPanX: WORLD_W / 2,
+  initialPanY: WORLD_H / 2,
+  minZoom: initialZoom * 0.5,
+  maxZoom: MAX_MANUAL_ZOOM,
+});
+
+function screenToWorld(sx: number, sy: number) {
+  return {
+    x: (sx - app.screen.width / 2) / camera.zoom + camera.panX,
+    y: (sy - app.screen.height / 2) / camera.zoom + camera.panY,
+  };
+}
+
+function worldToScreen(wx: number, wy: number) {
+  return {
+    x: (wx - camera.panX) * camera.zoom + app.screen.width / 2,
+    y: (wy - camera.panY) * camera.zoom + app.screen.height / 2,
+  };
+}
+
 let currentSeed = DEFAULT_SEED;
 let world: World = generateWorld({
   width: WORLD_TILES_X,
@@ -41,7 +66,9 @@ let world: World = generateWorld({
   seed: currentSeed,
 });
 let layers: MapLayers = buildMapLayers(world, TILE_SIZE);
+let army: Army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
 addLayers(layers);
+worldContainer.addChild(army.container);
 
 function addLayers(l: MapLayers) {
   worldContainer.addChild(l.terrainLayer);
@@ -59,6 +86,7 @@ function loadMap(seed: number) {
   layers.borderLayer.destroy();
   layers.playerLayer.destroy();
   layers.capitalLayer.destroy();
+  army.destroy();
   worldContainer.removeChildren();
 
   world = generateWorld({
@@ -68,7 +96,9 @@ function loadMap(seed: number) {
     seed,
   });
   layers = buildMapLayers(world, TILE_SIZE);
+  army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
   addLayers(layers);
+  worldContainer.addChild(army.container);
 
   // Recenter camera; new map may have a different land shape.
   camera.panX = WORLD_W / 2;
@@ -78,20 +108,24 @@ function loadMap(seed: number) {
   renderReadout();
 }
 
-const initialZoom = Math.min(window.innerWidth / WORLD_W, window.innerHeight / WORLD_H) * 0.9;
-
-const camera = createCamera({
-  initialZoom,
-  initialPanX: WORLD_W / 2,
-  initialPanY: WORLD_H / 2,
-  minZoom: initialZoom * 0.5,
-  maxZoom: MAX_MANUAL_ZOOM,
-});
+// Bridge the army to the input layer. `army` is reassigned by loadMap, so
+// we re-derive the handler each pointerdown rather than capturing a stale
+// reference.
+const armyDragHandler: DragHandler = {
+  hitTest: (sx, sy) => army.hitTest(sx, sy),
+  onStart: (sx, sy) => army.startDrag(sx, sy),
+  onMove: (sx, sy) => army.updateDrag(sx, sy),
+  onEnd: (sx, sy) => {
+    const moved = army.endDrag(sx, sy);
+    if (moved !== null) renderReadout();
+  },
+};
 
 attachInput({
   target: app.canvas as HTMLCanvasElement,
   camera,
   getViewport: () => ({ w: app.screen.width, h: app.screen.height }),
+  getDragHandler: () => armyDragHandler,
 });
 
 app.ticker.add(() => {
@@ -113,10 +147,13 @@ const readoutEl = document.getElementById('readout')!;
 function renderReadout() {
   const { zoom, view } = readoutStore.getState();
   const playerRegion = world.regions[world.playerRegionId]!;
+  const armyRegion = world.regions[army.getRegionId()]!;
+  const inHome = army.getRegionId() === world.playerRegionId;
   readoutEl.textContent =
     `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
     `seed ${currentSeed}\n` +
-    `nation #${world.playerRegionId} · ${playerRegion.neighbors.length} borders`;
+    `nation #${world.playerRegionId} · ${playerRegion.neighbors.length} borders\n` +
+    `army @ ${inHome ? 'home' : `#${armyRegion.id}`} · drag to a neighbor`;
 }
 readoutStore.subscribe(renderReadout);
 renderReadout();

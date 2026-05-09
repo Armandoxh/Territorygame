@@ -1,18 +1,41 @@
 import type { Camera } from './camera';
 
+// A drag handler can hijack a single pointer when it starts on the handler's
+// hit area. While that pointer is active, pan/pinch are suppressed and any
+// additional pointers are ignored — "lock the camera while dragging."
+export interface DragHandler {
+  hitTest(sx: number, sy: number): boolean;
+  onStart(sx: number, sy: number): void;
+  onMove(sx: number, sy: number): void;
+  onEnd(sx: number, sy: number): void;
+}
+
 export interface AttachInputOpts {
   target: HTMLCanvasElement;
   camera: Camera;
   getViewport: () => { w: number; h: number };
+  getDragHandler?: () => DragHandler | null;
 }
 
 export function attachInput(opts: AttachInputOpts) {
-  const { target, camera, getViewport } = opts;
+  const { target, camera, getViewport, getDragHandler } = opts;
 
   const pointers = new Map<number, { x: number; y: number }>();
   let lastPinchDist = 0;
+  let dragPointerId: number | null = null;
 
   target.addEventListener('pointerdown', (e) => {
+    // Already dragging the army — ignore extra pointers entirely.
+    if (dragPointerId !== null) return;
+
+    const handler = getDragHandler?.() ?? null;
+    if (handler && pointers.size === 0 && handler.hitTest(e.clientX, e.clientY)) {
+      target.setPointerCapture(e.pointerId);
+      dragPointerId = e.pointerId;
+      handler.onStart(e.clientX, e.clientY);
+      return;
+    }
+
     target.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 2) {
@@ -24,6 +47,13 @@ export function attachInput(opts: AttachInputOpts) {
   });
 
   target.addEventListener('pointermove', (e) => {
+    if (dragPointerId === e.pointerId) {
+      const handler = getDragHandler?.() ?? null;
+      handler?.onMove(e.clientX, e.clientY);
+      return;
+    }
+    if (dragPointerId !== null) return;
+
     const prev = pointers.get(e.pointerId);
     if (!prev) return;
     const dx = e.clientX - prev.x;
@@ -52,6 +82,12 @@ export function attachInput(opts: AttachInputOpts) {
   });
 
   function endPointer(e: PointerEvent) {
+    if (dragPointerId === e.pointerId) {
+      const handler = getDragHandler?.() ?? null;
+      handler?.onEnd(e.clientX, e.clientY);
+      dragPointerId = null;
+      return;
+    }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) lastPinchDist = 0;
   }

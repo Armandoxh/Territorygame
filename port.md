@@ -84,6 +84,11 @@ What's deferred:
 - 🕓 Bombs, ground ops (artillery / blitz / tank / paratrooper),
   nukes.
 - 🕓 Trade routes / markets as a mechanic.
+- 🕓 **Capital art.** Capitals currently render as colored
+  centroid dots (nail #5a). User will provide castle / capital
+  sprites; swap the `capitalLayer` circle draws for sprite
+  placement keyed off `region.centroidX/Y`. Deferred until the
+  art is in hand — dot is functionally sufficient.
 
 When any of these is un-deferred, it gets its own paragraph in
 this file — what it is, why it earns its place, and what
