@@ -58,29 +58,6 @@ function worldToScreen(wx: number, wy: number) {
   };
 }
 
-let currentSeed = DEFAULT_SEED;
-let world: World = generateWorld({
-  width: WORLD_TILES_X,
-  height: WORLD_TILES_Y,
-  regionCount: REGION_COUNT,
-  seed: currentSeed,
-});
-let layers: MapLayers = buildMapLayers(world, TILE_SIZE);
-let army: Army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
-let enemy: EnemyState | null = spawnEnemy(world);
-let combatTriggered = false;
-addLayers(layers);
-worldContainer.addChild(army.container);
-if (enemy) worldContainer.addChild(enemy.glyph);
-
-function addLayers(l: MapLayers) {
-  worldContainer.addChild(l.terrainLayer);
-  worldContainer.addChild(l.tintLayer);
-  worldContainer.addChild(l.borderLayer);
-  worldContainer.addChild(l.playerLayer);
-  worldContainer.addChild(l.capitalLayer);
-}
-
 // One stationary placeholder enemy at the player's first graph-neighbor.
 // Test rig only — real enemy battalions, AI, recruitment all land later.
 const ENEMY_GLYPH_SIZE = 12;
@@ -114,6 +91,29 @@ function spawnEnemy(w: World): EnemyState | null {
 
   return { glyph, pos: { x, y }, regionId: enemyRegionId };
 }
+
+function addLayers(l: MapLayers) {
+  worldContainer.addChild(l.terrainLayer);
+  worldContainer.addChild(l.tintLayer);
+  worldContainer.addChild(l.borderLayer);
+  worldContainer.addChild(l.playerLayer);
+  worldContainer.addChild(l.capitalLayer);
+}
+
+let currentSeed = DEFAULT_SEED;
+let world: World = generateWorld({
+  width: WORLD_TILES_X,
+  height: WORLD_TILES_Y,
+  regionCount: REGION_COUNT,
+  seed: currentSeed,
+});
+let layers: MapLayers = buildMapLayers(world, TILE_SIZE);
+let army: Army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
+let enemy: EnemyState | null = spawnEnemy(world);
+let combatTriggered = false;
+addLayers(layers);
+worldContainer.addChild(army.container);
+if (enemy) worldContainer.addChild(enemy.glyph);
 
 function loadMap(seed: number) {
   currentSeed = seed;
