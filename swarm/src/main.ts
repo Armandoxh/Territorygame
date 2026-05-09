@@ -1,4 +1,4 @@
-import { Application, Container } from 'pixi.js';
+import { Application, Container, Graphics } from 'pixi.js';
 import { createCamera } from './camera';
 import { generateWorld, type World } from './world';
 import { buildMapLayers, type MapLayers } from './mapRender';
@@ -67,8 +67,11 @@ let world: World = generateWorld({
 });
 let layers: MapLayers = buildMapLayers(world, TILE_SIZE);
 let army: Army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
+let enemy: EnemyState | null = spawnEnemy(world);
+let combatTriggered = false;
 addLayers(layers);
 worldContainer.addChild(army.container);
+if (enemy) worldContainer.addChild(enemy.glyph);
 
 function addLayers(l: MapLayers) {
   worldContainer.addChild(l.terrainLayer);
@@ -76,6 +79,40 @@ function addLayers(l: MapLayers) {
   worldContainer.addChild(l.borderLayer);
   worldContainer.addChild(l.playerLayer);
   worldContainer.addChild(l.capitalLayer);
+}
+
+// One stationary placeholder enemy at the player's first graph-neighbor.
+// Test rig only — real enemy battalions, AI, recruitment all land later.
+const ENEMY_GLYPH_SIZE = 12;
+const ENEMY_OFFSET_X = 14;
+// Combat triggers when the player's army center comes within this many
+// world units of the enemy center. Slightly larger than the glyph so the
+// player feels the engagement before the squares overlap pixel-for-pixel.
+const COMBAT_TRIGGER_RADIUS = 16;
+
+interface EnemyState {
+  glyph: Graphics;
+  pos: { x: number; y: number };
+  regionId: number;
+}
+
+function spawnEnemy(w: World): EnemyState | null {
+  const playerRegion = w.regions[w.playerRegionId]!;
+  if (playerRegion.neighbors.length === 0) return null;
+  const enemyRegionId = playerRegion.neighbors[0]!;
+  const enemyRegion = w.regions[enemyRegionId]!;
+  const x = enemyRegion.centroidX * TILE_SIZE + TILE_SIZE / 2 + ENEMY_OFFSET_X;
+  const y = enemyRegion.centroidY * TILE_SIZE + TILE_SIZE / 2;
+
+  const half = ENEMY_GLYPH_SIZE / 2;
+  const glyph = new Graphics();
+  glyph.rect(-half, -half, ENEMY_GLYPH_SIZE, ENEMY_GLYPH_SIZE).fill(enemyRegion.color);
+  glyph
+    .rect(-half, -half, ENEMY_GLYPH_SIZE, ENEMY_GLYPH_SIZE)
+    .stroke({ width: 1.5, color: 0x111111 });
+  glyph.position.set(x, y);
+
+  return { glyph, pos: { x, y }, regionId: enemyRegionId };
 }
 
 function loadMap(seed: number) {
@@ -87,6 +124,7 @@ function loadMap(seed: number) {
   layers.playerLayer.destroy();
   layers.capitalLayer.destroy();
   army.destroy();
+  if (enemy) enemy.glyph.destroy();
   worldContainer.removeChildren();
 
   world = generateWorld({
@@ -97,8 +135,11 @@ function loadMap(seed: number) {
   });
   layers = buildMapLayers(world, TILE_SIZE);
   army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
+  enemy = spawnEnemy(world);
+  combatTriggered = false;
   addLayers(layers);
   worldContainer.addChild(army.container);
+  if (enemy) worldContainer.addChild(enemy.glyph);
 
   // Recenter camera; new map may have a different land shape.
   camera.panX = WORLD_W / 2;
@@ -138,6 +179,17 @@ app.ticker.add(() => {
   const vh = app.screen.height;
 
   army.tick(app.ticker.deltaMS / 1000);
+
+  if (enemy && !combatTriggered) {
+    const ap = army.getPos();
+    const dx = ap.x - enemy.pos.x;
+    const dy = ap.y - enemy.pos.y;
+    if (Math.hypot(dx, dy) <= COMBAT_TRIGGER_RADIUS) {
+      combatTriggered = true;
+      console.log('[combat] triggered against region', enemy.regionId);
+      renderReadout();
+    }
+  }
 
   worldContainer.scale.set(camera.zoom);
   worldContainer.position.set(vw / 2 - camera.panX * camera.zoom, vh / 2 - camera.panY * camera.zoom);
@@ -183,11 +235,20 @@ function renderReadout() {
           : '?';
     armyLine = `army @ ${where} · drag to march`;
   }
+  let enemyLine: string;
+  if (combatTriggered) {
+    enemyLine = '>>> BATTLE TRIGGERED <<<';
+  } else if (enemy) {
+    enemyLine = `enemy @ #${enemy.regionId} · march onto it`;
+  } else {
+    enemyLine = 'no enemy (no neighbors)';
+  }
   readoutEl.textContent =
     `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
     `seed ${currentSeed}\n` +
     `nation #${world.playerRegionId} · ${playerRegion.neighbors.length} borders\n` +
-    armyLine;
+    armyLine + '\n' +
+    enemyLine;
 }
 readoutStore.subscribe(renderReadout);
 renderReadout();

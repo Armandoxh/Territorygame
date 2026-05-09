@@ -846,3 +846,60 @@ Open question for the next round: does combat in this nail
 include rendering the tactical view (sprite system,
 formation grids, per-soldier sim) — or stays at strategic
 zoom with a flash + winner-remains? Asking next.
+
+---
+
+[uncommitted] Nail #6.0: test enemy + combat trigger
+
+User picked the most ambitious path: full tactical view
+combat WITH player agency (selection, orders, deployment).
+Acknowledged that's a multi-day track, not "today". Locked
+the breakdown into 10 sub-nails (#6.0 through #6.9). User
+explicitly invited lots of clarifying questions; collected
+answers in two AskUserQuestion rounds:
+- sim depth: per-soldier
+- sprites: placeholder squares now, real sprites later
+- camera: smooth crossfade ~600ms
+- deployment: phase + mid-battle (place regiments, then
+  press Begin, then real-time combat with mid-battle orders)
+- time control: real-time
+- orders v1: attack + hold + defend + retreat (all 4)
+
+Then user re-shared the same tactical screenshot AND added
+a critical scope note: the bottom HUD cards aren't decorative.
+They're for selecting regiments and issuing commands. Combat
+must be interactive, not just a simulation. Already baked
+into the breakdown (#6.4 selection, #6.5 commands, #6.7 HUD
+strip) — confirmed back to user.
+
+#6.0 implementation:
+- main.ts: spawnEnemy(world) places one square glyph (same
+  size as the army glyph) at the player's first neighbor's
+  capital. Returns null if player region has no neighbors
+  (edge case for tiny maps).
+- Per-frame collision check in the ticker: hypot(army-pos -
+  enemy-pos) <= 16 → set combatTriggered flag.
+- Readout grew an enemy line. While stationary it shows
+  "enemy @ #N · march onto it". On trigger flips to
+  ">>> BATTLE TRIGGERED <<<" and console-logs.
+- One-shot flag: once triggered stays true until loadMap.
+  Hysteresis intentionally not handled — by #6.2 we'll have
+  a real state machine; for #6.0 we just want to verify
+  detection.
+- army.ts: added getPos() to the Army interface so the
+  outside collision check can read the continuous world
+  position of the marching army.
+- loadMap teardown: destroy old enemy.glyph; respawn at new
+  player neighbor; reset combatTriggered.
+
+Build clean, typecheck clean.
+
+Awaiting visual confirmation:
+- Enemy square visible at the capital of one of your
+  bordering regions (same color as that region's tint).
+- Readout shows "enemy @ #N · march onto it".
+- Drag your army onto/near the enemy → readout flips to
+  ">>> BATTLE TRIGGERED <<<", console logs the event.
+- Trigger fires only ONCE per map (drag away + back doesn't
+  retrigger; that's intentional for this nail).
+- New map button respawns a new enemy, resets the trigger.

@@ -12,6 +12,32 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #6.0: test enemy + combat trigger
+  WHAT: One stationary enemy battalion glyph (square in the
+        enemy region's color, same shape as the player's army)
+        spawns at game start in the player's first graph-
+        neighbor region's capital. Each frame, the ticker
+        checks the distance between the player army's center
+        and the enemy's center; if within 16 world units, sets
+        a one-shot `combatTriggered` flag that updates the
+        readout to "BATTLE TRIGGERED" and console-logs the
+        engagement. New map button respawns enemy + clears
+        flag. No camera transition, no battle scene, no UI for
+        commanding regiments — those are nails #6.2-#6.7.
+        Smallest possible piece that proves the trigger fires.
+  WHY:  Combat as a multi-nail track needs a verified entry
+        point before any of the visual / interaction work
+        starts. If we built the camera transition first and
+        the trigger was buggy, we'd be debugging two systems
+        at once. This nail isolates the detection logic on
+        the existing strategic-zoom view: drag your army onto
+        the neighbor's glyph, see the readout change, done.
+        Implementation note: army.getPos() added to the Army
+        interface so collision can read continuous position
+        from outside the module.
+
+---
+
 2026-05-09  port.md update: tactical reference + army model
   WHAT: Two new sections in port.md.
         (1) "Tactical aesthetic reference" was rewritten with

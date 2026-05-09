@@ -64,6 +64,7 @@ export interface Army {
   // Advance any in-flight march. Caller passes elapsed seconds.
   tick(dtSec: number): void;
   getStatus(): ArmyStatus;
+  getPos(): { x: number; y: number };
   hitTest(sx: number, sy: number): boolean;
   startDrag(sx: number, sy: number): void;
   updateDrag(sx: number, sy: number): void;
@@ -220,6 +221,7 @@ export function createArmy(deps: ArmyDeps): Army {
     container,
     tick,
     getStatus,
+    getPos: () => ({ x: pos.x, y: pos.y }),
     hitTest,
     startDrag,
     updateDrag,
