@@ -2,6 +2,7 @@ import { Application } from 'pixi.js';
 import {
   DEFAULT_CONFIG, generatePalette, generateTeamPalette, Game,
   type GameConfig, type BuildingType, type BombType,
+  type Army, type Ship,
 } from '@territorygame/shared';
 import { Renderer } from './render/Renderer.js';
 import { PointerInput } from './input/PointerInput.js';
@@ -151,8 +152,41 @@ async function boot(): Promise<void> {
       const tx = Math.floor(wx), ty = Math.floor(wy);
       const armyTol = 4 / Math.max(1, renderer.zoom * 0.4);
       const shipTol = 6 / Math.max(1, renderer.zoom * 0.4);
-      const tappedArmy = game.armyNear(wx, wy, 1, armyTol);
-      const tappedShip = game.shipNear(wx, wy, 1, shipTol);
+      // Pick a tapped army with a heavy bias against the currently
+      // selected one. Otherwise the selected army (often the closest
+      // hit on screen) keeps winning the tap and you have to tap-to-
+      // deselect before tapping the second army. With this bias,
+      // any OTHER army in tap range wins; the selected one only
+      // wins when nothing else is near (so tap-self-to-deselect
+      // still works).
+      const pickArmy = (excludeId: number): Army | null => {
+        let best: Army | null = null;
+        let bestScore = Infinity;
+        for (const a of game.armies) {
+          if (a.owner !== 1) continue;
+          if (a.strength <= 0) continue;
+          const d = Math.hypot(a.x + 0.5 - wx, a.y + 0.5 - wy);
+          if (d > armyTol) continue;
+          const score = d + (a.id === excludeId ? 1000 : 0);
+          if (score < bestScore) { bestScore = score; best = a; }
+        }
+        return best;
+      };
+      const pickShip = (excludeId: number): Ship | null => {
+        let best: Ship | null = null;
+        let bestScore = Infinity;
+        for (const s of game.ships) {
+          if (s.owner !== 1) continue;
+          if (s.hp <= 0) continue;
+          const d = Math.hypot(s.x + 0.5 - wx, s.y + 0.5 - wy);
+          if (d > shipTol) continue;
+          const score = d + (s.id === excludeId ? 1000 : 0);
+          if (score < bestScore) { bestScore = score; best = s; }
+        }
+        return best;
+      };
+      const tappedArmy = pickArmy(armySel);
+      const tappedShip = pickShip(shipSel);
       // Pick the closer hit when both armies and ships are nearby —
       // avoids ambiguous picks at coastal tiles.
       let tappedKind: 'army' | 'ship' | 'none' = 'none';
