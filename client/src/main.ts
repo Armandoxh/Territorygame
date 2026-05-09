@@ -123,6 +123,20 @@ async function boot(): Promise<void> {
   const hud = new HUD(game);
   hud.onHaltRequested = () => game.haltHuman();
   hud.onBombEvent = (x, y, radius) => renderer.overlay.pushExplosion(x, y, radius);
+  // Cancel-all from the mode bar's ✕ button needs to also drop the
+  // renderer-side selection (HUD never reaches into the renderer
+  // directly so the two stay decoupled).
+  hud.onCancelRequested = () => {
+    renderer.armies.setSelected(0);
+    renderer.ships.setSelected(0);
+  };
+  // Helper: keep HUD's selection mirror in sync with the renderer's
+  // canonical selection state. Called everywhere we change selection
+  // below so the mode bar always reads the right thing.
+  const syncSelection = () => {
+    hud.setArmySelection(renderer.armies.selected());
+    hud.setShipSelection(renderer.ships.selected());
+  };
 
   let firstTap = true;
   const input = new PointerInput(app.canvas as HTMLCanvasElement, renderer, {
@@ -199,29 +213,26 @@ async function boot(): Promise<void> {
 
       if (tappedKind === 'army') {
         const a = tappedArmy!;
-        // Tap on the same army → deselect (the "esc" gesture).
         if (a.id === armySel) {
           renderer.armies.setSelected(0);
-          hud.toast('deselected');
+          syncSelection();
           return;
         }
-        // Switching from a different unit type or another army.
         if (shipSel > 0) renderer.ships.setSelected(0);
         renderer.armies.setSelected(a.id);
-        hud.toast('Army selected · tap army again to deselect');
+        syncSelection();
         return;
       }
       if (tappedKind === 'ship') {
         const s = tappedShip!;
         if (s.id === shipSel) {
-          // Same-ship tap → deselect for symmetry with armies.
           renderer.ships.setSelected(0);
-          hud.toast('deselected');
+          syncSelection();
           return;
         }
         if (armySel > 0) renderer.armies.setSelected(0);
         renderer.ships.setSelected(s.id);
-        hud.toast(`${s.kind} selected · tap destination`);
+        syncSelection();
         return;
       }
 
@@ -229,16 +240,22 @@ async function boot(): Promise<void> {
       if (armySel > 0) {
         if (game.setArmyTarget(armySel, tx, ty, 1) === null) {
           hud.toast('marching');
+          renderer.armies.setSelected(0);
+          syncSelection();
           return;
         }
         renderer.armies.setSelected(0);
+        syncSelection();
       }
       if (renderer.ships.selected() > 0) {
         if (game.setShipTarget(renderer.ships.selected(), wx, wy, 1)) {
           hud.toast('ordered');
+          renderer.ships.setSelected(0);
+          syncSelection();
           return;
         }
         renderer.ships.setSelected(0);
+        syncSelection();
       }
 
       // Legacy flood mode only: tap sets your manual region target,

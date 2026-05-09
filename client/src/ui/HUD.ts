@@ -72,8 +72,10 @@ export class HUD {
     debug:        this._byId('debug'),
     stop:         this._byId('stop-btn'),
     hotbar:       this._byId('hotbar'),
-    placeBanner:  this._byId('place-banner'),
-    placeBannerType: this._byId('pb-type'),
+    modeBar:      this._byId('mode-bar'),
+    modeIcon:     this._byId('mb-icon'),
+    modeText:     this._byId('mb-text'),
+    modeCancel:   this._byId<HTMLButtonElement>('mb-cancel'),
     sheet:        this._byId('buildsheet'),
     sheetCoords:  this._byId('bs-coords'),
     sheetEmpireGold: this._byId('bs-empire-gold'),
@@ -145,6 +147,15 @@ export class HUD {
   private shipBuildMode: ShipKind | null = null;
   private groundOpMode: GroundOpType | null = null;
   private buildSheetCoord: { x: number; y: number } | null = null;
+  // Selection mirror — main.ts pushes selection changes here so the mode
+  // bar can show "ARMY x123 strength" etc. Owned by main; HUD never
+  // directly mutates the renderer's selection.
+  private selectedArmyId = 0;
+  private selectedShipId = 0;
+  /** Cancel callback installed by main.ts. Tapping the mode bar's ✕
+   *  invokes this so the renderer's selection state stays in sync
+   *  (mode-bar isn't allowed to reach into the renderer directly). */
+  onCancelRequested?: () => void;
   private enemyEls = new Map<number, { wrap: HTMLElement; num: HTMLElement; intel: HTMLElement }>();
   private cmdActiveBranch: DecreeBranch = 'economy';
   /** Diplomacy panel: hide "Other Nations" (peaceful, no relationship)
@@ -200,6 +211,7 @@ export class HUD {
     this._wireTradePrompt();
     this._wireNationSheet();
     this._wireMastery();
+    this._wireModeBar();
     // Show the welcome tutorial automatically on first launch.
     try {
       if (!localStorage.getItem('territory:tutorial-seen')) this.showTutorial();
@@ -246,14 +258,14 @@ export class HUD {
     else this.placeMode = type;
     this.hideBuildSheet();
     this._refreshHotbar();
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
   }
 
   clearPlaceMode(): void {
     if (!this.placeMode) return;
     this.placeMode = null;
     this._refreshHotbar();
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
   }
 
   /** Returns true if the tap was consumed by place-mode. */
@@ -284,7 +296,7 @@ export class HUD {
       // settlements / turrets in a row without re-pressing the hotkey.
       // Esc or tapping the same hotkey again exits the mode.
       this._refreshHotbar();
-      this._refreshPlaceBanner();
+      this._refreshModeBar();
     } else {
       this.toast(this._buildErrorMsg(err));
     }
@@ -301,14 +313,14 @@ export class HUD {
     this.hideBuildSheet();
     this.hideBombSheet();
     this._refreshHotbar();
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
     this._refreshBombFab();
   }
 
   clearBombMode(): void {
     if (!this.bombMode) return;
     this.bombMode = null;
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
     this._refreshBombFab();
   }
 
@@ -322,7 +334,7 @@ export class HUD {
       this.toast(label);
       // Sticky: stay in bomb mode for back-to-back drops. Cooldown /
       // gold gates will block further drops naturally; Esc exits.
-      this._refreshPlaceBanner();
+      this._refreshModeBar();
       this._refreshBombFab();
     } else {
       this.toast(this._bombErrorMsg(err));
@@ -336,7 +348,7 @@ export class HUD {
     this.clearPlaceMode();
     this.bombMode = null;
     this._refreshHotbar();
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
     this.el.bombSheet.classList.add('show');
     this._refreshBombSheetButtons();
   }
@@ -357,14 +369,14 @@ export class HUD {
     this.hideBombSheet();
     this.hideBarracksSheet();
     this._refreshHotbar();
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
     this._refreshBarracksFab();
   }
 
   clearGroundOpMode(): void {
     if (!this.groundOpMode) return;
     this.groundOpMode = null;
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
     this._refreshBarracksFab();
   }
 
@@ -382,7 +394,7 @@ export class HUD {
       };
       this.toast(labels[type]);
       // Sticky so player can chain ops if multiple barracks ready.
-      this._refreshPlaceBanner();
+      this._refreshModeBar();
       this._refreshBarracksFab();
     } else {
       this.toast(this._groundOpErrorMsg(err));
@@ -397,7 +409,7 @@ export class HUD {
     this.clearBombMode();
     this.groundOpMode = null;
     this._refreshHotbar();
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
     this.el.barracksSheet.classList.add('show');
     this._refreshBarracksSheetButtons();
   }
@@ -798,7 +810,7 @@ export class HUD {
     this.bombMode = null;
     this.shipBuildMode = null;
     this._refreshHotbar();
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
     this._refreshBombFab();
     this.el.fleetSheet.classList.add('show');
     this._refreshFleetSheetButtons();
@@ -815,14 +827,14 @@ export class HUD {
     this.placeMode = null;
     this.bombMode = null;
     this._refreshHotbar();
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
     this._refreshBombFab();
   }
 
   clearShipBuildMode(): void {
     if (!this.shipBuildMode) return;
     this.shipBuildMode = null;
-    this._refreshPlaceBanner();
+    this._refreshModeBar();
   }
 
   /** Returns true if the tap was consumed by ship-build mode. */
@@ -835,7 +847,7 @@ export class HUD {
       // Sticky: stay in ship-build mode so the player can launch a
       // fleet without re-opening the sheet between each ship. Fleet
       // cap / gold will block further; Esc exits.
-      this._refreshPlaceBanner();
+      this._refreshModeBar();
     } else {
       this.toast(this._shipErrorMsg(err));
     }
@@ -1097,6 +1109,30 @@ export class HUD {
       this.el.gameover?.classList.remove('show');
       this.showMenu();
     });
+  }
+
+  private _wireModeBar(): void {
+    this.el.modeCancel?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.cancelAllModes();
+    });
+  }
+
+  /** Drop every active control mode AND any unit selection in one shot.
+   *  The cancel callback (set from main.ts) handles the renderer-side
+   *  selection clear since HUD doesn't reach into the renderer. */
+  cancelAllModes(): void {
+    const had = this.hasActiveMode();
+    this.placeMode = null;
+    this.bombMode = null;
+    this.shipBuildMode = null;
+    this.groundOpMode = null;
+    this.selectedArmyId = 0;
+    this.selectedShipId = 0;
+    this.onCancelRequested?.();
+    this._refreshModeBar();
+    if (had) this.toast('Cancelled');
   }
 
   private _wireTutorial(): void {
@@ -3099,22 +3135,66 @@ export class HUD {
     });
   }
 
-  private _refreshPlaceBanner(): void {
-    if (!this.el.placeBanner) return;
+  /** Public API: main.ts mirrors army/ship selection here so the mode
+   *  bar can show "ARMY ×123 strength — tap destination". 0 = none. */
+  setArmySelection(id: number): void { this.selectedArmyId = id; }
+  setShipSelection(id: number): void { this.selectedShipId = id; }
+
+  /** True when ANY non-default control mode is active — useful for
+   *  callers that need to drop modes in one shot. */
+  hasActiveMode(): boolean {
+    return !!(this.bombMode || this.shipBuildMode || this.placeMode || this.groundOpMode
+      || this.selectedArmyId || this.selectedShipId);
+  }
+
+  /** Single source of truth for "what does the next tap do?" Picks the
+   *  highest-priority active mode and writes a label, color class, and
+   *  shows / hides the cancel button. Called every frame from update(). */
+  private _refreshModeBar(): void {
+    const bar = this.el.modeBar;
+    if (!bar) return;
+    let cls = 'default';
+    let icon = '👆';
+    let text = 'Tap an army to select · Long-press your land to build';
+
+    // Priority order: build modes > unit selection > default.
+    // (You can't be in a build mode AND have a unit selected — toggling
+    // a build clears selection in main.ts.)
     if (this.bombMode) {
-      if (this.el.placeBannerType) this.el.placeBannerType.textContent = `${this.bombMode.toUpperCase()} BOMB`;
-      this.el.placeBanner.classList.add('show', 'bomb');
+      cls = 'bomb'; icon = '💣';
+      text = `<b>${this.bombMode.toUpperCase()} BOMB</b> — tap target tile`;
+    } else if (this.groundOpMode) {
+      cls = 'op'; icon = '🚀';
+      text = `<b>${this.groundOpMode.toUpperCase()}</b> — tap enemy land`;
     } else if (this.shipBuildMode) {
-      if (this.el.placeBannerType) this.el.placeBannerType.textContent = `${this.shipBuildMode.toUpperCase()} · TAP COASTAL TILE`;
-      this.el.placeBanner.classList.remove('bomb');
-      this.el.placeBanner.classList.add('show');
+      cls = 'ship'; icon = '⚓';
+      text = `<b>${this.shipBuildMode.toUpperCase()}</b> — tap a coastal tile`;
     } else if (this.placeMode) {
-      if (this.el.placeBannerType) this.el.placeBannerType.textContent = this.placeMode.toUpperCase();
-      this.el.placeBanner.classList.remove('bomb');
-      this.el.placeBanner.classList.add('show');
-    } else {
-      this.el.placeBanner.classList.remove('show', 'bomb');
+      cls = 'place'; icon = '🏗';
+      text = `<b>PLACING ${this.placeMode.toUpperCase()}</b> — tap your land`;
+    } else if (this.selectedArmyId > 0) {
+      const a = this.game.armies.find(x => x.id === this.selectedArmyId);
+      if (a) {
+        cls = 'unit'; icon = '⚔️';
+        const tag = a.recovering ? ' · resting' : '';
+        text = `<b>ARMY ×${Math.round(a.strength)}</b>${tag} — tap destination`;
+      } else {
+        // Stale selection (army died or merged). Drop it.
+        this.selectedArmyId = 0;
+      }
+    } else if (this.selectedShipId > 0) {
+      const s = this.game.ships.find(x => x.id === this.selectedShipId);
+      if (s) {
+        cls = 'unit'; icon = '🚢';
+        text = `<b>${s.kind.toUpperCase()}</b> ×${Math.round(s.hp)} HP — tap destination`;
+      } else {
+        this.selectedShipId = 0;
+      }
     }
+
+    if (this.el.modeIcon) this.el.modeIcon.textContent = icon;
+    if (this.el.modeText) this.el.modeText.innerHTML = text;
+    bar.className = cls;
   }
 
   private _consumeEvents(): void {

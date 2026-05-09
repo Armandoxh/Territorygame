@@ -265,28 +265,77 @@ html, body {
 .hb-btn.cant-afford { opacity: 0.50; }
 .hb-btn.cant-afford.active { opacity: 1; background: rgba(140, 90, 30, 0.92); }
 
-#place-banner {
+#mode-bar {
   position: absolute;
-  /* Sit below the resource bar (was 56px which overlapped it on
-   * iPhone with safe-area-inset-top). Same offset as the
-   * trade-offer / war-invite popups. */
   top: calc(100px + env(safe-area-inset-top, 0));
   left: 50%;
-  transform: translate(-50%, -8px);
-  background: rgba(232, 192, 74, 0.95);
-  color: #1a1206;
-  padding: 8px 14px;
-  border-radius: 18px;
-  font-size: 12px; font-weight: 700; letter-spacing: 1px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(15, 22, 30, 0.92);
+  color: #f3eedc;
+  padding: 8px 8px 8px 14px;
+  border-radius: 22px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
   white-space: nowrap; z-index: 14;
+  max-width: calc(100vw - 24px);
+  pointer-events: auto;
 }
-#place-banner.show { opacity: 1; transform: translate(-50%, 0); }
-#place-banner b { font-weight: 800; }
-#place-banner .hint { font-weight: 500; opacity: 0.7; letter-spacing: 0.5px; text-transform: none; }
-#place-banner.bomb { background: rgba(232, 74, 74, 0.95); color: white; }
+#mode-bar #mb-icon { font-size: 14px; line-height: 1; }
+#mode-bar #mb-text {
+  text-overflow: ellipsis; overflow: hidden;
+  flex: 1 1 auto; min-width: 0;
+}
+#mode-bar #mb-text b { font-weight: 800; }
+#mode-bar #mb-cancel {
+  border: 0; background: rgba(255, 255, 255, 0.08); color: #f3eedc;
+  width: 28px; height: 28px; border-radius: 50%;
+  font-size: 14px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+#mode-bar #mb-cancel:active { background: rgba(255, 255, 255, 0.18); }
+#mode-bar.default #mb-cancel { display: none; }
+#mode-bar.default { background: rgba(15, 22, 30, 0.78); opacity: 0.85; }
+#mode-bar.bomb    { background: rgba(232, 74, 74, 0.96); color: #fff; border-color: rgba(255,255,255,0.18); }
+#mode-bar.op      { background: rgba(255, 138, 50, 0.96); color: #1a1206; border-color: rgba(0,0,0,0.18); }
+#mode-bar.place   { background: rgba(232, 192, 74, 0.96); color: #1a1206; border-color: rgba(0,0,0,0.18); }
+#mode-bar.ship    { background: rgba(82, 156, 230, 0.96); color: #fff; border-color: rgba(255,255,255,0.18); }
+#mode-bar.unit    { background: rgba(120, 220, 130, 0.96); color: #0a200c; border-color: rgba(0,0,0,0.18); }
+#mode-bar.bomb #mb-cancel,
+#mode-bar.op #mb-cancel,
+#mode-bar.place #mb-cancel,
+#mode-bar.ship #mb-cancel,
+#mode-bar.unit #mb-cancel { background: rgba(0, 0, 0, 0.22); color: inherit; }
+
+#tutorial {
+  position: fixed; inset: 0;
+  background: rgba(8, 12, 18, 0.85);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50; padding: 20px;
+  pointer-events: auto;
+}
+#tutorial.hidden { display: none; }
+#tutorial .tut-card {
+  background: #1a2230; color: #f3eedc;
+  border-radius: 14px; padding: 20px;
+  max-width: 360px; width: 100%;
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+}
+#tutorial h3 { margin: 0 0 12px; font-size: 16px; letter-spacing: 0.5px; }
+#tutorial ul { margin: 0 0 16px; padding-left: 20px; line-height: 1.55; font-size: 13px; }
+#tutorial li { margin-bottom: 8px; }
+#tutorial b { font-weight: 700; color: #ffd97a; }
+#tutorial #tut-close {
+  width: 100%; padding: 12px;
+  background: #ffd97a; color: #1a1206;
+  border: 0; border-radius: 10px;
+  font-size: 14px; font-weight: 800; letter-spacing: 0.5px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
 
 #debug {
   position: absolute;
