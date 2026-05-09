@@ -602,3 +602,41 @@ have naval pieces to use it.
 Build clean, typecheck clean. Awaiting visual confirmation
 the readout shows a sensible "borders N" (1-6 for an interior
 region; could be 1-2 for a peninsula).
+
+---
+
+[uncommitted] swarm: "new map" button + seed in readout
+
+User noticed the seed was fixed (always region #14 with 4
+borders, same shape every reload). Diagnosed correctly: yes,
+WORLD_SEED = 1337 was hardcoded for nail-to-nail
+reproducibility. Asked which control mode to add; user picked
+"new map" button.
+
+Changes:
+
+  swarm/index.html: 44px tap-friendly button top-right, styled
+  to match readout (semi-transparent black, monospace text,
+  thin border, :active darken). Button label "new map".
+
+  swarm/src/main.ts: refactored module top to make the world +
+  layers MUTABLE. New helpers:
+    - addLayers(l) — pushes the four Graphics into worldContainer.
+    - loadMap(seed) — destroys old Graphics (releases GPU
+      buffers), generates new world, builds + adds new layers,
+      resets camera to world center at initialZoom, re-renders
+      readout.
+  Click handler picks `Math.floor(Math.random() * 0x7fffffff)`
+  for the new seed.
+
+  Readout grew to three lines (seed needed somewhere visible
+  so you can return to a map you like):
+    swarm v2 · STRATEGIC · 0.40x
+    seed 1337
+    nation #14 · 4 borders
+
+Default still 1337 on first load — preserves the dev-time
+reproducibility for nail handoffs while giving you variety on
+demand. URL ?seed= param deferred; can add later if needed.
+
+Build clean, typecheck clean.

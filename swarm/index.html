@@ -23,11 +23,27 @@
         pointer-events: none;
         white-space: pre-wrap;
       }
+      #newmap {
+        position: fixed;
+        top: calc(env(safe-area-inset-top, 0px) + 8px);
+        right: 8px;
+        min-height: 44px;
+        padding: 0 14px;
+        background: rgba(0, 0, 0, 0.6);
+        color: #ddd;
+        border: 1px solid #444;
+        border-radius: 6px;
+        font: 12px/1 ui-monospace, Menlo, monospace;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      #newmap:active { background: rgba(60, 60, 60, 0.8); }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="readout">booting…</div>
+    <button id="newmap" type="button">new map</button>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

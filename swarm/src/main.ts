@@ -1,7 +1,7 @@
 import { Application, Container } from 'pixi.js';
 import { createCamera } from './camera';
-import { generateWorld } from './world';
-import { buildMapLayers } from './mapRender';
+import { generateWorld, type World } from './world';
+import { buildMapLayers, type MapLayers } from './mapRender';
 import { attachInput } from './input';
 import { readoutStore, type ViewLabel } from './store';
 
@@ -9,7 +9,7 @@ const TILE_SIZE = 16;
 const WORLD_TILES_X = 100;
 const WORLD_TILES_Y = 100;
 const REGION_COUNT = 25;
-const WORLD_SEED = 1337;
+const DEFAULT_SEED = 1337;
 
 const WORLD_W = TILE_SIZE * WORLD_TILES_X;
 const WORLD_H = TILE_SIZE * WORLD_TILES_Y;
@@ -33,18 +33,48 @@ document.getElementById('app')!.appendChild(app.canvas);
 const worldContainer = new Container();
 app.stage.addChild(worldContainer);
 
-const world = generateWorld({
+let currentSeed = DEFAULT_SEED;
+let world: World = generateWorld({
   width: WORLD_TILES_X,
   height: WORLD_TILES_Y,
   regionCount: REGION_COUNT,
-  seed: WORLD_SEED,
+  seed: currentSeed,
 });
+let layers: MapLayers = buildMapLayers(world, TILE_SIZE);
+addLayers(layers);
 
-const layers = buildMapLayers(world, TILE_SIZE);
-worldContainer.addChild(layers.terrainLayer);
-worldContainer.addChild(layers.tintLayer);
-worldContainer.addChild(layers.borderLayer);
-worldContainer.addChild(layers.playerLayer);
+function addLayers(l: MapLayers) {
+  worldContainer.addChild(l.terrainLayer);
+  worldContainer.addChild(l.tintLayer);
+  worldContainer.addChild(l.borderLayer);
+  worldContainer.addChild(l.playerLayer);
+}
+
+function loadMap(seed: number) {
+  currentSeed = seed;
+  // Tear down old layers (releases GPU buffers).
+  layers.terrainLayer.destroy();
+  layers.tintLayer.destroy();
+  layers.borderLayer.destroy();
+  layers.playerLayer.destroy();
+  worldContainer.removeChildren();
+
+  world = generateWorld({
+    width: WORLD_TILES_X,
+    height: WORLD_TILES_Y,
+    regionCount: REGION_COUNT,
+    seed,
+  });
+  layers = buildMapLayers(world, TILE_SIZE);
+  addLayers(layers);
+
+  // Recenter camera; new map may have a different land shape.
+  camera.panX = WORLD_W / 2;
+  camera.panY = WORLD_H / 2;
+  camera.zoom = initialZoom;
+
+  renderReadout();
+}
 
 const initialZoom = Math.min(window.innerWidth / WORLD_W, window.innerHeight / WORLD_H) * 0.9;
 
@@ -77,15 +107,19 @@ app.ticker.add(() => {
   }
 });
 
-const playerRegion = world.regions[world.playerRegionId]!;
-const playerNeighborCount = playerRegion.neighbors.length;
-
 const readoutEl = document.getElementById('readout')!;
 function renderReadout() {
   const { zoom, view } = readoutStore.getState();
+  const playerRegion = world.regions[world.playerRegionId]!;
   readoutEl.textContent =
-    `v2 · ${view} · ${zoom.toFixed(2)}x\n` +
-    `nation #${world.playerRegionId} · ${playerNeighborCount} borders`;
+    `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
+    `seed ${currentSeed}\n` +
+    `nation #${world.playerRegionId} · ${playerRegion.neighbors.length} borders`;
 }
 readoutStore.subscribe(renderReadout);
 renderReadout();
+
+const newMapBtn = document.getElementById('newmap')!;
+newMapBtn.addEventListener('click', () => {
+  loadMap(Math.floor(Math.random() * 0x7fffffff));
+});

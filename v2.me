@@ -12,6 +12,25 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  "new map" button + seed display
+  WHAT: Top-right button regenerates the world with a fresh
+        random seed. Old layers .destroy()ed so Pixi releases
+        their GPU buffers; new layers built and added; camera
+        recentered + zoom reset. Readout grew a third line
+        showing the current seed (so a map you like is
+        identifiable). main.ts factored: world/layers now
+        mutable, addLayers() + loadMap() helpers.
+  WHY:  User asked. Default seed (1337) was hardcoded for
+        reproducibility during nail-to-nail dev (so "nation
+        #14 with 4 borders" stays the same across reloads),
+        but it made worldgen feel broken. Button preserves
+        the reproducibility default while letting the user
+        sample variety. Seed in readout means a good map can
+        be remembered. Future: if reproducibility matters
+        more, we'll add a ?seed= URL param too.
+
+---
+
 2026-05-09  Nail #4: region adjacency graph (data only)
   WHAT: Region now carries `neighbors: number[]` — sorted unique
         list of region ids sharing a tile-edge (4-way, edge-only;
