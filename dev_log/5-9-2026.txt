@@ -180,3 +180,21 @@ anchor the rebuild so we don't repeat the pivot-without-design
 loop that buried v1. v2 will be scaffolded under swarm/ on this
 branch until a fresh GitHub repo exists; v1 stays here as
 reference.
+
+---
+
+[uncommitted] docs: port.md — add Pillar #6 (dual-scale view)
+
+WHAT: Added a 6th pillar to port.md ("Two-scale view, one
+simulation") and updated milestone-1's render scope to match.
+Pinch / scroll smoothly zooms between strategic blob-view (make
+decisions) and tactical soldier-sprite view (watch and nudge).
+Same sim drives both — view scale only changes what's drawn.
+Battles short (tens of seconds, not Total War's 20 minutes).
+v2.me logged.
+
+WHY: User requirement — "Total War kind of vibe but simple and
+the battles won't be long." Captured before any code so the
+renderer is designed dual-scale from commit 1 (per lesson #1:
+visual style locks the engine — retrofitting a second view scale
+later means fighting the renderer).

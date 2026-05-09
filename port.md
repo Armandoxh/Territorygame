@@ -13,7 +13,7 @@ any of them, and the ARMY_MODE flag gates half the engine. Patching
 forward costs more than rebuilding. See `lessons.md` for what to
 carry forward and what to leave behind.
 
-## The new game in 5 bullets
+## The new game in 6 bullets
 
 - **Soldiers are visible, individual.** A "regiment" is N
   owner-colored sprites at sub-tile positions. Strength = body
@@ -27,6 +27,13 @@ carry forward and what to leave behind.
   to a regiment cap. Captured regions add capacity.
 - **Win = capture all enemy capitals OR control N% of the map.**
   Single clear win condition.
+- **Two-scale view, one simulation.** Pinch / scroll zooms
+  smoothly between a strategic map (regiments as colored blobs,
+  solid-color territory, region labels — make decisions here) and
+  a tactical view (individual soldier sprites scrapping, terrain
+  detail — watch and nudge here). No mode switch, no separate
+  battle screen. Total War vibe, but battles resolve in tens of
+  seconds, not 20 minutes.
 
 ## Hard cuts (do NOT port from v1)
 
@@ -48,8 +55,12 @@ fun without them. Not before.
 
 - Map gen: ~150×150 tile world, regions, water / land, capital
   placement.
-- Render: smooth-color territory + vector region borders + soldier
-  sprites (2-pixel dots, owner-colored, jittered).
+- Render (dual-scale, one simulation): pinch / scroll zoom.
+  Zoomed out → smooth-color territory + vector region borders +
+  regiments as colored blobs. Zoomed in → individual soldier
+  sprites (2-pixel dots, owner-colored, jittered) + terrain
+  detail. Same sim driving both — view scale only changes what's
+  drawn, never what's simulated.
 - Three players (1 human, 2 AI). Each spawns with 1 capital + 50
   starting soldiers around it.
 - Recruit tick: capital adds 1 soldier / sec to a max of 200.
