@@ -1204,3 +1204,75 @@ What I want eyes on:
   COMBAT_COOLDOWN_MS
 - The "regrouping..." readout text: keep, change to something
   else, or drop entirely?
+
+---
+
+[uncommitted] #6.2 follow-up #3: fight-to-finish + decisive battles
+
+User pushed back: routing + cooldown + N enemies = grind.
+
+Checked port.md: canonical combat is per-soldier despawn-on-
+loss, no retreat. Win condition is "capture all enemy
+capitals." So routing was a placeholder I introduced that
+diverged from the v2 spec. User picked all three recommended
+fixes:
+- Sim model: fight to finish (matches port.md)
+- Loser fate: glyph removed (gone from map)
+- Cooldown: drop entirely
+
+battleSim.ts:
+- Removed RETREAT_RATIO, RETREAT_CASUALTIES, shouldRetreat()
+- Loop now exits only when one side reaches zero power (or
+  MAX_ROUNDS as a safety net, treated as mutual destruction)
+- Added min-1-kill floor on regiments taking positive incoming
+  damage. Without this, when both sides shrink to ~4 soldiers
+  the def×0.3 reduction wipes incoming damage and the loop
+  never resolves. With it, every regiment that takes any hit
+  loses ≥1 soldier per round.
+- MAX_ROUNDS bumped from 30 to 60 (annihilation takes more
+  rounds than rout — 50v50 → ~17 rounds — so leave headroom)
+- SimOutcome reduced to: enemy_destroyed | player_destroyed
+  | mutual_destruction
+
+battleMenu.ts:
+- OUTCOME_LABELS map collapsed: ENEMY ANNIHILATED / PLAYER
+  ANNIHILATED / MUTUAL DESTRUCTION
+
+army.ts:
+- hitTest returns false when regiments.length === 0 (army
+  not interactable when wiped)
+- setRegiments hides container.visible when empty (army
+  glyph disappears from strategic map)
+- Army instance stays alive logically so loadMap.destroy()
+  works on the next session-start
+
+main.ts:
+- CombatState reduced to 'idle' | 'engaged' (cooldown gone)
+- Removed: COMBAT_COOLDOWN_MS, combatCooldownUntil,
+  cooldown reset in loadMap, cooldown tick in main loop,
+  cooldown branch in readout
+- Battle exit completion: combatState = 'idle' immediately,
+  then post-battle destruction:
+    if (enemy && enemy.regiments.length === 0) {
+      enemy.glyph.destroy(); enemy = null;
+    }
+  Player army is hidden by army.setRegiments side effect
+  during onSimulate, no extra teardown needed.
+- Engagement detection now gated on enemy !== null AND
+  army.getRegiments().length > 0 — wiped sides can't trigger
+- Readout: 'no enemy (no neighbors)' → 'no enemy' (more
+  accurate post-victory). Empty player regiments now show
+  'army destroyed · new map to retry'.
+
+What I want eyes on:
+- Does the battle actually feel decisive now? Drag onto
+  enemy → SIMULATE → either you've won (enemy gone, you have
+  survivors) or lost (army gone, only "new map" remains).
+- 50v50 inf takes ~17 internal rounds — invisible to user
+  since result panel just shows the final counter animation.
+  Result label is correct ('MUTUAL DESTRUCTION').
+- After winning, the enemy glyph disappears cleanly when
+  the strategic layer fades back in.
+- Pressing B during the battle still exits with no resolution
+  (no destruction applied since regiments unchanged). This is
+  fine for now — B is the dev escape hatch.

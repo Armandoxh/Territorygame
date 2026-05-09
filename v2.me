@@ -12,6 +12,61 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  #6.2 follow-up #3: fight-to-finish + decisive battles
+  WHAT: Pulled the rout/cooldown mechanic out and replaced
+        it with annihilation per port.md ("loser despawns").
+        Sim now runs until one side reaches zero power; result
+        labels collapsed to ENEMY ANNIHILATED / PLAYER
+        ANNIHILATED / MUTUAL DESTRUCTION. After the exit fade,
+        the destroyed side is removed from the strategic map:
+        enemy glyph destroyed and enemy = null; player army
+        container hidden via setRegiments side effect (the
+        Army stays alive logically so loadMap can tear it down
+        cleanly, but it's no longer hittable or visible). The
+        5-second engagement cooldown is gone — without rout
+        there's nothing to cool down. Engagement detection is
+        gated on enemy !== null AND the player still having
+        soldiers, so a destroyed enemy / wiped army cannot
+        re-trigger battle.
+  WHY:  User flagged that with rout + cooldown + N enemies in
+        future nails, the game would devolve into a "chip them
+        down across multiple engagements" grind. Plus, port.md
+        is explicit: combat is per-soldier despawn-on-loss, no
+        retreat concept. The rout placeholder I added was
+        diverging from the canonical model. Annihilation makes
+        each battle decisive, removes the grind, and aligns
+        with the win condition ("capture all enemy capitals")
+        — which requires actually destroying enemy forces, not
+        just bruising them.
+
+  Implementation: battleSim.ts simplified — dropped retreat
+        thresholds and the shouldRetreat helper, kept rounds
+        loop, added a min-1-kill floor when there's any
+        positive incoming damage (avoids armor-stalemate at
+        small numbers). MAX_ROUNDS bumped to 60 as a guard;
+        if it ever fires, both sides are zeroed for a clean
+        MUTUAL DESTRUCTION readout. battleMenu.ts: outcome
+        label map collapsed to three entries. army.ts:
+        hitTest returns false when regiments empty;
+        setRegiments hides the container when empty.
+        main.ts: removed CombatState 'cooldown', removed
+        COMBAT_COOLDOWN_MS and combatCooldownUntil, removed
+        cooldown branch in readout, dropped cooldown tick in
+        main loop. Battle exit completion sets combatState =
+        'idle' immediately and runs post-battle destruction
+        (enemy glyph teardown if regiments empty). Readout
+        now surfaces 'army destroyed · new map to retry'
+        when player is wiped, and 'no enemy' when none
+        present.
+
+  Hand-traced numbers (annihilation):
+   - 50 inf vs 50 inf → ~17 rounds, mutual destruction
+   - 70 inf vs 50 inf → 3 rounds, enemy annihilated
+   - 50+20 vs 50+20 (mixed) → ~12 rounds, mutual destruction
+     (cav minced quickly, inf grinds)
+
+---
+
 2026-05-09  #6.2 follow-up #2: rounds sim + commitment + cooldown
   WHAT: Rewrote Simulate's combat resolver as a rounds-based
         loop using real per-soldier stats (atk, def, hp on

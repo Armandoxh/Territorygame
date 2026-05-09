@@ -30,10 +30,6 @@ const TIER_THRESHOLD_PX = 18;  // strategic if cellPixelSize <= this, else opera
 const TACTICAL_ZOOM = 6.0;
 const BATTLE_ENTRY_DELAY_MS = 500;
 const BATTLE_TRANSITION_MS = 1000;
-// Re-engagement lockout after a battle resolves. Stops the loser from
-// being instantly eaten by the same enemy (or instantly re-attacking it).
-// Drag is allowed during cooldown — only the engagement trigger is gated.
-const COMBAT_COOLDOWN_MS = 5000;
 
 const app = new Application();
 await app.init({
@@ -156,17 +152,16 @@ let layers: MapLayers = buildMapLayers(world, TILE_SIZE);
 let army: Army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
 let enemy: EnemyState | null = spawnEnemy(world);
 // Combat lifecycle:
-//   idle     — no engagement; touching the enemy starts one
-//   engaged  — covers BOTH the 500ms pre-roll AND the in-battle scene.
-//              Army movement is frozen, the army can't be dragged,
-//              zoom is locked. Once entered, the only way out is via
-//              the battle menu (or via loadMap which force-exits).
-//   cooldown — battle just resolved; re-engagement is gated for
-//              COMBAT_COOLDOWN_MS so a defeated army doesn't loop
-//              straight back into another fight. Drag is free.
-type CombatState = 'idle' | 'engaged' | 'cooldown';
+//   idle    — no engagement; touching the enemy starts one
+//   engaged — covers BOTH the 500ms pre-roll AND the in-battle scene.
+//             Army movement is frozen, the army can't be dragged,
+//             zoom is locked. Once entered, the only way out is via
+//             the battle menu (or via loadMap which force-exits).
+// Battles are decisive (annihilation), so there's no post-battle
+// cooldown — the loser is gone, re-engagement is impossible because
+// the enemy/army no longer exists.
+type CombatState = 'idle' | 'engaged';
 let combatState: CombatState = 'idle';
-let combatCooldownUntil = 0;
 addLayers(layers);
 strategicLayer.addChild(army.container);
 if (enemy) strategicLayer.addChild(enemy.glyph);
@@ -198,7 +193,6 @@ function loadMap(seed: number) {
   army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
   enemy = spawnEnemy(world);
   combatState = 'idle';
-  combatCooldownUntil = 0;
   addLayers(layers);
   strategicLayer.addChild(army.container);
   if (enemy) strategicLayer.addChild(enemy.glyph);
@@ -334,11 +328,17 @@ function tickBattleSystem(dtMs: number) {
       if (dir === 'out') {
         inBattle = false;
         preBattleCamera = null;
-        // Battle resolved → enter cooldown. combatState stays out of
-        // 'idle' until the cooldown timer expires (handled in the
-        // ticker), so the player can't re-engage immediately.
-        combatState = 'cooldown';
-        combatCooldownUntil = performance.now() + COMBAT_COOLDOWN_MS;
+        combatState = 'idle';
+        // Strategic layer is visible again now — apply post-battle
+        // destruction. Sim already mutated regiments to .after values
+        // when Simulate ran; if either side is empty, remove their
+        // strategic presence so re-engagement is impossible.
+        if (enemy && enemy.regiments.length === 0) {
+          enemy.glyph.destroy();
+          enemy = null;
+        }
+        // Player army hides itself via setRegiments side effect; nothing
+        // to do for it here.
         renderReadout();
       } else {
         // Entry crossfade just completed — surface the action menu.
@@ -396,8 +396,8 @@ attachInput({
   getViewport: () => ({ w: app.screen.width, h: app.screen.height }),
   getDragHandler: () => armyDragHandler,
   // Lock zoom + drag from the moment engagement starts (covers the
-  // 500ms pre-roll AND the in-battle scene). Cooldown leaves these
-  // free — the player can pan/drag/zoom freely while the timer ticks.
+  // 500ms pre-roll AND the in-battle scene). Once the battle resolves,
+  // combatState returns to 'idle' and input is free again.
   getZoomLocked: () => combatState === 'engaged',
 });
 
@@ -417,23 +417,22 @@ app.ticker.add(() => {
   const vh = app.screen.height;
   const dtMs = app.ticker.deltaMS;
 
-  // Freeze the army's march while we are committed to battle (covers
-  // both the 500ms pre-roll and the in-battle scene). Once contact
-  // happens, the army can no longer walk away — that's the "no retreat
-  // from a battle you engage" rule. Cooldown lets the army move again.
+  // Freeze the army's march while committed to battle (covers both the
+  // 500ms pre-roll and the in-battle scene). Once contact happens, the
+  // army cannot walk away — "no retreat from a battle you engage."
   if (combatState !== 'engaged') {
     army.tick(dtMs / 1000);
   }
 
-  // Cooldown timer. Returns to 'idle' once the lockout elapses.
-  if (combatState === 'cooldown' && performance.now() >= combatCooldownUntil) {
-    combatState = 'idle';
-    renderReadout();
-  }
-
-  // Engagement detection. Only fires when the army is free to engage —
-  // i.e. not already engaged and not on a re-engagement cooldown.
-  if (enemy && combatState === 'idle') {
+  // Engagement detection. Fires only when:
+  //   - we're idle (not already in pre-roll / battle), and
+  //   - an enemy still exists (was not annihilated in a prior battle),
+  //   - the player still has an army (didn't lose all soldiers).
+  if (
+    enemy &&
+    combatState === 'idle' &&
+    army.getRegiments().length > 0
+  ) {
     const ap = army.getPos();
     const dx = ap.x - enemy.pos.x;
     const dy = ap.y - enemy.pos.y;
@@ -478,8 +477,11 @@ function renderReadout() {
   const { zoom, view } = readoutStore.getState();
   const playerRegion = world.regions[world.playerRegionId]!;
   const status = army.getStatus();
+  const playerRegiments = army.getRegiments();
   let armyLine: string;
-  if (status.marching) {
+  if (playerRegiments.length === 0) {
+    armyLine = 'army destroyed · new map to retry';
+  } else if (status.marching) {
     const target = status.targetRegionId >= 0 ? `#${status.targetRegionId}` : '?';
     armyLine = `army marching → ${target}`;
   } else {
@@ -491,14 +493,12 @@ function renderReadout() {
           : '?';
     armyLine = `army @ ${where} · drag to march`;
   }
-  const armyComp = formatRegiments(army.getRegiments());
+  const armyComp = formatRegiments(playerRegiments);
   let enemyLine: string;
   if (!enemy) {
-    enemyLine = 'no enemy (no neighbors)';
+    enemyLine = 'no enemy';
   } else if (combatState === 'engaged') {
     enemyLine = '>>> BATTLE TRIGGERED <<<';
-  } else if (combatState === 'cooldown') {
-    enemyLine = `regrouping... · enemy @ #${enemy.regionId}`;
   } else {
     enemyLine = `enemy @ #${enemy.regionId} · march onto it`;
   }

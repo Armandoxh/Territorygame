@@ -12,11 +12,9 @@ import type { Regiment } from './army';
 import type { SimResult, SimOutcome } from './battleSim';
 
 const OUTCOME_LABELS: Record<SimOutcome, string> = {
-  enemy_routed: 'ENEMY ROUTED',
-  player_routed: 'PLAYER ROUTED',
-  mutual_rout: 'MUTUAL ROUT',
   enemy_destroyed: 'ENEMY ANNIHILATED',
   player_destroyed: 'PLAYER ANNIHILATED',
+  mutual_destruction: 'MUTUAL DESTRUCTION',
 };
 
 export interface BattleMenuActions {

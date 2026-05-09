@@ -188,6 +188,9 @@ export function createArmy(deps: ArmyDeps): Army {
   }
 
   function hitTest(sx: number, sy: number): boolean {
+    // No soldiers left → not hittable. Container is also hidden in
+    // setRegiments, so this is belt-and-suspenders.
+    if (regiments.length === 0) return false;
     const screen = worldToScreen(pos.x, pos.y);
     return (
       Math.abs(sx - screen.x) <= ARMY_HIT_RADIUS &&
@@ -251,6 +254,10 @@ export function createArmy(deps: ArmyDeps): Army {
       for (const r of next) {
         if (r.count > 0) regiments.push({ type: r.type, count: r.count });
       }
+      // Hide the strategic glyph if the army is wiped out. The army
+      // object stays around (so loadMap can tear it down cleanly) but
+      // it's not visible or interactive anymore.
+      container.visible = regiments.length > 0;
     },
     hitTest,
     startDrag,
