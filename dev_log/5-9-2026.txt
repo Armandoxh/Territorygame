@@ -25,29 +25,13 @@ trivially reversible if it loses strategic clarity on phone.
 
 ---
 
-[pending] gameplay: per-vassal army autonomy (defend > expand) for
-HUMANS + AIs
+[641b381] gameplay: per-vassal army autonomy (defend > expand)
+for humans + AIs (FIRST CUT)
 
-WHAT: Replaced _aiCommandArmies (AI-only, brute "march all
-armies on closest enemy capital") with _vassalCommandArmies
-which runs for every alive player. Per region a player
-dominates (their "vassal"):
-  1. DEFENSE — any enemy army inside the vassal region:
-     dispatch the local non-manual armies at the closest
-     enemy stack.
-  2. EXPANSION — no threat in region: send local armies to
-     the nearest enemy/neutral tile bordering the region.
-     War-enemies preferred over neutrals so vassals press
-     active wars.
-  3. FOREIGN PUSH — armies that wandered into a non-vassal
-     region (paratrooper drop, blitz spawn near the front,
-     mid-conquest stack) push toward the closest hostile
-     tile in that region instead of stalling.
-
-Manual orders honored — armies with manual=true (set via
-setArmyTarget on player tap) are skipped entirely. When a
-manual march completes, manual flag clears and the vassal
-picks the army back up. Throttled to ~3s per player, staggered.
+Replaced _aiCommandArmies (AI-only, "march on closest enemy
+capital") with _vassalCommandArmies running for every alive
+player. Per dominated region: defense → expansion → foreign
+push priorities. Manual orders honored.
 
 WHY: User: "When I drop armies and they take over a vassal it
 should go to that vassals power. If a vassal needs to defend
@@ -55,12 +39,52 @@ against enemy armies it should dispatch armies to fight them.
 If a vassal needs to expand it should send its armies to grab
 either enemy or neutral land."
 
-The previous AI logic only fired for non-humans and only
-targeted enemy capitals; it ignored local threats and didn't
-exist at all for the human player. Vassals were inert: a
-player's barracks would auto-recruit armies that just sat on
-the spawn tile until manually tapped. Now every vassal
-region runs its own little brain — captured tiles inside
-the vassal accrue to that vassal's regional dominance, and
-the vassal's local armies actively defend / expand without
-human micromanagement.
+Superseded by eb0c5f3 — first cut got the wrong mental model
+(armies marching to enemy borders instead of sitting and
+webbing outward).
+
+---
+
+[eb0c5f3] gameplay: armies flood from drop location, drain →
+regen → resume cycle (REVISION)
+
+WHAT: Big revision after user playtested the first vassal-AI
+cut and pushed back: armies should sit where dropped and web
+outward like the legacy flood, not march out toward borders.
+
+Changes:
+  1. _armyAura rewritten: flood-fill from the army's CURRENT
+     TILE (not bound to region). Webs out within
+     ARMY_AURA_RADIUS=10, up to 3 neutral + 1 enemy claim per
+     tick. Establishes a foothold by claiming the army's own
+     tile first (so paratrooper drops on neutral / enemy land
+     have a seed for the web). Only fires when army is idle
+     (no destination).
+  2. Drain → regen → resume cycle via per-army `recovering`
+     flag. Drains to ARMY_AURA_EXHAUST_AT (=1) → recovering.
+     Sleeps until strength climbs back to ARMY_AURA_RESUME_AT
+     (=80) → resume. Aura drain never kills the army — only
+     stack-vs-stack combat does.
+  3. _vassalCommandArmies stripped to defense ONLY. Previous
+     "push to nearest border" expansion path conflicted with
+     the sit-and-flood model. Now: only redirect non-manual
+     armies if an enemy stack is INSIDE one of the player's
+     dominant regions.
+  4. Bottom-roster nation badge: primary number changed from
+     troop count ("823") to offense / defense multipliers
+     ("1.5/1.2") — sourced from combatSummaryFor. Spy-network
+     gate dropped (mults are decree fingerprints, not
+     sensitive intel). Tile count "32t" still secondary.
+
+WHY: User: "When an army is dropped on a neutral land they
+should expand from where the army is until the army gets to 0.
+Then the army should wait until it's at 80. Then auto expand
+till zero. It should do the flat type of expansion we had
+before where it webs out. From the army location. The number
+that shows next to the country name should show their stats
+like this offense/defense not '823g' nobody needs that info."
+
+Combined: drop army → claim tile + web 10 tiles → drain to 1
+→ park ~8s for regen → repeat. Manual tap-march overrides.
+Defense AI still pulls armies off the flood when an invader
+walks into the region.
