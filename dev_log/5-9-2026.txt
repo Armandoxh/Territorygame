@@ -729,3 +729,67 @@ Build clean, typecheck clean. Awaiting visual confirmation:
 - Release on water / non-neighbor → snap back to source.
 - Pan/pinch suppressed during drag.
 - "new map" button replaces army with one in the new home.
+
+---
+
+[uncommitted] Nail #5b refinement: drop-position + march animation
+
+Two user requests landed together:
+1. "Bring it to where I drop it" — not the destination
+   capital. Drop point IS the new position.
+2. "It just teleports there? It should be a march of sorts."
+   — animate movement instead.
+
+Clarifying questions answered before coding:
+- Mid-march re-grab → REDIRECTABLE. Drag-while-marching pauses
+  movement; new drop = new march from current paused position.
+- March speed → SLOW (30 world units/sec; ~6s per neighbor
+  hop). Helps establish scale on a 1600×1600 map.
+
+army.ts rewritten:
+- Position is now continuous world coords (`pos: {x, y}`), not
+  a regionId. Region is derived (`regionAt(pos.x, pos.y)`).
+- `march: { toX, toY } | null` holds an in-flight destination.
+  When non-null, tick() advances pos toward it by SPEED * dt
+  per frame.
+- New API: `tick(dtSec)` (called from Pixi ticker), `getStatus()`
+  returns `{ marching, regionId, targetRegionId }`.
+- Two separate Graphics for the line overlays: `dragLine`
+  (white solid, while user is dragging) and `marchLine` (white
+  faint, passive indicator from current pos to march target).
+  Visually distinct so re-grab during march reads correctly.
+- endDrag now returns boolean (committed vs cancelled). On
+  cancel I deliberately do NOT clear `march` — the in-flight
+  destination is preserved, so the army resumes after an
+  invalid release. Matches the "redirectable" mental model:
+  cancel = "never mind", not "abort".
+- Same-region drops are accepted. The placeholder rule isn't
+  "must change region", it's "must drop on land in current
+  region or a neighbor".
+
+main.ts:
+- Ticker now calls `army.tick(deltaMS / 1000)` each frame.
+- Readout cache (`lastArmyMarching`, `lastArmyRegionId`,
+  `lastArmyTarget`) prevents per-frame re-render; only re-runs
+  renderReadout when one of these changes. loadMap resets the
+  cache.
+- Readout text:
+  - Stationary: "army @ home · drag to march" or "army @ #N · …"
+  - Marching:   "army marching → #N"
+
+Build + swarm typecheck clean (root typecheck shows v1 errors
+in client/ that are unrelated; swarm uses its own tsconfig).
+
+Awaiting visual confirmation:
+- Drop on a neighbor → army glides to the EXACT drop point
+  (not the capital), at a slow walking pace.
+- During march, grab the army → it pauses where it is.
+  Drag and release on a different neighbor → new march
+  starts from the paused position.
+- During march, grab and release on water/non-neighbor →
+  release does nothing; march resumes toward original
+  destination.
+- Drop within your own region → march within current region
+  (same animation, same pace).
+- Faint march line connects current pos to destination during
+  motion.

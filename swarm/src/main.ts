@@ -105,6 +105,10 @@ function loadMap(seed: number) {
   camera.panY = WORLD_H / 2;
   camera.zoom = initialZoom;
 
+  const s = army.getStatus();
+  lastArmyMarching = s.marching;
+  lastArmyRegionId = s.regionId;
+  lastArmyTarget = s.targetRegionId;
   renderReadout();
 }
 
@@ -115,10 +119,7 @@ const armyDragHandler: DragHandler = {
   hitTest: (sx, sy) => army.hitTest(sx, sy),
   onStart: (sx, sy) => army.startDrag(sx, sy),
   onMove: (sx, sy) => army.updateDrag(sx, sy),
-  onEnd: (sx, sy) => {
-    const moved = army.endDrag(sx, sy);
-    if (moved !== null) renderReadout();
-  },
+  onEnd: (sx, sy) => army.endDrag(sx, sy),
 };
 
 attachInput({
@@ -128,9 +129,16 @@ attachInput({
   getDragHandler: () => armyDragHandler,
 });
 
+let lastArmyMarching = army.getStatus().marching;
+let lastArmyRegionId = army.getStatus().regionId;
+let lastArmyTarget = army.getStatus().targetRegionId;
+
 app.ticker.add(() => {
   const vw = app.screen.width;
   const vh = app.screen.height;
+
+  army.tick(app.ticker.deltaMS / 1000);
+
   worldContainer.scale.set(camera.zoom);
   worldContainer.position.set(vw / 2 - camera.panX * camera.zoom, vh / 2 - camera.panY * camera.zoom);
 
@@ -141,19 +149,45 @@ app.ticker.add(() => {
   if (prev.view !== view || Math.abs(prev.zoom - camera.zoom) > 0.001) {
     readoutStore.setState({ zoom: camera.zoom, view });
   }
+
+  // Re-render the readout only on march transitions or when the army
+  // crosses a region boundary, not every frame.
+  const status = army.getStatus();
+  if (
+    status.marching !== lastArmyMarching ||
+    status.regionId !== lastArmyRegionId ||
+    status.targetRegionId !== lastArmyTarget
+  ) {
+    lastArmyMarching = status.marching;
+    lastArmyRegionId = status.regionId;
+    lastArmyTarget = status.targetRegionId;
+    renderReadout();
+  }
 });
 
 const readoutEl = document.getElementById('readout')!;
 function renderReadout() {
   const { zoom, view } = readoutStore.getState();
   const playerRegion = world.regions[world.playerRegionId]!;
-  const armyRegion = world.regions[army.getRegionId()]!;
-  const inHome = army.getRegionId() === world.playerRegionId;
+  const status = army.getStatus();
+  let armyLine: string;
+  if (status.marching) {
+    const target = status.targetRegionId >= 0 ? `#${status.targetRegionId}` : '?';
+    armyLine = `army marching → ${target}`;
+  } else {
+    const where =
+      status.regionId === world.playerRegionId
+        ? 'home'
+        : status.regionId >= 0
+          ? `#${status.regionId}`
+          : '?';
+    armyLine = `army @ ${where} · drag to march`;
+  }
   readoutEl.textContent =
     `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
     `seed ${currentSeed}\n` +
     `nation #${world.playerRegionId} · ${playerRegion.neighbors.length} borders\n` +
-    `army @ ${inHome ? 'home' : `#${armyRegion.id}`} · drag to a neighbor`;
+    armyLine;
 }
 readoutStore.subscribe(renderReadout);
 renderReadout();

@@ -12,6 +12,40 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #5b refinement: drop-position + slow march
+  WHAT: Two changes to the placeholder army.
+        (1) Drop position is now where the finger releases —
+        not the destination region's capital. Same-region drops
+        are valid (a march within your own region is fine);
+        cross-region drops still require graph adjacency.
+        (2) Movement is animated: a slow-march at 30 world-
+        units/sec ticked from the Pixi ticker. The army never
+        teleports.
+        Also: mid-march re-grab is supported. Touching a
+        marching army pauses it; the next valid drop replaces
+        the destination starting from wherever the army is at
+        that moment. Invalid drops preserve the in-flight march
+        (the army resumes toward its previous destination).
+  WHY:  Teleporting felt like a debug command, not a game
+        action. Drop-at-finger gives the player precise spatial
+        control inside a region (foreshadowing army positioning
+        for combat). Slow march makes scale legible — a
+        neighbor hop takes ~6s, which establishes the map's
+        physical size in a way the static centroid dots can't.
+        Redirectable mid-march avoids "I made a mistake, now I
+        wait" punishment — combat will likely make this even
+        more important.
+
+  Implementation: pos is now continuous world coords (not just
+  a regionId), tick() advances pos toward an active march
+  destination each frame, status is derived (regionId =
+  regionAt(pos)). Readout updated only on transitions, not per
+  frame. Drag-line and march-line are separate Graphics so the
+  drag overlay during re-grab is visually distinct from the
+  passive in-flight indicator.
+
+---
+
 2026-05-09  Nail #5b: placeholder army + drag-to-move
   WHAT: One army glyph (small player-colored square) sits next
         to the player's capital dot. Touch-and-drag it: a
