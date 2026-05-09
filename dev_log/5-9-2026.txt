@@ -385,3 +385,23 @@ confirmed: not too fast, not out of scope, proceed to Nail #2.
 Next (Nail #2): map gen at strategic scale (terrain + regions,
 no soldiers yet). Asking 3-4 clarifying questions on world size
 / region style / placeholder owner colors before code.
+
+---
+
+[uncommitted] docs: announce v2 pivot at the top of root CLAUDE.md
+
+WHAT: Inserted a "v2 pivot in progress" section as the first
+content in /CLAUDE.md (above the existing "Session start: read
+the dev log" section). Tells future-Claude to read port.md +
+lessons.md + v2.me BEFORE anything else, points at
+swarm/CLAUDE.md for v2-specific rules, lists both deployed
+URLs. Also marked the rest of CLAUDE.md as v1 reference.
+
+WHY: User: "Add to Claude.md the pivot and add that every time
+it starts to read the port and detail files." A fresh session
+starting at repo root would otherwise have no idea about the
+pivot and could reflexively patch v1. This makes the v2 plan
+of record the very first thing any new Claude session reads.
+
+(Nail #2 code is in progress in working tree — this commit is
+docs-only so the meta-change has its own clean commit.)

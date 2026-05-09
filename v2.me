@@ -12,6 +12,24 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  CLAUDE.md (root): announce v2 pivot at the top
+  WHAT: New first section in /CLAUDE.md announcing the v2
+        rebuild. Tells future-Claude to read port.md +
+        lessons.md + v2.me BEFORE anything else, ahead of the
+        existing dev_log read step. Points at swarm/CLAUDE.md
+        for the v2-specific rules. Notes both URLs — v1 still
+        live at /Territorygame/, v2 at /Territorygame/swarm/.
+        v1 conventions kept below in case a one-off v1 fix is
+        ever requested.
+  WHY:  User: "Add to Claude.md the pivot and add that every
+        time it starts to read the port and detail files."
+        Critical because a fresh session starting at the repo
+        root has no idea about the pivot — without this, it
+        could reflexively patch v1 instead of reading port.md
+        and joining the v2 work.
+
+---
+
 2026-05-09  port.md: hybrid mechanism + tactical aesthetic ref
   WHAT: Two updates after Nail #1 verified working on phone:
         1. Pillar #6 reworded — added the hybrid mechanism

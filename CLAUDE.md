@@ -1,5 +1,38 @@
 # Repo notes for Claude
 
+## ⚡ v2 pivot in progress (May 2026)
+
+**This repo is being rebuilt** as a soldier-swarm RTS in the
+`swarm/` subdirectory. Three files at the repo root are the v2
+plan of record:
+
+- **`port.md`** — what v2 is, what's in scope, what's hard-cut.
+  If a system isn't here, it doesn't belong in v2 yet.
+- **`lessons.md`** — 12 lessons distilled from v1, each anchored
+  in a concrete v1 incident. The guardrails for the rebuild.
+- **`v2.me`** — running changelog of v2 work. Read for the most
+  recent state.
+
+**EVERY SESSION, before doing anything else: read `port.md`,
+`lessons.md`, and `v2.me`.** Then read the most recent
+`dev_log/` entries (see next section) for the diary. Skipping
+either step means re-deriving (or contradicting) work that's
+already done.
+
+**Mantra:** start incrementally — nail one aspect before moving
+to the next. Ask LOTS of clarifying questions before assuming.
+Full v2-specific rules in `swarm/CLAUDE.md` (auto-loaded when
+working inside `swarm/`).
+
+v1 (the existing pixel-territory game in `shared/` + `client/`)
+is preserved as reference. It still ships at
+https://armandoxh.github.io/Territorygame/. v2 ships at
+https://armandoxh.github.io/Territorygame/swarm/. The rest of
+this file documents v1 conventions, kept for any one-off v1 fix
+that comes up.
+
+---
+
 ## Session start: read the dev log
 
 Before doing anything else, list `dev_log/` and read the most recent
