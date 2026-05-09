@@ -12,6 +12,39 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #3: player nation + zoom cap + tier relabel
+  WHAT: Three changes wiring up the operational tier from the
+        new 3-tier view model:
+        1. world.ts gen now picks `playerRegionId` =
+           argmax(tileCount). Largest region = your home base.
+           Stable across reloads because seed is fixed.
+        2. mapRender.ts: tint alpha forks (player 0.55, others
+           0.28) so your territory pops at any zoom; new
+           playerLayer Graphics traces a thicker WHITE outline
+           (3px, alpha 0.95) along just the player region's
+           border. Stacks on top of the standard dark borders.
+        3. main.ts: maxZoom dropped 8 → 2.0 (manual pinch can no
+           longer reach the old crossfade-out point). Tier label
+           computed from cellPixelSize: ≤18 → STRATEGIC,
+           >18 → OPERATIONAL. The MID + crossfade-percent
+           machinery is gone; tints/borders no longer fade with
+           zoom. TACTICAL stays in the type for future battle-
+           snap usage but is unreachable from manual zoom.
+        4. store.ts: ViewLabel = STRATEGIC | OPERATIONAL |
+           TACTICAL (was STRATEGIC | MID | TACTICAL).
+        Readout now: "zoom Xx — STRATEGIC/OPERATIONAL — your
+        nation: region #N".
+  WHY:  Per the new Pillar #6: manual zoom should never reveal
+        soldiers; that's tactical, reserved for battle. Capping
+        zoom + relabeling makes the tier model legible. Player
+        concept introduced now because "operational view = your
+        nation in detail" requires there BE a your-nation. White
+        outline + dim-others is the smallest visual move that
+        distinguishes you without committing to a final UI
+        treatment. Bundle: ~74 KB gz main entry, ~220 KB total.
+
+---
+
 2026-05-09  port.md: 3-tier view + future-scope un-cut + open Qs
   WHAT: Three structural updates to port.md after the user
         proposed a refined view model and confirmed long-term

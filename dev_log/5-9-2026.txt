@@ -517,3 +517,49 @@ rule.
 Next: ask user which nail #3 to pick (player ownership /
 manual zoom cap / capital marker / single-continent map gen
 fix). Mantra: one thing at a time.
+
+---
+
+[uncommitted] v2 Nail #3: player + zoom cap + tier relabel
+
+WHAT: Wire up the operational tier conceptually. Four files:
+
+  world.ts: new field `playerRegionId` on World. Picked at gen
+    time as argmax(tileCount) — the largest region is your
+    starting nation. Stable while seed is fixed.
+
+  mapRender.ts:
+    - Tint alpha now forks: player region 0.55, others 0.28.
+      Your land pops; neighbors are dim but still color-
+      readable.
+    - New `playerLayer` Graphics. Traces just the player region's
+      boundary with a thick white stroke (3px, alpha 0.95).
+      Stacks over the standard dark borders. Cheap, ~50 line
+      segments for a 16x16-tile region.
+
+  main.ts:
+    - MAX_MANUAL_ZOOM = 2.0 (was 8.0). At TILE_SIZE=16 that's
+      cellPixelSize=32 at the cap.
+    - Tier label: `cellPixelSize <= TIER_THRESHOLD_PX (18)` →
+      STRATEGIC, else OPERATIONAL. No more MID, no crossfade
+      percentage in the readout.
+    - Tints + borders no longer fade with zoom (manual zoom
+      stays in strategic+operational; battle camera will be
+      what surfaces tactical visuals later).
+    - Readout extended: "your nation: region #N".
+
+  store.ts: ViewLabel union now STRATEGIC | OPERATIONAL |
+    TACTICAL. TACTICAL kept as a future state for battle-snap
+    camera; never produced by manual zoom logic.
+
+WHY: Per the new Pillar #6, manual pinch must NOT reach the
+sprite-art tactical view. Capping maxZoom enforces it; the
+relabel makes it legible in the readout. The player-region
+concept is the foundation the operational view rests on — you
+can't "see your nation in detail" without there being a
+your-nation. White outline + dim-others is the minimum visual
+distinction; we'll iterate when we add capital markers + army
+icons in later nails.
+
+Build clean, typecheck clean. ~220 KB gz total. Awaiting user
+thumbs-up before Nail #4.

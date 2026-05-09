@@ -1,15 +1,15 @@
 import { createStore } from 'zustand/vanilla';
 
-export type ViewLabel = 'STRATEGIC' | 'MID' | 'TACTICAL';
+// Manual zoom only ever reports STRATEGIC or OPERATIONAL. TACTICAL is
+// reserved for battle-driven camera (not yet implemented).
+export type ViewLabel = 'STRATEGIC' | 'OPERATIONAL' | 'TACTICAL';
 
 export interface ReadoutState {
   zoom: number;
   view: ViewLabel;
-  crossfade: number;
 }
 
 export const readoutStore = createStore<ReadoutState>(() => ({
   zoom: 1,
   view: 'STRATEGIC',
-  crossfade: 0,
 }));

@@ -24,6 +24,7 @@ export interface World {
   terrain: Uint8Array;     // length = width*height
   regionOf: Int16Array;    // length = width*height; -1 = water
   regions: Region[];
+  playerRegionId: number;  // index into regions; the human player's home
 }
 
 export interface GenerateOpts {
@@ -208,5 +209,16 @@ export function generateWorld(opts: GenerateOpts): World {
     tileCount: tileCount[idx]!,
   }));
 
-  return { width, height, terrain, regionOf, regions };
+  // 6. Player nation = the largest region (most tiles). Stable across reloads
+  //    while seed is fixed; gives the human a sensible starting power base.
+  let playerRegionId = 0;
+  let bestCount = -1;
+  for (let r = 0; r < regions.length; r++) {
+    if (regions[r]!.tileCount > bestCount) {
+      bestCount = regions[r]!.tileCount;
+      playerRegionId = r;
+    }
+  }
+
+  return { width, height, terrain, regionOf, regions, playerRegionId };
 }
