@@ -84,10 +84,37 @@ before where it webs out. From the army location. The number
 that shows next to the country name should show their stats
 like this offense/defense not '823g' nobody needs that info."
 
-Combined: drop army → claim tile + web 10 tiles → drain to 1
-→ park ~8s for regen → repeat. Manual tap-march overrides.
-Defense AI still pulls armies off the flood when an invader
-walks into the region.
+[a51395f] gameplay: aura BFS-foothold so claims actually radiate
+from the army (not the empire's whole frontier)
+
+WHAT: Previous aura scanned a 21×21 box and claimed any non-owner
+tile that touched ANY of the player's tiles. For an army inside
+a big empire, that bubble overlapped a long stretch of the
+existing empire frontier — claims appeared all along that
+frontier, looking like the legacy flat flood.
+
+Replaced the box-scan with BFS from the army's tile through
+OWNED tiles, bounded to ARMY_AURA_RADIUS=10 cardinal hops.
+Foothold = owned tiles reachable from army within R hops.
+Candidates = non-owner cardinal neighbors of any foothold tile.
+
+Result:
+  - Paratrooper on neutral land → foothold-step claims drop tile
+    → BFS finds candidates at 4 cardinal sides → web grows
+    concentrically from the drop point.
+  - Army deep in own empire → BFS fills R hops, no non-owner
+    neighbors → candidates empty → no aura claims (army is
+    "settled"; user moves it elsewhere). Strength still regens.
+  - Army at the empire's edge → BFS fills locally → claims only
+    along the edge near the army, not 30 tiles away on the other
+    side of the empire.
+
+WHY: User: "It's not expanding to that land it's attacking, it's
+more like a flat expansion of my territory across the board. Do
+the expansion around that army itself."
+
+Cost: BFS bounded by R=10 ≈ 100-300 visited tiles per army-tick.
+At 20 armies total, ~5000 ops/tick — well within budget at 10Hz.
 
 ---
 
