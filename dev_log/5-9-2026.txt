@@ -198,3 +198,33 @@ the battles won't be long." Captured before any code so the
 renderer is designed dual-scale from commit 1 (per lesson #1:
 visual style locks the engine — retrofitting a second view scale
 later means fighting the renderer).
+
+---
+
+[uncommitted] v2: swarm/ scaffolded + swarm/CLAUDE.md (mantra
++ ask-lots-of-questions rule)
+
+WHAT: Created /home/user/Territorygame/swarm/ and seeded it with
+CLAUDE.md only. The CLAUDE.md captures:
+  - v2 mantra: "Start incrementally. Nail one aspect before
+    moving to the next." Defines what "done" means (works on
+    phone, no TODOs attached, dev_log + v2.me logged, user
+    thumbs-up).
+  - Rule: ask LOTS of clarifying questions. Bias heavily toward
+    asking, not guessing. Use AskUserQuestion when there are
+    discrete choices.
+  - Pointers to ../port.md, ../lessons.md, ../v2.me as required
+    session-start reading.
+
+Other conventions (dev_log format inside swarm/, build commands,
+code style, mobile flow) deliberately NOT pre-decided. They get
+added as we make each decision so this doc stays accurate
+instead of aspirational.
+
+WHY: User: "Let's begin. And remember, the mantra of this pivot
+is to start incrementally and nail one aspect before we move
+into the next thing. Add it to the new Claude.md that I want you
+to ask a LOT of clarifying questions." Anchoring the mantra in
+swarm/CLAUDE.md means future-Claude reads it on every session
+start (Claude Code auto-loads scoped CLAUDE.md), so the rebuild
+doesn't drift.
