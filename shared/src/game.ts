@@ -919,8 +919,12 @@ export class Game {
         this._aiBuild(p);
         this._aiBuyDecrees(p);
         this._aiProposeResourceTrade(p);
-        if (this.config.ARMY_MODE) this._aiCommandArmies(p);
       }
+      // Per-vassal army autonomy runs for HUMAN and AI alike. Each region
+      // a player dominates (their "vassal") commands its own non-manual
+      // armies: defend invaders first, push outward second. Manual orders
+      // (player tap-marches) are preserved.
+      if (this.config.ARMY_MODE) this._vassalCommandArmies(p);
       // Legacy flood-fill expansion. ARMY_MODE bypasses this — tiles
       // only flip when an army physically walks onto them. The flag
       // stays so we can A/B test both models without ripping out
@@ -6910,41 +6914,157 @@ export class Game {
    *  that don't already have a manual order. Marches the closest
    *  enemy capital. Reserves at least one army per friendly capital
    *  for defense. Only runs when the AI player is alive. */
-  private _aiCommandArmies(p: Player): void {
-    if (p.isHuman || !p.alive) return;
+  /** Per-vassal army autonomy. Runs for every alive player (human + AI).
+   *  Each region a player dominates is a "vassal"; that vassal commands
+   *  the player's non-manual armies parked inside it.
+   *
+   *  Priorities, top-down:
+   *    1. DEFENSE — any enemy army inside the vassal region: dispatch the
+   *       nearest local army at the closest enemy stack.
+   *    2. EXPANSION — no threat in region: dispatch local armies to the
+   *       nearest enemy/neutral tile bordering the region. War-enemy
+   *       tiles preferred over neutrals so vassals press an active war.
+   *    3. FOREIGN PUSH — armies that wandered into a non-vassal region
+   *       (e.g. a paratrooper drop, a Blitz spawn near the front, an
+   *       army mid-conquest) keep pushing toward the closest hostile
+   *       tile in that region instead of stalling.
+   *
+   *  Manual orders (set via setArmyTarget — i.e. player tap-march) are
+   *  honored: armies with manual=true are skipped entirely. When a
+   *  manual march completes, the army's manual flag clears and the
+   *  vassal picks the army back up. */
+  private _vassalCommandArmies(p: Player): void {
+    if (!p.alive) return;
     if (this.armies.length === 0) return;
-    // Throttle: re-check orders every ~3s (per AI), not every tick.
+    // Throttle: re-evaluate every ~3s (30 ticks), staggered per player so
+    // we don't churn every army's destination on the same frame.
     if (((this.tickCount + p.id * 7) % 30) !== 0) return;
-    // Reserve: one army per own capital sits on the capital tile.
-    const myCaps: Array<{ x: number; y: number }> = [];
-    for (const c of this.capitals) if (c.owner === p.id) myCaps.push(c);
-    // Pick a march target — closest enemy capital we're at war with.
-    let tx = -1, ty = -1, bestD = Infinity;
+
+    const W = this.territory.width;
+
+    // Bucket p's non-manual armies by the region they're currently in.
+    const armiesByRegion = new Map<number, Army[]>();
+    for (const a of this.armies) {
+      if (a.owner !== p.id) continue;
+      if (a.manual) continue;
+      const r = this.regions[a.y * W + a.x] ?? 0;
+      if (r === 0) continue;
+      let arr = armiesByRegion.get(r);
+      if (!arr) { arr = []; armiesByRegion.set(r, arr); }
+      arr.push(a);
+    }
+
+    for (const [regionId, armies] of armiesByRegion) {
+      const dom = this._regionDominant[regionId] ?? 0;
+      if (dom === p.id) {
+        this._vassalArmiesAct(armies, regionId, p);
+      } else {
+        this._foreignArmiesAct(armies, regionId, p);
+      }
+    }
+  }
+
+  /** Defense-first, then expansion, for armies inside a vassal region. */
+  private _vassalArmiesAct(armies: Army[], regionId: number, p: Player): void {
+    const W = this.territory.width;
+
+    // Defense: enemy armies sitting in OUR region right now.
+    const threats: Army[] = [];
+    for (const e of this.armies) {
+      if (e.owner === p.id) continue;
+      if (e.strength <= 0) continue;
+      if (this.areAllied(p.id, e.owner)) continue;
+      const er = this.regions[e.y * W + e.x] ?? 0;
+      if (er === regionId) threats.push(e);
+    }
+
+    if (threats.length > 0) {
+      for (const a of armies) {
+        let bx = -1, by = -1, bd = Infinity;
+        for (const t of threats) {
+          const d = Math.abs(t.x - a.x) + Math.abs(t.y - a.y);
+          if (d < bd) { bd = d; bx = t.x; by = t.y; }
+        }
+        if (bx >= 0) { a.destX = bx; a.destY = by; }
+      }
+      return;
+    }
+
+    // Expansion: nearest enemy/neutral tile bordering this region.
+    const target = this._pickVassalExpansionTarget(regionId, p);
+    if (!target) return;
+    for (const a of armies) {
+      a.destX = target.x; a.destY = target.y;
+    }
+  }
+
+  /** Armies that wandered into a region not dominated by their owner.
+   *  Push them at the closest hostile tile inside that region so a
+   *  drop / blitz / mid-conquest army doesn't stall. */
+  private _foreignArmiesAct(armies: Army[], regionId: number, p: Player): void {
+    const tiles = this._tilesByRegion[regionId];
+    if (!tiles || tiles.length === 0) return;
+    const W = this.territory.width;
+    for (const a of armies) {
+      let bx = -1, by = -1, bd = Infinity;
+      for (const i of tiles) {
+        const o = this.territory.owners[i]!;
+        if (o === p.id) continue;
+        if (o > 0 && this.areAllied(p.id, o)) continue;
+        const tx = i % W, ty = (i - tx) / W;
+        const d = Math.abs(tx - a.x) + Math.abs(ty - a.y);
+        if (d < bd) { bd = d; bx = tx; by = ty; }
+      }
+      if (bx >= 0) { a.destX = bx; a.destY = by; }
+    }
+  }
+
+  /** Find the closest enemy or neutral tile that touches one of this
+   *  region's tiles. War-enemies preferred over neutrals (vassals press
+   *  the war). Falls back to the nearest hostile capital if the region
+   *  has no fresh border to push into. */
+  private _pickVassalExpansionTarget(regionId: number, p: Player): { x: number; y: number } | null {
+    const tiles = this._tilesByRegion[regionId];
+    if (!tiles || tiles.length === 0) return null;
+    const W = this.territory.width;
+    const H = this.territory.height;
+    let warX = -1, warY = -1;
+    let neutralX = -1, neutralY = -1;
+    for (const i of tiles) {
+      const tx = i % W, ty = (i - tx) / W;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+        const nx = tx + dx, ny = ty + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        if (!this.territory.isPassable(nx, ny)) continue;
+        const o = this.territory.getOwner(nx, ny);
+        if (o === p.id) continue;
+        if (o > 0 && this.areAllied(p.id, o)) continue;
+        if (o > 0 && this.areAtWar(p.id, o)) {
+          if (warX < 0) { warX = nx; warY = ny; }
+        } else if (o === 0) {
+          if (neutralX < 0) { neutralX = nx; neutralY = ny; }
+        } else if (neutralX < 0) {
+          // Non-war enemy (truce / peace by default). Treat as
+          // expansion target only if no neutral bordered.
+          neutralX = nx; neutralY = ny;
+        }
+      }
+    }
+    if (warX >= 0) return { x: warX, y: warY };
+    if (neutralX >= 0) return { x: neutralX, y: neutralY };
+    // No border target — march on the closest hostile capital from the
+    // region's first tile (rough centroid surrogate, cheap).
+    const i0 = tiles[0]!;
+    const ox = i0 % W, oy = (i0 - ox) / W;
+    let bx = -1, by = -1, bd = Infinity;
     for (const c of this.capitals) {
       if (c.owner === p.id) continue;
       if (this.areAllied(p.id, c.owner)) continue;
-      // Auto-march on any non-allied enemy; combat will declare war.
-      // Pick centroid of player's own armies as the source.
-      let cx = 0, cy = 0, n = 0;
-      for (const a of this.armies) if (a.owner === p.id) { cx += a.x; cy += a.y; n++; }
-      if (n === 0) { cx = c.x; cy = c.y; }
-      else { cx /= n; cy /= n; }
-      const d = Math.hypot(c.x - cx, c.y - cy);
-      if (d < bestD) { bestD = d; tx = c.x; ty = c.y; }
+      const d = Math.hypot(c.x - ox, c.y - oy);
+      if (d < bd) { bd = d; bx = c.x; by = c.y; }
     }
-    let capIdx = 0;
-    for (const a of this.armies) {
-      if (a.owner !== p.id) continue;
-      if (a.manual) continue; // human-style overrides preserved if any
-      // Defender duty: park the first N armies on capitals.
-      if (capIdx < myCaps.length) {
-        const cap = myCaps[capIdx]!;
-        a.destX = cap.x; a.destY = cap.y;
-        capIdx++;
-        continue;
-      }
-      if (tx >= 0) { a.destX = tx; a.destY = ty; }
-    }
+    if (bx >= 0) return { x: bx, y: by };
+    return null;
   }
 
   /** Per-tick simulation for all ships: movement, patrol target choice,
