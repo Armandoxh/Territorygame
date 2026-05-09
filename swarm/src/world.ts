@@ -16,6 +16,7 @@ export interface Region {
   centroidX: number;
   centroidY: number;
   tileCount: number;
+  neighbors: number[];  // sorted, unique region ids that share a tile-edge with this one
 }
 
 export interface World {
@@ -207,9 +208,40 @@ export function generateWorld(opts: GenerateOpts): World {
     centroidX: sumX[idx]! / Math.max(1, tileCount[idx]!),
     centroidY: sumY[idx]! / Math.max(1, tileCount[idx]!),
     tileCount: tileCount[idx]!,
+    neighbors: [],
   }));
 
-  // 6. Player nation = the largest region (most tiles). Stable across reloads
+  // 6. Adjacency graph: for each pair of differing region ids meeting at a
+  //    tile-edge (4-way), record the edge once in each region's neighbor set.
+  //    Water tiles (regionOf = -1) are skipped. Single O(N) sweep checking
+  //    only the +x and +y neighbor avoids double-counting.
+  const neighborSets: Set<number>[] = regions.map(() => new Set<number>());
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      const myR = regionOf[i]!;
+      if (myR < 0) continue;
+      if (x < width - 1) {
+        const nR = regionOf[i + 1]!;
+        if (nR >= 0 && nR !== myR) {
+          neighborSets[myR]!.add(nR);
+          neighborSets[nR]!.add(myR);
+        }
+      }
+      if (y < height - 1) {
+        const nR = regionOf[i + width]!;
+        if (nR >= 0 && nR !== myR) {
+          neighborSets[myR]!.add(nR);
+          neighborSets[nR]!.add(myR);
+        }
+      }
+    }
+  }
+  for (let r = 0; r < regions.length; r++) {
+    regions[r]!.neighbors = [...neighborSets[r]!].sort((a, b) => a - b);
+  }
+
+  // 7. Player nation = the largest region (most tiles). Stable across reloads
   //    while seed is fixed; gives the human a sensible starting power base.
   let playerRegionId = 0;
   let bestCount = -1;

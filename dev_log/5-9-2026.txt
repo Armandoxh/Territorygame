@@ -563,3 +563,42 @@ icons in later nails.
 
 Build clean, typecheck clean. ~220 KB gz total. Awaiting user
 thumbs-up before Nail #4.
+
+---
+
+[uncommitted] v2 Nail #4: region adjacency graph (data only)
+
+WHAT: Two files.
+
+  world.ts:
+    - Region interface gets `neighbors: number[]` — sorted,
+      unique region ids that share a tile-edge.
+    - New generation step (between centroids and player-pick):
+      build a Set<number>[] sized to regions.length; sweep
+      every land tile and check its +x and +y neighbor; if
+      both are land and have different region ids, add each
+      to the other's set. Single pass, no double-counting.
+      Flatten to sorted arrays at the end.
+    - Player-pick step renumbered 6 -> 7.
+
+  main.ts: readout appends "(borders N)" to the your-nation
+  line, where N = playerRegion.neighbors.length. Smoke test
+  that the graph populated.
+
+WHY: This is the data spine for every future multi-region
+system — army movement caps to adjacent regions, vassal /
+diplomacy graph traversal, AI threat assessment ("how many
+hostile neighbors do I have?"), expansion targeting. Worth
+landing as its own atomic nail because it's invisible: if we
+bundled it with capital markers or armies, a bug in the graph
+would be hidden by the visual noise. Now if "borders N" reads
+0 or 25, we know immediately.
+
+Design call from user: edge-only (4-way) over 8-way. Matches
+the boundary lines we render today; avoids corner-touch false
+positives. Coastal / cross-water adjacency deferred until we
+have naval pieces to use it.
+
+Build clean, typecheck clean. Awaiting visual confirmation
+the readout shows a sensible "borders N" (1-6 for an interior
+region; could be 1-2 for a peninsula).

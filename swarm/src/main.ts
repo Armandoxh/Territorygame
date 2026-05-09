@@ -77,10 +77,13 @@ app.ticker.add(() => {
   }
 });
 
+const playerRegion = world.regions[world.playerRegionId]!;
+const playerNeighborCount = playerRegion.neighbors.length;
+
 const readoutEl = document.getElementById('readout')!;
 function renderReadout() {
   const { zoom, view } = readoutStore.getState();
-  readoutEl.textContent = `swarm v2 — zoom ${zoom.toFixed(2)}x — ${view} — your nation: region #${world.playerRegionId}`;
+  readoutEl.textContent = `swarm v2 — zoom ${zoom.toFixed(2)}x — ${view} — your nation: region #${world.playerRegionId} (borders ${playerNeighborCount})`;
 }
 readoutStore.subscribe(renderReadout);
 renderReadout();

@@ -12,6 +12,28 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #4: region adjacency graph (data only)
+  WHAT: Region now carries `neighbors: number[]` — sorted unique
+        list of region ids sharing a tile-edge (4-way, edge-only;
+        diagonals don't count, water gaps don't count). Built in
+        a single O(N) sweep at the end of generateWorld: for
+        each tile check the +x and +y neighbor; if both are
+        land and differ, add each to the other's set. Sets are
+        flattened to sorted arrays before storing on Region.
+        Readout extended: "borders N" appended to the player-
+        nation line as a smoke test that the data is real.
+  WHY:  Adjacency is the prerequisite for everything multi-
+        region: army moves cap to neighbors, vassal/diplomacy
+        graph lookups, neighbor-aware AI, threat assessment.
+        Pure data work today; no visual. Edge-only chosen over
+        8-way because it matches the boundary lines we already
+        draw and avoids "your region touches that other one
+        because of a single corner pixel" false positives.
+        Coastal/naval adjacency deferred — comes when we have
+        ships.
+
+---
+
 2026-05-09  Nail #3: player nation + zoom cap + tier relabel
   WHAT: Three changes wiring up the operational tier from the
         new 3-tier view model:
