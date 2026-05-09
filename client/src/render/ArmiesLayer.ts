@@ -58,9 +58,13 @@ export class ArmiesLayer {
         this.container.addChild(node.label);
       }
       const sp = this.renderer.worldToScreen(a.x + 0.5, a.y + 0.5);
+      const z = Math.max(0.7, Math.min(2.2, this.renderer.zoom * 0.18));
       node.hull.position.set(sp.x, sp.y);
       node.ring.position.set(sp.x, sp.y);
-      node.label.position.set(sp.x, sp.y + 1);
+      // Drop the label just below the icon's bottom edge so it reads
+      // as "label of this unit" instead of overlapping the colored
+      // square. Icon extends ±7×z from center.
+      node.label.position.set(sp.x, sp.y + 7 * z + 1);
       // Throttle label rasterization: only update when the rounded-to-5
       // strength OR the owner's name (basically never) changes. Avoids
       // per-tick text relayout on mobile.
@@ -85,7 +89,6 @@ export class ArmiesLayer {
         const tint = (c[0] << 16) | (c[1] << 8) | c[2];
         drawHull(node.hull, tint, tier, fortified === 1);
       }
-      const z = Math.max(0.7, Math.min(2.2, this.renderer.zoom * 0.18));
       node.hull.scale.set(z);
       node.ring.scale.set(z);
       // Label scales conservatively so big zooms don't dwarf the icon.
@@ -138,7 +141,7 @@ export class ArmiesLayer {
         lineHeight: 10,
       },
     });
-    label.anchor.set(0.5, -0.40);
+    label.anchor.set(0.5, 0);
     return {
       hull, ring, label,
       lastShown: Math.round(a.strength / 5) * 5,

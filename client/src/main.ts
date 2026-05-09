@@ -164,23 +164,26 @@ async function boot(): Promise<void> {
       const armySel = renderer.armies.selected();
       const shipSel = renderer.ships.selected();
       const tx = Math.floor(wx), ty = Math.floor(wy);
-      const armyTol = 4 / Math.max(1, renderer.zoom * 0.4);
-      const shipTol = 6 / Math.max(1, renderer.zoom * 0.4);
-      // Pick a tapped army with a heavy bias against the currently
-      // selected one. Otherwise the selected army (often the closest
-      // hit on screen) keeps winning the tap and you have to tap-to-
-      // deselect before tapping the second army. With this bias,
-      // any OTHER army in tap range wins; the selected one only
-      // wins when nothing else is near (so tap-self-to-deselect
-      // still works).
+      // Pick in SCREEN space with a generous pixel radius so tapping
+      // anywhere on the army icon OR its name/strength label selects
+      // the army. World-coord tolerance (the old approach) shrinks
+      // with zoom and missed the label area entirely on phones, which
+      // is why "tap the visible number" felt like it did nothing.
+      const armyPickPx = 32;
+      const shipPickPx = 36;
       const pickArmy = (excludeId: number): Army | null => {
         let best: Army | null = null;
         let bestScore = Infinity;
         for (const a of game.armies) {
           if (a.owner !== 1) continue;
           if (a.strength <= 0) continue;
-          const d = Math.hypot(a.x + 0.5 - wx, a.y + 0.5 - wy);
-          if (d > armyTol) continue;
+          const sp = renderer.worldToScreen(a.x + 0.5, a.y + 0.5);
+          const d = Math.hypot(sp.x - sx, sp.y - sy);
+          if (d > armyPickPx) continue;
+          // Heavy bias against the selected one so tapping a different
+          // friendly army wins over re-picking yourself; the selected
+          // army still wins when nothing else is in range (so
+          // tap-self-to-deselect works).
           const score = d + (a.id === excludeId ? 1000 : 0);
           if (score < bestScore) { bestScore = score; best = a; }
         }
@@ -192,8 +195,9 @@ async function boot(): Promise<void> {
         for (const s of game.ships) {
           if (s.owner !== 1) continue;
           if (s.hp <= 0) continue;
-          const d = Math.hypot(s.x + 0.5 - wx, s.y + 0.5 - wy);
-          if (d > shipTol) continue;
+          const sp = renderer.worldToScreen(s.x + 0.5, s.y + 0.5);
+          const d = Math.hypot(sp.x - sx, sp.y - sy);
+          if (d > shipPickPx) continue;
           const score = d + (s.id === excludeId ? 1000 : 0);
           if (score < bestScore) { bestScore = score; best = s; }
         }
@@ -205,8 +209,10 @@ async function boot(): Promise<void> {
       // avoids ambiguous picks at coastal tiles.
       let tappedKind: 'army' | 'ship' | 'none' = 'none';
       if (tappedArmy && tappedShip) {
-        const dA = Math.hypot(tappedArmy.x + 0.5 - wx, tappedArmy.y + 0.5 - wy);
-        const dS = Math.hypot(tappedShip.x + 0.5 - wx, tappedShip.y + 0.5 - wy);
+        const aScreen = renderer.worldToScreen(tappedArmy.x + 0.5, tappedArmy.y + 0.5);
+        const sScreen = renderer.worldToScreen(tappedShip.x + 0.5, tappedShip.y + 0.5);
+        const dA = Math.hypot(aScreen.x - sx, aScreen.y - sy);
+        const dS = Math.hypot(sScreen.x - sx, sScreen.y - sy);
         tappedKind = dA <= dS ? 'army' : 'ship';
       } else if (tappedArmy) tappedKind = 'army';
       else if (tappedShip) tappedKind = 'ship';
