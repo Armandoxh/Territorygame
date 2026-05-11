@@ -205,8 +205,68 @@
         touch-action: manipulation;
       }
       #battle-result-dismiss:active { background: rgba(110, 84, 42, 0.85); }
+
+      /* End-of-game modal — VICTORY or DEFEAT overlay with a NEW MAP
+         button. Higher z-index than battle menu so it always wins. */
+      #game-modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(10, 10, 10, 0.72);
+        z-index: 20;
+        pointer-events: none;
+      }
+      #game-modal.visible {
+        display: flex;
+        pointer-events: auto;
+        animation: game-modal-fade 320ms ease-out;
+      }
+      @keyframes game-modal-fade {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+      #game-modal .card {
+        background: rgba(20, 18, 12, 0.96);
+        border: 1px solid rgba(255, 235, 180, 0.3);
+        border-radius: 14px;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+        padding: 28px 32px 22px;
+        min-width: 240px;
+        max-width: 320px;
+        text-align: center;
+        font-family: system-ui, -apple-system, sans-serif;
+        color: #f0e8d8;
+      }
+      #game-modal-title {
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        margin-bottom: 8px;
+      }
+      #game-modal-title[data-kind="victory"] { color: #ffd86b; }
+      #game-modal-title[data-kind="defeat"]  { color: #e85e5e; }
+      #game-modal-sub {
+        font: 12px/1.4 ui-monospace, Menlo, monospace;
+        opacity: 0.75;
+        margin-bottom: 22px;
+      }
+      #game-modal-retry {
+        min-height: 44px;
+        padding: 0 22px;
+        background: rgba(80, 60, 30, 0.7);
+        color: #f0e8d8;
+        border: 1px solid rgba(255, 235, 180, 0.35);
+        border-radius: 8px;
+        font: 13px/1 ui-monospace, Menlo, monospace;
+        letter-spacing: 0.12em;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      #game-modal-retry:active { background: rgba(110, 84, 42, 0.85); }
     </style>
-    <script type="module" crossorigin src="/Territorygame/swarm/assets/index-CLfpTksP.js"></script>
+    <script type="module" crossorigin src="/Territorygame/swarm/assets/index-cJEFbU9z.js"></script>
   </head>
   <body>
     <div id="app"></div>
@@ -245,6 +305,13 @@
           <span id="battle-result-enemy" class="comp"></span>
         </div>
         <button id="battle-result-dismiss" type="button" hidden>DISMISS</button>
+      </div>
+    </div>
+    <div id="game-modal">
+      <div class="card">
+        <div id="game-modal-title">VICTORY</div>
+        <div id="game-modal-sub"></div>
+        <button id="game-modal-retry" type="button">NEW MAP</button>
       </div>
     </div>
   </body>

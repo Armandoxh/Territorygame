@@ -62,6 +62,12 @@ const ARMY_HIT_RADIUS = 22;
 export interface ArmyDeps {
   world: World;
   tileSize: number;
+  // Where the army starts. Each nation has its own home; this used to
+  // hardcode world.playerRegionId but is now per-nation for multi-AI.
+  homeRegionId: number;
+  // Glyph color. Was derived from world.regions[playerRegionId].color;
+  // now passed explicitly so AI armies can wear their nation's color.
+  color: number;
   screenToWorld: (sx: number, sy: number) => { x: number; y: number };
   worldToScreen: (wx: number, wy: number) => { x: number; y: number };
 }
@@ -93,14 +99,21 @@ export interface Army {
   // Returns true if the drop committed a new march, false if cancelled.
   // A cancelled drop preserves any pre-existing march.
   endDrag(sx: number, sy: number): boolean;
+  // Programmatic march. Used by AI nations (no drag handler). Sets the
+  // destination directly with no neighbor-region validation; the caller
+  // is responsible for picking a sensible target.
+  marchTo(toX: number, toY: number): void;
+  // True if the army is currently mid-march. Used by AI to gate
+  // expansion decisions on "is this army idle right now."
+  isMarching(): boolean;
   destroy(): void;
 }
 
 export function createArmy(deps: ArmyDeps): Army {
-  const { world, tileSize, screenToWorld, worldToScreen } = deps;
-  const playerColor = world.regions[world.playerRegionId]!.color;
+  const { world, tileSize, homeRegionId, color, screenToWorld, worldToScreen } = deps;
+  const playerColor = color;
 
-  const home = world.regions[world.playerRegionId]!;
+  const home = world.regions[homeRegionId]!;
   const pos = {
     x: home.centroidX * tileSize + tileSize / 2 + ARMY_HOME_OFFSET_X,
     y: home.centroidY * tileSize + tileSize / 2,
@@ -239,6 +252,15 @@ export function createArmy(deps: ArmyDeps): Army {
     return true;
   }
 
+  function marchTo(toX: number, toY: number) {
+    march = { toX, toY };
+    redrawMarchLine();
+  }
+
+  function isMarching() {
+    return march !== null;
+  }
+
   function destroy() {
     container.destroy({ children: true });
   }
@@ -263,6 +285,8 @@ export function createArmy(deps: ArmyDeps): Army {
     startDrag,
     updateDrag,
     endDrag,
+    marchTo,
+    isMarching,
     destroy,
   };
 }

@@ -12,6 +12,74 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  Nail #6.3 (overnight): full gameplay loop
+  WHAT: Game is now playable end-to-end in a single session.
+        Three nations on every map (1 player + 2 AIs), each
+        with a starting capital, a randomized regiment army,
+        and a color. AIs expand to neutral neighbor regions
+        every ~10s (jittered), fight each other silently when
+        their armies meet (Simulate runs behind the scenes
+        with a brief crossed-swords icon flashing at the
+        engagement point). Player engages AIs the same way as
+        #6.2 — drag-march into them and the action menu opens.
+        Battles still resolve through the existing Simulate
+        path. New: capital occupation. Standing within 24
+        world-units of a non-owned capital starts a 15-second
+        hold timer; finishing the hold flips that region (and
+        all the eliminated nation's other regions) to the
+        captor's color, and the eliminated nation's army is
+        removed from the map. Symmetric: AIs do the same to
+        the player. When an AI's capital is being besieged,
+        the AI re-routes their army to defend ("fight back"
+        per user spec). Win = capture all enemy capitals.
+        Defeat = your army destroyed OR your capital captured.
+        Either triggers a modal overlay with the appropriate
+        label and a NEW MAP button.
+  WHY:  Closes the gameplay loop. After #6.2 the game was a
+        beautiful battle scaffolding with no progression —
+        one fight and you were done. Now each map is a real
+        session with stakes, expansion pressure, and a clean
+        win/lose state. Aligns with port.md milestone 1
+        spec: 3 players, capture-capitals win condition,
+        no-recruitment-yet OK.
+
+  Big-picture design: introduced a first-class Nation type
+        (color, capitalRegionId, capital tile coord, army,
+        isPlayer flag, eliminated, capture timer). Region
+        ownership is a separate Int16Array indexed by region
+        id — explicit, mutable, rebuildable. Capital tile is
+        a real coordinate, not an inferred concept. This
+        scaffolds the future systems the user flagged:
+        resources/economy/upgrades all attach to Nation, and
+        regions are first-class possessions with intrinsic
+        value (not just battle tokens).
+
+  Module map:
+   - nation.ts (new) — Nation interface
+   - gameModal.ts (new) — VICTORY/DEFEAT modal overlay
+   - mapRender.ts — rewrite. Ownership-aware tints + capital
+        markers. New rebuildOwnerLayers() called on region
+        flip events.
+   - army.ts — ArmyDeps gained homeRegionId + color; new
+        marchTo(x,y) and isMarching() for programmatic AI use.
+   - main.ts — major rewrite. Replaces enemy/army singletons
+        with nations[] array. Symmetric capture state per
+        Nation. AI expansion tick. AI vs AI silent battles.
+        Win/defeat detection wired to all the right entry
+        points (battle exit, capture completion, army loss).
+   - index.html — game-modal markup + CSS.
+
+  Tuning constants (battle for these in main.ts):
+   - AI_NATION_COUNT = 2 (port.md M1: 3 players total)
+   - AI_DECIDE_INTERVAL_MS = 10_000 (±2.5s jitter)
+   - CAPITAL_HOLD_MS = 15_000
+   - CAPITAL_HOLD_RADIUS = 24 world units
+   - SIEGE_RESPONSE_INTERVAL_MS = 2_000 (how often a besieged
+        AI re-issues a "march home" order)
+   - AI_BATTLE_ICON_MS = 1200
+
+---
+
 2026-05-09  #6.2 SHIPPED (user thumbs-up after follow-up #4)
   Nail #6.2 (battle scene scaffolding + action menu) is now
   done. Took four follow-ups beyond the initial scaffolding:

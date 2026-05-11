@@ -1,15 +1,18 @@
 import { Application, Container, Graphics } from 'pixi.js';
 import { createCamera } from './camera';
 import { generateWorld, makeRng, type World } from './world';
-import { buildMapLayers, type MapLayers } from './mapRender';
+import { buildMapLayers, rebuildOwnerLayers, type MapLayers } from './mapRender';
 import { attachInput, type DragHandler } from './input';
 import { createArmy, type Army, type Regiment } from './army';
 import { UNIT_DEFS } from './units';
 import { createBattleScene } from './battleScene';
 import { createBattleMenu } from './battleMenu';
 import { simulateBattle } from './battleSim';
+import type { Nation } from './nation';
+import { createGameModal, type GameModal } from './gameModal';
 import { readoutStore, type ViewLabel } from './store';
 
+// ----- World / camera constants -----
 const TILE_SIZE = 16;
 const WORLD_TILES_X = 100;
 const WORLD_TILES_Y = 100;
@@ -20,17 +23,39 @@ const WORLD_W = TILE_SIZE * WORLD_TILES_X;
 const WORLD_H = TILE_SIZE * WORLD_TILES_Y;
 
 // Manual zoom caps at OPERATIONAL — never reaches the sprite-art TACTICAL
-// view (which is reserved for battle camera). Tier label flips at the
-// midpoint between min and max manual zoom.
+// view (which is reserved for battle camera).
 const MAX_MANUAL_ZOOM = 2.0;
-const TIER_THRESHOLD_PX = 18;  // strategic if cellPixelSize <= this, else operational
+const TIER_THRESHOLD_PX = 18;
 
-// Battle scene constants. Tactical zoom is well past the strategic /
-// operational manual cap (2.0); user can't reach this zoom by pinching.
+// ----- Battle scene constants -----
 const TACTICAL_ZOOM = 6.0;
 const BATTLE_ENTRY_DELAY_MS = 500;
 const BATTLE_TRANSITION_MS = 1000;
+const COMBAT_TRIGGER_RADIUS = 16;
 
+// ----- Multi-nation constants -----
+const AI_NATION_COUNT = 2;  // 1 player + 2 AIs = 3 nations total per port.md M1
+// AI decides what to do every ~10s on average, jittered. Pick happens
+// only when their army is idle (not mid-march); otherwise they keep
+// marching and re-decide on the next interval.
+const AI_DECIDE_INTERVAL_MS = 10_000;
+const AI_DECIDE_JITTER_MS = 2_500;
+// Time the player must hold the capital tile to capture it. AIs get a
+// chance to interrupt by re-routing their nearest other army (if any)
+// to defend; landing combat resets the hold timer.
+const CAPITAL_HOLD_MS = 15_000;
+const CAPITAL_HOLD_RADIUS = 24;
+// How often an AI under siege checks if they have an army to recall.
+const SIEGE_RESPONSE_INTERVAL_MS = 2_000;
+// Brief visual indicator for silent AI vs AI battles.
+const AI_BATTLE_ICON_MS = 1200;
+
+// Curated AI palette — high-contrast, distinct from any plausible player
+// region color and from each other. Player nation uses its own region's
+// generated color.
+const AI_COLORS = [0xd54e3a, 0x6a5acd, 0xe6a800, 0x29a36a];
+
+// ----- Pixi app + layers -----
 const app = new Application();
 await app.init({
   resizeTo: window,
@@ -41,12 +66,13 @@ await app.init({
 });
 document.getElementById('app')!.appendChild(app.canvas);
 
-// Layer structure under the camera transform:
+// Layer tree under the camera transform:
 //   worldContainer
-//     ├─ strategicLayer  — terrain, tints, borders, capitals, army glyphs
-//     └─ battleSceneLayer — dirt + (later) soldier sprites
-// The two crossfade during battle transitions; only one is meaningfully
-// visible at a time.
+//     ├─ strategicLayer
+//     │    ├─ MapLayers (terrain → capitals)
+//     │    ├─ nation army containers
+//     │    └─ aiBattleIconLayer (transient flash markers)
+//     └─ battleSceneLayer (dirt + future tactical sprites)
 const worldContainer = new Container();
 const strategicLayer = new Container();
 const battleSceneLayer = new Container();
@@ -57,6 +83,12 @@ app.stage.addChild(worldContainer);
 
 const battleScene = createBattleScene();
 battleSceneLayer.addChild(battleScene.container);
+
+// Dedicated layer for transient AI-battle-here icons (small flashing
+// crossed-swords-style marker). Kept on top of strategic content so it
+// reads at any zoom.
+const aiBattleIconLayer = new Container();
+strategicLayer.addChild(aiBattleIconLayer);
 
 const initialZoom = Math.min(window.innerWidth / WORLD_W, window.innerHeight / WORLD_H) * 0.9;
 
@@ -82,167 +114,22 @@ function worldToScreen(wx: number, wy: number) {
   };
 }
 
-// One stationary placeholder enemy at the player's first graph-neighbor.
-// Test rig only — real enemy battalions, AI, recruitment all land later.
-const ENEMY_GLYPH_SIZE = 12;
-const ENEMY_OFFSET_X = 14;
-// Combat triggers when the player's army center comes within this many
-// world units of the enemy center. Slightly larger than the glyph so the
-// player feels the engagement before the squares overlap pixel-for-pixel.
-const COMBAT_TRIGGER_RADIUS = 16;
-
-interface EnemyState {
-  glyph: Graphics;
-  pos: { x: number; y: number };
-  regionId: number;
-  // Per Q2 of nail #6.1: identical composition to the player. When AI /
-  // recruitment / asymmetric matchups land in their own nails this seed
-  // becomes per-nation config.
-  regiments: Regiment[];
-}
-
-function spawnEnemy(w: World): EnemyState | null {
-  const playerRegion = w.regions[w.playerRegionId]!;
-  if (playerRegion.neighbors.length === 0) return null;
-  const enemyRegionId = playerRegion.neighbors[0]!;
-  const enemyRegion = w.regions[enemyRegionId]!;
-  const x = enemyRegion.centroidX * TILE_SIZE + TILE_SIZE / 2 + ENEMY_OFFSET_X;
-  const y = enemyRegion.centroidY * TILE_SIZE + TILE_SIZE / 2;
-
-  const half = ENEMY_GLYPH_SIZE / 2;
-  const glyph = new Graphics();
-  glyph.rect(-half, -half, ENEMY_GLYPH_SIZE, ENEMY_GLYPH_SIZE).fill(enemyRegion.color);
-  glyph
-    .rect(-half, -half, ENEMY_GLYPH_SIZE, ENEMY_GLYPH_SIZE)
-    .stroke({ width: 1.5, color: 0x111111 });
-  glyph.position.set(x, y);
-
-  return {
-    glyph,
-    pos: { x, y },
-    regionId: enemyRegionId,
-    // Composition is rolled per-seed after spawn (see rollComposition);
-    // this is just a placeholder so the shape is non-empty if the roll
-    // ever doesn't run.
-    regiments: [],
-  };
-}
-
-function formatRegiments(regs: readonly Regiment[]): string {
-  if (regs.length === 0) return '∅';
-  return regs.map((r) => `${UNIT_DEFS[r.type].shortLabel} ${r.count}`).join(' · ');
-}
-
-// Roll a randomized regiment list. Variety per map without committing
-// to per-faction config yet — that lands when AI / recruitment ships.
-// Total in [40,100] and cav share in [10%,50%], integer counts.
-function rollComposition(rng: () => number): Regiment[] {
-  const total = 40 + Math.floor(rng() * 61);
-  const cav = Math.round(total * (0.1 + rng() * 0.4));
-  const inf = total - cav;
-  const out: Regiment[] = [];
-  if (inf > 0) out.push({ type: 'infantry', count: inf });
-  if (cav > 0) out.push({ type: 'cavalry', count: cav });
-  return out;
-}
-
-// Apply rolled compositions to both sides. Derives a separate RNG
-// stream from the world seed (XOR'd with a constant) so the rolls
-// don't share state with map generation.
-function applyCompositions(seed: number) {
-  const rng = makeRng(seed ^ 0x9e3779b9);
-  army.setRegiments(rollComposition(rng));
-  if (enemy) enemy.regiments = rollComposition(rng);
-}
-
-function addLayers(l: MapLayers) {
-  strategicLayer.addChild(l.terrainLayer);
-  strategicLayer.addChild(l.tintLayer);
-  strategicLayer.addChild(l.borderLayer);
-  strategicLayer.addChild(l.playerLayer);
-  strategicLayer.addChild(l.capitalLayer);
-}
-
+// ----- World state -----
 let currentSeed = DEFAULT_SEED;
-let world: World = generateWorld({
-  width: WORLD_TILES_X,
-  height: WORLD_TILES_Y,
-  regionCount: REGION_COUNT,
-  seed: currentSeed,
-});
-let layers: MapLayers = buildMapLayers(world, TILE_SIZE);
-let army: Army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
-let enemy: EnemyState | null = spawnEnemy(world);
-// Combat lifecycle:
-//   idle    — no engagement; touching the enemy starts one
-//   engaged — covers BOTH the 500ms pre-roll AND the in-battle scene.
-//             Army movement is frozen, the army can't be dragged,
-//             zoom is locked. Once entered, the only way out is via
-//             the battle menu (or via loadMap which force-exits).
-// Battles are decisive (annihilation), so there's no post-battle
-// cooldown — the loser is gone, re-engagement is impossible because
-// the enemy/army no longer exists.
+let world: World;
+let layers: MapLayers;
+let regionOwner: Int16Array;
+let nations: Nation[] = [];
+
+// ----- Battle state -----
 type CombatState = 'idle' | 'engaged';
 let combatState: CombatState = 'idle';
-addLayers(layers);
-strategicLayer.addChild(army.container);
-if (enemy) strategicLayer.addChild(enemy.glyph);
-applyCompositions(currentSeed);
+// The AI nation the player is currently fighting (or about to). Set on
+// engagement; consumed by battleMenu / Simulate. Reset on exit.
+let activeOpponent: Nation | null = null;
 
-function loadMap(seed: number) {
-  currentSeed = seed;
-  // If a battle is in progress, abort it instantly — no fade out — since
-  // the underlying world is being replaced.
-  forceExitBattle();
-
-  // Tear down old strategic content (releases GPU buffers). Leaves the
-  // battleSceneLayer alone.
-  layers.terrainLayer.destroy();
-  layers.tintLayer.destroy();
-  layers.borderLayer.destroy();
-  layers.playerLayer.destroy();
-  layers.capitalLayer.destroy();
-  army.destroy();
-  if (enemy) enemy.glyph.destroy();
-  strategicLayer.removeChildren();
-
-  world = generateWorld({
-    width: WORLD_TILES_X,
-    height: WORLD_TILES_Y,
-    regionCount: REGION_COUNT,
-    seed,
-  });
-  layers = buildMapLayers(world, TILE_SIZE);
-  army = createArmy({ world, tileSize: TILE_SIZE, screenToWorld, worldToScreen });
-  enemy = spawnEnemy(world);
-  combatState = 'idle';
-  addLayers(layers);
-  strategicLayer.addChild(army.container);
-  if (enemy) strategicLayer.addChild(enemy.glyph);
-  applyCompositions(seed);
-
-  // Recenter camera; new map may have a different land shape.
-  camera.panX = WORLD_W / 2;
-  camera.panY = WORLD_H / 2;
-  camera.zoom = initialZoom;
-
-  const s = army.getStatus();
-  lastArmyMarching = s.marching;
-  lastArmyRegionId = s.regionId;
-  lastArmyTarget = s.targetRegionId;
-  renderReadout();
-}
-
-// ----- Battle state machine (nail #6.2) -----
-// `inBattle` is true from the moment the entry transition begins to the
-// moment the exit transition completes. While true, army movement is
-// frozen, zoom is locked at TACTICAL_ZOOM (pan stays free per user
-// pick), and the strategic layer is hidden under the dirt.
 let inBattle = false;
-// ms remaining before the entry crossfade starts, after the player's
-// army first touches the enemy. null = no pending entry.
 let battleEntryTimer: number | null = null;
-// Active interpolation. null when not transitioning.
 let battleTransition:
   | {
       startMs: number;
@@ -256,8 +143,198 @@ let battleTransition:
       toPanY: number;
     }
   | null = null;
-// Camera state captured at entry so we can restore on exit.
 let preBattleCamera: { zoom: number; panX: number; panY: number } | null = null;
+
+// ----- Capture state is per-Nation (see nation.captureProgress). -----
+
+// ----- Game-over state -----
+let gameOver: 'victory' | 'defeat' | null = null;
+
+// ===== Helpers =====
+
+function formatRegiments(regs: readonly Regiment[]): string {
+  if (regs.length === 0) return '∅';
+  return regs.map((r) => `${UNIT_DEFS[r.type].shortLabel} ${r.count}`).join(' · ');
+}
+
+// Roll a randomized regiment list. Same shape as the per-side
+// composition draw used since #6.2: total in [40,100], cav share
+// [10%,50%], integer counts.
+function rollComposition(rng: () => number): Regiment[] {
+  const total = 40 + Math.floor(rng() * 61);
+  const cav = Math.round(total * (0.1 + rng() * 0.4));
+  const inf = total - cav;
+  const out: Regiment[] = [];
+  if (inf > 0) out.push({ type: 'infantry', count: inf });
+  if (cav > 0) out.push({ type: 'cavalry', count: cav });
+  return out;
+}
+
+// Pick N well-spaced starting regions. Player gets index 0 = largest
+// region by tile count (stable, sensible power base). Subsequent picks
+// maximize min-distance to all already-picked regions, giving AIs
+// space to expand without being on top of the player.
+function pickStartingRegions(w: World, count: number): number[] {
+  const taken: number[] = [];
+  let largest = 0;
+  for (let i = 1; i < w.regions.length; i++) {
+    if (w.regions[i]!.tileCount > w.regions[largest]!.tileCount) largest = i;
+  }
+  taken.push(largest);
+  while (taken.length < count && taken.length < w.regions.length) {
+    let best = -1;
+    let bestScore = -1;
+    for (let i = 0; i < w.regions.length; i++) {
+      if (taken.includes(i)) continue;
+      let minDist = Infinity;
+      for (const t of taken) {
+        const dx = w.regions[i]!.centroidX - w.regions[t]!.centroidX;
+        const dy = w.regions[i]!.centroidY - w.regions[t]!.centroidY;
+        const d = dx * dx + dy * dy;
+        if (d < minDist) minDist = d;
+      }
+      if (minDist > bestScore) {
+        bestScore = minDist;
+        best = i;
+      }
+    }
+    if (best < 0) break;
+    taken.push(best);
+  }
+  return taken;
+}
+
+function spawnNations(w: World, seed: number): Nation[] {
+  const startingRegions = pickStartingRegions(w, 1 + AI_NATION_COUNT);
+  const rng = makeRng(seed ^ 0x9e3779b9);
+  const out: Nation[] = [];
+  for (let i = 0; i < startingRegions.length; i++) {
+    const regionId = startingRegions[i]!;
+    const region = w.regions[regionId]!;
+    const isPlayer = i === 0;
+    const color = isPlayer ? region.color : AI_COLORS[(i - 1) % AI_COLORS.length]!;
+    const army = createArmy({
+      world: w,
+      tileSize: TILE_SIZE,
+      homeRegionId: regionId,
+      color,
+      screenToWorld,
+      worldToScreen,
+    });
+    army.setRegiments(rollComposition(rng));
+    const capitalX = region.centroidX * TILE_SIZE + TILE_SIZE / 2;
+    const capitalY = region.centroidY * TILE_SIZE + TILE_SIZE / 2;
+    out.push({
+      id: i,
+      color,
+      capitalRegionId: regionId,
+      capitalX,
+      capitalY,
+      army,
+      isPlayer,
+      eliminated: false,
+      nextDecideAtMs: performance.now() + AI_DECIDE_INTERVAL_MS + (Math.random() - 0.5) * 2 * AI_DECIDE_JITTER_MS,
+      lastSiegeResponseAtMs: 0,
+      captureProgress: null,
+    });
+  }
+  return out;
+}
+
+function initRegionOwner(w: World, ns: Nation[]): Int16Array {
+  const ro = new Int16Array(w.regions.length);
+  ro.fill(-1);
+  for (const n of ns) ro[n.capitalRegionId] = n.id;
+  return ro;
+}
+
+function addLayers(l: MapLayers) {
+  strategicLayer.addChild(l.terrainLayer);
+  strategicLayer.addChild(l.tintLayer);
+  strategicLayer.addChild(l.borderLayer);
+  strategicLayer.addChild(l.playerLayer);
+  strategicLayer.addChild(l.capitalLayer);
+}
+
+function playerNation(): Nation {
+  // nations[0] is always the player. Stable invariant from spawnNations.
+  return nations[0]!;
+}
+
+function aliveOpponents(): Nation[] {
+  return nations.filter((n) => !n.isPlayer && !n.eliminated && n.army !== null);
+}
+
+// Repaint ownership-dependent layers. Cheap-ish (one Graphics.clear +
+// re-draw); called only on region capture events, not per frame.
+function rebuildLayers() {
+  rebuildOwnerLayers(layers, world, TILE_SIZE, regionOwner, nations);
+}
+
+// ===== Load map =====
+
+function loadMap(seed: number) {
+  currentSeed = seed;
+
+  // Force-exit any in-flight battle / capture / game-over state so the
+  // new world starts clean.
+  forceExitBattle();
+  for (const n of nations) n.captureProgress = null;
+  gameOver = null;
+  gameModal.hide();
+
+  // Tear down old strategic content. battleSceneLayer is left alone.
+  if (layers) {
+    layers.terrainLayer.destroy();
+    layers.tintLayer.destroy();
+    layers.borderLayer.destroy();
+    layers.playerLayer.destroy();
+    layers.capitalLayer.destroy();
+  }
+  for (const n of nations) {
+    if (n.army) n.army.destroy();
+  }
+  // Destroy any in-flight transient AI-battle icons before clearing
+  // the strategic layer (otherwise their alpha-fade rAFs leak GPU
+  // resources, though they self-bail via the .destroyed guard).
+  for (const c of [...aiBattleIconLayer.children]) c.destroy();
+  strategicLayer.removeChildren();
+
+  world = generateWorld({
+    width: WORLD_TILES_X,
+    height: WORLD_TILES_Y,
+    regionCount: REGION_COUNT,
+    seed,
+  });
+  nations = spawnNations(world, seed);
+  regionOwner = initRegionOwner(world, nations);
+  layers = buildMapLayers(world, TILE_SIZE, regionOwner, nations);
+  addLayers(layers);
+  // aiBattleIconLayer is shared across map loads — re-add on top.
+  strategicLayer.addChild(aiBattleIconLayer);
+  for (const n of nations) {
+    if (n.army) strategicLayer.addChild(n.army.container);
+  }
+
+  combatState = 'idle';
+  activeOpponent = null;
+
+  // Recenter camera.
+  camera.panX = WORLD_W / 2;
+  camera.panY = WORLD_H / 2;
+  camera.zoom = initialZoom;
+
+  const player = playerNation();
+  if (player.army) {
+    const s = player.army.getStatus();
+    lastArmyMarching = s.marching;
+    lastArmyRegionId = s.regionId;
+    lastArmyTarget = s.targetRegionId;
+  }
+  renderReadout();
+}
+
+// ===== Battle state machine =====
 
 function smoothstep(t: number): number {
   const c = Math.max(0, Math.min(1, t));
@@ -270,11 +347,14 @@ function startEnterBattle() {
 }
 
 function commitEnterBattle() {
-  if (inBattle || !enemy) return;
+  if (inBattle || !activeOpponent || !activeOpponent.army) return;
+  const player = playerNation();
+  if (!player.army) return;
   preBattleCamera = { zoom: camera.zoom, panX: camera.panX, panY: camera.panY };
-  const ap = army.getPos();
-  const midX = (ap.x + enemy.pos.x) / 2;
-  const midY = (ap.y + enemy.pos.y) / 2;
+  const ap = player.army.getPos();
+  const ep = activeOpponent.army.getPos();
+  const midX = (ap.x + ep.x) / 2;
+  const midY = (ap.y + ep.y) / 2;
   battleScene.setCenter(midX, midY);
   battleTransition = {
     startMs: performance.now(),
@@ -306,22 +386,16 @@ function startExitBattle() {
   };
 }
 
-// Instant exit (no fade). Used when the world is replaced underneath us.
 function forceExitBattle() {
   inBattle = false;
   battleEntryTimer = null;
   battleTransition = null;
   strategicLayer.alpha = 1;
   battleSceneLayer.alpha = 0;
-  battleMenu.hide();
-  // No cooldown — the world is being torn down anyway. loadMap resets
-  // combatState to 'idle' immediately after.
-  if (preBattleCamera) {
-    camera.zoom = preBattleCamera.zoom;
-    camera.panX = preBattleCamera.panX;
-    camera.panY = preBattleCamera.panY;
-    preBattleCamera = null;
-  }
+  if (battleMenu) battleMenu.hide();
+  preBattleCamera = null;
+  combatState = 'idle';
+  activeOpponent = null;
 }
 
 function tickBattleSystem(dtMs: number) {
@@ -353,67 +427,406 @@ function tickBattleSystem(dtMs: number) {
         inBattle = false;
         preBattleCamera = null;
         combatState = 'idle';
-        // Strategic layer is visible again now — apply post-battle
-        // destruction. Sim already mutated regiments to .after values
-        // when Simulate ran; if either side is empty, remove their
-        // strategic presence so re-engagement is impossible.
-        if (enemy && enemy.regiments.length === 0) {
-          enemy.glyph.destroy();
-          enemy = null;
+        // Strategic layer is visible again — apply post-battle teardown.
+        // If opponent army is gone, null out the army reference and
+        // hide the visual.
+        if (activeOpponent && activeOpponent.army && activeOpponent.army.getRegiments().length === 0) {
+          activeOpponent.army.destroy();
+          activeOpponent.army = null;
         }
-        // Player army hides itself via setRegiments side effect; nothing
-        // to do for it here.
+        activeOpponent = null;
+        // Player army auto-hidden by setRegiments side effect.
+        checkGameOver();
         renderReadout();
       } else {
-        // Entry crossfade just completed — surface the action menu
-        // with the current (pre-battle) compositions so the player
-        // can see what they're up against before picking.
-        battleMenu.show(army.getRegiments(), enemy ? enemy.regiments : []);
+        // Entry done — show the action menu with current compositions.
+        const p = playerNation();
+        const playerRegs = p.army ? p.army.getRegiments() : [];
+        const oppRegs = activeOpponent && activeOpponent.army ? activeOpponent.army.getRegiments() : [];
+        battleMenu.show(playerRegs, oppRegs);
       }
     }
   }
 }
 
-// Battle action menu. Stays in screen-space (HTML overlay), so no camera
-// wiring needed. Wires its three buttons back into the battle state
-// machine. Attack and Intimidate are stubs for future nails (per
-// user pick #6.2: punt Intimidate); Simulate runs the placeholder
-// resolver and animates regiment counts down to survivors.
+// ===== AI behavior =====
+
+function pickExpansionTarget(n: Nation): number {
+  // Pick a region adjacent (graph-wise) to one this nation owns, that
+  // is NOT owned by this nation. Prefer neutrals over enemy-owned.
+  const ownedSet = new Set<number>();
+  for (let r = 0; r < world.regions.length; r++) {
+    if (regionOwner[r] === n.id) ownedSet.add(r);
+  }
+  const candidates: number[] = [];
+  for (const r of ownedSet) {
+    for (const nb of world.regions[r]!.neighbors) {
+      if (!ownedSet.has(nb)) candidates.push(nb);
+    }
+  }
+  if (candidates.length === 0) return -1;
+  const neutrals = candidates.filter((r) => regionOwner[r]! < 0);
+  const pool = neutrals.length > 0 ? neutrals : candidates;
+  return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
+function aiSendArmyTo(n: Nation, regionId: number) {
+  if (!n.army) return;
+  const r = world.regions[regionId]!;
+  const x = r.centroidX * TILE_SIZE + TILE_SIZE / 2;
+  const y = r.centroidY * TILE_SIZE + TILE_SIZE / 2;
+  n.army.marchTo(x, y);
+}
+
+function isSiegedBy(target: Nation): Nation | null {
+  // Find any non-self nation currently capturing target's capital.
+  for (const n of nations) {
+    if (n === target) continue;
+    const cp = n.captureProgress;
+    if (cp && cp.targetNationId === target.id) return n;
+  }
+  return null;
+}
+
+function aiIsOnEnemyCapital(n: Nation): boolean {
+  if (!n.army) return false;
+  const pos = n.army.getPos();
+  for (const e of nations) {
+    if (e === n || e.eliminated) continue;
+    if (regionOwner[e.capitalRegionId]! === n.id) continue;
+    const dx = pos.x - e.capitalX;
+    const dy = pos.y - e.capitalY;
+    if (dx * dx + dy * dy <= CAPITAL_HOLD_RADIUS * CAPITAL_HOLD_RADIUS) return true;
+  }
+  return false;
+}
+
+function tickAi(_dtMs: number) {
+  const now = performance.now();
+  for (const n of nations) {
+    if (n.isPlayer || n.eliminated || !n.army) continue;
+    // Fight-back: if our capital is being besieged, send army home
+    // (overrides normal expansion logic).
+    const besieger = isSiegedBy(n);
+    if (besieger) {
+      if (now - n.lastSiegeResponseAtMs >= SIEGE_RESPONSE_INTERVAL_MS) {
+        n.lastSiegeResponseAtMs = now;
+        n.army.marchTo(n.capitalX, n.capitalY);
+      }
+      continue;
+    }
+    if (now < n.nextDecideAtMs) continue;
+    n.nextDecideAtMs = now + AI_DECIDE_INTERVAL_MS + (Math.random() - 0.5) * 2 * AI_DECIDE_JITTER_MS;
+    if (n.army.isMarching()) continue;  // wait for current march
+    // Already standing on an enemy capital? Sit through the capture
+    // hold instead of picking a new target.
+    if (aiIsOnEnemyCapital(n)) continue;
+    const target = pickExpansionTarget(n);
+    if (target < 0) continue;
+    aiSendArmyTo(n, target);
+  }
+}
+
+// ===== Engagement detection (per-pair) =====
+
+function tickEngagements() {
+  if (combatState !== 'idle') return;  // player already engaged; pairs paused
+  if (gameOver) return;
+  // First: check player vs each AI. Player gets the menu UI.
+  const player = playerNation();
+  if (player.army && player.army.getRegiments().length > 0) {
+    const pp = player.army.getPos();
+    for (const n of nations) {
+      if (n.isPlayer || n.eliminated || !n.army) continue;
+      if (n.army.getRegiments().length === 0) continue;
+      const np = n.army.getPos();
+      const dx = pp.x - np.x;
+      const dy = pp.y - np.y;
+      if (Math.hypot(dx, dy) <= COMBAT_TRIGGER_RADIUS) {
+        combatState = 'engaged';
+        activeOpponent = n;
+        // Cancel any in-progress capture — combat takes priority.
+        player.captureProgress = null;
+        console.log('[combat] player engaged AI', n.id);
+        startEnterBattle();
+        renderReadout();
+        return;
+      }
+    }
+  }
+  // Second: AI vs AI silent resolution. We scan all unordered pairs.
+  for (let i = 1; i < nations.length; i++) {
+    const a = nations[i]!;
+    if (a.isPlayer || a.eliminated || !a.army) continue;
+    for (let j = i + 1; j < nations.length; j++) {
+      const b = nations[j]!;
+      if (b.isPlayer || b.eliminated || !b.army) continue;
+      const ap = a.army.getPos();
+      const bp = b.army.getPos();
+      const dx = ap.x - bp.x;
+      const dy = ap.y - bp.y;
+      if (Math.hypot(dx, dy) <= COMBAT_TRIGGER_RADIUS) {
+        resolveAiVsAiBattle(a, b);
+        return;  // one battle per frame to avoid cascades
+      }
+    }
+  }
+}
+
+function resolveAiVsAiBattle(a: Nation, b: Nation) {
+  if (!a.army || !b.army) return;
+  console.log('[combat] AI', a.id, 'vs AI', b.id);
+  const result = simulateBattle(
+    { regiments: a.army.getRegiments() },
+    { regiments: b.army.getRegiments() },
+  );
+  a.army.setRegiments(result.player.after);
+  b.army.setRegiments(result.enemy.after);
+  // Flash a brief icon at the midpoint.
+  const ap = a.army.getPos();
+  const bp = b.army.getPos();
+  showAiBattleIcon((ap.x + bp.x) / 2, (ap.y + bp.y) / 2);
+  // Destroy armies that hit zero.
+  if (a.army.getRegiments().length === 0) {
+    a.army.destroy();
+    a.army = null;
+  }
+  if (b.army.getRegiments().length === 0) {
+    b.army.destroy();
+    b.army = null;
+  }
+}
+
+function showAiBattleIcon(wx: number, wy: number) {
+  const g = new Graphics();
+  // Two crossed lines, small, white. Recognizable at strategic zoom.
+  const s = 7;
+  g.moveTo(-s, -s).lineTo(s, s).moveTo(-s, s).lineTo(s, -s)
+    .stroke({ width: 2, color: 0xffffff, alpha: 0.95 });
+  g.position.set(wx, wy);
+  aiBattleIconLayer.addChild(g);
+  // Fade and remove.
+  const startedAt = performance.now();
+  function step() {
+    // Guard against loadMap having torn this icon down out from under
+    // us — the rAF loop can outlive the icon's parent.
+    if (g.destroyed) return;
+    const dt = performance.now() - startedAt;
+    const t = dt / AI_BATTLE_ICON_MS;
+    if (t >= 1) {
+      g.destroy();
+      return;
+    }
+    g.alpha = 1 - t;
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ===== Capital occupation (symmetric — player + AI) =====
+
+function findCaptureTargetFor(attacker: Nation): Nation | null {
+  if (!attacker.army) return null;
+  const pos = attacker.army.getPos();
+  for (const n of nations) {
+    if (n === attacker || n.eliminated) continue;
+    if (regionOwner[n.capitalRegionId]! === attacker.id) continue;
+    const dx = pos.x - n.capitalX;
+    const dy = pos.y - n.capitalY;
+    if (dx * dx + dy * dy <= CAPITAL_HOLD_RADIUS * CAPITAL_HOLD_RADIUS) return n;
+  }
+  return null;
+}
+
+function tickCapture(_dtMs: number) {
+  if (gameOver) return;
+  const now = performance.now();
+  let playerCaptureChanged = false;
+  for (const attacker of nations) {
+    if (attacker.eliminated || !attacker.army) {
+      attacker.captureProgress = null;
+      continue;
+    }
+    // Player can't capture while in the menu battle (combat freezes them).
+    if (attacker.isPlayer && combatState !== 'idle') {
+      if (attacker.captureProgress) {
+        attacker.captureProgress = null;
+        playerCaptureChanged = true;
+      }
+      continue;
+    }
+    const target = findCaptureTargetFor(attacker);
+    if (!target) {
+      if (attacker.captureProgress) {
+        attacker.captureProgress = null;
+        if (attacker.isPlayer) playerCaptureChanged = true;
+      }
+      continue;
+    }
+    const cp = attacker.captureProgress;
+    if (!cp || cp.targetNationId !== target.id) {
+      attacker.captureProgress = { targetNationId: target.id, startedAtMs: now };
+      if (attacker.isPlayer) playerCaptureChanged = true;
+      continue;
+    }
+    const elapsed = now - cp.startedAtMs;
+    if (elapsed >= CAPITAL_HOLD_MS) {
+      captureCapital(target, attacker);
+      attacker.captureProgress = null;
+      if (attacker.isPlayer) playerCaptureChanged = true;
+    } else if (attacker.isPlayer) {
+      // Keep the timer text ticking on the player's readout.
+      playerCaptureChanged = true;
+    }
+  }
+  if (playerCaptureChanged) renderReadout();
+  // Also re-render every frame the player is under siege, so the
+  // countdown in the readout actually ticks.
+  else if (isSiegedBy(playerNation())) renderReadout();
+}
+
+function captureCapital(target: Nation, captor: Nation) {
+  console.log('[capture] nation', captor.id, 'captured capital of nation', target.id);
+  // Flip the capital region.
+  regionOwner[target.capitalRegionId] = captor.id;
+  // Target nation is eliminated. Their army (if any) sticks around as
+  // a wandering remnant per design? Cleaner: destroy it so they truly
+  // vanish from the map.
+  if (target.army) {
+    target.army.destroy();
+    target.army = null;
+  }
+  target.eliminated = true;
+  // Also flip any other regions the eliminated nation owned, to the
+  // captor. Eliminated AIs shouldn't keep painting the map. (Future:
+  // could leave them as a captured-territory-pending state; not yet.)
+  for (let r = 0; r < world.regions.length; r++) {
+    if (regionOwner[r] === target.id) regionOwner[r] = captor.id;
+  }
+  rebuildLayers();
+  checkGameOver();
+  renderReadout();
+}
+
+// ===== Region claim on arrival (for AI expansion + future player) =====
+
+function tickRegionClaims(_dtMs: number) {
+  // Whenever a nation's army is in a region owned by another nation or
+  // by no one, and is not engaged in combat, the army gradually claims
+  // the region. For #6.3 we apply a simpler rule than port.md's 30-tick
+  // tile claim: on the AI's march completing (no longer marching) the
+  // region the AI is standing in flips IF that region is neutral OR
+  // already owned by the eliminated nation. Enemy-owned regions don't
+  // flip from mere presence — they require combat first (which
+  // resolveAiVsAiBattle handles) or capital capture.
+  if (gameOver) return;
+  for (const n of nations) {
+    if (n.eliminated || !n.army) continue;
+    if (n.army.isMarching()) continue;
+    const pos = n.army.getPos();
+    const regionId = regionAtPos(pos.x, pos.y);
+    if (regionId < 0) continue;
+    const owner = regionOwner[regionId]!;
+    if (owner === n.id) continue;
+    if (owner < 0) {
+      // Neutral → instant claim on standing.
+      regionOwner[regionId] = n.id;
+      rebuildLayers();
+    }
+    // Enemy-owned non-capital regions don't auto-flip; they stay enemy
+    // until that nation is eliminated or the player explicitly takes
+    // them later (future nail). Keeps territory contested instead of
+    // ping-ponging.
+  }
+}
+
+function regionAtPos(wx: number, wy: number): number {
+  const tx = Math.floor(wx / TILE_SIZE);
+  const ty = Math.floor(wy / TILE_SIZE);
+  if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return -1;
+  return world.regionOf[ty * world.width + tx]!;
+}
+
+// ===== Win / defeat =====
+
+function checkGameOver() {
+  if (gameOver) return;
+  const player = playerNation();
+  const playerDestroyed = !player.army || player.army.getRegiments().length === 0;
+  if (playerDestroyed) {
+    gameOver = 'defeat';
+    gameModal.show('defeat', 'Your army was destroyed.');
+    return;
+  }
+  const playerCapitalOwner = regionOwner[player.capitalRegionId]!;
+  if (playerCapitalOwner !== player.id) {
+    gameOver = 'defeat';
+    gameModal.show('defeat', 'Your capital was captured.');
+    return;
+  }
+  const enemiesAlive = nations.some((n) => !n.isPlayer && !n.eliminated);
+  if (!enemiesAlive) {
+    gameOver = 'victory';
+    gameModal.show('victory', 'All enemy capitals captured.');
+  }
+}
+
+// ===== Battle menu (player vs AI only) =====
+
 const battleMenu = createBattleMenu({
   onAttack: () => {
-    console.log('[battle] attack — not implemented yet (real-time combat lands in a later nail)');
+    console.log('[battle] attack — not implemented yet');
   },
   onSimulate: () => {
-    if (!enemy) return;
+    const player = playerNation();
+    if (!player.army || !activeOpponent || !activeOpponent.army) return;
     const result = simulateBattle(
-      { regiments: army.getRegiments() },
-      { regiments: enemy.regiments },
+      { regiments: player.army.getRegiments() },
+      { regiments: activeOpponent.army.getRegiments() },
     );
-    // Apply casualties immediately. The result panel animates a visual
-    // tickdown over ~800ms but the underlying state is already updated,
-    // which keeps the readout / future nails consistent if anything
-    // queries regiment counts mid-animation.
-    army.setRegiments(result.player.after);
-    enemy.regiments = result.enemy.after.filter((r) => r.count > 0);
+    player.army.setRegiments(result.player.after);
+    activeOpponent.army.setRegiments(result.enemy.after);
     battleMenu.showResult(result);
     renderReadout();
   },
   onIntimidate: () => {
-    console.log('[battle] intimidate — design deferred to a later nail');
+    console.log('[battle] intimidate — design deferred');
   },
   onResultDismiss: () => {
     startExitBattle();
   },
 });
 
-// Bridge the army to the input layer. `army` is reassigned by loadMap, so
-// we re-derive the handler each pointerdown rather than capturing a stale
-// reference.
+// ===== Game-over modal =====
+
+const gameModal: GameModal = createGameModal({
+  onRetry: () => {
+    loadMap(Math.floor(Math.random() * 0x7fffffff));
+  },
+});
+
+// ===== Input =====
+
+// Drag handler bridge. The player nation is always nations[0]; we
+// re-derive each pointerdown so a loadMap (which rebuilds nations[])
+// doesn't strand the handler on a stale Army reference.
 const armyDragHandler: DragHandler = {
-  hitTest: (sx, sy) => army.hitTest(sx, sy),
-  onStart: (sx, sy) => army.startDrag(sx, sy),
-  onMove: (sx, sy) => army.updateDrag(sx, sy),
-  onEnd: (sx, sy) => army.endDrag(sx, sy),
+  hitTest: (sx, sy) => {
+    const p = playerNation();
+    return p.army ? p.army.hitTest(sx, sy) : false;
+  },
+  onStart: (sx, sy) => {
+    const p = playerNation();
+    if (p.army) p.army.startDrag(sx, sy);
+  },
+  onMove: (sx, sy) => {
+    const p = playerNation();
+    if (p.army) p.army.updateDrag(sx, sy);
+  },
+  onEnd: (sx, sy) => {
+    const p = playerNation();
+    return p.army ? p.army.endDrag(sx, sy) : false;
+  },
 };
 
 attachInput({
@@ -421,55 +834,49 @@ attachInput({
   camera,
   getViewport: () => ({ w: app.screen.width, h: app.screen.height }),
   getDragHandler: () => armyDragHandler,
-  // Lock zoom + drag from the moment engagement starts (covers the
-  // 500ms pre-roll AND the in-battle scene). Once the battle resolves,
-  // combatState returns to 'idle' and input is free again.
   getZoomLocked: () => combatState === 'engaged',
 });
 
-// Battle exit key. Only acts while in battle; otherwise B does nothing.
 window.addEventListener('keydown', (e) => {
   if ((e.key === 'b' || e.key === 'B') && inBattle) {
     startExitBattle();
   }
 });
 
-let lastArmyMarching = army.getStatus().marching;
-let lastArmyRegionId = army.getStatus().regionId;
-let lastArmyTarget = army.getStatus().targetRegionId;
+// ===== Initial bootstrap =====
+
+let lastArmyMarching = false;
+let lastArmyRegionId = -1;
+let lastArmyTarget = -1;
+loadMap(currentSeed);
+
+// ===== Ticker =====
 
 app.ticker.add(() => {
   const vw = app.screen.width;
   const vh = app.screen.height;
   const dtMs = app.ticker.deltaMS;
+  const dtSec = dtMs / 1000;
 
-  // Freeze the army's march while committed to battle (covers both the
-  // 500ms pre-roll and the in-battle scene). Once contact happens, the
-  // army cannot walk away — "no retreat from a battle you engage."
-  if (combatState !== 'engaged') {
-    army.tick(dtMs / 1000);
-  }
-
-  // Engagement detection. Fires only when:
-  //   - we're idle (not already in pre-roll / battle), and
-  //   - an enemy still exists (was not annihilated in a prior battle),
-  //   - the player still has an army (didn't lose all soldiers).
-  if (
-    enemy &&
-    combatState === 'idle' &&
-    army.getRegiments().length > 0
-  ) {
-    const ap = army.getPos();
-    const dx = ap.x - enemy.pos.x;
-    const dy = ap.y - enemy.pos.y;
-    if (Math.hypot(dx, dy) <= COMBAT_TRIGGER_RADIUS) {
-      combatState = 'engaged';
-      console.log('[combat] engaged with region', enemy.regionId);
-      startEnterBattle();
-      renderReadout();
+  // Per-nation ticks. Player + AI armies all tick unless their nation
+  // is currently engaged in the player-vs-AI battle scene.
+  for (const n of nations) {
+    if (!n.army) continue;
+    if (combatState === 'engaged') {
+      // Freeze both the player army and the active opponent. Other AIs
+      // continue moving so the world stays alive during your battle.
+      if (n.isPlayer) continue;
+      if (n === activeOpponent) continue;
     }
+    n.army.tick(dtSec);
   }
 
+  if (!gameOver) {
+    tickAi(dtMs);
+    tickEngagements();
+    tickRegionClaims(dtMs);
+    tickCapture(dtMs);
+  }
   tickBattleSystem(dtMs);
 
   worldContainer.scale.set(camera.zoom);
@@ -483,63 +890,80 @@ app.ticker.add(() => {
     readoutStore.setState({ zoom: camera.zoom, view });
   }
 
-  // Re-render the readout only on march transitions or when the army
-  // crosses a region boundary, not every frame.
-  const status = army.getStatus();
-  if (
-    status.marching !== lastArmyMarching ||
-    status.regionId !== lastArmyRegionId ||
-    status.targetRegionId !== lastArmyTarget
-  ) {
-    lastArmyMarching = status.marching;
-    lastArmyRegionId = status.regionId;
-    lastArmyTarget = status.targetRegionId;
-    renderReadout();
+  // Throttle readout rebuilds to march/region transitions; capture
+  // progress already calls renderReadout explicitly each frame it
+  // updates the timer.
+  const player = playerNation();
+  if (player.army) {
+    const status = player.army.getStatus();
+    if (
+      status.marching !== lastArmyMarching ||
+      status.regionId !== lastArmyRegionId ||
+      status.targetRegionId !== lastArmyTarget
+    ) {
+      lastArmyMarching = status.marching;
+      lastArmyRegionId = status.regionId;
+      lastArmyTarget = status.targetRegionId;
+      renderReadout();
+    }
   }
 });
+
+// ===== Readout =====
 
 const readoutEl = document.getElementById('readout')!;
 function renderReadout() {
   const { zoom, view } = readoutStore.getState();
-  const playerRegion = world.regions[world.playerRegionId]!;
-  const status = army.getStatus();
-  const playerRegiments = army.getRegiments();
+  const player = playerNation();
+  const playerRegion = world.regions[player.capitalRegionId]!;
   let armyLine: string;
-  if (playerRegiments.length === 0) {
-    armyLine = 'army destroyed · new map to retry';
-  } else if (status.marching) {
-    const target = status.targetRegionId >= 0 ? `#${status.targetRegionId}` : '?';
-    armyLine = `army marching → ${target}`;
+  let armyComp = '';
+  if (!player.army || player.army.getRegiments().length === 0) {
+    armyLine = 'army destroyed';
   } else {
-    const where =
-      status.regionId === world.playerRegionId
-        ? 'home'
-        : status.regionId >= 0
-          ? `#${status.regionId}`
-          : '?';
-    armyLine = `army @ ${where} · drag to march`;
+    const status = player.army.getStatus();
+    if (status.marching) {
+      const target = status.targetRegionId >= 0 ? `#${status.targetRegionId}` : '?';
+      armyLine = `army marching → ${target}`;
+    } else {
+      const where =
+        status.regionId === player.capitalRegionId
+          ? 'home'
+          : status.regionId >= 0
+            ? `#${status.regionId}`
+            : '?';
+      armyLine = `army @ ${where} · drag to march`;
+    }
+    armyComp = formatRegiments(player.army.getRegiments());
   }
-  const armyComp = formatRegiments(playerRegiments);
-  let enemyLine: string;
-  if (!enemy) {
-    enemyLine = 'no enemy';
-  } else if (combatState === 'engaged') {
-    enemyLine = '>>> BATTLE TRIGGERED <<<';
+  let statusLine: string;
+  const playerCapture = player.captureProgress;
+  const sieger = isSiegedBy(player);
+  if (gameOver === 'victory') statusLine = '>>> VICTORY <<<';
+  else if (gameOver === 'defeat') statusLine = '>>> DEFEAT <<<';
+  else if (combatState === 'engaged' && activeOpponent) statusLine = `>>> BATTLE: vs nation #${activeOpponent.id} <<<`;
+  else if (playerCapture) {
+    const remaining = Math.max(0, Math.ceil((CAPITAL_HOLD_MS - (performance.now() - playerCapture.startedAtMs)) / 1000));
+    statusLine = `CAPTURING capital #${playerCapture.targetNationId} (${remaining}s)`;
+  } else if (sieger) {
+    const remaining = Math.max(0, Math.ceil((CAPITAL_HOLD_MS - (performance.now() - sieger.captureProgress!.startedAtMs)) / 1000));
+    statusLine = `>>> CAPITAL UNDER SIEGE by #${sieger.id} (${remaining}s) <<<`;
   } else {
-    enemyLine = `enemy @ #${enemy.regionId} · march onto it`;
+    const alive = aliveOpponents();
+    if (alive.length === 0) statusLine = 'no enemy remaining';
+    else statusLine = `enemies: ${alive.map((n) => `#${n.id}`).join(' ')}`;
   }
-  const enemyComp = enemy ? formatRegiments(enemy.regiments) : '';
   readoutEl.textContent =
     `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
     `seed ${currentSeed}\n` +
-    `nation #${world.playerRegionId} · ${playerRegion.neighbors.length} borders\n` +
+    `home #${player.capitalRegionId} · ${playerRegion.neighbors.length} borders\n` +
     armyLine + '\n' +
-    `  yours: ${armyComp}\n` +
-    enemyLine +
-    (enemyComp ? `\n  theirs: ${enemyComp}` : '');
+    (armyComp ? `  yours: ${armyComp}\n` : '') +
+    statusLine;
 }
 readoutStore.subscribe(renderReadout);
-renderReadout();
+
+// ===== New-map button =====
 
 const newMapBtn = document.getElementById('newmap')!;
 newMapBtn.addEventListener('click', () => {

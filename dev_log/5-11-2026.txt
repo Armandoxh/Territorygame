@@ -1,0 +1,215 @@
+2026-05-11 — overnight: nail #6.3 (full gameplay loop)
+
+User went to sleep, gave me a big task. After #6.2 the
+battle flow was great but the game wasn't actually a game —
+one enemy, one battle, then nothing. #6.3 closes the loop.
+
+User picks (questions asked before sleep):
+- Next nail: Gameplay loop completion (recommended)
+- AI behavior: Active expansion (most ambitious)
+- Region capture: Occupy capital tile (port.md spec)
+- End-of-game UX: Modal overlay
++ user note: "Tactical battles sure, but not just fight for
+  the sake of it. Resource, economy, upgrades to units, etc
+  to come. Don't forget the big picture."
+
+Big-picture design intent (per the user's note): build
+this nail so that adding future systems (resources, recruit-
+ment, upgrades) means adding fields to existing structures,
+not rewriting them. Hence:
+- Nation type holds all per-faction state in one place
+- Region ownership tracked explicitly (Int16Array) — not
+  derived from "who has an army here." A region the AI just
+  expanded into stays AI-owned even when their army moves on.
+- Capital tile is a real coord (not an abstract concept) so
+  capital-occupation is first-class.
+
+---
+
+Files
+
+nation.ts (NEW):
+  Nation interface. Fields: id, color, capitalRegionId,
+  capitalX/Y, army (or null if destroyed), isPlayer,
+  eliminated, nextDecideAtMs (AI), lastSiegeResponseAtMs,
+  captureProgress (the active capital hold this nation is
+  currently performing, if any).
+
+gameModal.ts (NEW):
+  VICTORY/DEFEAT modal. show(kind, subtitle) and hide().
+  Title color via [data-kind] CSS rule (gold for victory,
+  red for defeat). NEW MAP button calls onRetry.
+
+army.ts:
+  - ArmyDeps gained homeRegionId + color. createArmy uses
+    these instead of world.playerRegionId (was a coupling
+    assumption that only worked for one army).
+  - New marchTo(x, y) method: programmatic march for AIs.
+    No neighbor-region validation (caller's responsibility).
+  - New isMarching(): bool for AI decision gating.
+
+mapRender.ts (rewritten):
+  Takes regionOwner Int16Array + nations[] now. Tints follow
+  ownership: player gets PLAYER_TINT_ALPHA (0.55) of their
+  color; AIs get AI_TINT_ALPHA (0.38); neutral regions get
+  NEUTRAL_COLOR (0x8b8d92) at NEUTRAL_TINT_ALPHA (0.18).
+  Capital markers: one per nation (not per region), color
+  follows current owner. Player's main capital gets the big
+  glyph + white ring. New exported rebuildOwnerLayers()
+  redraws tint + player + capital layers on ownership
+  change. Borders are static (drawn once at build).
+
+main.ts (major rewrite):
+  Replaces let army + let enemy with let nations: Nation[].
+  Loads via single loadMap(seed) path (no separate init-vs-
+  load divergence). All combat / capture / AI logic operates
+  on the nations array.
+
+  Setup helpers:
+   - pickStartingRegions(world, count): player gets the
+     largest region; subsequent picks maximize min-distance
+     to all already-picked. Gives 3 well-spaced spawns.
+   - rollComposition(rng): unchanged from #6.2 follow-up #4
+     (40-100 soldiers, 10-50% cav).
+   - spawnNations(world, seed): creates Nation[] using a
+     dedicated RNG stream from seed ^ 0x9e3779b9 (same
+     pattern as #6.2 follow-up #4).
+   - initRegionOwner: fills Int16Array with -1 except for
+     each nation's capital region.
+
+  Battle state machine: unchanged conceptually, but now
+  references activeOpponent: Nation | null instead of a
+  singleton enemy. battleMenu wiring + simulateBattle calls
+  read activeOpponent.army.getRegiments() etc.
+
+  AI behavior (tickAi):
+   - Every ~10s (jittered ±2.5s), if their army is idle and
+     they're not currently sitting on an enemy capital, pick
+     an expansion target.
+   - Target selection: prefer neutral neighbors of any owned
+     region; fall back to enemy-owned. Random within the
+     preferred pool.
+   - Fight-back: if any other nation is currently capturing
+     this nation's capital (isSiegedBy returns non-null),
+     skip expansion and march army home instead. Re-issue
+     the home march every 2s while siege is active.
+   - "Sit on enemy capital" guard: if this AI is currently
+     within capital-hold radius of an enemy capital, skip
+     this decision cycle so the capture timer runs out.
+
+  AI vs AI battles (resolveAiVsAiBattle):
+   - Triggered from tickEngagements when two AI armies meet.
+   - Runs simulateBattle silently, applies casualties,
+     destroys any army that hits zero.
+   - showAiBattleIcon flashes a small crossed-swords mark at
+     the engagement midpoint for 1.2s, fading out. The icon
+     lives on a dedicated aiBattleIconLayer above the
+     strategic layers.
+
+  Symmetric capital occupation (tickCapture):
+   - Per-nation. If a nation's army is within CAPITAL_HOLD_
+     RADIUS (24wu) of a non-self-owned capital, that nation's
+     captureProgress kicks off.
+   - Same target across frames → progress accumulates;
+     change target / leave radius → reset.
+   - After CAPITAL_HOLD_MS (15s), captureCapital fires:
+     flip ownership of the captured nation's capital region
+     AND all their other regions to the captor; destroy the
+     captured nation's army; mark them eliminated; rebuild
+     ownership-driven layers; check game-over.
+   - Player can't capture during combatState === 'engaged'
+     (the battle freezes them). AIs in silent battles aren't
+     frozen meaningfully — battles resolve in one frame.
+
+  Region claim on arrival (tickRegionClaims):
+   - When a non-eliminated nation's army stops (no longer
+     marching) in a region that is neutral, the region flips
+     to that nation. Enemy-owned non-capital regions don't
+     auto-flip — they stay contested until the owner is
+     eliminated via capital capture. (Future nail: port.md's
+     full per-tile claim with the 30-tick timer.)
+
+  Win/defeat (checkGameOver, called from battle exit +
+  captureCapital):
+   - Defeat if player.army is null/empty OR player capital
+     is owned by another nation.
+   - Victory if all non-player nations are eliminated.
+   - Either fires gameModal.show with the appropriate kind.
+
+  Readout (expanded):
+   - Shows current combat / capture / siege status. New
+     branches: '>>> CAPITAL UNDER SIEGE by #X (Ys) <<<' when
+     someone's besieging the player; 'enemies: #1 #2' when
+     idle. Game-over states also surface in the readout.
+   - Readout re-renders every frame the player is besieged
+     (so the countdown ticks) — gated to avoid full re-render
+     spam otherwise.
+
+  Ticker order each frame:
+   1. Per-nation army.tick(dtSec) — except player + active
+      opponent are frozen during combatState === 'engaged'.
+      Other AIs keep moving.
+   2. tickAi — expansion decisions.
+   3. tickEngagements — pairwise contact check; player vs
+      AI opens menu, AI vs AI resolves silently.
+   4. tickRegionClaims — neutral region pickup.
+   5. tickCapture — symmetric capture progression.
+   6. tickBattleSystem — pre-roll / transition / menu.
+   7. Camera transform + view-tier + readout throttling.
+
+index.html:
+   - New #game-modal overlay with .card containing
+     #game-modal-title (data-kind="victory"|"defeat" drives
+     color), #game-modal-sub (subtitle), #game-modal-retry
+     (NEW MAP button).
+   - High z-index (20) so it overlays the battle menu.
+
+---
+
+Tuning constants (one place to twiddle):
+  AI_NATION_COUNT = 2
+  AI_DECIDE_INTERVAL_MS = 10_000
+  AI_DECIDE_JITTER_MS = 2_500
+  CAPITAL_HOLD_MS = 15_000
+  CAPITAL_HOLD_RADIUS = 24
+  SIEGE_RESPONSE_INTERVAL_MS = 2_000
+  AI_BATTLE_ICON_MS = 1200
+  AI_COLORS = [red, slate-blue, gold, green]
+
+---
+
+What I want eyes on:
+
+- Does the map feel populated and contested? With 2 AIs +
+  player on a 25-region map, the visual should be: 3 colored
+  capitals widely spaced, neutral gray between. AIs expand
+  outward, some regions flip mid-game.
+- Capture pacing: 15s feels right? Fight-back routing is
+  visible — AI walks home when besieged.
+- AI vs AI icon: 1.2s flash readable at strategic zoom?
+- Modal overlay: VICTORY (gold) and DEFEAT (red) titles
+  with subtitle and NEW MAP button. Phone-friendly sizing.
+- Trace verified for: player wins both AIs → victory. Player
+  loses army in battle → defeat. AI captures player capital
+  while player is away → defeat. Player captures one AI then
+  the other → victory.
+
+Known design decisions to call out for future nails:
+- Neutralized AI (army destroyed, capital intact) just sits.
+  No recruitment yet — that's a future nail. They can still
+  be captured by anyone marching onto their capital.
+- Region claim is instant-on-stop for neutrals only. Enemy
+  regions don't fall to mere presence — capital must fall.
+  Port.md's 30-tick-claim rule is a future refinement.
+- Capital marker for captured capitals shows captor's color
+  (not the original nation's). Captured nations' OTHER
+  regions are also flipped to captor on capital capture,
+  for visual coherence.
+- AI vs AI uses simulateBattle's "player/enemy" semantics —
+  first arg is "player" in that call. The mapping is
+  symmetric for the math; just don't read into the labels.
+
+Stub buttons (Attack / Intimidate) still log-only. Attack
+becomes meaningful when soldier sprites + real-time tactical
+combat ship (future nail). Intimidate design is still
+deferred per the user's #6.2 pick.
