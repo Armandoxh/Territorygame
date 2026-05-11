@@ -894,6 +894,13 @@ attachInput({
 
 // ===== Initial bootstrap =====
 
+// readoutEl must be resolved BEFORE the first loadMap(...) call,
+// since loadMap → renderReadout → readoutEl.textContent. If we let
+// the const sit at the bottom of the file (next to renderReadout
+// itself), it's still in TDZ when loadMap runs at module init and
+// the whole boot throws, leaving the page stuck on "booting…".
+const readoutEl = document.getElementById('readout')!;
+
 let lastArmyMarching = false;
 let lastArmyRegionId = -1;
 let lastArmyTarget = -1;
@@ -961,7 +968,6 @@ app.ticker.add(() => {
 
 // ===== Readout =====
 
-const readoutEl = document.getElementById('readout')!;
 function renderReadout() {
   const { zoom, view } = readoutStore.getState();
   const player = playerNation();
