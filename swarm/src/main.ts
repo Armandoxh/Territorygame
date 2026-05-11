@@ -275,7 +275,12 @@ function playerNation(): Nation {
 }
 
 function aliveOpponents(): Nation[] {
-  return nations.filter((n) => !n.isPlayer && !n.eliminated && n.army !== null);
+  // "Alive" here means "still a nation the player has to deal with" —
+  // capital intact. An AI whose army was destroyed in a sim still
+  // owns their capital region and must be physically captured to be
+  // eliminated. (Engagement detection separately checks army !== null
+  // before triggering combat, so that path doesn't fire on armyless AIs.)
+  return nations.filter((n) => !n.isPlayer && !n.eliminated);
 }
 
 // Repaint ownership-dependent layers. Cheap-ish (one Graphics.clear +
