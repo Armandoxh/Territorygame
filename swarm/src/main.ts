@@ -243,7 +243,10 @@ function spawnNations(w: World, seed: number): Nation[] {
       army,
       isPlayer,
       eliminated: false,
-      nextDecideAtMs: performance.now() + AI_DECIDE_INTERVAL_MS + (Math.random() - 0.5) * 2 * AI_DECIDE_JITTER_MS,
+      // Initial decide is sooner than the normal cadence so the map
+      // feels alive within a few seconds of load. Subsequent decisions
+      // use the full AI_DECIDE_INTERVAL_MS.
+      nextDecideAtMs: performance.now() + 2_000 + Math.random() * 2_000,
       lastSiegeResponseAtMs: 0,
       captureProgress: null,
     });
@@ -304,10 +307,12 @@ function loadMap(seed: number) {
   for (const n of nations) {
     if (n.army) n.army.destroy();
   }
-  // Destroy any in-flight transient AI-battle icons before clearing
-  // the strategic layer (otherwise their alpha-fade rAFs leak GPU
-  // resources, though they self-bail via the .destroyed guard).
+  // Destroy any in-flight transient AI-battle icons and capture
+  // rings before clearing the strategic layer. Otherwise the
+  // detached Graphics objects leak GPU resources (their alpha-fade
+  // rAFs would also try to touch them but are guarded by .destroyed).
   for (const c of [...aiBattleIconLayer.children]) c.destroy();
+  for (const c of [...captureProgressLayer.children]) c.destroy();
   strategicLayer.removeChildren();
 
   world = generateWorld({
@@ -877,11 +882,10 @@ attachInput({
   getZoomLocked: () => combatState === 'engaged',
 });
 
-window.addEventListener('keydown', (e) => {
-  if ((e.key === 'b' || e.key === 'B') && inBattle) {
-    startExitBattle();
-  }
-});
+// (B-key dev escape removed: the new Simulate path always resolves the
+// battle decisively, and re-engagement loops if you exit without
+// resolving. If the user wants to bail mid-battle, the "new map"
+// button is one tap away.)
 
 // ===== Initial bootstrap =====
 
