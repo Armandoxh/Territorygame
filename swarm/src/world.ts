@@ -36,7 +36,10 @@ export interface GenerateOpts {
 }
 
 // Mulberry32 — small fast deterministic RNG.
-function makeRng(seed: number): () => number {
+// Mulberry32-style seeded RNG. Exported so other systems (e.g.
+// per-map composition rolls) can derive their own deterministic
+// streams from the same world seed without coupling to map gen.
+export function makeRng(seed: number): () => number {
   let s = seed | 0;
   return () => {
     s = (s + 0x6d2b79f5) | 0;

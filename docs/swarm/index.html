@@ -46,8 +46,10 @@
         position: fixed;
         inset: 0;
         display: none;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: 12px;
         padding: 0 12px;
         pointer-events: none;
         z-index: 10;
@@ -60,6 +62,31 @@
         from { opacity: 0; transform: translateY(6px); }
         to   { opacity: 1; transform: translateY(0); }
       }
+      /* Pre-pick composition lines: which units each side has. Shown
+         alongside the three action cards; hidden when result panel
+         takes over. */
+      #battle-menu-pre {
+        pointer-events: auto;
+        background: rgba(20, 18, 12, 0.86);
+        border: 1px solid rgba(255, 235, 180, 0.22);
+        border-radius: 10px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+        padding: 10px 14px;
+        min-width: 220px;
+        max-width: 320px;
+        color: #f0e8d8;
+        font: 12px/1.5 ui-monospace, Menlo, monospace;
+      }
+      #battle-menu-pre .comp-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+      }
+      #battle-menu-pre .who {
+        opacity: 0.6;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+      }
       #battle-menu-cards {
         display: flex;
         gap: 8px;
@@ -67,9 +94,7 @@
         max-width: 360px;
         justify-content: center;
       }
-      /* The id selector beats the UA's `[hidden] { display: none }`,
-         so we need an explicit override for the hidden attribute to
-         actually hide the cards/result panels when toggled. */
+      #battle-menu-pre[hidden],
       #battle-menu-cards[hidden],
       #battle-menu-result[hidden] { display: none; }
       .battle-card {
@@ -127,18 +152,45 @@
         letter-spacing: 0.1em;
         opacity: 0.7;
         text-align: center;
+        margin-bottom: 4px;
+      }
+      #battle-menu-result .result-round {
+        text-align: center;
+        font: 11px/1 ui-monospace, Menlo, monospace;
+        opacity: 0.5;
         margin-bottom: 10px;
+        letter-spacing: 0.08em;
       }
       #battle-menu-result .result-row {
         display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        font: 13px/1.4 ui-monospace, Menlo, monospace;
-        margin: 4px 0;
+        align-items: center;
+        gap: 8px;
+        font: 12px/1.4 ui-monospace, Menlo, monospace;
+        margin: 5px 0;
       }
       #battle-menu-result .result-row .who {
         opacity: 0.65;
+        min-width: 48px;
       }
+      #battle-menu-result .result-row .comp {
+        min-width: 72px;
+        text-align: right;
+      }
+      #battle-menu-result .bar {
+        flex: 1;
+        height: 8px;
+        background: rgba(255, 235, 180, 0.08);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      #battle-menu-result .bar-fill {
+        height: 100%;
+        width: 100%;
+        background: rgba(240, 232, 216, 0.85);
+        transition: width 260ms ease-out;
+      }
+      /* Same hidden-override pattern as for the menu sub-panels. */
+      #battle-result-dismiss[hidden] { display: none; }
       #battle-result-dismiss {
         margin-top: 12px;
         width: 100%;
@@ -154,13 +206,17 @@
       }
       #battle-result-dismiss:active { background: rgba(110, 84, 42, 0.85); }
     </style>
-    <script type="module" crossorigin src="/Territorygame/swarm/assets/index-BZ3ZwCZy.js"></script>
+    <script type="module" crossorigin src="/Territorygame/swarm/assets/index-CLfpTksP.js"></script>
   </head>
   <body>
     <div id="app"></div>
     <div id="readout">booting…</div>
     <button id="newmap" type="button">new map</button>
     <div id="battle-menu">
+      <div id="battle-menu-pre">
+        <div class="comp-line"><span class="who">YOU</span><span id="battle-comp-player"></span></div>
+        <div class="comp-line"><span class="who">ENEMY</span><span id="battle-comp-enemy"></span></div>
+      </div>
       <div id="battle-menu-cards">
         <button class="battle-card" data-action="attack" type="button">
           <span class="title">ATTACK</span>
@@ -176,10 +232,19 @@
         </button>
       </div>
       <div id="battle-menu-result" hidden>
-        <div id="battle-result-title" class="result-title">SIMULATED</div>
-        <div class="result-row"><span class="who">player</span><span id="battle-result-player"></span></div>
-        <div class="result-row"><span class="who">enemy</span><span id="battle-result-enemy"></span></div>
-        <button id="battle-result-dismiss" type="button">DISMISS</button>
+        <div id="battle-result-title" class="result-title">IN PROGRESS</div>
+        <div id="battle-result-round" class="result-round">Round 0</div>
+        <div class="result-row">
+          <span class="who">player</span>
+          <div class="bar"><div class="bar-fill" id="battle-result-player-bar"></div></div>
+          <span id="battle-result-player" class="comp"></span>
+        </div>
+        <div class="result-row">
+          <span class="who">enemy</span>
+          <div class="bar"><div class="bar-fill" id="battle-result-enemy-bar"></div></div>
+          <span id="battle-result-enemy" class="comp"></span>
+        </div>
+        <button id="battle-result-dismiss" type="button" hidden>DISMISS</button>
       </div>
     </div>
   </body>

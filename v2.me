@@ -12,6 +12,52 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-09  #6.2 follow-up #4: variety + visible simulation
+  WHAT: Three things. (1) Both sides now roll randomized
+        starting compositions per map seed — total in [40,100]
+        soldiers per side with cav share in [10%,50%], so each
+        "new map" gives a different matchup. Same seed = same
+        rolls, fully deterministic. (2) The action menu shows
+        a small panel above the three cards listing each
+        side's composition ("YOU: inf X · cav Y" / "ENEMY:
+        ..."), so the player can see what they're up against
+        before picking Attack/Simulate/Intimidate. (3) The
+        Simulate result panel now animates round-by-round:
+        each round renders for ~300ms (compressed for long
+        battles to stay under a ~3.5s budget), with a round
+        counter ("Round 3 / 12") and force bars per side that
+        shrink as power drops. DISMISS button appears only
+        after the animation completes.
+  WHY:  User played the flow and flagged three real issues:
+        same units every map (boring), can't actually see the
+        simulation (single counter abstracted it away), and
+        no info about enemy composition pre-pick (how do you
+        decide between Attack and Simulate if you don't know
+        the matchup). All three were genuine gaps — adding
+        them turns Simulate from "press button, see number"
+        into "watch the battle unfold" and gives the menu
+        decisions actual weight.
+
+  Implementation: exported makeRng from world.ts so other
+        systems can derive deterministic streams from the
+        same seed. main.ts gained rollComposition(rng) and
+        applyCompositions(seed) helpers, called once at
+        module init and once per loadMap after army+enemy are
+        created (XOR'd seed so the comp rolls don't share RNG
+        state with map generation). battleSim.ts now records
+        a SimSnapshot per round (regiments + power for both
+        sides) plus a refPower for force-bar normalization
+        (max of starting powers, ≥1). battleMenu.ts rewritten:
+        show() takes both sides' regiments and renders the
+        pre-pick panel, showResult() walks snapshots via
+        setTimeout (cancellable), updating round text,
+        regiment lines, and bar widths each step. New HTML
+        nodes #battle-menu-pre, #battle-result-round, plus
+        per-side .bar / .bar-fill elements. CSS uses the
+        same hidden-attribute override pattern as before.
+
+---
+
 2026-05-09  #6.2 follow-up #3: fight-to-finish + decisive battles
   WHAT: Pulled the rout/cooldown mechanic out and replaced
         it with annihilation per port.md ("loser despawns").

@@ -1276,3 +1276,80 @@ What I want eyes on:
 - Pressing B during the battle still exits with no resolution
   (no destruction applied since regiments unchanged). This is
   fine for now — B is the dev escape hatch.
+
+---
+
+[uncommitted] #6.2 follow-up #4: variety + visible simulation
+
+User: "Good flow now, but the same units every map. I can't
+see simulation. Also in the menu where I make a decision on
+attack or simulate show me the units both armies have
+otherwise how would I know"
+
+Three real gaps. Asked two clarifying questions (variety was
+unambiguous — deterministic per seed):
+- Simulation feel → "Round animation + force bars"
+- Pre-pick info → "Two text lines"
+
+(1) Randomized compositions:
+- Exported makeRng from world.ts (mulberry32 stream)
+- main.ts gained:
+    rollComposition(rng): total in [40,100], cav share
+      [10%,50%], cav and inf counts derived
+    applyCompositions(seed): creates a separate RNG stream
+      from `seed ^ 0x9e3779b9` (golden-ratio constant) so
+      comp rolls don't share state with map generation
+- Called at module init (after first army/enemy creation)
+  and inside loadMap (after re-creation)
+- enemy.regiments hardcoded `[]` in spawnEnemy now, gets
+  filled by applyCompositions
+- Same seed → same rolls. "new map" picks a fresh random
+  seed → fresh matchup.
+
+(2) Pre-pick composition display:
+- New #battle-menu-pre HTML node above the three cards.
+  Two lines: "YOU: inf X · cav Y" / "ENEMY: ..."
+- Uses the same formatRegimentLines helper as the readout
+- Menu container switched to flex-direction: column with
+  gap so pre + cards stack cleanly
+- battleMenu.show() now takes (playerRegs, enemyRegs) args;
+  main.ts passes army.getRegiments() and enemy.regiments at
+  the post-entry-transition show() call site
+
+(3) Round-by-round animation + force bars:
+- battleSim.ts now records SimSnapshot per round:
+    { player: Regiment[], enemy: Regiment[],
+      playerPower, enemyPower }
+- snapshots[0] is pre-fight, then one snapshot per round
+- Final snapshot reflects whatever the loop ended on
+  (annihilation or MAX_ROUNDS stalemate)
+- SimResult also exposes refPower = max(pStart, eStart, 1)
+  for force-bar normalization
+- battleMenu.showResult() walks the snapshots:
+    PER_ROUND_MS = 300ms per snapshot
+    ANIM_BUDGET_MS = 3500ms total cap (perStep compresses
+      to fit if there are >11 snapshots)
+- Each step updates: roundEl text, regiment lines, bar
+  widths
+- CSS transition: width 260ms ease-out on .bar-fill, so
+  the bar shrinks visibly between snapshots
+- DISMISS button starts hidden, revealed when animation
+  completes
+- titleEl shows "IN PROGRESS" during animation, swaps to
+  outcome label at end
+- Animation timer (setTimeout) stored in closure, cancelled
+  by hide() and by the next showResult() — handles the
+  pressing-B-mid-animation case cleanly
+
+What I want eyes on:
+- Compositions feel varied enough across a few "new map"
+  presses? Range is 40-100 total, cav 10-50%.
+- Round-by-round feel: 300ms per round + 260ms bar
+  transition. Too fast / too slow?
+- Force bars: refPower = max of starting powers, so the
+  weaker starting side begins under 100% wide. Makes the
+  matchup imbalance visible from the start.
+- Pre-pick panel readability on a phone? Two lines at 12px
+  ui-monospace, ~220px min-width, dark bg.
+- Long-battle compression: 60-snapshot stalemate compresses
+  to ~58ms/step. Visible as a blur but doesn't drag.

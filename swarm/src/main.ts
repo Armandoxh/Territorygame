@@ -1,6 +1,6 @@
 import { Application, Container, Graphics } from 'pixi.js';
 import { createCamera } from './camera';
-import { generateWorld, type World } from './world';
+import { generateWorld, makeRng, type World } from './world';
 import { buildMapLayers, type MapLayers } from './mapRender';
 import { attachInput, type DragHandler } from './input';
 import { createArmy, type Army, type Regiment } from './army';
@@ -121,16 +121,38 @@ function spawnEnemy(w: World): EnemyState | null {
     glyph,
     pos: { x, y },
     regionId: enemyRegionId,
-    regiments: [
-      { type: 'infantry', count: 50 },
-      { type: 'cavalry', count: 20 },
-    ],
+    // Composition is rolled per-seed after spawn (see rollComposition);
+    // this is just a placeholder so the shape is non-empty if the roll
+    // ever doesn't run.
+    regiments: [],
   };
 }
 
 function formatRegiments(regs: readonly Regiment[]): string {
   if (regs.length === 0) return '∅';
   return regs.map((r) => `${UNIT_DEFS[r.type].shortLabel} ${r.count}`).join(' · ');
+}
+
+// Roll a randomized regiment list. Variety per map without committing
+// to per-faction config yet — that lands when AI / recruitment ships.
+// Total in [40,100] and cav share in [10%,50%], integer counts.
+function rollComposition(rng: () => number): Regiment[] {
+  const total = 40 + Math.floor(rng() * 61);
+  const cav = Math.round(total * (0.1 + rng() * 0.4));
+  const inf = total - cav;
+  const out: Regiment[] = [];
+  if (inf > 0) out.push({ type: 'infantry', count: inf });
+  if (cav > 0) out.push({ type: 'cavalry', count: cav });
+  return out;
+}
+
+// Apply rolled compositions to both sides. Derives a separate RNG
+// stream from the world seed (XOR'd with a constant) so the rolls
+// don't share state with map generation.
+function applyCompositions(seed: number) {
+  const rng = makeRng(seed ^ 0x9e3779b9);
+  army.setRegiments(rollComposition(rng));
+  if (enemy) enemy.regiments = rollComposition(rng);
 }
 
 function addLayers(l: MapLayers) {
@@ -165,6 +187,7 @@ let combatState: CombatState = 'idle';
 addLayers(layers);
 strategicLayer.addChild(army.container);
 if (enemy) strategicLayer.addChild(enemy.glyph);
+applyCompositions(currentSeed);
 
 function loadMap(seed: number) {
   currentSeed = seed;
@@ -196,6 +219,7 @@ function loadMap(seed: number) {
   addLayers(layers);
   strategicLayer.addChild(army.container);
   if (enemy) strategicLayer.addChild(enemy.glyph);
+  applyCompositions(seed);
 
   // Recenter camera; new map may have a different land shape.
   camera.panX = WORLD_W / 2;
@@ -341,8 +365,10 @@ function tickBattleSystem(dtMs: number) {
         // to do for it here.
         renderReadout();
       } else {
-        // Entry crossfade just completed — surface the action menu.
-        battleMenu.show();
+        // Entry crossfade just completed — surface the action menu
+        // with the current (pre-battle) compositions so the player
+        // can see what they're up against before picking.
+        battleMenu.show(army.getRegiments(), enemy ? enemy.regiments : []);
       }
     }
   }

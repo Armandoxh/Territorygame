@@ -43,11 +43,26 @@ export interface SimSideResult {
   totalAfter: number;
 }
 
+// One frame of the battle for the result-panel animation: each side's
+// regiment counts and their power scores at that moment. Length =
+// rounds + 1 (snapshot 0 is the pre-fight state, then one per round).
+export interface SimSnapshot {
+  player: Regiment[];
+  enemy: Regiment[];
+  playerPower: number;
+  enemyPower: number;
+}
+
 export interface SimResult {
   player: SimSideResult;
   enemy: SimSideResult;
   outcome: SimOutcome;
   rounds: number;
+  snapshots: SimSnapshot[];
+  // Reference for force-bar normalization. Both bars are drawn at
+  // (current_power / refPower) so the stronger starting side begins at
+  // 100% and the weaker side starts at <100%.
+  refPower: number;
 }
 
 function totalCount(regs: readonly Regiment[]): number {
@@ -94,6 +109,15 @@ function applyRound(target: Regiment[], attackerAtk: number): void {
   }
 }
 
+function takeSnapshot(p: Regiment[], e: Regiment[]): SimSnapshot {
+  return {
+    player: p.map((r) => ({ type: r.type, count: r.count })),
+    enemy: e.map((r) => ({ type: r.type, count: r.count })),
+    playerPower: totalPower(p),
+    enemyPower: totalPower(e),
+  };
+}
+
 export function simulateBattle(player: SimSide, enemy: SimSide): SimResult {
   const pBefore: Regiment[] = player.regiments.map((r) => ({ type: r.type, count: r.count }));
   const eBefore: Regiment[] = enemy.regiments.map((r) => ({ type: r.type, count: r.count }));
@@ -103,9 +127,14 @@ export function simulateBattle(player: SimSide, enemy: SimSide): SimResult {
   let outcome: SimOutcome = 'mutual_destruction';
   let rounds = 0;
 
-  // Degenerate cases — one or both sides start empty.
   const pStart = totalPower(pBefore);
   const eStart = totalPower(eBefore);
+  const refPower = Math.max(pStart, eStart, 1);
+
+  // Snapshot 0 captures the pre-fight state.
+  const snapshots: SimSnapshot[] = [takeSnapshot(pNow, eNow)];
+
+  // Degenerate cases — one or both sides start empty.
   if (pStart === 0 && eStart === 0) outcome = 'mutual_destruction';
   else if (pStart === 0) outcome = 'player_destroyed';
   else if (eStart === 0) outcome = 'enemy_destroyed';
@@ -118,6 +147,7 @@ export function simulateBattle(player: SimSide, enemy: SimSide): SimResult {
       applyRound(eNow, pAtk);  // player → enemy
       applyRound(pNow, eAtk);  // enemy → player
       rounds++;
+      snapshots.push(takeSnapshot(pNow, eNow));
 
       const pPower = totalPower(pNow);
       const ePower = totalPower(eNow);
@@ -127,14 +157,13 @@ export function simulateBattle(player: SimSide, enemy: SimSide): SimResult {
       if (pDestroyed) { outcome = 'player_destroyed'; break; }
       if (eDestroyed) { outcome = 'enemy_destroyed'; break; }
     }
-    // Fell through MAX_ROUNDS without resolution → treat as mutual
-    // destruction. With current tuning + min-1 floor this should never
-    // trigger in practice; it's a guard for pathological inputs.
     if (rounds >= MAX_ROUNDS && totalPower(pNow) > 0 && totalPower(eNow) > 0) {
-      // Zero both sides so the result panel reads "MUTUAL DESTRUCTION"
+      // Stalemate guard fell through. Zero both sides and replace the
+      // final snapshot so the result panel reads "MUTUAL DESTRUCTION"
       // consistently rather than showing leftover soldiers.
       for (const r of pNow) r.count = 0;
       for (const r of eNow) r.count = 0;
+      snapshots[snapshots.length - 1] = takeSnapshot(pNow, eNow);
       outcome = 'mutual_destruction';
     }
   }
@@ -154,5 +183,7 @@ export function simulateBattle(player: SimSide, enemy: SimSide): SimResult {
     },
     outcome,
     rounds,
+    snapshots,
+    refPower,
   };
 }
