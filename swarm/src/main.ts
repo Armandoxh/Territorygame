@@ -50,10 +50,12 @@ const SIEGE_RESPONSE_INTERVAL_MS = 2_000;
 // Brief visual indicator for silent AI vs AI battles.
 const AI_BATTLE_ICON_MS = 1200;
 
-// Curated AI palette — high-contrast, distinct from any plausible player
-// region color and from each other. Player nation uses its own region's
-// generated color.
-const AI_COLORS = [0xd54e3a, 0x6a5acd, 0xe6a800, 0x29a36a];
+// Curated nation palette. Player always gets PLAYER_COLOR (bright
+// cyan-blue) so their territory is instantly recognizable regardless
+// of map seed. AI_COLORS are picked round-robin for the remaining
+// slots — all four are distinct from each other AND from PLAYER_COLOR.
+const PLAYER_COLOR = 0x2ea3ee;
+const AI_COLORS = [0xd54e3a, 0xa05ad0, 0xe6a800, 0x29a36a];
 
 // ----- Pixi app + layers -----
 const app = new Application();
@@ -89,6 +91,14 @@ battleSceneLayer.addChild(battleScene.container);
 // reads at any zoom.
 const aiBattleIconLayer = new Container();
 strategicLayer.addChild(aiBattleIconLayer);
+
+// Progress rings around capitals currently being captured. Redrawn
+// each frame any capture is active (cheap — at most one ring per
+// nation, usually 0-2 active). Color = the captor's color so it's
+// obvious WHO is besieging.
+const captureProgressLayer = new Container();
+strategicLayer.addChild(captureProgressLayer);
+const CAPTURE_RING_RADIUS = 16;
 
 const initialZoom = Math.min(window.innerWidth / WORLD_W, window.innerHeight / WORLD_H) * 0.9;
 
@@ -212,7 +222,7 @@ function spawnNations(w: World, seed: number): Nation[] {
     const regionId = startingRegions[i]!;
     const region = w.regions[regionId]!;
     const isPlayer = i === 0;
-    const color = isPlayer ? region.color : AI_COLORS[(i - 1) % AI_COLORS.length]!;
+    const color = isPlayer ? PLAYER_COLOR : AI_COLORS[(i - 1) % AI_COLORS.length]!;
     const army = createArmy({
       world: w,
       tileSize: TILE_SIZE,
@@ -315,6 +325,9 @@ function loadMap(seed: number) {
   for (const n of nations) {
     if (n.army) strategicLayer.addChild(n.army.container);
   }
+  // Re-mount capture-progress layer on top of armies + capitals so the
+  // ring reads no matter what's underneath.
+  strategicLayer.addChild(captureProgressLayer);
 
   combatState = 'idle';
   activeOpponent = null;
@@ -594,6 +607,33 @@ function resolveAiVsAiBattle(a: Nation, b: Nation) {
   if (b.army.getRegiments().length === 0) {
     b.army.destroy();
     b.army = null;
+  }
+}
+
+// Repaint the per-capture progress rings. Cheap: destroy + redraw all
+// rings each call. Called every frame from the ticker.
+function renderCaptureProgress() {
+  for (const c of [...captureProgressLayer.children]) c.destroy();
+  for (const n of nations) {
+    const cp = n.captureProgress;
+    if (!cp) continue;
+    const target = nations[cp.targetNationId];
+    if (!target) continue;
+    const elapsed = performance.now() - cp.startedAtMs;
+    const t = Math.max(0, Math.min(1, elapsed / CAPITAL_HOLD_MS));
+    const g = new Graphics();
+    // Background ring — faint, full circle, hints at the radius even
+    // when the progress arc hasn't grown.
+    g.circle(0, 0, CAPTURE_RING_RADIUS).stroke({ width: 2, color: 0xffffff, alpha: 0.18 });
+    if (t > 0) {
+      const start = -Math.PI / 2;
+      const end = start + t * Math.PI * 2;
+      g.moveTo(CAPTURE_RING_RADIUS * Math.cos(start), CAPTURE_RING_RADIUS * Math.sin(start));
+      g.arc(0, 0, CAPTURE_RING_RADIUS, start, end, false);
+      g.stroke({ width: 3, color: n.color, alpha: 0.95 });
+    }
+    g.position.set(target.capitalX, target.capitalY);
+    captureProgressLayer.addChild(g);
   }
 }
 
@@ -877,6 +917,7 @@ app.ticker.add(() => {
     tickRegionClaims(dtMs);
     tickCapture(dtMs);
   }
+  renderCaptureProgress();
   tickBattleSystem(dtMs);
 
   worldContainer.scale.set(camera.zoom);
