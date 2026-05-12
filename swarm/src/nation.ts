@@ -9,6 +9,7 @@
 // Multi-army support (drag-select / split / merge) is a future nail.
 
 import type { Army } from './army';
+import type { UnitType } from './units';
 
 export interface Nation {
   id: number;
@@ -43,4 +44,11 @@ export interface Nation {
   // one capital at a time). Capture progresses while the army stays
   // in radius and the target hasn't changed; resets on either change.
   captureProgress: { targetNationId: number; startedAtMs: number } | null;
+  // Recruitment state. Each frame, recruitmentProgress accumulates at
+  // getRecruitmentRate(nation) unit-time per second. When it reaches
+  // the recruitmentPick unit's recruitCost, one soldier is added and
+  // the cost is subtracted. Player can toggle the pick mid-game; AIs
+  // stick to 'infantry' for now.
+  recruitmentPick: UnitType;
+  recruitmentProgress: number;
 }

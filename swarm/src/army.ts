@@ -106,6 +106,11 @@ export interface Army {
   // True if the army is currently mid-march. Used by AI to gate
   // expansion decisions on "is this army idle right now."
   isMarching(): boolean;
+  // Reset position and clear any in-flight march. Used when a wiped
+  // army is being rebuilt by recruitment — the empty container has
+  // been hanging out at the death site, and new recruits should
+  // appear at the capital instead.
+  respawnAt(wx: number, wy: number): void;
   destroy(): void;
 }
 
@@ -261,6 +266,15 @@ export function createArmy(deps: ArmyDeps): Army {
     return march !== null;
   }
 
+  function respawnAt(wx: number, wy: number) {
+    pos.x = wx;
+    pos.y = wy;
+    sprite.position.set(pos.x, pos.y);
+    march = null;
+    dragging = false;
+    redrawMarchLine();
+  }
+
   function destroy() {
     container.destroy({ children: true });
   }
@@ -287,6 +301,7 @@ export function createArmy(deps: ArmyDeps): Army {
     endDrag,
     marchTo,
     isMarching,
+    respawnAt,
     destroy,
   };
 }

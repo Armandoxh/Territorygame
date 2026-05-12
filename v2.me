@@ -12,6 +12,73 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-11  Nail #6.4: recruitment + extensible upgrade hooks
+  WHAT: Capitals now generate soldiers over time. Each owned
+        capital adds +1 unit-time/sec to your nation's
+        recruitment rate. Player picks the unit type via a
+        "recruit: INF/CAV" toggle button in the top-right.
+        Infantry costs 1 unit-time per soldier (so 1 inf/sec
+        at one capital), cavalry costs 2 unit-time (1 cav per
+        2s). AIs recruit too — they default to infantry. Army
+        cap scales with territory: 50 base + 10 per owned
+        region, so expansion enables a bigger army.
+        Recruitment pauses at cap, resumes after casualties.
+        Wiped armies are no longer destroyed — the Army
+        instance hangs around invisible, and the first
+        recruited soldier respawns the army at the capital.
+        Defeat condition relaxed to "capital captured only"
+        (was: capital OR army). Losing your army is now
+        recoverable as long as you hold home.
+  WHY:  Without recruitment, every casualty was permanent and
+        the game got steeper as it went. With recruitment, a
+        bad battle can be recovered from — strategic depth
+        comes from defending your capital long enough for
+        production to refill your army. The unit-cost system
+        ("time proportional to strength") gives the player a
+        real choice each map: cheap fast inf vs slow strong
+        cav. The recruitment-rate function is the planned
+        extension point for buildings/upgrades the user
+        flagged in the big-picture note — currently it's just
+        `capitals × 1`, but the shape is a single function
+        call that future systems can multiply / add into.
+
+  Architecture:
+   - units.ts: recruitCost on UnitDef (inf 1, cav 2)
+   - nation.ts: recruitmentPick + recruitmentProgress fields
+   - army.ts: new respawnAt(x, y) — resets position to capital
+     when an empty army is being rebuilt
+   - main.ts: getRecruitmentRate(n), getArmyCap(n),
+     totalSoldierCount(n), addSoldier(n, type), tickRecruitment
+   - main.ts: removed army.destroy() on battle wipe — Armies
+     persist hidden until recruitment refills them.
+     captureCapital is the only path that genuinely tears
+     down an Army.
+   - main.ts: defeat condition simplified to capital-captured.
+   - index.html: #recruit-toggle button (top-right under
+     "new map"); same min-height 44px for phone tappability.
+   - readout: new "recruit: TYPE X% · current/cap · rate/s"
+     line. Falls back to "AT CAP" or "no capital" wording
+     when recruitment isn't progressing.
+   - Per-frame readout render (replacing throttle) so the
+     recruitment % ticks visibly.
+
+  Tuning constants:
+   - RECRUIT_RATE_PER_CAPITAL = 1 (unit-time / sec / capital)
+   - ARMY_CAP_BASE = 50
+   - ARMY_CAP_PER_REGION = 10
+   - UNIT_DEFS.infantry.recruitCost = 1
+   - UNIT_DEFS.cavalry.recruitCost = 2
+
+  Notes for future nails:
+   - Building/upgrade nail: extend getRecruitmentRate(n) to
+     read per-capital buildings. Same hook for resource
+     yield.
+   - Resource cost: introduce a "gold" pool on Nation;
+     gate addSoldier on gold >= unit.goldCost. Same shape
+     as time-cost gate today.
+
+---
+
 2026-05-09  Nail #6.3 (overnight): full gameplay loop
   WHAT: Game is now playable end-to-end in a single session.
         Three nations on every map (1 player + 2 AIs), each

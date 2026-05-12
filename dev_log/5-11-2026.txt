@@ -213,3 +213,65 @@ Stub buttons (Attack / Intimidate) still log-only. Attack
 becomes meaningful when soldier sprites + real-time tactical
 combat ship (future nail). Intimidate design is still
 deferred per the user's #6.2 pick.
+
+---
+
+2026-05-11 (later) — nail #6.4: recruitment
+
+User asked "what's next" after #6.3 shipped. Picked
+recruitment as the next nail. Key user notes:
+- Recruit rate should scale with what's built on the tile
+  (buildings/upgrades to come). For now, baseline +1/capital
+  but architecture must support per-capital modifiers.
+- Player picks unit type. Time proportional to strength.
+  Will rebalance once tactical battles ship.
+- Army cap scales with regions (50 + 10/region).
+
+Design decision I made + flagged: defeat condition was
+"army destroyed OR capital captured" pre-recruitment. With
+recruitment regrowing armies, the "army destroyed" path
+fires immediately after a battle wipe and would race
+recruitment. Relaxed to capital-captured-only.
+
+Implementation summary in v2.me. Key TDZ check: addSoldier
+calls Army.respawnAt() only when transitioning empty→non-
+empty. Mid-march armies with surviving troops keep their
+position and just gain a recruit at current location. Wiped
+armies (regiments=[]) move to capital on first recruit.
+
+The recruitment-rate function is the planned extension point
+for buildings:
+
+  function getRecruitmentRate(n) {
+    if (n.eliminated) return 0;
+    return ownedCapitalCount(n.id) * RECRUIT_RATE_PER_CAPITAL;
+  }
+
+Future building nail can change this to:
+
+  function getRecruitmentRate(n) {
+    if (n.eliminated) return 0;
+    let r = 0;
+    for (const cap of ownedCapitals(n)) {
+      r += RECRUIT_RATE_PER_CAPITAL;
+      for (const b of cap.buildings) r += b.recruitBonus;
+    }
+    return r;
+  }
+
+Shape stays stable; only the body grows. Same hook fits
+resource yield later.
+
+What I want eyes on:
+- Does the recruitment % feel right? At 1/cap baseline,
+  recovering from a 20-soldier loss takes 20s if recruiting
+  inf. Too slow?
+- Does the cap-by-region incentive feel like real strategic
+  pressure to expand?
+- UI: the "recruit: INF" toggle button under "new map" works
+  on phone? 44px tall.
+- Readout: the new recruit line ("recruit: inf 45% · 60/60 ·
+  1.0/s") readable at 12px monospace?
+- AI vs AI dynamic: AIs now recover from battles. Lost-army
+  AI marches home (fight-back logic), gets recruits, fights
+  back. Should feel like an alive opponent.

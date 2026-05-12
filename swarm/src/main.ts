@@ -4,7 +4,7 @@ import { generateWorld, makeRng, type World } from './world';
 import { buildMapLayers, rebuildOwnerLayers, type MapLayers } from './mapRender';
 import { attachInput, type DragHandler } from './input';
 import { createArmy, type Army, type Regiment } from './army';
-import { UNIT_DEFS } from './units';
+import { UNIT_DEFS, UNIT_TYPES, type UnitType } from './units';
 import { createBattleScene } from './battleScene';
 import { createBattleMenu } from './battleMenu';
 import { simulateBattle } from './battleSim';
@@ -49,6 +49,18 @@ const CAPITAL_HOLD_RADIUS = 24;
 const SIEGE_RESPONSE_INTERVAL_MS = 2_000;
 // Brief visual indicator for silent AI vs AI battles.
 const AI_BATTLE_ICON_MS = 1200;
+
+// ----- Recruitment constants -----
+// Base recruitment rate per owned capital, in "unit-time" per second.
+// Each unit type has a recruitCost (units.ts) — infantry = 1, cav = 2,
+// so a 1-capital nation produces 1 inf/sec or 1 cav per 2s. Future
+// building/upgrade nail multiplies this (see getRecruitmentRate).
+const RECRUIT_RATE_PER_CAPITAL = 1;
+// Army cap. Base + per-region bonus → captured land translates into
+// roof for your army size. Recruitment stops at cap; resumes after
+// casualties drop you back under.
+const ARMY_CAP_BASE = 50;
+const ARMY_CAP_PER_REGION = 10;
 
 // Curated nation palette. Player always gets PLAYER_COLOR (bright
 // cyan-blue) so their territory is instantly recognizable regardless
@@ -249,6 +261,8 @@ function spawnNations(w: World, seed: number): Nation[] {
       nextDecideAtMs: performance.now() + 2_000 + Math.random() * 2_000,
       lastSiegeResponseAtMs: 0,
       captureProgress: null,
+      recruitmentPick: 'infantry',
+      recruitmentProgress: 0,
     });
   }
   return out;
@@ -347,13 +361,6 @@ function loadMap(seed: number) {
   camera.panY = WORLD_H / 2;
   camera.zoom = initialZoom;
 
-  const player = playerNation();
-  if (player.army) {
-    const s = player.army.getStatus();
-    lastArmyMarching = s.marching;
-    lastArmyRegionId = s.regionId;
-    lastArmyTarget = s.targetRegionId;
-  }
   renderReadout();
 }
 
@@ -450,15 +457,12 @@ function tickBattleSystem(dtMs: number) {
         inBattle = false;
         preBattleCamera = null;
         combatState = 'idle';
-        // Strategic layer is visible again — apply post-battle teardown.
-        // If opponent army is gone, null out the army reference and
-        // hide the visual.
-        if (activeOpponent && activeOpponent.army && activeOpponent.army.getRegiments().length === 0) {
-          activeOpponent.army.destroy();
-          activeOpponent.army = null;
-        }
+        // Strategic layer is visible again. With recruitment, armies
+        // are NO LONGER destroyed on battle wipe — the Army instance
+        // stays alive (container hidden via setRegiments side effect)
+        // so the nation's recruitment can repopulate it from the
+        // capital. tickRecruitment + addSoldier handles the respawn.
         activeOpponent = null;
-        // Player army auto-hidden by setRegiments side effect.
         checkGameOver();
         renderReadout();
       } else {
@@ -609,15 +613,10 @@ function resolveAiVsAiBattle(a: Nation, b: Nation) {
   const ap = a.army.getPos();
   const bp = b.army.getPos();
   showAiBattleIcon((ap.x + bp.x) / 2, (ap.y + bp.y) / 2);
-  // Destroy armies that hit zero.
-  if (a.army.getRegiments().length === 0) {
-    a.army.destroy();
-    a.army = null;
-  }
-  if (b.army.getRegiments().length === 0) {
-    b.army.destroy();
-    b.army = null;
-  }
+  // Armies are NOT destroyed on wipe anymore. The Army instance hangs
+  // around (container hidden) so the nation's capital recruitment can
+  // refill it. captureCapital is the only place a nation's army is
+  // genuinely torn down.
 }
 
 // Repaint the per-capture progress rings. Cheap: destroy + redraw all
@@ -799,15 +798,100 @@ function regionAtPos(wx: number, wy: number): number {
 
 // ===== Win / defeat =====
 
+// ===== Recruitment =====
+
+function ownedCapitalCount(nationId: number): number {
+  let c = 0;
+  for (const n of nations) {
+    if (regionOwner[n.capitalRegionId]! === nationId) c++;
+  }
+  return c;
+}
+
+function ownedRegionCount(nationId: number): number {
+  let c = 0;
+  for (let r = 0; r < regionOwner.length; r++) {
+    if (regionOwner[r]! === nationId) c++;
+  }
+  return c;
+}
+
+function totalSoldierCount(n: Nation): number {
+  if (!n.army) return 0;
+  let s = 0;
+  for (const r of n.army.getRegiments()) s += r.count;
+  return s;
+}
+
+// Recruitment rate in unit-time per second. Currently just +1 per
+// owned capital. FUTURE: incorporate per-capital buildings/upgrades
+// (e.g. `capital.buildings.reduce((r, b) => r + b.recruitBonus, base)`)
+// and other modifiers the user mentioned. The shape stays stable;
+// only this function's body grows.
+function getRecruitmentRate(n: Nation): number {
+  if (n.eliminated) return 0;
+  return ownedCapitalCount(n.id) * RECRUIT_RATE_PER_CAPITAL;
+}
+
+function getArmyCap(n: Nation): number {
+  return ARMY_CAP_BASE + ARMY_CAP_PER_REGION * ownedRegionCount(n.id);
+}
+
+// Add one soldier of `type` to nation n's army. If the army was empty
+// (destroyed in a prior battle), the Army instance is still alive but
+// hidden; we respawn it at the capital before the first recruit so
+// new soldiers appear at home, not at the death site.
+function addSoldier(n: Nation, type: UnitType) {
+  if (!n.army) return;
+  const regs = [...n.army.getRegiments()];
+  const wasEmpty = regs.length === 0;
+  if (wasEmpty) {
+    n.army.respawnAt(n.capitalX, n.capitalY);
+  }
+  const idx = regs.findIndex((r) => r.type === type);
+  if (idx >= 0) {
+    regs[idx] = { type: regs[idx]!.type, count: regs[idx]!.count + 1 };
+  } else {
+    regs.push({ type, count: 1 });
+  }
+  n.army.setRegiments(regs);
+}
+
+function tickRecruitment(dtMs: number) {
+  const dtSec = dtMs / 1000;
+  for (const n of nations) {
+    if (n.eliminated || !n.army) continue;
+    const rate = getRecruitmentRate(n);
+    if (rate <= 0) continue;
+    const cap = getArmyCap(n);
+    if (totalSoldierCount(n) >= cap) {
+      // At cap — don't accumulate. Resets to 0 so the bar starts
+      // fresh after a casualty drops us below cap.
+      n.recruitmentProgress = 0;
+      continue;
+    }
+    n.recruitmentProgress += rate * dtSec;
+    const cost = UNIT_DEFS[n.recruitmentPick].recruitCost;
+    let safety = 0;
+    while (n.recruitmentProgress >= cost && safety < 20) {
+      n.recruitmentProgress -= cost;
+      addSoldier(n, n.recruitmentPick);
+      safety++;
+      if (totalSoldierCount(n) >= cap) {
+        n.recruitmentProgress = 0;
+        break;
+      }
+    }
+  }
+}
+
 function checkGameOver() {
   if (gameOver) return;
   const player = playerNation();
-  const playerDestroyed = !player.army || player.army.getRegiments().length === 0;
-  if (playerDestroyed) {
-    gameOver = 'defeat';
-    gameModal.show('defeat', 'Your army was destroyed.');
-    return;
-  }
+  // Defeat is now capital-captured-only. Army destruction is
+  // recoverable via recruitment as long as you hold your capital —
+  // see the recruitment system notes. If both army AND capital are
+  // gone, the capital-owner check below catches it.
   const playerCapitalOwner = regionOwner[player.capitalRegionId]!;
   if (playerCapitalOwner !== player.id) {
     gameOver = 'defeat';
@@ -901,9 +985,6 @@ attachInput({
 // the whole boot throws, leaving the page stuck on "booting…".
 const readoutEl = document.getElementById('readout')!;
 
-let lastArmyMarching = false;
-let lastArmyRegionId = -1;
-let lastArmyTarget = -1;
 loadMap(currentSeed);
 
 // ===== Ticker =====
@@ -932,6 +1013,7 @@ app.ticker.add(() => {
     tickEngagements();
     tickRegionClaims(dtMs);
     tickCapture(dtMs);
+    tickRecruitment(dtMs);
   }
   renderCaptureProgress();
   tickBattleSystem(dtMs);
@@ -947,23 +1029,11 @@ app.ticker.add(() => {
     readoutStore.setState({ zoom: camera.zoom, view });
   }
 
-  // Throttle readout rebuilds to march/region transitions; capture
-  // progress already calls renderReadout explicitly each frame it
-  // updates the timer.
-  const player = playerNation();
-  if (player.army) {
-    const status = player.army.getStatus();
-    if (
-      status.marching !== lastArmyMarching ||
-      status.regionId !== lastArmyRegionId ||
-      status.targetRegionId !== lastArmyTarget
-    ) {
-      lastArmyMarching = status.marching;
-      lastArmyRegionId = status.regionId;
-      lastArmyTarget = status.targetRegionId;
-      renderReadout();
-    }
-  }
+  // Render every frame — recruitment progress (% ticking) and the
+  // capture countdowns both need per-frame updates, and the throttle
+  // logic added more state-tracking than it saved. textContent
+  // updates are cheap.
+  renderReadout();
 });
 
 // ===== Readout =====
@@ -1009,12 +1079,32 @@ function renderReadout() {
     if (alive.length === 0) statusLine = 'no enemy remaining';
     else statusLine = `enemies: ${alive.map((n) => `#${n.id}`).join(' ')}`;
   }
+  // Recruitment status: type being produced, % progress toward next
+  // soldier, and current/cap totals. Hidden when the nation is
+  // eliminated (no longer recruiting).
+  let recruitLine = '';
+  if (!gameOver) {
+    const rate = getRecruitmentRate(player);
+    const cap = getArmyCap(player);
+    const total = totalSoldierCount(player);
+    const cost = UNIT_DEFS[player.recruitmentPick].recruitCost;
+    const pct = cost > 0 ? Math.min(100, Math.floor((player.recruitmentProgress / cost) * 100)) : 0;
+    const pickLabel = UNIT_DEFS[player.recruitmentPick].shortLabel;
+    if (total >= cap) {
+      recruitLine = `  recruit: ${pickLabel} · AT CAP (${total}/${cap})`;
+    } else if (rate <= 0) {
+      recruitLine = `  recruit: ${pickLabel} · no capital (${total}/${cap})`;
+    } else {
+      recruitLine = `  recruit: ${pickLabel} ${pct}% · ${total}/${cap} · ${rate.toFixed(1)}/s`;
+    }
+  }
   readoutEl.textContent =
     `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
     `seed ${currentSeed}\n` +
     `home #${player.capitalRegionId} · ${playerRegion.neighbors.length} borders\n` +
     armyLine + '\n' +
     (armyComp ? `  yours: ${armyComp}\n` : '') +
+    (recruitLine ? recruitLine + '\n' : '') +
     statusLine;
 }
 readoutStore.subscribe(renderReadout);
@@ -1025,3 +1115,26 @@ const newMapBtn = document.getElementById('newmap')!;
 newMapBtn.addEventListener('click', () => {
   loadMap(Math.floor(Math.random() * 0x7fffffff));
 });
+
+// ===== Recruit-type toggle =====
+
+const recruitToggleBtn = document.getElementById('recruit-toggle') as HTMLButtonElement;
+function updateRecruitToggleLabel() {
+  const pick = playerNation().recruitmentPick;
+  const label = UNIT_DEFS[pick].shortLabel.toUpperCase();
+  recruitToggleBtn.textContent = `recruit: ${label}`;
+}
+recruitToggleBtn.addEventListener('click', () => {
+  const p = playerNation();
+  const idx = UNIT_TYPES.indexOf(p.recruitmentPick);
+  const next = UNIT_TYPES[(idx + 1) % UNIT_TYPES.length]!;
+  p.recruitmentPick = next;
+  // Tossing remaining progress would be punitive; convert it across
+  // the new cost denomination so the player isn't penalized for the
+  // switch.
+  // (Simpler approach: keep progress as-is in unit-time. The next
+  // recruit just uses the new cost.)
+  updateRecruitToggleLabel();
+  renderReadout();
+});
+updateRecruitToggleLabel();
