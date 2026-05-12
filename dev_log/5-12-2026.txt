@@ -1,0 +1,75 @@
+2026-05-12 — territory snap-zoom + states + build menu (nail #7)
+
+User proposed it themselves: "Let's do the same snap we do
+for tactical/strategic battle mode but for each territory.
+Each territory should (when you snap in we see a zoomed in
+version of that land. Divided by let's call them states.
+Each state has a resource icon of what it produces the most
+and if you build that there you get a production boost.
+WOW. Now THAT is a novel idea."
+
+It IS novel. Adds a third zoom-tier to the game (strategic
+/ territory / tactical) for the same UX cost as the two we
+already have.
+
+Scope of this nail (slice A from the offered options):
+  - region procgen states (sub-partitions, 3-6 per region)
+  - tap-to-snap into a region with the battle-snap pattern
+  - state-tap → build menu (3 lines, 3 tiers each)
+  - matching resource → visual cue (★ in menu, white halo
+    on the badge)
+  - NO costs, NO production effects, NO mining line
+
+Deferred (user explicit): map resources scattered on tiles,
+costs, mining line, AI building.
+
+Implementation highlights:
+- world.ts adds Region.stateIds[], World.states[], stateOf
+  (Int16Array parallel to regionOf). Procgen step 8 does a
+  per-region Voronoi BFS with K = clamp(round(tileCount /
+  60), 3, 6). Resource pick is uniform random for now —
+  future polish: bias by terrain (woods inland, trade on
+  coasts).
+- buildings.ts: flat tier array indexed by state.id.
+  buildNext returns false at max tier — the same hook
+  cost/prereq logic will plug into when those land.
+- stateLayer.ts: one Container per region; setVisibleRegion
+  toggles. Borders baked once; building icons refreshable.
+- input.ts gained onTap. Single-finger, <= 12px movement,
+  no drag handler hijacking. Eats second-pointer cases
+  (pinch) so taps don't fire mid-pinch.
+- main.ts RegionZoom state machine = copy of
+  battleTransition. fromZoom/toZoom + fromPan/toPan
+  smoothstep-lerped. preZoomCamera snapshot for the
+  restore path. forceExitRegionZoom mirrors
+  forceExitBattle (called from loadMap).
+- Engagement gate: tickEngagements pauses player-vs-AI
+  pair detection while regionZoom !== inactive. AI-vs-AI
+  silently continues so the world stays alive.
+- Mobile UI: bottom-anchored card for state menu, top-left
+  back button. 360px width-friendly.
+
+Mantra compliance:
+- Big nail. Slice A was explicitly user-chosen.
+- Each sub-system (procgen / data / render / input /
+  state machine / menu) sits in its own file with a clear
+  interface; can be iterated independently.
+- Future hooks are present (matchingLine, buildNext return
+  bool, refreshRegionBuildings) so the next nail can land
+  without churning this one.
+
+Open questions for next user round:
+- Resource bias on procgen — should it be uniform random
+  or terrain-driven? (Trade on coastal states, woods
+  inland, farmland sand-adjacent, etc.)
+- Where do map resources sit visually? Per-tile sprite, or
+  state-level icon? (Current resource icon IS state-level
+  — might want both.)
+- When costs land, what's the currency? Time only,
+  population (settlement tier), gold (new resource), or
+  multiple?
+
+Next nail (suggested): map resources + matching boost
+effects. Production rates per state -> nation totals.
+That's still no costs yet — just the production half.
+Costs come after.

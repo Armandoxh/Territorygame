@@ -12,6 +12,94 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-12  Nail #7: territory zoom + states + build menu
+  WHAT: Tap a region in strategic view to SNAP-ZOOM into its
+        interior — like the strategic/tactical battle scene
+        transition, but for territories. Inside the snap:
+        each region is sub-partitioned into 3-6 procgen
+        "states," every state shows a resource icon
+        (farmland / woods / trade hub), and tapping a state
+        opens a build menu with three lines (Settlement /
+        Forestry / Merchant). Each line has 3 tiers. Build
+        is instant and free this nail; matching the line to
+        the state's resource lights up a star marker on the
+        UI and a white outline on the badge (the
+        "production boost" hook lands in the next nail).
+        Back button (top-left) exits the snap. Player-vs-AI
+        engagement detection is suspended while zoomed in
+        so the camera doesn't swap scenes mid-build.
+  WHY:  User's idea, exact words: "Let's do the same snap
+        we do for tactical/strategic battle mode but for
+        each territory. Each territory should (when you
+        snap in we see a zoomed in version of that land.
+        Divided by let's call them states. Each state has a
+        resource icon of what it produces the most and if
+        you build that there you get a production boost.
+        WOW. Now THAT is a novel idea." It is novel — and
+        it gives the strategic map a third zoom-tier
+        (strategic / territory / tactical) for free.
+        Costs / production / map resources / mining line all
+        deferred to follow-up nails per user's scoping
+        ("build the buildings, shape the map to have the
+        resources, then decide costs"). This nail proves
+        out the UI shape end-to-end.
+
+  Architecture:
+   - world.ts: Region.stateIds[], World.states[],
+     World.stateOf (parallel to regionOf). Procgen step 8
+     sub-partitions each region via a per-region Voronoi-
+     style multi-source BFS within the region tiles. K
+     scales with region size (clamp 3..6). Each state gets
+     a resource type (RESOURCE_FARMLAND / WOODS / TRADE,
+     uniform random for now). All deterministic from world
+     seed.
+   - buildings.ts: per-state tier record (settlement /
+     forestry / merchant tiers 0..3). initBuildings on
+     loadMap; buildNext(stateId, line) bumps tier or
+     rejects at max. matchingLine(resource) -> the line
+     that pairs 1:1 with that resource.
+   - stateLayer.ts: pre-bakes state borders + resource
+     icons per region; refreshRegionBuildings(rid) re-draws
+     just the building-icon stack for one region.
+     setVisibleRegion(rid|null) toggles which region's
+     overlay is shown (only one at a time).
+   - input.ts: gained an onTap callback. Pointer tracked
+     start position; if displacement <= 12px and no drag
+     handler hijacked and no second pointer ever joined,
+     pointerup fires onTap. Single-finger only.
+   - main.ts: RegionZoom state machine (inactive →
+     entering → active → exiting → inactive). Mirrors the
+     battleTransition lerp. Strategic layer dims to ~0.45
+     and the state overlay fades in during entry; reverse
+     on exit. preZoomCamera snapshot for the restore path.
+     Tap routing: in 'active' mode, tap = state-tap → open
+     build menu (in-active region only); otherwise tap =
+     region-tap → start zoom.
+   - HTML/CSS: bottom-anchored #state-menu modal (mobile
+     target: 360×740 — card sits at the bottom with big
+     tap targets); top-left #region-zoom-back button
+     mirroring the existing top-right new-map / recruit
+     buttons.
+   - Engagement gate: tickEngagements now skips player-vs-
+     AI pairs while regionZoom is anything but inactive,
+     so the battle-snap and region-snap never collide.
+
+  Notes for future:
+   - Map resources scattered on tiles (user's flagged
+     follow-up). Will gate mining line + add the actual
+     production effects per resource.
+   - AI doesn't build anything yet — only the player can
+     enter region-zoom and tap states. AIs progress
+     economically through the same hooks once we wire
+     building effects.
+   - Costs (user explicitly deferred: "I wanna build the
+     buildings, shape the map to have the resources, then
+     decide costs"). Future-friendly: the buildNext()
+     return-bool already has a place to reject a build
+     for any reason (cost, prereq, etc).
+
+---
+
 2026-05-11  Movement model: STRAIGHT LINE or reject
   WHAT: Reverted the BFS auto-routing from the previous
         commit. Drag-to-move is now literally a straight

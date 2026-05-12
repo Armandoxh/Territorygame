@@ -3,12 +3,25 @@
 // The world is a width*height tile grid. Each tile has:
 //   - a terrain type (water, sand, grass)
 //   - a region id (or -1 if water)
+//   - a state id (sub-partition within its region, or -1 if water)
 // Regions are organic blobs grown by multi-source BFS from random
-// seeds. Each region gets a placeholder owner color.
+// seeds. Each region gets a placeholder owner color. Within each
+// region, tiles are further sub-partitioned into "states" (3-6 per
+// region depending on size) — each state has a resource type that
+// will match exactly one of the building lines (settlement / forestry
+// / merchant). Matching = production boost in a future nail.
 
 export const TERRAIN_WATER = 0;
 export const TERRAIN_SAND = 1;
 export const TERRAIN_GRASS = 2;
+
+// Resource types map 1:1 to building lines. A state's resource is
+// procgen-fixed at world gen and doesn't change. The matching line
+// gets a production boost when built there (future nail).
+export const RESOURCE_FARMLAND = 0;  // matches Settlement line (tent/house/town)
+export const RESOURCE_WOODS = 1;     // matches Forestry line (mill/processing/refinement)
+export const RESOURCE_TRADE = 2;     // matches Merchant line (stall/bazaar/exchange)
+export type ResourceType = 0 | 1 | 2;
 
 export interface Region {
   id: number;
@@ -17,6 +30,19 @@ export interface Region {
   centroidY: number;
   tileCount: number;
   neighbors: number[];  // sorted, unique region ids that share a tile-edge with this one
+  // Indices into World.states for the sub-partitions of this region.
+  // Ordered by local id (state.localId).
+  stateIds: number[];
+}
+
+export interface State {
+  id: number;          // global, unique across all states in the world
+  regionId: number;    // parent region
+  localId: number;     // index within parent region (0..K-1)
+  centroidX: number;   // float world tile-coords
+  centroidY: number;
+  tileCount: number;
+  resource: ResourceType;
 }
 
 export interface World {
@@ -24,7 +50,12 @@ export interface World {
   height: number;
   terrain: Uint8Array;     // length = width*height
   regionOf: Int16Array;    // length = width*height; -1 = water
+  // Parallel to regionOf; index into World.states (global). -1 if water.
+  // A tile's state is always within its region; stateOf is just the
+  // pre-computed mapping so tile→state is one array lookup.
+  stateOf: Int16Array;
   regions: Region[];
+  states: State[];
   playerRegionId: number;  // index into regions; the human player's home
 }
 
@@ -212,6 +243,7 @@ export function generateWorld(opts: GenerateOpts): World {
     centroidY: sumY[idx]! / Math.max(1, tileCount[idx]!),
     tileCount: tileCount[idx]!,
     neighbors: [],
+    stateIds: [],  // filled in step 8
   }));
 
   // 6. Adjacency graph: for each pair of differing region ids meeting at a
@@ -255,5 +287,141 @@ export function generateWorld(opts: GenerateOpts): World {
     }
   }
 
-  return { width, height, terrain, regionOf, regions, playerRegionId };
+  // 8. States: sub-partition each region into 3-6 "states" via a
+  //    Voronoi-style BFS within that region. Each state gets a
+  //    resource type for the matching-building-line system.
+  const stateOf = new Int16Array(N);
+  stateOf.fill(-1);
+  const states: State[] = [];
+  // Collect tile indices per region in a single pass — much faster
+  // than re-scanning the full grid per region.
+  const tilesByRegion: number[][] = regions.map(() => []);
+  for (let i = 0; i < N; i++) {
+    const r = regionOf[i]!;
+    if (r >= 0) tilesByRegion[r]!.push(i);
+  }
+  for (let r = 0; r < regions.length; r++) {
+    const tiles = tilesByRegion[r]!;
+    if (tiles.length === 0) {
+      regions[r]!.stateIds = [];
+      continue;
+    }
+    // K scales with region size; clamp 3..6. Tiny regions still get
+    // 3 states (visually meaningful sub-divisions even in small
+    // territory). Very large regions cap at 6 to keep the build UI
+    // manageable.
+    const K = Math.max(3, Math.min(6, Math.round(tiles.length / 60)));
+    // Pick K seeds within the region with min-spacing. Use the
+    // shared rng so seed → world is deterministic.
+    const seedTiles: number[] = [];
+    const minSpacing = Math.max(2, Math.sqrt(tiles.length / K) * 0.5);
+    const minSpacingSq = minSpacing * minSpacing;
+    let stateAttempts = 0;
+    const maxStateAttempts = K * 200;
+    while (seedTiles.length < K && stateAttempts < maxStateAttempts) {
+      stateAttempts++;
+      const cand = tiles[Math.floor(rng() * tiles.length)]!;
+      const cx2 = cand % width;
+      const cy2 = (cand / width) | 0;
+      let ok = true;
+      for (const s of seedTiles) {
+        const sxs = s % width;
+        const sys = (s / width) | 0;
+        const ddx = sxs - cx2;
+        const ddy = sys - cy2;
+        if (ddx * ddx + ddy * ddy < minSpacingSq) { ok = false; break; }
+      }
+      if (ok) seedTiles.push(cand);
+    }
+    // If spacing was too tight (small regions can't fit K seeds),
+    // fall back to taking the first K random tiles. Ensures every
+    // region has at least 1 state.
+    if (seedTiles.length === 0) seedTiles.push(tiles[0]!);
+    const actualK = seedTiles.length;
+    // Allocate global state ids contiguous per region.
+    const startId = states.length;
+    const stateIds: number[] = [];
+    for (let k = 0; k < actualK; k++) {
+      const id = startId + k;
+      stateIds.push(id);
+      // Random resource pick (uniform). Future polish: bias by
+      // terrain (woods inland, trade on coasts, etc.).
+      const resource = Math.floor(rng() * 3) as ResourceType;
+      states.push({
+        id,
+        regionId: r,
+        localId: k,
+        centroidX: 0,  // filled in after BFS
+        centroidY: 0,
+        tileCount: 0,
+        resource,
+      });
+    }
+    regions[r]!.stateIds = stateIds;
+    // Multi-source BFS: each tile gets assigned the state of the
+    // nearest seed (in BFS hop distance, which is roughly Voronoi).
+    const stateQ: number[] = [];
+    for (let k = 0; k < actualK; k++) {
+      stateOf[seedTiles[k]!] = startId + k;
+      stateQ.push(seedTiles[k]!);
+    }
+    let stateHead = 0;
+    while (stateHead < stateQ.length) {
+      const i = stateQ[stateHead++]!;
+      const x = i % width;
+      const y = (i / width) | 0;
+      const myS = stateOf[i]!;
+      // 4-way; only walk into same-region tiles. No order shuffle
+      // here — region boundaries are already organic; state borders
+      // can be a bit straighter without hurting the look.
+      if (x > 0) {
+        const ni = i - 1;
+        if (regionOf[ni] === r && stateOf[ni] === -1) {
+          stateOf[ni] = myS;
+          stateQ.push(ni);
+        }
+      }
+      if (x < width - 1) {
+        const ni = i + 1;
+        if (regionOf[ni] === r && stateOf[ni] === -1) {
+          stateOf[ni] = myS;
+          stateQ.push(ni);
+        }
+      }
+      if (y > 0) {
+        const ni = i - width;
+        if (regionOf[ni] === r && stateOf[ni] === -1) {
+          stateOf[ni] = myS;
+          stateQ.push(ni);
+        }
+      }
+      if (y < height - 1) {
+        const ni = i + width;
+        if (regionOf[ni] === r && stateOf[ni] === -1) {
+          stateOf[ni] = myS;
+          stateQ.push(ni);
+        }
+      }
+    }
+    // State centroids + tile counts.
+    for (let k = 0; k < actualK; k++) {
+      const sid = startId + k;
+      let sx = 0;
+      let sy = 0;
+      let count = 0;
+      for (const i of tiles) {
+        if (stateOf[i] === sid) {
+          sx += i % width;
+          sy += (i / width) | 0;
+          count++;
+        }
+      }
+      const st = states[sid]!;
+      st.tileCount = count;
+      st.centroidX = count > 0 ? sx / count : 0;
+      st.centroidY = count > 0 ? sy / count : 0;
+    }
+  }
+
+  return { width, height, terrain, regionOf, stateOf, regions, states, playerRegionId };
 }

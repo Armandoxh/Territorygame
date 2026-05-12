@@ -11,6 +11,9 @@ import { simulateBattle } from './battleSim';
 import type { Nation } from './nation';
 import { createGameModal, type GameModal } from './gameModal';
 import { readoutStore, type ViewLabel } from './store';
+import { createStateLayer, type StateLayer } from './stateLayer';
+import { initBuildings, buildNext, getBuildings, type BuildingLine } from './buildings';
+import { createStateMenu, type StateMenu } from './stateMenu';
 
 // ----- World / camera constants -----
 const TILE_SIZE = 16;
@@ -91,12 +94,19 @@ document.getElementById('app')!.appendChild(app.canvas);
 //     │    ├─ MapLayers (terrain → capitals)
 //     │    ├─ nation army containers
 //     │    └─ aiBattleIconLayer (transient flash markers)
+//     ├─ stateOverlayContainer (state borders + resource/building icons,
+//     │    visible only in region-zoom mode)
 //     └─ battleSceneLayer (dirt + future tactical sprites)
 const worldContainer = new Container();
 const strategicLayer = new Container();
+// Holder for the stateLayer; the StateLayer module owns its own
+// children container but we add/remove it from worldContainer here
+// so we control z-order (above strategic, below battle).
+const stateOverlayContainer = new Container();
 const battleSceneLayer = new Container();
 battleSceneLayer.alpha = 0;
 worldContainer.addChild(strategicLayer);
+worldContainer.addChild(stateOverlayContainer);
 worldContainer.addChild(battleSceneLayer);
 app.stage.addChild(worldContainer);
 
@@ -171,6 +181,35 @@ let battleTransition:
     }
   | null = null;
 let preBattleCamera: { zoom: number; panX: number; panY: number } | null = null;
+
+// ----- Region-zoom (territory build view) state -----
+// Tap-snap into a single region to see its sub-state breakdown and
+// build on individual states. Mirrors the battleTransition state
+// machine: idle → entering (lerp) → active → exiting (lerp) → idle.
+// stateLayer (the visual overlay) is owned by the region-zoom system.
+type RegionZoom =
+  | { mode: 'inactive' }
+  | {
+      mode: 'entering' | 'exiting';
+      regionId: number;
+      startMs: number;
+      duration: number;
+      fromZoom: number;
+      toZoom: number;
+      fromPanX: number;
+      toPanX: number;
+      fromPanY: number;
+      toPanY: number;
+    }
+  | { mode: 'active'; regionId: number };
+let regionZoom: RegionZoom = { mode: 'inactive' };
+let preZoomCamera: { zoom: number; panX: number; panY: number } | null = null;
+let stateLayerObj: StateLayer | null = null;
+const REGION_ZOOM_TRANSITION_MS = 360;
+// Cap region-zoom in-mode zoom so even very small regions don't
+// over-magnify. Reusing TACTICAL_ZOOM (6.0) as the ceiling — same
+// "as zoomed as battle scene" feel for symmetry.
+const REGION_ZOOM_CEILING = 6.0;
 
 // ----- Capture state is per-Nation (see nation.captureProgress). -----
 
@@ -321,9 +360,10 @@ function rebuildLayers() {
 function loadMap(seed: number) {
   currentSeed = seed;
 
-  // Force-exit any in-flight battle / capture / game-over state so the
-  // new world starts clean.
+  // Force-exit any in-flight battle / capture / game-over / region-zoom
+  // state so the new world starts clean.
   forceExitBattle();
+  forceExitRegionZoom();
   for (const n of nations) n.captureProgress = null;
   gameOver = null;
   gameModal.hide();
@@ -357,6 +397,15 @@ function loadMap(seed: number) {
   regionOwner = initRegionOwner(world, nations);
   layers = buildMapLayers(world, TILE_SIZE, regionOwner, nations);
   addLayers(layers);
+  // Per-state buildings: fresh slate on every map load.
+  initBuildings(world.states.length);
+  // Tear down the old state overlay and rebuild from the new world.
+  if (stateLayerObj) {
+    stateOverlayContainer.removeChild(stateLayerObj.container);
+    stateLayerObj.destroy();
+  }
+  stateLayerObj = createStateLayer(world, TILE_SIZE);
+  stateOverlayContainer.addChild(stateLayerObj.container);
   // aiBattleIconLayer is shared across map loads — re-add on top.
   strategicLayer.addChild(aiBattleIconLayer);
   for (const n of nations) {
@@ -489,6 +538,130 @@ function tickBattleSystem(dtMs: number) {
   }
 }
 
+// ===== Region-zoom (territory build) state machine =====
+
+function regionZoomBackBtn(): HTMLButtonElement | null {
+  return document.getElementById('region-zoom-back') as HTMLButtonElement | null;
+}
+
+function startEnterRegionZoom(regionId: number) {
+  // Defensive: only one zoom-snap in flight; battle takes priority.
+  if (regionZoom.mode !== 'inactive') return;
+  if (inBattle || battleEntryTimer !== null || battleTransition !== null) return;
+  if (combatState === 'engaged' || gameOver) return;
+  const region = world.regions[regionId];
+  if (!region) return;
+  preZoomCamera = { zoom: camera.zoom, panX: camera.panX, panY: camera.panY };
+  // Target zoom: enough that the region fills most of the smaller
+  // viewport dimension. sqrt(tileCount) approximates region edge in
+  // tiles; multiply by TILE_SIZE and add ~30% margin so the region
+  // doesn't kiss the edges.
+  const sideTiles = Math.max(4, Math.sqrt(region.tileCount));
+  const sidePixels = sideTiles * TILE_SIZE * 1.4;
+  const vp = { w: app.screen.width, h: app.screen.height };
+  const fit = Math.min(vp.w, vp.h) / sidePixels;
+  const toZoom = Math.max(1.2, Math.min(REGION_ZOOM_CEILING, fit));
+  const toPanX = region.centroidX * TILE_SIZE + TILE_SIZE / 2;
+  const toPanY = region.centroidY * TILE_SIZE + TILE_SIZE / 2;
+  regionZoom = {
+    mode: 'entering',
+    regionId,
+    startMs: performance.now(),
+    duration: REGION_ZOOM_TRANSITION_MS,
+    fromZoom: camera.zoom,
+    toZoom,
+    fromPanX: camera.panX,
+    toPanX,
+    fromPanY: camera.panY,
+    toPanY,
+  };
+  if (stateLayerObj) {
+    stateLayerObj.setVisibleRegion(regionId);
+    stateLayerObj.container.alpha = 0;
+  }
+  const btn = regionZoomBackBtn();
+  if (btn) btn.classList.add('visible');
+}
+
+function startExitRegionZoom() {
+  if (regionZoom.mode !== 'active') return;
+  if (!preZoomCamera) return;
+  stateMenu.hide();
+  regionZoom = {
+    mode: 'exiting',
+    regionId: regionZoom.regionId,
+    startMs: performance.now(),
+    duration: REGION_ZOOM_TRANSITION_MS,
+    fromZoom: camera.zoom,
+    toZoom: preZoomCamera.zoom,
+    fromPanX: camera.panX,
+    toPanX: preZoomCamera.panX,
+    fromPanY: camera.panY,
+    toPanY: preZoomCamera.panY,
+  };
+}
+
+function forceExitRegionZoom() {
+  regionZoom = { mode: 'inactive' };
+  preZoomCamera = null;
+  strategicLayer.alpha = 1;
+  if (stateLayerObj) {
+    stateLayerObj.container.alpha = 1;
+    stateLayerObj.setVisibleRegion(null);
+  }
+  stateMenu.hide();
+  const btn = regionZoomBackBtn();
+  if (btn) btn.classList.remove('visible');
+}
+
+function tickRegionZoomSystem(_dtMs: number) {
+  if (regionZoom.mode !== 'entering' && regionZoom.mode !== 'exiting') return;
+  const t = (performance.now() - regionZoom.startMs) / regionZoom.duration;
+  const e = smoothstep(t);
+  camera.zoom = regionZoom.fromZoom + (regionZoom.toZoom - regionZoom.fromZoom) * e;
+  camera.panX = regionZoom.fromPanX + (regionZoom.toPanX - regionZoom.fromPanX) * e;
+  camera.panY = regionZoom.fromPanY + (regionZoom.toPanY - regionZoom.fromPanY) * e;
+  if (regionZoom.mode === 'entering') {
+    // Fade other-region detail down, state layer up.
+    strategicLayer.alpha = 1 - e * 0.55;  // dim to ~0.45
+    if (stateLayerObj) stateLayerObj.container.alpha = e;
+  } else {
+    strategicLayer.alpha = 0.45 + e * 0.55;
+    if (stateLayerObj) stateLayerObj.container.alpha = 1 - e;
+  }
+  if (t >= 1) {
+    const wasEntering = regionZoom.mode === 'entering';
+    const rid = regionZoom.regionId;
+    if (wasEntering) {
+      regionZoom = { mode: 'active', regionId: rid };
+    } else {
+      regionZoom = { mode: 'inactive' };
+      preZoomCamera = null;
+      strategicLayer.alpha = 1;
+      if (stateLayerObj) {
+        stateLayerObj.container.alpha = 1;
+        stateLayerObj.setVisibleRegion(null);
+      }
+      const btn = regionZoomBackBtn();
+      if (btn) btn.classList.remove('visible');
+    }
+  }
+}
+
+function openStateMenu(stateId: number) {
+  const st = world.states[stateId];
+  if (!st) return;
+  const ownedByPlayer = regionOwner[st.regionId] === playerNation().id;
+  const b = getBuildings(stateId);
+  stateMenu.show({
+    stateId,
+    regionId: st.regionId,
+    resource: st.resource,
+    tiers: { settlement: b.settlement, forestry: b.forestry, merchant: b.merchant },
+    ownedByPlayer,
+  });
+}
+
 // ===== AI behavior =====
 
 function pickExpansionTarget(n: Nation): number {
@@ -572,9 +745,14 @@ function tickAi(_dtMs: number) {
 function tickEngagements() {
   if (combatState !== 'idle') return;  // player already engaged; pairs paused
   if (gameOver) return;
+  // Player-vs-AI detection is suspended while the player is in
+  // region-zoom (build) mode. The battle scene transition + the
+  // region-zoom transition share the camera; firing both would
+  // produce a jarring scene swap. AI-vs-AI pairs still run silently.
+  const playerBusy = regionZoom.mode !== 'inactive';
   // First: check player vs each AI. Player gets the menu UI.
   const player = playerNation();
-  if (player.army && player.army.getRegiments().length > 0) {
+  if (!playerBusy && player.army && player.army.getRegiments().length > 0) {
     const pp = player.army.getPos();
     for (const n of nations) {
       if (n.isPlayer || n.eliminated || !n.army) continue;
@@ -895,6 +1073,13 @@ function regionAtPos(wx: number, wy: number): number {
   return world.regionOf[ty * world.width + tx]!;
 }
 
+function stateAtPos(wx: number, wy: number): number {
+  const tx = Math.floor(wx / TILE_SIZE);
+  const ty = Math.floor(wy / TILE_SIZE);
+  if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return -1;
+  return world.stateOf[ty * world.width + tx]!;
+}
+
 // ===== Win / defeat =====
 
 // ===== Recruitment =====
@@ -1038,6 +1223,28 @@ const gameModal: GameModal = createGameModal({
   },
 });
 
+// ===== State (territory build) menu =====
+
+const stateMenu: StateMenu = createStateMenu({
+  onBuild: (stateId, line) => {
+    if (regionZoom.mode !== 'active') return;
+    // Defensive: only the player can build, and only on their owned
+    // regions. The menu enforces this UI-side too but the data path
+    // should not trust the UI.
+    const st = world.states[stateId];
+    if (!st) return;
+    if (regionOwner[st.regionId] !== playerNation().id) return;
+    const ok = buildNext(stateId, line);
+    if (!ok) return;
+    stateLayerObj?.refreshRegionBuildings(st.regionId);
+    // Refresh the menu in place so the new tier shows immediately.
+    openStateMenu(stateId);
+  },
+  onClose: () => {
+    stateMenu.hide();
+  },
+});
+
 // ===== Input =====
 
 // Drag handler bridge. The player nation is always nations[0]; we
@@ -1067,8 +1274,50 @@ attachInput({
   camera,
   getViewport: () => ({ w: app.screen.width, h: app.screen.height }),
   getDragHandler: () => armyDragHandler,
-  getZoomLocked: () => combatState === 'engaged',
+  // Zoom is locked during battle AND while inside region-zoom (or
+  // transitioning to/from it) so the snap stays at the framed scale.
+  // Pan stays free in both modes so the player can look around.
+  getZoomLocked: () =>
+    combatState === 'engaged' || regionZoom.mode !== 'inactive',
+  onTap: (sx, sy) => handleTap(sx, sy),
 });
+
+function handleTap(sx: number, sy: number) {
+  // Eat taps that would land on visible HTML overlays (battle menu,
+  // game-over modal, state menu, back button). DOM stops propagation
+  // already for these but we'll early-out on visible-modal anyway to
+  // avoid edge cases.
+  if (gameOver) return;
+  if (combatState === 'engaged' || inBattle || battleEntryTimer !== null || battleTransition !== null) return;
+  if (regionZoom.mode === 'entering' || regionZoom.mode === 'exiting') return;
+  if (stateMenu.isVisible()) return;
+  const wp = screenToWorld(sx, sy);
+  if (regionZoom.mode === 'active') {
+    // Inside region-zoom: tap a state in THIS region to open menu.
+    // Taps outside the active region or on water = no-op (use the
+    // back button to leave).
+    const sid = stateAtPos(wp.x, wp.y);
+    if (sid < 0) return;
+    const tappedState = world.states[sid];
+    if (!tappedState || tappedState.regionId !== regionZoom.regionId) return;
+    openStateMenu(sid);
+    return;
+  }
+  // Strategic / operational view: tap a region to snap-zoom into it.
+  const rid = regionAtPos(wp.x, wp.y);
+  if (rid < 0) return;
+  startEnterRegionZoom(rid);
+}
+
+// Back button — exit region-zoom mode.
+{
+  const btn = document.getElementById('region-zoom-back') as HTMLButtonElement | null;
+  if (btn) {
+    btn.addEventListener('click', () => {
+      if (regionZoom.mode === 'active') startExitRegionZoom();
+    });
+  }
+}
 
 // (B-key dev escape removed: the new Simulate path always resolves the
 // battle decisively, and re-engagement loops if you exit without
@@ -1116,6 +1365,7 @@ app.ticker.add(() => {
   }
   renderCaptureProgress();
   tickBattleSystem(dtMs);
+  tickRegionZoomSystem(dtMs);
 
   worldContainer.scale.set(camera.zoom);
   worldContainer.position.set(vw / 2 - camera.panX * camera.zoom, vh / 2 - camera.panY * camera.zoom);
