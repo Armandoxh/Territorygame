@@ -1,78 +1,64 @@
-// Grand-map resource overlay. Renders a small terrain-feature glyph
-// on every tile that has a resource — mountains for ore, trees for
-// forest, fields for farmland, fallback circle-with-letter for any
-// resource that hasn't gotten a custom glyph yet.
+// Grand-map resource overlay. Top-down "satellite" view: every tile
+// that has a resource gets a flat colored fill of that resource's
+// color. Patches grow as BFS blobs in world gen, so the rendered
+// shape is a natural organic mass — a green forest, a gray mountain
+// range, a yellow field — not a grid of repeated icons.
 //
-// Each glyph kind is batched into one Graphics object so the entire
-// world's worth of resource decoration is just a handful of draw
-// calls. Adding a new glyph: add the enum value in resources.ts and
-// a matching draw function below; the renderer dispatches on
-// def.glyph automatically.
+// Slight per-tile shade variation keeps the fill from looking dead-
+// flat: each tile's color is perturbed by a deterministic hash on
+// its grid coords. Same seed → same look.
+//
+// Sits UNDER the ownership-tint layer (see main.ts layer order) so
+// the player's territory color blends with the terrain color
+// rather than hiding it.
+//
+// One Graphics per resource id (batched rects) so the entire world's
+// worth of fills is a handful of draw calls.
 
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import type { World } from './world';
-import { getResourceDef, type ResourceGlyph, type ResourceDef } from './resources';
+import { getResourceDef } from './resources';
 
 export interface MapResourceLayer {
   container: Container;
   destroy(): void;
 }
 
+// ±SHADE_RANGE applied to the v channel of the resource color per
+// tile. Visible but subtle. 0 = perfectly flat, 0.15 = noisy.
+const SHADE_RANGE = 0.08;
+
 export function createMapResourceLayer(world: World, tileSize: number): MapResourceLayer {
   const container = new Container();
 
-  // One Graphics per glyph kind — keeps draw count tiny even with
-  // thousands of resource tiles.
-  const graphicsByGlyph: Record<ResourceGlyph, Graphics> = {
-    mountain: new Graphics(),
-    tree: new Graphics(),
-    farm: new Graphics(),
-    circle: new Graphics(),
-  };
-  // Fallback-circle resources also need text labels; collect them
-  // and add as a Container so the Graphics can stay path-only.
-  const circleLabels = new Container();
-
-  // Pre-resolve def per resource id for the hot loop.
-  const defById = new Map<number, ResourceDef>();
-  for (let i = 0; i < world.resourceOf.length; i++) {
-    const rid = world.resourceOf[i]!;
-    if (rid < 0) continue;
-    if (!defById.has(rid)) defById.set(rid, getResourceDef(rid));
-  }
+  // One Graphics per resource id. Pushed into a stable z-order
+  // (lower id = drawn first = visually below). The order doesn't
+  // matter much for this layer since patches are non-overlapping
+  // by construction (the BFS scatter never paints over a tile that
+  // already has a resource).
+  const graphicsByResource = new Map<number, Graphics>();
 
   for (let i = 0; i < world.resourceOf.length; i++) {
     const rid = world.resourceOf[i]!;
     if (rid < 0) continue;
-    const def = defById.get(rid)!;
+    let g = graphicsByResource.get(rid);
+    if (!g) {
+      g = new Graphics();
+      graphicsByResource.set(rid, g);
+    }
+    const def = getResourceDef(rid);
     const tx = i % world.width;
     const ty = (i / world.width) | 0;
-    const cx = tx * tileSize + tileSize / 2;
-    const cy = ty * tileSize + tileSize / 2;
-    drawGlyph(graphicsByGlyph[def.glyph], def, cx, cy, tileSize);
-    if (def.glyph === 'circle') {
-      const t = new Text({
-        text: def.letter,
-        style: {
-          fontFamily: 'monospace',
-          fontSize: 7,
-          fontWeight: '700',
-          fill: 0x111111,
-        },
-      });
-      t.anchor.set(0.5, 0.5);
-      t.position.set(cx, cy);
-      circleLabels.addChild(t);
-    }
+    const x = tx * tileSize;
+    const y = ty * tileSize;
+    const shade = tileShade(tx, ty);  // -1..+1
+    const color = jitterBrightness(def.color, shade * SHADE_RANGE);
+    g.rect(x, y, tileSize, tileSize).fill({ color, alpha: 1 });
   }
 
-  // Z-order: trees over fields (forest reads through farmland edge),
-  // mountains over both (silhouettes pop most).
-  container.addChild(graphicsByGlyph.farm);
-  container.addChild(graphicsByGlyph.tree);
-  container.addChild(graphicsByGlyph.mountain);
-  container.addChild(graphicsByGlyph.circle);
-  container.addChild(circleLabels);
+  for (const g of graphicsByResource.values()) {
+    container.addChild(g);
+  }
 
   return {
     container,
@@ -80,97 +66,29 @@ export function createMapResourceLayer(world: World, tileSize: number): MapResou
   };
 }
 
-function drawGlyph(g: Graphics, def: ResourceDef, cx: number, cy: number, tile: number) {
-  switch (def.glyph) {
-    case 'mountain':
-      drawMountain(g, cx, cy, tile);
-      break;
-    case 'tree':
-      drawTree(g, cx, cy, tile);
-      break;
-    case 'farm':
-      drawFarm(g, cx, cy, tile);
-      break;
-    case 'circle':
-      drawCircleFallback(g, def, cx, cy);
-      break;
-  }
+// Deterministic hash-driven shade per tile. Output in [-1, +1].
+// Mulberry-style 32-bit mix on the packed (tx, ty) pair so adjacent
+// tiles get visually-uncorrelated shade values (no obvious streaks).
+function tileShade(tx: number, ty: number): number {
+  let s = ((tx * 73856093) ^ (ty * 19349663)) | 0;
+  s = (s + 0x6d2b79f5) | 0;
+  let t = s;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  const u = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  return u * 2 - 1;
 }
 
-// All glyphs target ~0.4-0.6 of the tile so adjacent tiles in a patch
-// merge visually into a mass (forest looks like a forest, range like
-// a range). Tweak the magic factors here to taste — never edit
-// individual fill calls in the world-render loop.
-
-function drawMountain(g: Graphics, cx: number, cy: number, tile: number) {
-  // Two-tone silhouette peak: light side + shadow side.
-  const w = tile * 0.42;
-  const h = tile * 0.42;
-  const baseY = cy + h * 0.45;
-  const peakX = cx;
-  const peakY = cy - h * 0.55;
-  // Light side (left).
-  g.moveTo(peakX, peakY).lineTo(cx - w, baseY).lineTo(cx, baseY).closePath();
-  g.fill({ color: 0x9c948b });
-  // Shadow side (right).
-  g.moveTo(peakX, peakY).lineTo(cx + w, baseY).lineTo(cx, baseY).closePath();
-  g.fill({ color: 0x5e5852 });
-  // Tiny snow cap for readability when peaks are small.
-  g.moveTo(peakX, peakY).lineTo(cx - w * 0.25, peakY + h * 0.22).lineTo(cx + w * 0.25, peakY + h * 0.22).closePath();
-  g.fill({ color: 0xefe9df });
-  // Dark outline for crisp pop.
-  g.moveTo(cx - w, baseY).lineTo(peakX, peakY).lineTo(cx + w, baseY).stroke({
-    width: 0.6,
-    color: 0x2a2622,
-    alpha: 0.85,
-  });
-}
-
-function drawTree(g: Graphics, cx: number, cy: number, tile: number) {
-  // Small evergreen-ish silhouette: trunk + canopy triangle.
-  const trunkW = Math.max(1, tile * 0.08);
-  const trunkH = tile * 0.18;
-  const canopyW = tile * 0.34;
-  const canopyH = tile * 0.42;
-  g.rect(cx - trunkW / 2, cy + canopyH * 0.1, trunkW, trunkH).fill({ color: 0x4a3520 });
-  // Two-tone canopy: dark base + lighter top for a hint of depth.
-  g.moveTo(cx, cy - canopyH * 0.55)
-    .lineTo(cx - canopyW, cy + canopyH * 0.15)
-    .lineTo(cx + canopyW, cy + canopyH * 0.15)
-    .closePath();
-  g.fill({ color: 0x244e1c });
-  g.moveTo(cx, cy - canopyH * 0.55)
-    .lineTo(cx - canopyW * 0.5, cy - canopyH * 0.15)
-    .lineTo(cx + canopyW * 0.5, cy - canopyH * 0.15)
-    .closePath();
-  g.fill({ color: 0x3a7a2c });
-}
-
-function drawFarm(g: Graphics, cx: number, cy: number, tile: number) {
-  // Plowed-field square with a cross of furrows. Soft warm fill so
-  // farmland reads against the green grass underneath.
-  const s = tile * 0.6;
-  const half = s / 2;
-  g.rect(cx - half, cy - half, s, s).fill({ color: 0xd9b14a });
-  g.rect(cx - half, cy - half, s, s).stroke({ width: 0.5, color: 0x6e4f12, alpha: 0.8 });
-  // Furrow cross.
-  g.moveTo(cx - half, cy).lineTo(cx + half, cy).stroke({
-    width: 0.5,
-    color: 0x6e4f12,
-    alpha: 0.7,
-  });
-  g.moveTo(cx, cy - half).lineTo(cx, cy + half).stroke({
-    width: 0.5,
-    color: 0x6e4f12,
-    alpha: 0.7,
-  });
-}
-
-function drawCircleFallback(g: Graphics, def: ResourceDef, cx: number, cy: number) {
-  // The "you added a new resource without a custom glyph yet" path.
-  // Still visible on the grand map; replace with a real drawing
-  // function when you settle on the visual.
-  const r = 4;
-  g.circle(cx, cy, r).fill({ color: def.color, alpha: 0.92 });
-  g.circle(cx, cy, r).stroke({ width: 0.8, color: 0x111111, alpha: 0.7 });
+// Multiplicatively brightens/darkens an RGB color. delta in
+// [-1, +1] -> the color's brightness shifts by up to that fraction.
+// Cheaper than full HSV: just scale RGB channels and clamp.
+function jitterBrightness(color: number, delta: number): number {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  const factor = 1 + delta;
+  const r2 = Math.max(0, Math.min(255, Math.round(r * factor)));
+  const g2 = Math.max(0, Math.min(255, Math.round(g * factor)));
+  const b2 = Math.max(0, Math.min(255, Math.round(b * factor)));
+  return (r2 << 16) | (g2 << 8) | b2;
 }

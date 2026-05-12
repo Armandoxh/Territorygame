@@ -399,13 +399,16 @@ function loadMap(seed: number) {
   regionOwner = initRegionOwner(world, nations);
   layers = buildMapLayers(world, TILE_SIZE, regionOwner, nations);
   addLayers(layers);
-  // Grand-map resource icons (scattered patches). Rebuilt every
-  // loadMap because patch positions are seed-dependent. The earlier
-  // strategicLayer.removeChildren() already detached the old
-  // container; just destroy and re-create.
+  // Grand-map resource fills (forest/mountain/field blobs). Rebuilt
+  // every loadMap; the earlier strategicLayer.removeChildren()
+  // already detached the old container. Inserted BELOW the tint
+  // layer (index 1, right after terrain) so ownership tints stack
+  // translucently over the resource colors rather than hiding them.
   if (mapResourceLayerObj) mapResourceLayerObj.destroy();
   mapResourceLayerObj = createMapResourceLayer(world, TILE_SIZE);
-  strategicLayer.addChild(mapResourceLayerObj.container);
+  // addLayers just appended: [terrain, tint, border, player, capital].
+  // We want order [terrain, resource, tint, border, player, capital].
+  strategicLayer.addChildAt(mapResourceLayerObj.container, 1);
   // Per-state buildings: fresh slate on every map load.
   initBuildings(world.states.length);
   // Tear down the old state overlay and rebuild from the new world.
