@@ -26,6 +26,13 @@
 // When the mining line lands, add 'mining' here.
 export type BuildingLineKey = 'settlement' | 'forestry' | 'merchant';
 
+// Glyph styles for the grand-map (per-tile) renderer. Adding a new
+// glyph kind: add an entry here and a matching draw function in
+// mapResourceLayer.ts. 'circle' is the always-works fallback (small
+// colored circle with the resource letter) so a freshly added
+// resource is visible even before a custom glyph lands.
+export type ResourceGlyph = 'mountain' | 'tree' | 'farm' | 'circle';
+
 export interface ResourceDef {
   // id is the index of this entry in RESOURCE_DEFS. Used as the
   // value in World.resourceOf and State.resource arrays.
@@ -35,15 +42,20 @@ export interface ResourceDef {
   // UI label in the build menu and overlays.
   readonly label: string;
   // 0xRRGGBB. Tile-level icons, state-level icons, and menu badges
-  // all share this color.
+  // all share this color (used both for the painted glyph and the
+  // fallback circle).
   readonly color: number;
-  // Single-letter glyph rendered on icons.
+  // Single-letter glyph rendered on the circle fallback.
   readonly letter: string;
+  // Style of the per-tile grand-map glyph. State-only resources
+  // (scatterOnMap=false) can leave this as 'circle' — they aren't
+  // drawn on the grand map anyway.
+  readonly glyph: ResourceGlyph;
   // If true, the world gen scatters patches of this resource on the
   // grand map. State resources are derived from the dominant tile
   // resource within each state. Resources with scatterOnMap=false
   // are state-only — assigned as fallbacks for states with no
-  // dominant tile resource (FARMLAND, TRADE today).
+  // dominant tile resource (TRADE today).
   readonly scatterOnMap: boolean;
   // How many seed patches to place across the world. Actual count
   // may be lower if viable terrain is scarce.
@@ -63,19 +75,21 @@ export const RESOURCE_DEFS: readonly ResourceDef[] = [
     id: 0,
     key: 'farmland',
     label: 'farmland',
-    color: 0xf3c14b,
+    color: 0xd4a93a,
     letter: 'F',
-    scatterOnMap: false,
-    patchCount: 0,
-    patchSize: 0,
+    glyph: 'farm',
+    scatterOnMap: true,
+    patchCount: 10,
+    patchSize: 32,   // larger, sprawled fields
     matchingLine: 'settlement',
   },
   {
     id: 1,
     key: 'woods',
     label: 'forest',
-    color: 0x4f8a3d,
+    color: 0x2e6520,
     letter: 'W',
+    glyph: 'tree',
     scatterOnMap: true,
     patchCount: 16,
     patchSize: 22,
@@ -87,6 +101,7 @@ export const RESOURCE_DEFS: readonly ResourceDef[] = [
     label: 'trade hub',
     color: 0x3d7ab8,
     letter: 'T',
+    glyph: 'circle',
     scatterOnMap: false,
     patchCount: 0,
     patchSize: 0,
@@ -96,8 +111,9 @@ export const RESOURCE_DEFS: readonly ResourceDef[] = [
     id: 3,
     key: 'ore',
     label: 'ore',
-    color: 0x8a7e6e,
+    color: 0x6e6862,
     letter: 'O',
+    glyph: 'mountain',
     scatterOnMap: true,
     patchCount: 14,
     patchSize: 18,
@@ -130,11 +146,11 @@ export function matchingLineFor(resourceId: number): BuildingLineKey | null {
   return RESOURCE_DEFS[resourceId]?.matchingLine ?? null;
 }
 
-// Fallback resources used when a state has no dominant scattered
-// resource. Cycled deterministically so distribution is roughly
-// even across the no-dominant states. Caller passes its own rng so
-// the choice is seedable.
-const FALLBACK_RESOURCES = [RES_FARMLAND, RES_TRADE];
-export function fallbackResource(rng: () => number): number {
-  return FALLBACK_RESOURCES[Math.floor(rng() * FALLBACK_RESOURCES.length)]!;
+// Fallback resource for states whose tiles contain no scattered
+// resource at all. With farmland now also scattering, the natural
+// fallback is TRADE — a "wherever nothing else grows, people set
+// up commerce" interpretation. Kept as a function (taking rng) so
+// it's trivial to widen later (e.g. multiple non-scatter fallbacks).
+export function fallbackResource(_rng: () => number): number {
+  return RES_TRADE;
 }
