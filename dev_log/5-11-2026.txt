@@ -311,3 +311,66 @@ Open follow-ups:
 - No visual ring on regions being captured (capitals get
   the ring; regions don't). Could add a pulse or border
   flash. Polish.
+
+---
+
+2026-05-11 (even later) — long-range player movement
+
+User: "not able to move to a tile that's not next to me,
+I should be able to move across the map so long as my path
+doesn't go through enemy land (unless I'm at war with them)
+and our tiles are attached."
+
+Also mentioned: future state is multiple armies per nation.
+Flagged for later — not refactoring Nation.army → armies[]
+now. Pathfinder is per-call and per-army, so the change
+will be additive when we do it.
+
+Implementation: BFS through region graph at drop time.
+Passability rule:
+  - source / destination region: always passable
+  - any other region: must be owned by player or neutral
+  - enemy regions block transit but are OK as the
+    destination
+
+If no path: drop rejected, previous march resumes (same
+behavior as old reject path).
+
+Army's march field went from single { toX, toY } to a
+waypoint queue { waypoints[], idx, targetRegionId }. Tick
+advances through waypoints. Polyline drawn through
+remaining points. marchTo (AI single-target) wraps to a
+one-waypoint march, so AI call sites are unchanged.
+
+Going with the permissive rule (neutrals OK as transit).
+Reason: user said "doesn't go through enemy land," not
+"only through my land." If they meant stricter, easy to
+flip the predicate (drop the `owner < 0` clause).
+
+AI asymmetry note: AIs straight-line. Doesn't enforce the
+same transit rule on them. If this feels exploitable in
+practice we can wire pathfindForNation into marchTo. The
+infrastructure is there.
+
+The transit predicate is the war/alliance hook for future:
+  passable = nb === to || owner === nationId || owner < 0
+            || alliedWith(nationId, owner)
+            || atWar(nationId, owner)  // enemy passable
+            ...
+
+User asked about #2 (multiple armies per nation). Not
+implemented this turn — flagged for awareness. Touch points
+when we do tackle it:
+  - Nation.army → Nation.armies[]
+  - Spawn N armies per nation (start with 1 → unlocks via
+    capital or building)
+  - Engagement detection becomes O(armies × armies) for
+    each nation pair
+  - tickAi picks which army to march
+  - addSoldier picks which army to reinforce (player UI?
+    auto-route to nearest under cap?)
+  - Recruitment cap applies per-nation (sum across all
+    their armies) — already shaped that way
+  - Player UI: tap-to-select active army; drag selected
+  - Capital capture: any army of the captor at the target
+    capital qualifies

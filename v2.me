@@ -12,6 +12,62 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-11  Long-range player movement (pathfinding)
+  WHAT: Player can drag their army to any region on the map,
+        not just an immediate graph-neighbor. BFS through
+        the region graph at drop time finds a path. Transit
+        rule: source + destination always passable;
+        intermediate regions must be neutral or player-
+        owned. Enemy regions block transit but are OK as the
+        destination (so you can land on enemy land — capture
+        and combat still apply). No path = drop rejected,
+        previous march resumes. Army marches the polyline
+        through the path's region centroids.
+        AIs still straight-line via marchTo (they don't path-
+        find). Future state allows multiple armies per
+        nation — the pathfinder is per-call, so it scales
+        cleanly to any number of armies.
+  WHY:  Single-hop drag made the map feel cramped: to attack
+        across the map you'd have to drag-stop-drag-stop
+        through every region in between. With graph
+        pathfinding, you set a long-range objective once and
+        the army gets there along the legal path. The
+        ownership rule encodes the meaningful constraint —
+        enemy land is impassable as transit, which makes
+        controlling borders strategically important.
+
+  Architecture:
+   - army.ts: march is now a waypoint queue
+     ({ waypoints[], idx, targetRegionId }). tick advances
+     through points; redrawMarchLine draws the polyline.
+   - army.ts: ArmyDeps gains optional `pathfind(from, to)`
+     callback. endDrag delegates routing to it: same region
+     drop = single waypoint; different region = pathfind →
+     waypoints (centroids of intermediates + drop point at
+     final region); no path = reject + return false.
+   - main.ts: pathfindForNation(nationId, from, to) — BFS
+     with the "owned or neutral, or destination" passability
+     predicate. Wired only on player's army create call
+     (AIs straight-line via marchTo).
+   - marchTo still takes a single (x, y) — wraps to a one-
+     waypoint march internally. AI call sites unchanged.
+
+  Notes for future:
+   - AI symmetry: AIs straight-line through enemy land. If
+     this feels exploitable, wire pathfindForNation into
+     marchTo too. (Currently scope-creep beyond the user's
+     ask.)
+   - Path is committed at drop time. If an enemy captures a
+     region the path goes through mid-march, the army keeps
+     going. Re-routing on mid-flight ownership changes is a
+     future polish nail.
+   - The transit predicate (`owner === nationId || owner < 0
+     || nb === to`) is the natural hook for a war/alliance
+     system: enemies at war become passable; allies become
+     passable too.
+
+---
+
 2026-05-11  Mid-game land grab: enemy non-capital regions
   WHAT: Enemy non-capital regions can now be taken without
         capturing the enemy's capital. Mechanic: stand your

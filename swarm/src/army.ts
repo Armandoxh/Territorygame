@@ -1,16 +1,20 @@
 // The player's single placeholder army.
 //
 // Position-only — moving the army does not claim, conquer, or otherwise
-// touch territory. Combat / claim semantics are future nails. The army
-// demonstrates the adjacency graph (nail #4) end-to-end: the drop region
-// must be the army's current region or a graph-neighbor of it.
+// touch territory. Combat / claim semantics are future nails.
 //
 // Movement is a continuous "march" at a fixed world-units-per-second
-// speed; the army is never teleported. Mid-march re-grabbing is supported:
-// the march pauses on touch, and the next valid drop replaces the
-// destination starting from the army's current paused position. An
-// invalid drop preserves the in-flight march (the army resumes toward
-// its previous destination).
+// speed; the army is never teleported. A march can be a single point
+// (legacy AI usage, straight-line) or a list of waypoints (player
+// pathfinding, multi-hop through the region graph). Mid-march re-
+// grabbing is supported: the march pauses on touch, and the next
+// valid drop replaces the destination starting from the army's
+// current paused position. An invalid drop preserves the in-flight
+// march (the army resumes toward its previous destination).
+//
+// Drop validation lives in the optional `pathfind` callback: given the
+// source region and the drop region it returns a list of regions to
+// traverse (or null to reject). Endrag converts that into waypoints.
 //
 // Visual: small player-colored square, with a translucent ghost following
 // the finger during drag and a thin trailing line to the active march
@@ -70,6 +74,13 @@ export interface ArmyDeps {
   color: number;
   screenToWorld: (sx: number, sy: number) => { x: number; y: number };
   worldToScreen: (wx: number, wy: number) => { x: number; y: number };
+  // Optional drop-validator. Given a source region (where the army is
+  // standing) and a drop region (where the player released), return a
+  // list of region IDs forming a passable path (inclusive of source +
+  // destination), or null to reject the drop. AIs don't pass this and
+  // fall back to straight-line marchTo; the player passes a function
+  // that BFSes the region graph with the current ownership rules.
+  pathfind?: (fromRegion: number, toRegion: number) => number[] | null;
 }
 
 export interface ArmyStatus {
@@ -115,7 +126,7 @@ export interface Army {
 }
 
 export function createArmy(deps: ArmyDeps): Army {
-  const { world, tileSize, homeRegionId, color, screenToWorld, worldToScreen } = deps;
+  const { world, tileSize, homeRegionId, color, screenToWorld, worldToScreen, pathfind } = deps;
   const playerColor = color;
 
   const home = world.regions[homeRegionId]!;
@@ -123,7 +134,16 @@ export function createArmy(deps: ArmyDeps): Army {
     x: home.centroidX * tileSize + tileSize / 2 + ARMY_HOME_OFFSET_X,
     y: home.centroidY * tileSize + tileSize / 2,
   };
-  let march: { toX: number; toY: number } | null = null;
+  // Active march. Waypoints visited in order from index 0. Final
+  // waypoint is the drop point (or the single point for AI marchTo).
+  // targetRegionId caches the region containing the final waypoint
+  // so getStatus / readout can report it without recomputing.
+  type March = {
+    waypoints: { x: number; y: number }[];
+    idx: number;
+    targetRegionId: number;
+  };
+  let march: March | null = null;
   let dragging = false;
   const regiments: Regiment[] = DEFAULT_REGIMENTS.map((r) => ({ ...r }));
 
@@ -165,10 +185,17 @@ export function createArmy(deps: ArmyDeps): Army {
   function redrawMarchLine() {
     marchLine.clear();
     if (!march || dragging) return;
-    marchLine
-      .moveTo(pos.x, pos.y)
-      .lineTo(march.toX, march.toY)
-      .stroke({ width: MARCH_LINE_WIDTH, color: MARCH_LINE_COLOR, alpha: MARCH_LINE_ALPHA });
+    let prevX = pos.x;
+    let prevY = pos.y;
+    for (let i = march.idx; i < march.waypoints.length; i++) {
+      const w = march.waypoints[i]!;
+      marchLine
+        .moveTo(prevX, prevY)
+        .lineTo(w.x, w.y)
+        .stroke({ width: MARCH_LINE_WIDTH, color: MARCH_LINE_COLOR, alpha: MARCH_LINE_ALPHA });
+      prevX = w.x;
+      prevY = w.y;
+    }
   }
 
   function tick(dtSec: number) {
@@ -176,19 +203,22 @@ export function createArmy(deps: ArmyDeps): Army {
       redrawMarchLine();
       return;
     }
-    const dx = march.toX - pos.x;
-    const dy = march.toY - pos.y;
+    const target = march.waypoints[march.idx]!;
+    const dx = target.x - pos.x;
+    const dy = target.y - pos.y;
     const dist = Math.hypot(dx, dy);
     if (dist === 0) {
-      march = null;
+      march.idx++;
+      if (march.idx >= march.waypoints.length) march = null;
       redrawMarchLine();
       return;
     }
     const step = MARCH_SPEED * dtSec;
     if (step >= dist) {
-      pos.x = march.toX;
-      pos.y = march.toY;
-      march = null;
+      pos.x = target.x;
+      pos.y = target.y;
+      march.idx++;
+      if (march.idx >= march.waypoints.length) march = null;
     } else {
       pos.x += (dx / dist) * step;
       pos.y += (dy / dist) * step;
@@ -201,7 +231,7 @@ export function createArmy(deps: ArmyDeps): Army {
     return {
       marching: march !== null,
       regionId: regionAt(pos.x, pos.y),
-      targetRegionId: march ? regionAt(march.toX, march.toY) : -1,
+      targetRegionId: march ? march.targetRegionId : -1,
     };
   }
 
@@ -245,20 +275,46 @@ export function createArmy(deps: ArmyDeps): Army {
       redrawMarchLine();
       return false;
     }
-    const sameRegion = dropRegion === sourceRegion;
-    const isNeighbor = world.regions[sourceRegion]!.neighbors.includes(dropRegion);
-    if (!sameRegion && !isNeighbor) {
+    if (dropRegion === sourceRegion) {
+      // Same region — no pathfinding needed. Single-waypoint march to
+      // the drop point.
+      march = { waypoints: [{ x: drop.x, y: drop.y }], idx: 0, targetRegionId: dropRegion };
+      redrawMarchLine();
+      return true;
+    }
+    if (!pathfind) {
       redrawMarchLine();
       return false;
     }
-
-    march = { toX: drop.x, toY: drop.y };
+    const path = pathfind(sourceRegion, dropRegion);
+    if (!path || path.length < 2) {
+      redrawMarchLine();
+      return false;
+    }
+    // path[0] is sourceRegion (skip it — already standing there).
+    // Intermediate regions: aim for the centroid. Final region: aim
+    // for the actual drop point so the player can pick a precise
+    // landing spot.
+    const waypoints: { x: number; y: number }[] = [];
+    for (let i = 1; i < path.length - 1; i++) {
+      const r = world.regions[path[i]!]!;
+      waypoints.push({
+        x: r.centroidX * tileSize + tileSize / 2,
+        y: r.centroidY * tileSize + tileSize / 2,
+      });
+    }
+    waypoints.push({ x: drop.x, y: drop.y });
+    march = { waypoints, idx: 0, targetRegionId: dropRegion };
     redrawMarchLine();
     return true;
   }
 
   function marchTo(toX: number, toY: number) {
-    march = { toX, toY };
+    march = {
+      waypoints: [{ x: toX, y: toY }],
+      idx: 0,
+      targetRegionId: regionAt(toX, toY),
+    };
     redrawMarchLine();
   }
 
