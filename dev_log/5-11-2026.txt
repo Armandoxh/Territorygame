@@ -374,3 +374,35 @@ when we do tackle it:
   - Player UI: tap-to-select active army; drag selected
   - Capital capture: any army of the captor at the target
     capital qualifies
+
+---
+
+2026-05-11 (correction) — STRAIGHT LINE, not auto-route
+
+User feedback after testing the BFS version: "if I draw a
+straight line the army should move straight. If the army
+can't move the full line don't allow any movement. Right
+now it's making right angles when I drew straight lines."
+
+I misread their original request. They wanted long-range
+straight-line movement with enemy-blocking the WHOLE drag,
+not auto-routing around enemy land. The right angles came
+from BFS routing through region centroids.
+
+Reverted:
+- army.ts: ArmyDeps.pathfind → canMoveTo(fromX, fromY, toX,
+  toY) boolean predicate. endDrag does straight-line single-
+  waypoint march on success, full reject (previous march
+  resumes) on failure.
+- main.ts: pathfindForNation → canNationMoveStraight.
+  Samples the straight line at TILE_SIZE/2 granularity;
+  rejects on any non-destination enemy region touched.
+
+Kept the waypoint queue infrastructure in army.ts — cheap
+and useful for future (patrols, multi-leg orders). Just
+always single-waypoint per drop today.
+
+Lesson: re-read user's wording when it's ambiguous. "My
+path doesn't go through enemy land" was the line they drew,
+not "find a path that doesn't." Ask LOTS of clarifying
+questions next time (per swarm/CLAUDE.md).

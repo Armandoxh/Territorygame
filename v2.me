@@ -12,7 +12,43 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
-2026-05-11  Long-range player movement (pathfinding)
+2026-05-11  Movement model: STRAIGHT LINE or reject
+  WHAT: Reverted the BFS auto-routing from the previous
+        commit. Drag-to-move is now literally a straight
+        line. Drop validation samples along the line; if any
+        sample sits in another nation's territory (other
+        than the destination region itself), the entire
+        drop is rejected — the army doesn't go partway, and
+        it doesn't route around the obstacle.
+  WHY:  User's feedback after trying the BFS version:
+        "if I draw a straight line the army should move
+        straight. If the army can't move the full line
+        don't allow any movement. Right now it's making
+        right angles when I drew straight lines."
+        The right-angles came from BFS routing through
+        region centroids. Straight-line is what was asked
+        for from the start; I misread "path doesn't go
+        through enemy land" as "find a path that doesn't,"
+        not "the line you drew is the path."
+
+  Architecture:
+   - army.ts: ArmyDeps.pathfind → canMoveTo(fromX, fromY,
+     toX, toY) boolean. endDrag calls it before committing
+     a single-waypoint march. False = reject, previous
+     march resumes.
+   - main.ts: pathfindForNation replaced with
+     canNationMoveStraight. Samples at TILE_SIZE/2 along
+     the straight line; rejects on any non-destination
+     enemy region touched.
+   - Waypoint queue infra in army.ts stays (cheap, future-
+     friendly), but now always single-waypoint per drop.
+
+---
+
+2026-05-11  Long-range player movement (pathfinding) [SUPERSEDED]
+  Reverted by the entry above — see "Movement model: STRAIGHT
+  LINE or reject." Kept for historical record of the iteration.
+
   WHAT: Player can drag their army to any region on the map,
         not just an immediate graph-neighbor. BFS through
         the region graph at drop time finds a path. Transit

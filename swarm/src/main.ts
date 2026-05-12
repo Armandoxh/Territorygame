@@ -247,12 +247,13 @@ function spawnNations(w: World, seed: number): Nation[] {
       color,
       screenToWorld,
       worldToScreen,
-      // Player gets pathfinding (drag-to-move respects ownership).
-      // AIs straight-line to centroids via marchTo and don't need it
-      // (they'd cut through enemy regions but the engagement system
-      // catches that). Multi-army future state: same hook works for
-      // each future army of any nation.
-      pathfind: isPlayer ? (from, to) => pathfindForNation(i, from, to) : undefined,
+      // Player drag-drop must validate that the straight line from
+      // army → drop point doesn't transit enemy land. AIs straight-
+      // line via marchTo without validation (engagement catches
+      // collisions). Multi-army future state: same hook per army.
+      canMoveTo: isPlayer
+        ? (fx, fy, tx, ty) => canNationMoveStraight(i, fx, fy, tx, ty)
+        : undefined,
     });
     army.setRegiments(rollComposition(rng));
     const capitalX = region.centroidX * TILE_SIZE + TILE_SIZE / 2;
@@ -771,46 +772,46 @@ function captureCapital(target: Nation, captor: Nation) {
 
 // ===== Region claim on arrival (for AI expansion + future player) =====
 
-// BFS through the region graph for a given nation. Transit rule:
-//   - source region: always passable (we start there)
-//   - destination region: always passable (you can land on enemy land)
-//   - any other intermediate region must be owned by `nationId` or
-//     be neutral. Enemy regions block transit.
-// Returns the region path inclusive of source + destination, or null
-// if no valid path exists. Used by the player army's drag-drop
-// validator; AI armies straight-line via marchTo and don't need this.
-// Future "at war" / alliance concepts plug in by widening the
-// `passable` predicate (e.g. enemy regions passable if at war).
-function pathfindForNation(nationId: number, from: number, to: number): number[] | null {
-  if (from === to) return [from];
-  const visited = new Uint8Array(world.regions.length);
-  const parent = new Int32Array(world.regions.length);
-  parent.fill(-1);
-  visited[from] = 1;
-  const queue: number[] = [from];
-  let head = 0;
-  while (head < queue.length) {
-    const cur = queue[head++]!;
-    for (const nb of world.regions[cur]!.neighbors) {
-      if (visited[nb]) continue;
-      const owner = regionOwner[nb]!;
-      const passable = nb === to || owner === nationId || owner < 0;
-      if (!passable) continue;
-      visited[nb] = 1;
-      parent[nb] = cur;
-      if (nb === to) {
-        const path: number[] = [];
-        let n = to;
-        while (n !== -1) {
-          path.push(n);
-          n = parent[n]!;
-        }
-        return path.reverse();
-      }
-      queue.push(nb);
-    }
+// Straight-line drop validator. The army marches in a literal straight
+// line from current position to drop point. We sample along that line
+// and reject if it crosses any region owned by another nation, EXCEPT
+// the destination region itself (you're allowed to land on enemy
+// land — just not to transit through it).
+//   - own / neutral regions: passable
+//   - water / out-of-bounds (regionAt < 0): treated as passable
+//     (water has no owner; visually weird but consistent)
+//   - destination region: always passable (you stop there)
+//   - any other enemy region the line touches: blocked
+// Future war / alliance system plugs in by widening the predicate.
+function canNationMoveStraight(
+  nationId: number,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): boolean {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const dist = Math.hypot(dx, dy);
+  if (dist === 0) return true;
+  // Sample at half-tile granularity. Tile resolution is finer than
+  // region boundaries in practice, so this catches narrow corner-clips.
+  const step = TILE_SIZE * 0.5;
+  const steps = Math.max(1, Math.ceil(dist / step));
+  const dropRegion = regionAtPos(toX, toY);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const sx = fromX + dx * t;
+    const sy = fromY + dy * t;
+    const r = regionAtPos(sx, sy);
+    if (r < 0) continue;
+    if (r === dropRegion) continue;
+    const owner = regionOwner[r]!;
+    if (owner === nationId) continue;
+    if (owner < 0) continue;
+    return false;
   }
-  return null;
+  return true;
 }
 
 function tickRegionClaims(_dtMs: number) {
