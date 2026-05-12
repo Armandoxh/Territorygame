@@ -285,28 +285,6 @@
       }
       #game-modal-retry:active { background: rgba(110, 84, 42, 0.85); }
 
-      /* Back-out button for region-zoom mode. Top-left, mirrors the
-         visual style of the existing top-right buttons but anchored
-         to where the player's eye lands on entry. Hidden by default. */
-      #region-zoom-back {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        padding: 8px 12px;
-        background: rgba(20, 20, 20, 0.78);
-        color: #fff;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        border-radius: 6px;
-        font: 12px/1 ui-monospace, Menlo, monospace;
-        letter-spacing: 0.1em;
-        cursor: pointer;
-        touch-action: manipulation;
-        z-index: 5;
-        display: none;
-      }
-      #region-zoom-back.visible { display: block; }
-      #region-zoom-back:active { background: rgba(60, 60, 60, 0.85); }
-
       /* State build menu. Bottom-anchored card. Bigger tap targets
          than the battle menu since this is the main UI of the new
          build mode. */
@@ -394,7 +372,7 @@
       }
       #state-menu-close:active { background: rgba(40, 40, 40, 0.85); }
     </style>
-    <script type="module" crossorigin src="/Territorygame/swarm/assets/index-zeR32JFR.js"></script>
+    <script type="module" crossorigin src="/Territorygame/swarm/assets/index-WA46CRMS.js"></script>
   </head>
   <body>
     <div id="app"></div>
@@ -443,7 +421,6 @@
         <button id="game-modal-retry" type="button">NEW MAP</button>
       </div>
     </div>
-    <button id="region-zoom-back" type="button">← back</button>
     <div id="state-menu">
       <div class="card">
         <div id="state-menu-title"></div>

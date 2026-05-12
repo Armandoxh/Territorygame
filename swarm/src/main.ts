@@ -540,10 +540,6 @@ function tickBattleSystem(dtMs: number) {
 
 // ===== Region-zoom (territory build) state machine =====
 
-function regionZoomBackBtn(): HTMLButtonElement | null {
-  return document.getElementById('region-zoom-back') as HTMLButtonElement | null;
-}
-
 function startEnterRegionZoom(regionId: number) {
   // Defensive: only one zoom-snap in flight; battle takes priority.
   if (regionZoom.mode !== 'inactive') return;
@@ -579,8 +575,6 @@ function startEnterRegionZoom(regionId: number) {
     stateLayerObj.setVisibleRegion(regionId);
     stateLayerObj.container.alpha = 0;
   }
-  const btn = regionZoomBackBtn();
-  if (btn) btn.classList.add('visible');
 }
 
 function startExitRegionZoom() {
@@ -610,8 +604,6 @@ function forceExitRegionZoom() {
     stateLayerObj.setVisibleRegion(null);
   }
   stateMenu.hide();
-  const btn = regionZoomBackBtn();
-  if (btn) btn.classList.remove('visible');
 }
 
 function tickRegionZoomSystem(_dtMs: number) {
@@ -642,8 +634,6 @@ function tickRegionZoomSystem(_dtMs: number) {
         stateLayerObj.container.alpha = 1;
         stateLayerObj.setVisibleRegion(null);
       }
-      const btn = regionZoomBackBtn();
-      if (btn) btn.classList.remove('visible');
     }
   }
 }
@@ -1293,14 +1283,18 @@ function handleTap(sx: number, sy: number) {
   if (stateMenu.isVisible()) return;
   const wp = screenToWorld(sx, sy);
   if (regionZoom.mode === 'active') {
-    // Inside region-zoom: tap a state in THIS region to open menu.
-    // Taps outside the active region or on water = no-op (use the
-    // back button to leave).
+    // Inside region-zoom: tap inside the active region's footprint
+    // (any of its states) → open that state's build menu. Tap
+    // ANYWHERE else (other region / water / off-map) → exit the
+    // zoom. No dedicated back button — the "elsewhere" tap IS the
+    // back gesture.
     const sid = stateAtPos(wp.x, wp.y);
-    if (sid < 0) return;
-    const tappedState = world.states[sid];
-    if (!tappedState || tappedState.regionId !== regionZoom.regionId) return;
-    openStateMenu(sid);
+    const tappedState = sid >= 0 ? world.states[sid] : null;
+    if (tappedState && tappedState.regionId === regionZoom.regionId) {
+      openStateMenu(sid);
+    } else {
+      startExitRegionZoom();
+    }
     return;
   }
   // Strategic / operational view: tap a region to snap-zoom into it.
@@ -1309,15 +1303,6 @@ function handleTap(sx: number, sy: number) {
   startEnterRegionZoom(rid);
 }
 
-// Back button — exit region-zoom mode.
-{
-  const btn = document.getElementById('region-zoom-back') as HTMLButtonElement | null;
-  if (btn) {
-    btn.addEventListener('click', () => {
-      if (regionZoom.mode === 'active') startExitRegionZoom();
-    });
-  }
-}
 
 // (B-key dev escape removed: the new Simulate path always resolves the
 // battle decisively, and re-engagement loops if you exit without
