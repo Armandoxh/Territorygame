@@ -12,6 +12,49 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-11  Mid-game land grab: enemy non-capital regions
+  WHAT: Enemy non-capital regions can now be taken without
+        capturing the enemy's capital. Mechanic: stand your
+        army in an enemy region (not marching) with no enemy
+        army within COMBAT_TRIGGER_RADIUS for REGION_HOLD_MS
+        (5s) and the region flips. Combat naturally resets
+        the hold timer (enemy in range cancels capture).
+        Symmetric for AIs — they take your regions the same
+        way. Also bumped CAPITAL_HOLD_MS from 15s to 10s per
+        user's tuning.
+  WHY:  Pre-existing rule "enemy regions only flip via
+        capital capture" made the gameplay binary — you
+        either nibbled neutrals or went all-in on the
+        capital. No mid-game friction. The hold-based take
+        gives you a real middle stage: weaken the enemy by
+        capturing border regions, watch their cap shrink,
+        then go for the capital. AIs do the same to you, so
+        ignoring your borders is no longer free.
+
+  Architecture:
+   - nation.ts: regionCaptureProgress field (parallel to
+     captureProgress but for individual regions)
+   - main.ts: REGION_HOLD_MS = 5_000; CAPITAL_HOLD_MS dropped
+     to 10_000
+   - main.ts: tickRegionClaims extended — neutral instant
+     claim retained; enemy non-capital regions now start a
+     hold-capture timer. Capitals still routed through
+     tickCapture (NOT here) so the cascade-flip on capital
+     capture is preserved.
+   - readout: "capturing region #X (Ys)" / "region #X under
+     siege by #N (Ys)" lines, appended after the main
+     status line.
+
+  Notes for future:
+   - AI doesn't currently prioritize defending its own
+     regions under siege. pickExpansionTarget prefers
+     neutrals; only after neutrals exhausted do AIs grab
+     enemy land. Region-defense AI is a polish nail.
+   - No visual capture-ring on the region itself yet (just
+     readout text). Polish later.
+
+---
+
 2026-05-11  Nail #6.4: recruitment + extensible upgrade hooks
   WHAT: Capitals now generate soldiers over time. Each owned
         capital adds +1 unit-time/sec to your nation's

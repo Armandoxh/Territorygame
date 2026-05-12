@@ -43,8 +43,13 @@ const AI_DECIDE_JITTER_MS = 2_500;
 // Time the player must hold the capital tile to capture it. AIs get a
 // chance to interrupt by re-routing their nearest other army (if any)
 // to defend; landing combat resets the hold timer.
-const CAPITAL_HOLD_MS = 15_000;
+const CAPITAL_HOLD_MS = 10_000;
 const CAPITAL_HOLD_RADIUS = 24;
+// Time to flip a NON-capital enemy region by standing in it with no
+// enemy army within engagement range. Faster than capitals (capitals
+// are the bigger prize). Combat naturally resets the timer because
+// enemy-in-range cancels the hold.
+const REGION_HOLD_MS = 5_000;
 // How often an AI under siege checks if they have an army to recall.
 const SIEGE_RESPONSE_INTERVAL_MS = 2_000;
 // Brief visual indicator for silent AI vs AI battles.
@@ -261,6 +266,7 @@ function spawnNations(w: World, seed: number): Nation[] {
       nextDecideAtMs: performance.now() + 2_000 + Math.random() * 2_000,
       lastSiegeResponseAtMs: 0,
       captureProgress: null,
+      regionCaptureProgress: null,
       recruitmentPick: 'infantry',
       recruitmentProgress: 0,
     });
@@ -760,32 +766,76 @@ function captureCapital(target: Nation, captor: Nation) {
 // ===== Region claim on arrival (for AI expansion + future player) =====
 
 function tickRegionClaims(_dtMs: number) {
-  // Whenever a nation's army is in a region owned by another nation or
-  // by no one, and is not engaged in combat, the army gradually claims
-  // the region. For #6.3 we apply a simpler rule than port.md's 30-tick
-  // tile claim: on the AI's march completing (no longer marching) the
-  // region the AI is standing in flips IF that region is neutral OR
-  // already owned by the eliminated nation. Enemy-owned regions don't
-  // flip from mere presence — they require combat first (which
-  // resolveAiVsAiBattle handles) or capital capture.
+  // Three flip paths:
+  //   1. Neutral region + army standing in it → instant claim.
+  //   2. Enemy non-capital region + army standing in it + no enemy
+  //      army within combat-trigger radius → hold for REGION_HOLD_MS,
+  //      then flip. Combat resets the hold (combat-trigger logic
+  //      takes priority over capture).
+  //   3. Enemy capital → handled by tickCapture, NOT here.
   if (gameOver) return;
+  const now = performance.now();
   for (const n of nations) {
-    if (n.eliminated || !n.army) continue;
-    if (n.army.isMarching()) continue;
+    if (n.eliminated || !n.army) {
+      n.regionCaptureProgress = null;
+      continue;
+    }
+    if (n.army.getRegiments().length === 0 || n.army.isMarching()) {
+      n.regionCaptureProgress = null;
+      continue;
+    }
     const pos = n.army.getPos();
     const regionId = regionAtPos(pos.x, pos.y);
-    if (regionId < 0) continue;
+    if (regionId < 0) {
+      n.regionCaptureProgress = null;
+      continue;
+    }
     const owner = regionOwner[regionId]!;
-    if (owner === n.id) continue;
+    if (owner === n.id) {
+      n.regionCaptureProgress = null;
+      continue;
+    }
     if (owner < 0) {
-      // Neutral → instant claim on standing.
       regionOwner[regionId] = n.id;
+      n.regionCaptureProgress = null;
+      rebuildLayers();
+      continue;
+    }
+    // Enemy-owned. Capital? Skip — tickCapture handles capital flips
+    // (which dominoes the whole nation, not just this region).
+    const ownerNation = nations[owner];
+    if (ownerNation && ownerNation.capitalRegionId === regionId) {
+      n.regionCaptureProgress = null;
+      continue;
+    }
+    // Enemy army in combat radius? Combat will fire next tick; reset
+    // the hold timer so the capture has to restart after combat.
+    let enemyClose = false;
+    for (const m of nations) {
+      if (m.id === n.id || m.eliminated || !m.army) continue;
+      if (m.army.getRegiments().length === 0) continue;
+      const mp = m.army.getPos();
+      const dx = mp.x - pos.x;
+      const dy = mp.y - pos.y;
+      if (Math.hypot(dx, dy) <= COMBAT_TRIGGER_RADIUS) {
+        enemyClose = true;
+        break;
+      }
+    }
+    if (enemyClose) {
+      n.regionCaptureProgress = null;
+      continue;
+    }
+    // Start or continue the hold.
+    if (!n.regionCaptureProgress || n.regionCaptureProgress.targetRegionId !== regionId) {
+      n.regionCaptureProgress = { targetRegionId: regionId, startedAtMs: now };
+      continue;
+    }
+    if (now - n.regionCaptureProgress.startedAtMs >= REGION_HOLD_MS) {
+      regionOwner[regionId] = n.id;
+      n.regionCaptureProgress = null;
       rebuildLayers();
     }
-    // Enemy-owned non-capital regions don't auto-flip; they stay enemy
-    // until that nation is eliminated or the player explicitly takes
-    // them later (future nail). Keeps territory contested instead of
-    // ping-ponging.
   }
 }
 
@@ -1079,9 +1129,33 @@ function renderReadout() {
     if (alive.length === 0) statusLine = 'no enemy remaining';
     else statusLine = `enemies: ${alive.map((n) => `#${n.id}`).join(' ')}`;
   }
-  // Recruitment status: type being produced, % progress toward next
-  // soldier, and current/cap totals. Hidden when the nation is
-  // eliminated (no longer recruiting).
+  // Non-capital region capture status. Player capturing an enemy
+  // region, or AI capturing one of the player's regions. Capital
+  // siege is handled in statusLine above.
+  let regionLine = '';
+  if (!gameOver) {
+    const lines: string[] = [];
+    const myCap = player.regionCaptureProgress;
+    if (myCap) {
+      const remaining = Math.max(
+        0,
+        Math.ceil((REGION_HOLD_MS - (performance.now() - myCap.startedAtMs)) / 1000),
+      );
+      lines.push(`capturing region #${myCap.targetRegionId} (${remaining}s)`);
+    }
+    for (const n of nations) {
+      if (n.isPlayer || n.eliminated) continue;
+      const rc = n.regionCaptureProgress;
+      if (!rc) continue;
+      if (regionOwner[rc.targetRegionId] !== player.id) continue;
+      const remaining = Math.max(
+        0,
+        Math.ceil((REGION_HOLD_MS - (performance.now() - rc.startedAtMs)) / 1000),
+      );
+      lines.push(`region #${rc.targetRegionId} under siege by #${n.id} (${remaining}s)`);
+    }
+    if (lines.length > 0) regionLine = lines.join('\n');
+  }
   let recruitLine = '';
   if (!gameOver) {
     const rate = getRecruitmentRate(player);
@@ -1105,7 +1179,8 @@ function renderReadout() {
     armyLine + '\n' +
     (armyComp ? `  yours: ${armyComp}\n` : '') +
     (recruitLine ? recruitLine + '\n' : '') +
-    statusLine;
+    statusLine +
+    (regionLine ? '\n' + regionLine : '');
 }
 readoutStore.subscribe(renderReadout);
 

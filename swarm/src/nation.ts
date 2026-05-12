@@ -44,6 +44,13 @@ export interface Nation {
   // one capital at a time). Capture progresses while the army stays
   // in radius and the target hasn't changed; resets on either change.
   captureProgress: { targetNationId: number; startedAtMs: number } | null;
+  // Active enemy-region hold-capture (non-capital). Parallel to
+  // captureProgress but for individual regions: army stands inside
+  // an enemy-owned non-capital region with no enemy army in combat
+  // range, and after REGION_HOLD_MS the region flips. Resets on
+  // marching, leaving the region, or an enemy army entering combat
+  // radius (combat takes priority).
+  regionCaptureProgress: { targetRegionId: number; startedAtMs: number } | null;
   // Recruitment state. Each frame, recruitmentProgress accumulates at
   // getRecruitmentRate(nation) unit-time per second. When it reaches
   // the recruitmentPick unit's recruitCost, one soldier is added and

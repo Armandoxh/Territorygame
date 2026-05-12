@@ -275,3 +275,39 @@ What I want eyes on:
 - AI vs AI dynamic: AIs now recover from battles. Lost-army
   AI marches home (fight-back logic), gets recruits, fights
   back. Should feel like an alive opponent.
+
+---
+
+2026-05-11 (later still) — mid-game region capture
+
+User flagged after playing #6.4: "I can't capture enemy
+non-capital regions, right?" Correct — that was a deliberate
+"future nail" punt in #6.3 (the comment in tickRegionClaims
+called it out). Without it, gameplay was binary: nibble
+neutrals or rush the capital.
+
+User picks: hold-based capture (like capitals but faster);
+combat naturally resets the timer (enemy in range cancels
+hold); no adjacency requirement (anywhere your army can
+march is fair game); AIs symmetric. Also asked for capital
+hold dropped 15→10s.
+
+Implementation: extended tickRegionClaims with a third
+branch. Neutral still flips instantly. Enemy capital still
+routed through tickCapture (so the capital-capture cascade
+flips all their regions at once — that mechanic is
+preserved). Enemy non-capital: start a 5s hold; reset if
+enemy army comes within COMBAT_TRIGGER_RADIUS. Symmetric
+for all nations.
+
+Tuning constants now:
+  CAPITAL_HOLD_MS = 10_000  (was 15_000)
+  REGION_HOLD_MS  =  5_000  (new)
+
+Open follow-ups:
+- AI doesn't actively defend regions under siege (only
+  capitals trigger fight-back). If this feels too easy,
+  add region-defense AI.
+- No visual ring on regions being captured (capitals get
+  the ring; regions don't). Could add a pulse or border
+  flash. Polish.
