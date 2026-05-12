@@ -401,14 +401,17 @@ function loadMap(seed: number) {
   addLayers(layers);
   // Grand-map resource fills (forest/mountain/field blobs). Rebuilt
   // every loadMap; the earlier strategicLayer.removeChildren()
-  // already detached the old container. Inserted BELOW the tint
-  // layer (index 1, right after terrain) so ownership tints stack
-  // translucently over the resource colors rather than hiding them.
+  // already detached the old container. Inserted ABOVE the tint
+  // layer so the bold resource colors aren't muted by the
+  // translucent ownership tint (player tint is 0.55 α and was
+  // washing the colors out). The resource fills themselves are
+  // alpha 0.92, so a hint of the tint still bleeds through and
+  // the player can still see which territory is theirs.
   if (mapResourceLayerObj) mapResourceLayerObj.destroy();
   mapResourceLayerObj = createMapResourceLayer(world, TILE_SIZE);
   // addLayers just appended: [terrain, tint, border, player, capital].
-  // We want order [terrain, resource, tint, border, player, capital].
-  strategicLayer.addChildAt(mapResourceLayerObj.container, 1);
+  // We want order [terrain, tint, resource, border, player, capital].
+  strategicLayer.addChildAt(mapResourceLayerObj.container, 2);
   // Per-state buildings: fresh slate on every map load.
   initBuildings(world.states.length);
   // Tear down the old state overlay and rebuild from the new world.

@@ -25,8 +25,9 @@ export interface MapResourceLayer {
 }
 
 // ±SHADE_RANGE applied to the v channel of the resource color per
-// tile. Visible but subtle. 0 = perfectly flat, 0.15 = noisy.
-const SHADE_RANGE = 0.08;
+// tile. Subtle texture without crossing into "noisy speckle" — the
+// patch should still read as one solid color from any zoom level.
+const SHADE_RANGE = 0.04;
 
 export function createMapResourceLayer(world: World, tileSize: number): MapResourceLayer {
   const container = new Container();
@@ -53,7 +54,11 @@ export function createMapResourceLayer(world: World, tileSize: number): MapResou
     const y = ty * tileSize;
     const shade = tileShade(tx, ty);  // -1..+1
     const color = jitterBrightness(def.color, shade * SHADE_RANGE);
-    g.rect(x, y, tileSize, tileSize).fill({ color, alpha: 1 });
+    // alpha < 1 lets the ownership tint underneath bleed through
+    // just enough that a player can still tell which territory is
+    // theirs even on resource tiles. Tweak in concert with main.ts
+    // layer order (resource sits ABOVE tint).
+    g.rect(x, y, tileSize, tileSize).fill({ color, alpha: 0.92 });
   }
 
   for (const g of graphicsByResource.values()) {

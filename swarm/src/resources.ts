@@ -75,19 +75,23 @@ export const RESOURCE_DEFS: readonly ResourceDef[] = [
     id: 0,
     key: 'farmland',
     label: 'farmland',
-    color: 0xd4a93a,
+    // Bold wheat-gold. Punchy against grass green; reads at a
+    // glance even with the player's tint stacked over it.
+    color: 0xf2c11f,
     letter: 'F',
     glyph: 'farm',
     scatterOnMap: true,
     patchCount: 10,
-    patchSize: 32,   // larger, sprawled fields
+    patchSize: 32,
     matchingLine: 'settlement',
   },
   {
     id: 1,
     key: 'woods',
     label: 'forest',
-    color: 0x2e6520,
+    // Deep saturated forest green. Distinct from the lighter
+    // grass terrain underneath.
+    color: 0x14541a,
     letter: 'W',
     glyph: 'tree',
     scatterOnMap: true,
@@ -111,13 +115,13 @@ export const RESOURCE_DEFS: readonly ResourceDef[] = [
     id: 3,
     key: 'ore',
     label: 'ore',
-    color: 0x6e6862,
+    // Cool slate. Reads as rock against grass / forest greens.
+    color: 0x4a4540,
     letter: 'O',
     glyph: 'mountain',
     scatterOnMap: true,
     patchCount: 14,
     patchSize: 18,
-    // No mining line yet — see CLAUDE.md scoping notes.
     matchingLine: null,
   },
 ] as const;
