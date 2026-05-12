@@ -7,18 +7,14 @@
 // the tier and refresh. The matching line gets a star marker so
 // the player sees the resource/line pairing.
 
-import { TIER_NAMES, maxTier, matchingLine, type BuildingLine } from './buildings';
-import {
-  RESOURCE_FARMLAND,
-  RESOURCE_WOODS,
-  RESOURCE_TRADE,
-  type ResourceType,
-} from './world';
+import { TIER_NAMES, maxTier, type BuildingLine } from './buildings';
+import { getResourceDef, matchingLineFor } from './resources';
 
 export interface StateMenuContext {
   stateId: number;
   regionId: number;
-  resource: ResourceType;
+  // Resource id (index into RESOURCE_DEFS).
+  resource: number;
   // Tier numbers (0..N) keyed by line name.
   tiers: Record<BuildingLine, number>;
   // True if the region containing this state is owned by the player.
@@ -62,11 +58,16 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
 
   function show(ctx: StateMenuContext) {
     current = ctx;
-    titleEl!.textContent = `State ${ctx.regionId}.${ctx.stateId} · ${resourceLabel(ctx.resource)}`;
-    const matched = matchingLine(ctx.resource);
-    subEl!.textContent = ctx.ownedByPlayer
-      ? `match: ${lineLabel(matched)} (boost coming)`
-      : 'enemy / unclaimed territory';
+    const def = getResourceDef(ctx.resource);
+    titleEl!.textContent = `State ${ctx.regionId}.${ctx.stateId} · ${def.label}`;
+    const matched = matchingLineFor(ctx.resource);
+    if (!ctx.ownedByPlayer) {
+      subEl!.textContent = 'enemy / unclaimed territory';
+    } else if (matched) {
+      subEl!.textContent = `match: ${lineLabel(matched)} (boost coming)`;
+    } else {
+      subEl!.textContent = 'no matching line yet (mining line pending)';
+    }
     // Rebuild the rows from scratch each show — cheap, small list.
     listEl!.innerHTML = '';
     for (const line of LINES) {
@@ -77,7 +78,7 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
       const label = document.createElement('div');
       label.className = 'state-menu-row-label';
       const tierName = TIER_NAMES[line][tier] ?? '?';
-      const isMatch = line === matched;
+      const isMatch = matched !== null && line === matched;
       label.textContent = `${lineLabel(line)}${isMatch ? ' ★' : ''} · ${tierName} (${tier}/${max})`;
       row.appendChild(label);
       const btn = document.createElement('button');
@@ -113,13 +114,6 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
   }
 
   return { show, hide, isVisible };
-}
-
-function resourceLabel(r: ResourceType): string {
-  if (r === RESOURCE_FARMLAND) return 'farmland';
-  if (r === RESOURCE_WOODS) return 'woods';
-  if (r === RESOURCE_TRADE) return 'trade hub';
-  return '?';
 }
 
 function lineLabel(line: BuildingLine): string {

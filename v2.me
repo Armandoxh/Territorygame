@@ -12,6 +12,81 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-12  Nail #8: grand-map resources + tile→state causation
+  WHAT: Resources now live on the world grand map as
+        scattered patches (BFS-grown blobs of grass tiles)
+        with small icons rendered at each patch centroid.
+        Currently shipping FOREST (green W) and ORE (gray O);
+        the table is extensible — adding a new resource is a
+        single ResourceDef entry in resources.ts. State-
+        level resources (the icon you see when you zoom in)
+        are now DERIVED from tile resources within the
+        state's footprint: plurality wins. If a state has
+        no scattered resource at all, it falls back to
+        FARMLAND or TRADE via rng. Net effect: if 3/4 of
+        a region's tiles are mountains, ~3/4 of its states
+        come out as ORE — the user's "grand map shows 3/4
+        mountains → 3/4 mining states" causation.
+  WHY:  Exact user words: "I'd want to see at the zoomed
+        out scale of an area has, ore, forests, or other
+        resource I will add later on. Write the code in
+        such a way that on the grand map we see these
+        scattered through randomly with the option to add
+        more by adding a new data type. The grand scale
+        resources on the map should tie to the zoomed in
+        territory production boosts." Now the strategic
+        and territory views are causally linked: where you
+        SEE ore = where you'll MINE ore (when the mining
+        line lands).
+
+  Architecture:
+   - resources.ts (NEW): RESOURCE_DEFS table — single source
+     of truth. Each entry: id (= array index), key, label,
+     color, letter, scatterOnMap, patchCount, patchSize,
+     matchingLine. Adding a new resource = append one entry
+     (and adjust matchingLine when the building line lands).
+   - world.ts: Region.tileCount unchanged; added World.
+     resourceOf (Int16Array, parallel to regionOf, -1 if no
+     resource) and World.patches[] (centroid list, one per
+     scattered blob). Procgen step 9 walks scatteredResource
+     Defs() and BFS-grows patchCount blobs of patchSize tiles
+     each per resource. Step 10 derives each state.resource
+     from tile-resource plurality within that state's tiles;
+     fallback to fallbackResource(rng) (currently FARMLAND
+     / TRADE) for no-dominant-resource states.
+   - buildings.ts: decoupled from world.ts. Now just owns
+     line names + tier data; no longer imports resource
+     constants. matchingLine moved to resources.ts as
+     matchingLineFor(resourceId).
+   - mapResourceLayer.ts (NEW): renders one icon per patch
+     at patch centroid. Uses getResourceDef for color +
+     letter — picks up new entries automatically.
+   - stateLayer.ts / stateMenu.ts: switched to
+     getResourceDef + matchingLineFor. stateMenu handles
+     null matchingLine ("no matching line yet (mining
+     line pending)") so ORE states display sensibly.
+   - main.ts: instantiates mapResourceLayer in loadMap
+     above terrain/tint/border (z-order: above map base,
+     below ai-battle markers and armies).
+
+  Notes for future:
+   - Patch count + size are tunables in RESOURCE_DEFS.
+     Bump or trim per resource for density tuning.
+   - Resource placement is currently UNBIASED (random
+     grass tile). Future polish: bias by terrain
+     (ore in inland / high-elevation, fish on coast,
+     etc.). Hook is just an extra predicate in the seed-
+     pick loop of procgen step 9.
+   - Mining line still pending — when added, set ORE's
+     matchingLine: 'mining' in RESOURCE_DEFS and the menu
+     ★ + halo light up automatically.
+   - "3/4 land = mountain → 3/4 mining" causation:
+     achievable by bumping ORE's patchCount/patchSize so
+     the dominant resource saturates more states. If the
+     correlation feels weak, tune those numbers up.
+
+---
+
 2026-05-12  Nail #7: territory zoom + states + build menu
   WHAT: Tap a region in strategic view to SNAP-ZOOM into its
         interior — like the strategic/tactical battle scene

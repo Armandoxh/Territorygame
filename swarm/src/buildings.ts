@@ -9,8 +9,9 @@
 // have the resources, then decide costs." This module is the place
 // where construction cost / production rate hooks will eventually
 // plug in (see getRecruitmentRate in main.ts for the same pattern).
-
-import { RESOURCE_FARMLAND, RESOURCE_WOODS, RESOURCE_TRADE, type ResourceType } from './world';
+//
+// The resource <-> matching-line mapping lives in resources.ts. This
+// module only knows about the lines themselves and their tier data.
 
 export type BuildingLine = 'settlement' | 'forestry' | 'merchant';
 
@@ -29,15 +30,6 @@ export const TIER_NAMES: Record<BuildingLine, readonly string[]> = {
 // one place.
 export function maxTier(line: BuildingLine): number {
   return TIER_NAMES[line].length - 1;
-}
-
-// Maps state.resource -> the line that matches it (production boost
-// in a future nail). 1:1 mapping; UI uses this to highlight matches.
-export function matchingLine(resource: ResourceType): BuildingLine {
-  if (resource === RESOURCE_FARMLAND) return 'settlement';
-  if (resource === RESOURCE_WOODS) return 'forestry';
-  if (resource === RESOURCE_TRADE) return 'merchant';
-  throw new Error('unknown resource ' + resource);
 }
 
 // Per-state building tier record. Indexed by State.id (global state

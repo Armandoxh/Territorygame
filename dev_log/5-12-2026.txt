@@ -73,3 +73,63 @@ Next nail (suggested): map resources + matching boost
 effects. Production rates per state -> nation totals.
 That's still no costs yet — just the production half.
 Costs come after.
+
+---
+
+2026-05-12 (later) — grand-map resources + tile→state
+causation (nail #8)
+
+User asked: "I'd want to see at the zoomed out scale of
+an area has, ore, forests, or other resource I will add
+later on. Write the code in such a way that on the grand
+map we see these scattered through randomly with the
+option to add more by adding a new data type. The grand
+scale resources on the map should tie to the zoomed in
+territory production boosts." Plus the killer example:
+"3/4 of my land is mountain → 3/4 of my territories
+should boost mining."
+
+Two layered changes:
+
+1. **Resource def table.** New file `resources.ts` holds
+   the single source of truth: an array of ResourceDef.
+   Adding a resource = appending one entry. All consumers
+   (world gen, map render, state icons, build menu) read
+   from getResourceDef(). Shipped today: FARMLAND, WOODS,
+   TRADE, ORE. ORE has matchingLine: null — mining line
+   not built yet, but the resource is on the map and
+   tied to states already.
+
+2. **Scattered patches → state plurality.** World gen
+   gained step 9 (scatter resource blobs via BFS on
+   viable grass) and step 10 (each state's resource =
+   plurality of tile resources within its footprint;
+   fallback to FARMLAND/TRADE if no scattered resource
+   in the state). This is the causation: visually
+   dominant ore on the grand map → ore states.
+
+Refactor notes:
+- buildings.ts had matchingLine + RESOURCE_FARMLAND
+  imports; moved those out to resources.ts so the
+  building module is just lines + tiers + tap-to-build,
+  decoupled from world data. Cleaner dependency graph.
+- mapResourceLayer.ts: one icon per patch (not per
+  tile). Cheaper render. Centroid-positioned. World
+  has ~30 patches total in current tuning (14 ore +
+  16 forest) → 30 Graphics+Text pairs. Negligible.
+
+Tuning knobs (ResourceDef per entry):
+- patchCount (#blobs)
+- patchSize (tiles per blob)
+- scatterOnMap (bool — false = state-only fallback)
+- matchingLine (string | null — which line gets boost)
+
+User concern from previous session is now mostly
+addressed: the grand map TELLS the player what's
+buildable where. If 3/4 of their territory is ore-
+patched, they'll see 3/4 of their states come out ORE
+when they zoom in.
+
+Next: probably building costs + production effects.
+Once those exist, the matching boost becomes real
+(not just a visual ★).

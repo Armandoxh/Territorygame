@@ -12,17 +12,14 @@
 
 import { Container, Graphics, Text } from 'pixi.js';
 import type { World } from './world';
-import { RESOURCE_FARMLAND, RESOURCE_WOODS, RESOURCE_TRADE } from './world';
-import { getBuildings, matchingLine, type BuildingLine } from './buildings';
+import { getResourceDef, matchingLineFor } from './resources';
+import { getBuildings, type BuildingLine } from './buildings';
 
 const STATE_BORDER_COLOR = 0x111111;
 const STATE_BORDER_ALPHA = 0.65;
 const STATE_BORDER_WIDTH = 0.8;
 
 const RESOURCE_ICON_RADIUS = 8;
-const RESOURCE_FARMLAND_COLOR = 0xf3c14b;  // wheat gold
-const RESOURCE_WOODS_COLOR = 0x4f8a3d;     // forest green
-const RESOURCE_TRADE_COLOR = 0x3d7ab8;     // sea blue
 
 const BUILDING_ICON_RADIUS = 5;
 const BUILDING_SETTLEMENT_COLOR = 0xe9b87a;  // straw
@@ -121,8 +118,9 @@ export function createStateLayer(world: World, tileSize: number): StateLayer {
     for (const st of world.states) {
       const cx = st.centroidX * tileSize + tileSize / 2;
       const cy = st.centroidY * tileSize + tileSize / 2;
-      const color = resourceColor(st.resource);
-      const letter = resourceLetter(st.resource);
+      const def = getResourceDef(st.resource);
+      const color = def.color;
+      const letter = def.letter;
       const g = new Graphics();
       g.circle(0, 0, RESOURCE_ICON_RADIUS).fill({ color, alpha: 0.92 });
       g.circle(0, 0, RESOURCE_ICON_RADIUS).stroke({
@@ -160,7 +158,7 @@ export function createStateLayer(world: World, tileSize: number): StateLayer {
       // row below the resource icon.
       const lines: BuildingLine[] = ['settlement', 'forestry', 'merchant'];
       let drawn = 0;
-      const matchLine = matchingLine(st.resource);
+      const matchLine = matchingLineFor(st.resource);
       const cx = st.centroidX * tileSize + tileSize / 2;
       const cy = st.centroidY * tileSize + tileSize / 2;
       // Offset the row downward from resource icon.
@@ -227,20 +225,6 @@ export function createStateLayer(world: World, tileSize: number): StateLayer {
     refreshRegionBuildings,
     destroy: () => container.destroy({ children: true }),
   };
-}
-
-function resourceColor(r: number): number {
-  if (r === RESOURCE_FARMLAND) return RESOURCE_FARMLAND_COLOR;
-  if (r === RESOURCE_WOODS) return RESOURCE_WOODS_COLOR;
-  if (r === RESOURCE_TRADE) return RESOURCE_TRADE_COLOR;
-  return 0xffffff;
-}
-
-function resourceLetter(r: number): string {
-  if (r === RESOURCE_FARMLAND) return 'F';
-  if (r === RESOURCE_WOODS) return 'W';
-  if (r === RESOURCE_TRADE) return 'T';
-  return '?';
 }
 
 function buildingColor(line: BuildingLine): number {

@@ -4,24 +4,28 @@
 //   - a terrain type (water, sand, grass)
 //   - a region id (or -1 if water)
 //   - a state id (sub-partition within its region, or -1 if water)
+//   - a tile-level resource id (or -1 if none) — drives the
+//     scattered grand-map view AND biases state resource picks
 // Regions are organic blobs grown by multi-source BFS from random
-// seeds. Each region gets a placeholder owner color. Within each
-// region, tiles are further sub-partitioned into "states" (3-6 per
-// region depending on size) — each state has a resource type that
-// will match exactly one of the building lines (settlement / forestry
-// / merchant). Matching = production boost in a future nail.
+// seeds. Within each region, tiles are sub-partitioned into "states"
+// (3-6 per region). Each state's resource is the dominant tile
+// resource in its footprint (with a fallback for states without
+// any scattered resource).
+//
+// Resource defs live in resources.ts. Adding a new resource is a
+// single-entry append there.
+
+import {
+  RESOURCE_DEFS,
+  scatteredResourceDefs,
+  fallbackResource,
+  RES_NONE,
+  type ResourceDef,
+} from './resources';
 
 export const TERRAIN_WATER = 0;
 export const TERRAIN_SAND = 1;
 export const TERRAIN_GRASS = 2;
-
-// Resource types map 1:1 to building lines. A state's resource is
-// procgen-fixed at world gen and doesn't change. The matching line
-// gets a production boost when built there (future nail).
-export const RESOURCE_FARMLAND = 0;  // matches Settlement line (tent/house/town)
-export const RESOURCE_WOODS = 1;     // matches Forestry line (mill/processing/refinement)
-export const RESOURCE_TRADE = 2;     // matches Merchant line (stall/bazaar/exchange)
-export type ResourceType = 0 | 1 | 2;
 
 export interface Region {
   id: number;
@@ -42,7 +46,21 @@ export interface State {
   centroidX: number;   // float world tile-coords
   centroidY: number;
   tileCount: number;
-  resource: ResourceType;
+  // Resource id (index into RESOURCE_DEFS). Derived from the dominant
+  // tile resource within this state, with a fallback (FARMLAND or
+  // TRADE) for states with no scattered tile resource.
+  resource: number;
+}
+
+// A contiguous blob of same-resource tiles on the grand map. One
+// resource icon is rendered per patch (at its centroid), so the
+// strategic view doesn't have to paint every individual tile.
+export interface ResourcePatch {
+  id: number;          // index into World.patches
+  resourceId: number;  // index into RESOURCE_DEFS
+  centroidX: number;   // float world tile-coords
+  centroidY: number;
+  tileCount: number;
 }
 
 export interface World {
@@ -54,8 +72,15 @@ export interface World {
   // A tile's state is always within its region; stateOf is just the
   // pre-computed mapping so tile→state is one array lookup.
   stateOf: Int16Array;
+  // Parallel to regionOf; tile-level resource id, or RES_NONE (-1)
+  // if the tile has no scattered resource. Most tiles will be -1.
+  // Used by world gen (state resource derivation) and by the
+  // map-render layer (which actually only iterates patches[], not
+  // this array, for rendering — see ResourcePatch).
+  resourceOf: Int16Array;
   regions: Region[];
   states: State[];
+  patches: ResourcePatch[];
   playerRegionId: number;  // index into regions; the human player's home
 }
 
@@ -344,9 +369,8 @@ export function generateWorld(opts: GenerateOpts): World {
     for (let k = 0; k < actualK; k++) {
       const id = startId + k;
       stateIds.push(id);
-      // Random resource pick (uniform). Future polish: bias by
-      // terrain (woods inland, trade on coasts, etc.).
-      const resource = Math.floor(rng() * 3) as ResourceType;
+      // Resource is assigned in step 10 below (derived from tile
+      // resources scattered in step 9). Seed to fallback for now.
       states.push({
         id,
         regionId: r,
@@ -354,7 +378,7 @@ export function generateWorld(opts: GenerateOpts): World {
         centroidX: 0,  // filled in after BFS
         centroidY: 0,
         tileCount: 0,
-        resource,
+        resource: 0,
       });
     }
     regions[r]!.stateIds = stateIds;
@@ -423,5 +447,125 @@ export function generateWorld(opts: GenerateOpts): World {
     }
   }
 
-  return { width, height, terrain, regionOf, stateOf, regions, states, playerRegionId };
+  // 9. Scatter tile-level resources on the grand map. Each scattered
+  //    resource def gets `patchCount` BFS-grown clusters of up to
+  //    `patchSize` tiles each. Patches are stored separately so the
+  //    map renderer can paint one icon per patch (cheaper than per
+  //    tile, and the icon scales with terrain density nicely).
+  //    Adding a new resource def with scatterOnMap=true is the entire
+  //    extension surface — no edits to this step needed.
+  const resourceOf = new Int16Array(N);
+  resourceOf.fill(RES_NONE);
+  const patches: ResourcePatch[] = [];
+  const scatterDefs: ResourceDef[] = scatteredResourceDefs();
+  for (const def of scatterDefs) {
+    for (let p = 0; p < def.patchCount; p++) {
+      // Pick a seed: a grass tile that isn't already claimed by
+      // another resource patch.
+      let seed = -1;
+      for (let attempt = 0; attempt < 80; attempt++) {
+        const sx = Math.floor(rng() * width);
+        const sy = Math.floor(rng() * height);
+        const si = sy * width + sx;
+        if (terrain[si] !== TERRAIN_GRASS) continue;
+        if (resourceOf[si] !== RES_NONE) continue;
+        seed = si;
+        break;
+      }
+      if (seed === -1) continue;
+      // Grow a blob via 4-way BFS, randomized order so the blob
+      // shape is organic rather than diamond-y. Stop at patchSize.
+      const q: number[] = [seed];
+      resourceOf[seed] = def.id;
+      let head = 0;
+      let blobCount = 1;
+      let sumX = seed % width;
+      let sumY = (seed / width) | 0;
+      const dirs = [0, 1, 2, 3];
+      while (head < q.length && blobCount < def.patchSize) {
+        const i = q[head++]!;
+        const x = i % width;
+        const y = (i / width) | 0;
+        // Shuffle direction order for organic shape.
+        for (let s = 3; s > 0; s--) {
+          const j = Math.floor(rng() * (s + 1));
+          const tmp = dirs[s]!; dirs[s] = dirs[j]!; dirs[j] = tmp;
+        }
+        for (const d of dirs) {
+          if (blobCount >= def.patchSize) break;
+          let ni = -1;
+          if (d === 0 && x > 0) ni = i - 1;
+          else if (d === 1 && x < width - 1) ni = i + 1;
+          else if (d === 2 && y > 0) ni = i - width;
+          else if (d === 3 && y < height - 1) ni = i + width;
+          if (ni < 0) continue;
+          if (terrain[ni] !== TERRAIN_GRASS) continue;
+          if (resourceOf[ni] !== RES_NONE) continue;
+          resourceOf[ni] = def.id;
+          q.push(ni);
+          blobCount++;
+          sumX += ni % width;
+          sumY += (ni / width) | 0;
+        }
+      }
+      patches.push({
+        id: patches.length,
+        resourceId: def.id,
+        centroidX: sumX / blobCount,
+        centroidY: sumY / blobCount,
+        tileCount: blobCount,
+      });
+    }
+  }
+
+  // 10. Derive each state's resource from the tile resources within
+  //     its footprint. Plurality wins — the resource with the most
+  //     tiles inside the state becomes the state resource. If NO
+  //     scattered resource has tiles in the state (just grass), fall
+  //     back to FARMLAND / TRADE (the state-only resources) via rng.
+  //     This is the "3/4 mountains → 3/4 mining states" causation
+  //     the user asked for: tile-level distribution drives state-
+  //     level distribution.
+  const tally = new Int32Array(RESOURCE_DEFS.length);
+  for (let r = 0; r < regions.length; r++) {
+    const region = regions[r]!;
+    for (const sid of region.stateIds) {
+      tally.fill(0);
+      const st = states[sid]!;
+      // Walk the region tiles once, tallying only those whose
+      // stateOf matches. tilesByRegion[r] is cached from step 8.
+      for (const i of tilesByRegion[r]!) {
+        if (stateOf[i] !== sid) continue;
+        const rid = resourceOf[i]!;
+        if (rid === RES_NONE) continue;
+        tally[rid]! += 1;
+      }
+      let bestId = -1;
+      let bestCount = 0;
+      for (let id = 0; id < tally.length; id++) {
+        if (tally[id]! > bestCount) {
+          bestCount = tally[id]!;
+          bestId = id;
+        }
+      }
+      if (bestId >= 0) {
+        st.resource = bestId;
+      } else {
+        st.resource = fallbackResource(rng);
+      }
+    }
+  }
+
+  return {
+    width,
+    height,
+    terrain,
+    regionOf,
+    stateOf,
+    resourceOf,
+    regions,
+    states,
+    patches,
+    playerRegionId,
+  };
 }

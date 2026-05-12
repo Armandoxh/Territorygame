@@ -14,6 +14,7 @@ import { readoutStore, type ViewLabel } from './store';
 import { createStateLayer, type StateLayer } from './stateLayer';
 import { initBuildings, buildNext, getBuildings, type BuildingLine } from './buildings';
 import { createStateMenu, type StateMenu } from './stateMenu';
+import { createMapResourceLayer, type MapResourceLayer } from './mapResourceLayer';
 
 // ----- World / camera constants -----
 const TILE_SIZE = 16;
@@ -205,6 +206,7 @@ type RegionZoom =
 let regionZoom: RegionZoom = { mode: 'inactive' };
 let preZoomCamera: { zoom: number; panX: number; panY: number } | null = null;
 let stateLayerObj: StateLayer | null = null;
+let mapResourceLayerObj: MapResourceLayer | null = null;
 const REGION_ZOOM_TRANSITION_MS = 360;
 // Cap region-zoom in-mode zoom so even very small regions don't
 // over-magnify. Reusing TACTICAL_ZOOM (6.0) as the ceiling — same
@@ -397,6 +399,13 @@ function loadMap(seed: number) {
   regionOwner = initRegionOwner(world, nations);
   layers = buildMapLayers(world, TILE_SIZE, regionOwner, nations);
   addLayers(layers);
+  // Grand-map resource icons (scattered patches). Rebuilt every
+  // loadMap because patch positions are seed-dependent. The earlier
+  // strategicLayer.removeChildren() already detached the old
+  // container; just destroy and re-create.
+  if (mapResourceLayerObj) mapResourceLayerObj.destroy();
+  mapResourceLayerObj = createMapResourceLayer(world, TILE_SIZE);
+  strategicLayer.addChild(mapResourceLayerObj.container);
   // Per-state buildings: fresh slate on every map load.
   initBuildings(world.states.length);
   // Tear down the old state overlay and rebuild from the new world.
