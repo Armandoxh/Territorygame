@@ -943,12 +943,14 @@ function captureCapital(target: Nation, captor: Nation) {
 // Straight-line drop validator. The army marches in a literal straight
 // line from current position to drop point. We sample along that line
 // and reject if it crosses any region owned by another nation, EXCEPT
-// the destination region itself (you're allowed to land on enemy
-// land — just not to transit through it).
+// the source and destination regions themselves.
+//   - source region: always passable (the army is physically standing
+//     there — if an enemy captured the region while the army sat
+//     idle, the player still needs to be able to leave)
+//   - destination region: always passable (you stop there)
 //   - own / neutral regions: passable
 //   - water / out-of-bounds (regionAt < 0): treated as passable
 //     (water has no owner; visually weird but consistent)
-//   - destination region: always passable (you stop there)
 //   - any other enemy region the line touches: blocked
 // Future war / alliance system plugs in by widening the predicate.
 function canNationMoveStraight(
@@ -966,6 +968,7 @@ function canNationMoveStraight(
   // region boundaries in practice, so this catches narrow corner-clips.
   const step = TILE_SIZE * 0.5;
   const steps = Math.max(1, Math.ceil(dist / step));
+  const sourceRegion = regionAtPos(fromX, fromY);
   const dropRegion = regionAtPos(toX, toY);
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
@@ -973,6 +976,7 @@ function canNationMoveStraight(
     const sy = fromY + dy * t;
     const r = regionAtPos(sx, sy);
     if (r < 0) continue;
+    if (r === sourceRegion) continue;
     if (r === dropRegion) continue;
     const owner = regionOwner[r]!;
     if (owner === nationId) continue;
