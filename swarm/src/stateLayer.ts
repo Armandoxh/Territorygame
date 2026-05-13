@@ -13,7 +13,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import type { World } from './world';
 import { getResourceDef, matchingLineFor } from './resources';
-import { getBuildings, type BuildingLine } from './buildings';
+import { getBuildings, BUILDING_LINES, type BuildingLine } from './buildings';
 
 const STATE_BORDER_COLOR = 0x111111;
 const STATE_BORDER_ALPHA = 0.65;
@@ -23,7 +23,9 @@ const RESOURCE_ICON_RADIUS = 8;
 
 const BUILDING_ICON_RADIUS = 5;
 const BUILDING_SETTLEMENT_COLOR = 0xe9b87a;  // straw
+const BUILDING_FARMLAND_COLOR = 0xf2c11f;    // wheat (matches map tint)
 const BUILDING_FORESTRY_COLOR = 0x7e5230;    // wood brown
+const BUILDING_MINING_COLOR = 0x4a4540;      // slate (matches map tint)
 const BUILDING_MERCHANT_COLOR = 0xc9b03e;    // brass
 
 // Light highlight when a built line matches the state's resource —
@@ -153,21 +155,27 @@ export function createStateLayer(world: World, tileSize: number): StateLayer {
     for (const sid of region.stateIds) {
       const st = world.states[sid]!;
       const b = getBuildings(sid);
-      // Three slots per state: settlement, forestry, merchant. Render
-      // a small badge for each that has tier >= 1. Stack them in a
-      // row below the resource icon.
-      const lines: BuildingLine[] = ['settlement', 'forestry', 'merchant'];
+      // Five slots per state: settlement, farmland, forestry, mining,
+      // merchant. Render a small badge for each that has tier >= 1.
+      // Stack them centered in a row below the resource icon — the
+      // row width is computed from how many tiers are actually built
+      // so it auto-centers regardless of count.
+      const lines: BuildingLine[] = BUILDING_LINES;
       let drawn = 0;
+      const builtCount = lines.reduce((n, ln) => n + (b[ln] > 0 ? 1 : 0), 0);
       const matchLine = matchingLineFor(st.resource);
       const cx = st.centroidX * tileSize + tileSize / 2;
       const cy = st.centroidY * tileSize + tileSize / 2;
       // Offset the row downward from resource icon.
       const rowY = cy + RESOURCE_ICON_RADIUS + BUILDING_ICON_RADIUS + 2;
+      // Center the row around cx by starting at -(n-1)/2 * step.
+      const step = BUILDING_ICON_RADIUS * 2 + 2;
+      const startOff = -((builtCount - 1) / 2) * step;
       for (const line of lines) {
         const tier = b[line];
         if (tier === 0) continue;
         const isMatch = line === matchLine;
-        const offX = (drawn - 1) * (BUILDING_ICON_RADIUS * 2 + 2);
+        const offX = startOff + drawn * step;
         const g = new Graphics();
         g.circle(0, 0, BUILDING_ICON_RADIUS).fill({
           color: buildingColor(line),
@@ -229,7 +237,9 @@ export function createStateLayer(world: World, tileSize: number): StateLayer {
 
 function buildingColor(line: BuildingLine): number {
   if (line === 'settlement') return BUILDING_SETTLEMENT_COLOR;
+  if (line === 'farmland') return BUILDING_FARMLAND_COLOR;
   if (line === 'forestry') return BUILDING_FORESTRY_COLOR;
+  if (line === 'mining') return BUILDING_MINING_COLOR;
   if (line === 'merchant') return BUILDING_MERCHANT_COLOR;
   return 0xffffff;
 }

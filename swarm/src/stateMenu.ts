@@ -1,20 +1,32 @@
 // State build menu (DOM modal). Opens when the player taps a state
-// in the region-zoom view. Shows the state's resource, the three
-// building lines with current tier, and an upgrade button for each.
-// Mobile-target: bottom-anchored card, big tap targets.
+// in the region-zoom view.
 //
-// No costs / no production effects this nail — buttons just bump
-// the tier and refresh. The matching line gets a star marker so
-// the player sees the resource/line pairing.
+// Layout: a tab strip across the top — one tab per building line
+// (settlement / farmland / forestry / mining / merchant). The
+// matching line for the state's resource gets a ★ on its tab and
+// auto-activates when the menu opens.
+//
+// Below the tabs: three tier cards (tier 1, 2, 3) showing the
+// progression for the active line. Tier states:
+//   - built     — already constructed (green check)
+//   - available — your current tier + 1 is buildable (tap to build)
+//   - locked    — needs the prior tier first (greyed out)
+//
+// Mobile-target: 360×740. Card sits at the bottom, tap targets are
+// generously sized.
 
-import { TIER_NAMES, maxTier, type BuildingLine } from './buildings';
+import {
+  TIER_NAMES,
+  maxTier,
+  BUILDING_LINES,
+  type BuildingLine,
+} from './buildings';
 import { getResourceDef, matchingLineFor } from './resources';
 
 export interface StateMenuContext {
   stateId: number;
   regionId: number;
-  // Resource id (index into RESOURCE_DEFS).
-  resource: number;
+  resource: number;  // resource id (index into RESOURCE_DEFS)
   // Tier numbers (0..N) keyed by line name.
   tiers: Record<BuildingLine, number>;
   // True if the region containing this state is owned by the player.
@@ -23,7 +35,9 @@ export interface StateMenuContext {
 }
 
 export interface StateMenuActions {
-  onBuild(stateId: number, line: BuildingLine): void;
+  // Player tapped a buildable tier. The line and tier come from the
+  // user's choice — main.ts validates and bumps the tier.
+  onBuild(stateId: number, line: BuildingLine, tier: number): void;
   onClose(): void;
 }
 
@@ -33,25 +47,23 @@ export interface StateMenu {
   isVisible(): boolean;
 }
 
-const LINES: BuildingLine[] = ['settlement', 'forestry', 'merchant'];
-
 export function createStateMenu(actions: StateMenuActions): StateMenu {
   const root = document.getElementById('state-menu') as HTMLDivElement | null;
   const titleEl = document.getElementById('state-menu-title') as HTMLDivElement | null;
   const subEl = document.getElementById('state-menu-sub') as HTMLDivElement | null;
-  const listEl = document.getElementById('state-menu-list') as HTMLDivElement | null;
+  const tabsEl = document.getElementById('state-menu-tabs') as HTMLDivElement | null;
+  const tiersEl = document.getElementById('state-menu-tiers') as HTMLDivElement | null;
   const closeBtn = document.getElementById('state-menu-close') as HTMLButtonElement | null;
-  if (!root || !titleEl || !subEl || !listEl || !closeBtn) {
+  if (!root || !titleEl || !subEl || !tabsEl || !tiersEl || !closeBtn) {
     throw new Error('state menu DOM nodes missing');
   }
 
   let current: StateMenuContext | null = null;
+  // Which line's tier list is being shown. Reset on each open to the
+  // state's matching line (or settlement as the universal fallback).
+  let activeLine: BuildingLine = 'settlement';
 
-  closeBtn.addEventListener('click', () => {
-    actions.onClose();
-  });
-
-  // Backdrop click (outside the card) also closes.
+  closeBtn.addEventListener('click', () => actions.onClose());
   root.addEventListener('click', (e) => {
     if (e.target === root) actions.onClose();
   });
@@ -59,48 +71,20 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
   function show(ctx: StateMenuContext) {
     current = ctx;
     const def = getResourceDef(ctx.resource);
-    titleEl!.textContent = `State ${ctx.regionId}.${ctx.stateId} · ${def.label}`;
     const matched = matchingLineFor(ctx.resource);
+    titleEl!.textContent = `State ${ctx.regionId}.${ctx.stateId} · ${def.label}`;
     if (!ctx.ownedByPlayer) {
-      subEl!.textContent = 'enemy / unclaimed territory';
+      subEl!.textContent = 'enemy / unclaimed territory — read-only';
     } else if (matched) {
-      subEl!.textContent = `match: ${lineLabel(matched)} (boost coming)`;
+      subEl!.textContent = `${def.label} matches ${lineLabel(matched)} — boost coming`;
     } else {
-      subEl!.textContent = 'no matching line yet (mining line pending)';
+      subEl!.textContent = 'no matching production line yet';
     }
-    // Rebuild the rows from scratch each show — cheap, small list.
-    listEl!.innerHTML = '';
-    for (const line of LINES) {
-      const tier = ctx.tiers[line];
-      const max = maxTier(line);
-      const row = document.createElement('div');
-      row.className = 'state-menu-row';
-      const label = document.createElement('div');
-      label.className = 'state-menu-row-label';
-      const tierName = TIER_NAMES[line][tier] ?? '?';
-      const isMatch = matched !== null && line === matched;
-      label.textContent = `${lineLabel(line)}${isMatch ? ' ★' : ''} · ${tierName} (${tier}/${max})`;
-      row.appendChild(label);
-      const btn = document.createElement('button');
-      btn.className = 'state-menu-row-btn';
-      if (!ctx.ownedByPlayer) {
-        btn.disabled = true;
-        btn.textContent = 'locked';
-      } else if (tier >= max) {
-        btn.disabled = true;
-        btn.textContent = 'max';
-      } else if (tier === 0) {
-        btn.textContent = 'build';
-      } else {
-        btn.textContent = 'upgrade';
-      }
-      btn.addEventListener('click', () => {
-        if (!current) return;
-        actions.onBuild(current.stateId, line);
-      });
-      row.appendChild(btn);
-      listEl!.appendChild(row);
-    }
+    // Default active line: matching one if there is one, else
+    // settlement (universal — every state can grow people).
+    activeLine = matched ?? 'settlement';
+    renderTabs(matched);
+    renderTiers();
     root!.classList.add('visible');
   }
 
@@ -113,12 +97,79 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
     return root!.classList.contains('visible');
   }
 
+  function renderTabs(matched: BuildingLine | null) {
+    tabsEl!.innerHTML = '';
+    for (const line of BUILDING_LINES) {
+      const tab = document.createElement('button');
+      tab.className = 'state-menu-tab';
+      tab.type = 'button';
+      tab.dataset.line = line;
+      const isMatch = matched !== null && line === matched;
+      // ★ marker on the matching line so the player sees the
+      // resource/line pairing at a glance.
+      tab.textContent = `${lineLabel(line)}${isMatch ? ' ★' : ''}`;
+      if (line === activeLine) tab.classList.add('active');
+      if (isMatch) tab.classList.add('match');
+      tab.addEventListener('click', () => {
+        if (activeLine === line) return;
+        activeLine = line;
+        // Re-paint without re-running show() so DOM doesn't flash.
+        for (const child of Array.from(tabsEl!.children)) {
+          child.classList.toggle('active', (child as HTMLElement).dataset.line === line);
+        }
+        renderTiers();
+      });
+      tabsEl!.appendChild(tab);
+    }
+  }
+
+  function renderTiers() {
+    if (!current) return;
+    tiersEl!.innerHTML = '';
+    const currentTier = current.tiers[activeLine];
+    const max = maxTier(activeLine);
+    const tierNames = TIER_NAMES[activeLine];
+    // Tiers 1..max — index 0 in TIER_NAMES is the "empty" placeholder
+    // that we never show as a card.
+    for (let t = 1; t <= max; t++) {
+      const card = document.createElement('div');
+      card.className = 'state-menu-tier';
+      const isBuilt = currentTier >= t;
+      const isAvailable = currentTier === t - 1;
+      const isLocked = currentTier < t - 1;
+      if (isBuilt) card.classList.add('built');
+      else if (isAvailable) card.classList.add('available');
+      else card.classList.add('locked');
+      const head = document.createElement('div');
+      head.className = 'state-menu-tier-head';
+      head.textContent = `tier ${t} · ${tierNames[t] ?? '?'}`;
+      card.appendChild(head);
+      const status = document.createElement('div');
+      status.className = 'state-menu-tier-status';
+      if (isBuilt) {
+        status.textContent = '✓ built';
+      } else if (!current.ownedByPlayer) {
+        status.textContent = 'locked (enemy territory)';
+      } else if (isAvailable) {
+        status.textContent = 'tap to build';
+        card.addEventListener('click', () => {
+          if (!current) return;
+          actions.onBuild(current.stateId, activeLine, t);
+        });
+        card.classList.add('clickable');
+      } else if (isLocked) {
+        status.textContent = `needs tier ${t - 1}`;
+      }
+      card.appendChild(status);
+      tiersEl!.appendChild(card);
+    }
+  }
+
   return { show, hide, isVisible };
 }
 
 function lineLabel(line: BuildingLine): string {
-  if (line === 'settlement') return 'settlement';
-  if (line === 'forestry') return 'forestry';
-  if (line === 'merchant') return 'merchant';
+  // Direct identity for now — the type union and the displayed text
+  // are the same. Branch here if we want shorter mobile names.
   return line;
 }

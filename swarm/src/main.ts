@@ -12,7 +12,7 @@ import type { Nation } from './nation';
 import { createGameModal, type GameModal } from './gameModal';
 import { readoutStore, type ViewLabel } from './store';
 import { createStateLayer, type StateLayer } from './stateLayer';
-import { initBuildings, buildNext, getBuildings, type BuildingLine } from './buildings';
+import { initBuildings, buildTier, getBuildings, type BuildingLine } from './buildings';
 import { createStateMenu, type StateMenu } from './stateMenu';
 import { createMapResourceLayer, type MapResourceLayer } from './mapResourceLayer';
 
@@ -662,7 +662,13 @@ function openStateMenu(stateId: number) {
     stateId,
     regionId: st.regionId,
     resource: st.resource,
-    tiers: { settlement: b.settlement, forestry: b.forestry, merchant: b.merchant },
+    tiers: {
+      settlement: b.settlement,
+      farmland: b.farmland,
+      forestry: b.forestry,
+      mining: b.mining,
+      merchant: b.merchant,
+    },
     ownedByPlayer,
   });
 }
@@ -1235,15 +1241,16 @@ const gameModal: GameModal = createGameModal({
 // ===== State (territory build) menu =====
 
 const stateMenu: StateMenu = createStateMenu({
-  onBuild: (stateId, line) => {
+  onBuild: (stateId, line, tier) => {
     if (regionZoom.mode !== 'active') return;
     // Defensive: only the player can build, and only on their owned
     // regions. The menu enforces this UI-side too but the data path
-    // should not trust the UI.
+    // should not trust the UI. buildTier also rejects skipping
+    // tiers (you must build cur+1).
     const st = world.states[stateId];
     if (!st) return;
     if (regionOwner[st.regionId] !== playerNation().id) return;
-    const ok = buildNext(stateId, line);
+    const ok = buildTier(stateId, line, tier);
     if (!ok) return;
     stateLayerObj?.refreshRegionBuildings(st.regionId);
     // Refresh the menu in place so the new tier shows immediately.

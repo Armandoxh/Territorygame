@@ -20,18 +20,22 @@
 // the ergonomic handles for code that needs to refer to specific
 // resources directly.
 
-// BuildingLine kept as a string union here (not imported from
-// buildings.ts) so this module can be referenced by world.ts without
-// creating a cycle (world is pure data; buildings depends on world).
-// When the mining line lands, add 'mining' here.
-export type BuildingLineKey = 'settlement' | 'forestry' | 'merchant';
-
 // Glyph styles for the grand-map (per-tile) renderer. Adding a new
 // glyph kind: add an entry here and a matching draw function in
 // mapResourceLayer.ts. 'circle' is the always-works fallback (small
 // colored circle with the resource letter) so a freshly added
 // resource is visible even before a custom glyph lands.
 export type ResourceGlyph = 'mountain' | 'tree' | 'farm' | 'circle';
+
+// Building line key — duplicated here as a string union so this
+// module can stand alone (no circular import with buildings.ts).
+// Keep in sync with BuildingLine in buildings.ts.
+export type BuildingLineKey =
+  | 'settlement'
+  | 'farmland'
+  | 'forestry'
+  | 'mining'
+  | 'merchant';
 
 export interface ResourceDef {
   // id is the index of this entry in RESOURCE_DEFS. Used as the
@@ -83,7 +87,7 @@ export const RESOURCE_DEFS: readonly ResourceDef[] = [
     scatterOnMap: true,
     patchCount: 10,
     patchSize: 32,
-    matchingLine: 'settlement',
+    matchingLine: 'farmland',
   },
   {
     id: 1,
@@ -122,7 +126,7 @@ export const RESOURCE_DEFS: readonly ResourceDef[] = [
     scatterOnMap: true,
     patchCount: 14,
     patchSize: 18,
-    matchingLine: null,
+    matchingLine: 'mining',
   },
 ] as const;
 
