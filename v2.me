@@ -12,6 +12,56 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-13  Nail #10: build costs (drain side)
+  WHAT: Buildings now consume currencies on construction.
+        Per (line, tier) cost table in costs.ts. Thematic
+        costs: settlement→wood, farmland→pop+wood,
+        forestry→pop, mining→pop+wood, merchant→gold+wood.
+        Growth roughly 3x per tier so each upgrade is a
+        real decision. Tier cards now show cost, gate the
+        "available" state on affordability, and a new
+        "unaffordable" CSS state (muted amber, "need 18
+        more wood") sits between locked and available.
+        Spawn now seeds 30 pop + 30 wood per nation so the
+        player can immediately afford a tier-1 building.
+  WHY:  Without costs, the player could max every line
+        everywhere — no prioritization. Costs activate the
+        trade-off layer: do I spend my wood on a settlement
+        for more pop, or save it for a forestry mill?
+        Also: tile-resource competition (forests vs ore vs
+        farmland) now bites economically, not just for the
+        line-locking rule.
+
+  Architecture:
+   - costs.ts (NEW): single COSTS[line][tier] table;
+     canAfford(econ, line, tier), payCost(econ, line, tier),
+     formatCost(line, tier), shortfallText(econ, ...).
+     Tuning surface = the table.
+   - main.ts spawnNations: economy seeded with 30 pop +
+     30 wood (was emptyEconomy()).
+   - main.ts onBuild: order is now validate → buildTier
+     (which checks tier == cur+1) → payCost. Failing
+     buildTier means we don't deduct.
+   - stateMenu.ts: tier cards gained a cost line ("cost:
+     30 wood, 15 pop"). renderTiers now branches into 5
+     mutually-exclusive states: built / locked-by-resource
+     / locked-by-prev-tier / unaffordable / available.
+     Tap target only on available.
+   - CSS: new .state-menu-tier.unaffordable (muted amber)
+     so the player sees "almost ready" rather than "out of
+     reach" — different shade from .locked.
+
+  Notes for future:
+   - No maintenance costs. Buildings cost once, produce
+     forever. Future polish: per-tick upkeep per building
+     (food for pop, wood for buildings, etc).
+   - No refund on demolish. There's no demolish UI yet.
+   - AI still doesn't build, so they can't spend either.
+     "AI builds too" is now the obvious next nail — and
+     the same cost table will gate AI builds the same way.
+
+---
+
 2026-05-13  Nail #9: production effects
   WHAT: Built tiers now actually output resources per second.
         Five currencies, one per building line: pop / food /

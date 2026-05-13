@@ -74,3 +74,62 @@ Open hooks for the next nail:
 - Spending sinks: army recruitment cost (currently free
   too) could draw from gold or pop. Wires neatly into
   the existing getRecruitmentRate path.
+
+---
+
+2026-05-13 (later) — build costs (nail #10)
+
+User picked it: "Build costs (the drain side)." Was the
+obvious follow-up: production exists, accumulator
+accumulates, but no spending = no prioritization.
+
+Cost shape (in costs.ts):
+  settlement: wood only            (housing timber)
+  farmland:   pop + wood           (workers + tools)
+  forestry:   pop                  (workers; trees free)
+  mining:     pop + wood           (workers + supports)
+  merchant:   gold + wood          (capital + stalls)
+
+Per-tier growth roughly 3x (10 → 30 → 80). Tier 1
+settlement = 10 wood, T3 plantation = 80p + 40w. Tier 3s
+are real commitments.
+
+Bootstrap: spawn gives 30 pop + 30 wood. Player can
+immediately build:
+  - any tier-1 settlement (10 wood -> 20 wood left)
+  - tier-1 farmland (10 pop + 5 wood)
+  - tier-1 forestry (10 pop)
+  - tier-1 mining if 15 pop + 10 wood available
+  - tier-1 merchant if 5 gold (won't have at spawn)
+Most paths produce a currency on the first build, so
+the loop closes quickly.
+
+UI changes in stateMenu:
+- Tier cards now show a cost line ("cost: 30 wood, 15 pop").
+- New "unaffordable" state in the 5-card-state machine:
+    built / locked-by-resource / locked-by-prev-tier
+    / unaffordable / available
+  unaffordable = same as available logically, just can't
+  afford. Visually muted amber so player sees "almost
+  ready" rather than "out of reach" (different from
+  locked-grey).
+- Status text on unaffordable: "need 18 more wood"
+  (largest shortfall — single line).
+
+Build flow:
+  validate (owned + resource match + can-afford)
+  -> buildTier (asserts tier == cur+1)
+  -> payCost  (only if buildTier succeeded — no
+               double-charge or stranded payment)
+
+Open follow-ups (now even more meaningful):
+- AI builds. They have 30 pop / 30 wood at spawn just
+  like the player; same cost table will gate them. Once
+  they build, they accumulate, build more, etc — late-
+  game enemies become economically scarier.
+- Army recruitment cost. Currently free; tying recruit
+  to pop would create the food-pop-army loop.
+- Maintenance costs (per-tick upkeep). Adds a drain to
+  even idle buildings.
+- Demolish + refund. No UI for either yet — fine until
+  someone wants it.

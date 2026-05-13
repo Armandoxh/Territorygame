@@ -22,6 +22,7 @@ import {
   currencyForLine,
   currencyLabel,
 } from './economy';
+import { canAfford, payCost } from './costs';
 
 // ----- World / camera constants -----
 const TILE_SIZE = 16;
@@ -324,7 +325,10 @@ function spawnNations(w: World, seed: number): Nation[] {
       regionCaptureProgress: null,
       recruitmentPick: 'infantry',
       recruitmentProgress: 0,
-      economy: emptyEconomy(),
+      // Starting bank so the player can afford a tier-1 building or
+      // two without staring at zero. Same amount for AIs (they don't
+      // build yet — moot for now).
+      economy: { ...emptyEconomy(), pop: 30, wood: 30 },
     });
   }
   return out;
@@ -664,7 +668,8 @@ function tickRegionZoomSystem(_dtMs: number) {
 function openStateMenu(stateId: number) {
   const st = world.states[stateId];
   if (!st) return;
-  const ownedByPlayer = regionOwner[st.regionId] === playerNation().id;
+  const player = playerNation();
+  const ownedByPlayer = regionOwner[st.regionId] === player.id;
   const b = getBuildings(stateId);
   stateMenu.show({
     stateId,
@@ -678,6 +683,8 @@ function openStateMenu(stateId: number) {
       merchant: b.merchant,
     },
     ownedByPlayer,
+    // Snapshot is fine — menu re-renders on every build.
+    economy: { ...player.economy },
   });
 }
 
@@ -1282,15 +1289,21 @@ const stateMenu: StateMenu = createStateMenu({
     if (regionZoom.mode !== 'active') return;
     // Defense-in-depth: only the player can build, only on their
     // owned regions, only lines that match the state's resource
-    // (settlement is universal — see canBuildOnState). The menu
-    // enforces all of this UI-side, but the data path should never
-    // trust the UI alone.
+    // (settlement is universal — see canBuildOnState), and only
+    // when affordable. The menu enforces all of this UI-side, but
+    // the data path should never trust the UI alone.
     const st = world.states[stateId];
     if (!st) return;
-    if (regionOwner[st.regionId] !== playerNation().id) return;
+    const player = playerNation();
+    if (regionOwner[st.regionId] !== player.id) return;
     if (!canBuildOnState(st.resource, line)) return;
+    if (!canAfford(player.economy, line, tier)) return;
+    // Build first (validates tier == cur+1). Only pay if the
+    // mutation actually happened, so a race against tier doesn't
+    // double-charge.
     const ok = buildTier(stateId, line, tier);
     if (!ok) return;
+    payCost(player.economy, line, tier);
     stateLayerObj?.refreshRegionBuildings(st.regionId);
     // Refresh the menu in place so the new tier shows immediately.
     openStateMenu(stateId);

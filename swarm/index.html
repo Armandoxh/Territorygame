@@ -372,6 +372,12 @@
         letter-spacing: 0.04em;
         margin-bottom: 3px;
       }
+      .state-menu-tier-cost {
+        font-size: 10px;
+        opacity: 0.62;
+        letter-spacing: 0.04em;
+        margin-bottom: 2px;
+      }
       .state-menu-tier-status {
         font-size: 10px;
         opacity: 0.7;
@@ -396,6 +402,21 @@
       }
       .state-menu-tier.available:active {
         background: rgba(55, 90, 48, 0.85);
+      }
+      /* "You could build this if you had the resources." Visually
+         halfway between locked and available — the player should see
+         this as "almost ready" not "out of reach." */
+      .state-menu-tier.unaffordable {
+        background: rgba(160, 110, 40, 0.22);
+        border-color: rgba(220, 170, 80, 0.4);
+        cursor: not-allowed;
+      }
+      .state-menu-tier.unaffordable .state-menu-tier-status {
+        color: rgba(255, 200, 130, 1);
+        opacity: 0.95;
+      }
+      .state-menu-tier.unaffordable .state-menu-tier-cost {
+        opacity: 0.85;
       }
       .state-menu-tier.locked {
         opacity: 0.42;

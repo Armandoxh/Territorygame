@@ -27,6 +27,8 @@ import {
   canBuildOnState,
   requiredResourceLabelFor,
 } from './resources';
+import { canAfford, formatCost, shortfallText } from './costs';
+import type { Economy } from './economy';
 
 export interface StateMenuContext {
   stateId: number;
@@ -37,6 +39,10 @@ export interface StateMenuContext {
   // True if the region containing this state is owned by the player.
   // False = readonly view (no build buttons enabled).
   ownedByPlayer: boolean;
+  // Player's current currency totals. Used to compute affordability
+  // for each tier card. Passed by snapshot, not by reference — the
+  // menu re-renders after every build so it stays current.
+  economy: Economy;
 }
 
 export interface StateMenuActions {
@@ -148,23 +154,36 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
       card.className = 'state-menu-tier';
       const isBuilt = currentTier >= t;
       const prevTierBuilt = currentTier === t - 1;
-      // Strategic lock first: if the line is wrong for this state's
-      // resource, ALL tiers are locked with the requirement hint.
-      // Otherwise the tier-progression rule applies (built / available
-      // / needs prior tier).
+      const affordable = canAfford(current.economy, activeLine, t);
+      const cost = formatCost(activeLine, t);
+      // Five mutually-exclusive states. Order of checks matters:
+      //   built       -> already constructed
+      //   locked      -> wrong resource for the line, OR previous tier not built
+      //   unaffordable -> would be available but currency shortfall
+      //   available   -> tappable
       if (isBuilt) {
         card.classList.add('built');
-      } else if (!buildable) {
+      } else if (!buildable || !prevTierBuilt) {
         card.classList.add('locked');
-      } else if (prevTierBuilt) {
-        card.classList.add('available');
+      } else if (!affordable) {
+        card.classList.add('unaffordable');
       } else {
-        card.classList.add('locked');
+        card.classList.add('available');
       }
       const head = document.createElement('div');
       head.className = 'state-menu-tier-head';
       head.textContent = `tier ${t} · ${tierNames[t] ?? '?'}`;
       card.appendChild(head);
+      // Cost line. Shown for all non-built tiers (you don't see cost
+      // for something you've already paid for). 'free' for tier-1
+      // settlement is technically not the case (settlement t1 is
+      // 10 wood), but the formatCost helper handles it generically.
+      if (!isBuilt) {
+        const costEl = document.createElement('div');
+        costEl.className = 'state-menu-tier-cost';
+        costEl.textContent = `cost: ${cost}`;
+        card.appendChild(costEl);
+      }
       const status = document.createElement('div');
       status.className = 'state-menu-tier-status';
       if (isBuilt) {
@@ -173,15 +192,17 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
         status.textContent = 'enemy territory';
       } else if (!buildable) {
         status.textContent = requiredLabel ? `requires ${requiredLabel} state` : 'unavailable';
-      } else if (prevTierBuilt) {
+      } else if (!prevTierBuilt) {
+        status.textContent = `needs tier ${t - 1}`;
+      } else if (!affordable) {
+        status.textContent = shortfallText(current.economy, activeLine, t);
+      } else {
         status.textContent = 'tap to build';
         card.addEventListener('click', () => {
           if (!current) return;
           actions.onBuild(current.stateId, activeLine, t);
         });
         card.classList.add('clickable');
-      } else {
-        status.textContent = `needs tier ${t - 1}`;
       }
       card.appendChild(status);
       tiersEl!.appendChild(card);
