@@ -74,33 +74,35 @@ export interface ResourceDef {
   readonly matchingLine: BuildingLineKey | null;
 }
 
+// Patch tuning philosophy: fewer, bigger blobs over many small ones.
+// Total tile coverage is similar to the previous tuning, but the
+// resulting map reads as "this region is a forest" / "that's a
+// mountain range" instead of a confetti of small patches. Combined
+// with the cellular-smoothing pass in world.ts step 9, blobs come
+// out with rounded edges rather than the BFS cross-artifact look.
 export const RESOURCE_DEFS: readonly ResourceDef[] = [
   {
     id: 0,
     key: 'farmland',
     label: 'farmland',
-    // Bold wheat-gold. Punchy against grass green; reads at a
-    // glance even with the player's tint stacked over it.
     color: 0xf2c11f,
     letter: 'F',
     glyph: 'farm',
     scatterOnMap: true,
-    patchCount: 10,
-    patchSize: 32,
+    patchCount: 6,
+    patchSize: 55,    // sprawled fields
     matchingLine: 'farmland',
   },
   {
     id: 1,
     key: 'woods',
     label: 'forest',
-    // Deep saturated forest green. Distinct from the lighter
-    // grass terrain underneath.
     color: 0x14541a,
     letter: 'W',
     glyph: 'tree',
     scatterOnMap: true,
-    patchCount: 16,
-    patchSize: 22,
+    patchCount: 7,
+    patchSize: 50,    // deep forests
     matchingLine: 'forestry',
   },
   {
@@ -119,13 +121,12 @@ export const RESOURCE_DEFS: readonly ResourceDef[] = [
     id: 3,
     key: 'ore',
     label: 'ore',
-    // Cool slate. Reads as rock against grass / forest greens.
     color: 0x4a4540,
     letter: 'O',
     glyph: 'mountain',
     scatterOnMap: true,
-    patchCount: 14,
-    patchSize: 18,
+    patchCount: 6,
+    patchSize: 42,    // mountain ranges
     matchingLine: 'mining',
   },
 ] as const;

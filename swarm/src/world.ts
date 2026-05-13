@@ -518,6 +518,52 @@ export function generateWorld(opts: GenerateOpts): World {
     }
   }
 
+  //  9b. Cellular smoothing of the scatter map. BFS-grown blobs come
+  //      out with jagged cross-shaped edges (the 4-way step naturally
+  //      leaves single-tile concavities and protrusions). Two
+  //      iterations of a cellular automaton clean those up:
+  //        - a resource tile with <=1 same-resource 8-neighbor gets
+  //          eroded back to RES_NONE (kills speckle)
+  //        - an empty grass tile with >=5 same-resource 8-neighbors
+  //          of the SAME resource gets claimed (fills concavities)
+  //      Resource borders stay where two resources meet (we only
+  //      look at the tile's own resource class when eroding, and
+  //      only fill empty tiles). Result: rounded organic blobs.
+  for (let pass = 0; pass < 2; pass++) {
+    const before = new Int16Array(resourceOf);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x;
+        if (terrain[i] !== TERRAIN_GRASS) continue;
+        const cur = before[i]!;
+        // 8-neighbor tally.
+        const tally8 = new Map<number, number>();
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            const nr = before[ny * width + nx]!;
+            if (nr < 0) continue;
+            tally8.set(nr, (tally8.get(nr) ?? 0) + 1);
+          }
+        }
+        if (cur >= 0) {
+          const same = tally8.get(cur) ?? 0;
+          if (same <= 1) resourceOf[i] = RES_NONE;
+        } else {
+          let bestId = -1;
+          let bestCount = 0;
+          for (const [id, c] of tally8) {
+            if (c > bestCount) { bestCount = c; bestId = id; }
+          }
+          if (bestCount >= 5) resourceOf[i] = bestId;
+        }
+      }
+    }
+  }
+
   // 10. Derive each state's resource from the tile resources within
   //     its footprint. Plurality wins — the resource with the most
   //     tiles inside the state becomes the state resource. If NO

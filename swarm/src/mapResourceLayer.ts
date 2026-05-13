@@ -25,9 +25,10 @@ export interface MapResourceLayer {
 }
 
 // ±SHADE_RANGE applied to the v channel of the resource color per
-// tile. Subtle texture without crossing into "noisy speckle" — the
-// patch should still read as one solid color from any zoom level.
-const SHADE_RANGE = 0.04;
+// tile. 0 = perfectly flat blobs (the cleanest look). Bump to ~0.04
+// if patches start to feel like dead-flat stickers; keep below ~0.06
+// or the result reads as noise.
+const SHADE_RANGE = 0;
 
 export function createMapResourceLayer(world: World, tileSize: number): MapResourceLayer {
   const container = new Container();
