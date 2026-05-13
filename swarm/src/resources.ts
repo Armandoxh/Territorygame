@@ -154,6 +154,30 @@ export function matchingLineFor(resourceId: number): BuildingLineKey | null {
   return RESOURCE_DEFS[resourceId]?.matchingLine ?? null;
 }
 
+// Build-eligibility rule:
+//   - 'settlement' is universal (people live everywhere).
+//   - All other lines REQUIRE the state's resource to match the
+//     line. Farmland-only-on-farmland, mining-only-on-ore, etc.
+// This is the core strategic constraint: to get a line's output
+// you must control a matching state, which means the map's
+// resource distribution dictates where the player needs to
+// expand. Loosen this rule only by widening the predicate here.
+export function canBuildOnState(resourceId: number, line: BuildingLineKey): boolean {
+  if (line === 'settlement') return true;
+  return matchingLineFor(resourceId) === line;
+}
+
+// Human-readable name of the resource a line needs to be buildable.
+// Returns null for 'settlement' (no requirement) so callers can
+// skip the hint. Used by the menu to show "requires X state".
+export function requiredResourceLabelFor(line: BuildingLineKey): string | null {
+  if (line === 'settlement') return null;
+  for (const def of RESOURCE_DEFS) {
+    if (def.matchingLine === line) return def.label;
+  }
+  return null;
+}
+
 // Fallback resource for states whose tiles contain no scattered
 // resource at all. With farmland now also scattering, the natural
 // fallback is TRADE — a "wherever nothing else grows, people set

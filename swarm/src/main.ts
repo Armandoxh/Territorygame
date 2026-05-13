@@ -15,6 +15,7 @@ import { createStateLayer, type StateLayer } from './stateLayer';
 import { initBuildings, buildTier, getBuildings, type BuildingLine } from './buildings';
 import { createStateMenu, type StateMenu } from './stateMenu';
 import { createMapResourceLayer, type MapResourceLayer } from './mapResourceLayer';
+import { canBuildOnState } from './resources';
 
 // ----- World / camera constants -----
 const TILE_SIZE = 16;
@@ -1243,13 +1244,15 @@ const gameModal: GameModal = createGameModal({
 const stateMenu: StateMenu = createStateMenu({
   onBuild: (stateId, line, tier) => {
     if (regionZoom.mode !== 'active') return;
-    // Defensive: only the player can build, and only on their owned
-    // regions. The menu enforces this UI-side too but the data path
-    // should not trust the UI. buildTier also rejects skipping
-    // tiers (you must build cur+1).
+    // Defense-in-depth: only the player can build, only on their
+    // owned regions, only lines that match the state's resource
+    // (settlement is universal — see canBuildOnState). The menu
+    // enforces all of this UI-side, but the data path should never
+    // trust the UI alone.
     const st = world.states[stateId];
     if (!st) return;
     if (regionOwner[st.regionId] !== playerNation().id) return;
+    if (!canBuildOnState(st.resource, line)) return;
     const ok = buildTier(stateId, line, tier);
     if (!ok) return;
     stateLayerObj?.refreshRegionBuildings(st.regionId);

@@ -21,7 +21,12 @@ import {
   BUILDING_LINES,
   type BuildingLine,
 } from './buildings';
-import { getResourceDef, matchingLineFor } from './resources';
+import {
+  getResourceDef,
+  matchingLineFor,
+  canBuildOnState,
+  requiredResourceLabelFor,
+} from './resources';
 
 export interface StateMenuContext {
   stateId: number;
@@ -98,6 +103,7 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
   }
 
   function renderTabs(matched: BuildingLine | null) {
+    if (!current) return;
     tabsEl!.innerHTML = '';
     for (const line of BUILDING_LINES) {
       const tab = document.createElement('button');
@@ -105,15 +111,19 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
       tab.type = 'button';
       tab.dataset.line = line;
       const isMatch = matched !== null && line === matched;
+      const buildable = canBuildOnState(current.resource, line);
       // ★ marker on the matching line so the player sees the
       // resource/line pairing at a glance.
       tab.textContent = `${lineLabel(line)}${isMatch ? ' ★' : ''}`;
       if (line === activeLine) tab.classList.add('active');
       if (isMatch) tab.classList.add('match');
+      if (!buildable) tab.classList.add('disabled');
+      // Tabs are still tappable when disabled — the player should
+      // be able to click in and see WHY the line is locked (the
+      // tier cards explain it). Just visually dim them.
       tab.addEventListener('click', () => {
         if (activeLine === line) return;
         activeLine = line;
-        // Re-paint without re-running show() so DOM doesn't flash.
         for (const child of Array.from(tabsEl!.children)) {
           child.classList.toggle('active', (child as HTMLElement).dataset.line === line);
         }
@@ -129,17 +139,28 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
     const currentTier = current.tiers[activeLine];
     const max = maxTier(activeLine);
     const tierNames = TIER_NAMES[activeLine];
+    const buildable = canBuildOnState(current.resource, activeLine);
+    const requiredLabel = requiredResourceLabelFor(activeLine);
     // Tiers 1..max — index 0 in TIER_NAMES is the "empty" placeholder
     // that we never show as a card.
     for (let t = 1; t <= max; t++) {
       const card = document.createElement('div');
       card.className = 'state-menu-tier';
       const isBuilt = currentTier >= t;
-      const isAvailable = currentTier === t - 1;
-      const isLocked = currentTier < t - 1;
-      if (isBuilt) card.classList.add('built');
-      else if (isAvailable) card.classList.add('available');
-      else card.classList.add('locked');
+      const prevTierBuilt = currentTier === t - 1;
+      // Strategic lock first: if the line is wrong for this state's
+      // resource, ALL tiers are locked with the requirement hint.
+      // Otherwise the tier-progression rule applies (built / available
+      // / needs prior tier).
+      if (isBuilt) {
+        card.classList.add('built');
+      } else if (!buildable) {
+        card.classList.add('locked');
+      } else if (prevTierBuilt) {
+        card.classList.add('available');
+      } else {
+        card.classList.add('locked');
+      }
       const head = document.createElement('div');
       head.className = 'state-menu-tier-head';
       head.textContent = `tier ${t} · ${tierNames[t] ?? '?'}`;
@@ -149,15 +170,17 @@ export function createStateMenu(actions: StateMenuActions): StateMenu {
       if (isBuilt) {
         status.textContent = '✓ built';
       } else if (!current.ownedByPlayer) {
-        status.textContent = 'locked (enemy territory)';
-      } else if (isAvailable) {
+        status.textContent = 'enemy territory';
+      } else if (!buildable) {
+        status.textContent = requiredLabel ? `requires ${requiredLabel} state` : 'unavailable';
+      } else if (prevTierBuilt) {
         status.textContent = 'tap to build';
         card.addEventListener('click', () => {
           if (!current) return;
           actions.onBuild(current.stateId, activeLine, t);
         });
         card.classList.add('clickable');
-      } else if (isLocked) {
+      } else {
         status.textContent = `needs tier ${t - 1}`;
       }
       card.appendChild(status);
