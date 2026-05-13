@@ -46,10 +46,10 @@ export function currencyForLine(line: BuildingLine): Currency {
 
 // Base output rate in units/sec, indexed by tier (0..3). Tier 0
 // means "not built" — outputs nothing. Tuning intent:
-//   - Tier 1 = a trickle, visible-but-slow
-//   - Tier 2 = noticeable income from a single state
-//   - Tier 3 = a fully-developed state is a real economic engine
-const BASE_RATE_PER_TIER: readonly number[] = [0, 1, 3, 7];
+//   - Tier 1 = trickle (0.5/s, 1/s with match boost)
+//   - Tier 2 = noticeable income (2/s, 4/s matched)
+//   - Tier 3 = a fully-developed state pays for itself (5/s, 10/s matched)
+const BASE_RATE_PER_TIER: readonly number[] = [0, 0.5, 2, 5];
 
 // Multiplier applied when the line matches the state's resource.
 // 2x is the "★ pays off" payoff for taking the right kind of land.
