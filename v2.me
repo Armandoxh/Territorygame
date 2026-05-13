@@ -12,6 +12,52 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-13  Nail #9: production effects
+  WHAT: Built tiers now actually output resources per second.
+        Five currencies, one per building line: pop / food /
+        wood / ore / gold. Per-tier base rates 1 / 3 / 7 u/s.
+        Matching line on matching state gets a 2x boost (the
+        ★ finally pays off). Settlement is universal (no
+        matching boost — it doesn't have a resource match by
+        design) but always produces pop. Per-nation
+        accumulator on Nation.economy; readout shows the
+        player's five totals as one new line.
+  WHY:  User picked it: "Production effects (the big
+        foundational one)." Was the lynchpin that made
+        everything else (costs, AI economy, victory) sit on
+        air. Now the build menu and the resource-matching
+        rule both have a payoff the player can SEE.
+
+  Architecture:
+   - economy.ts (NEW): Currency type, Economy struct,
+     emptyEconomy, currencyForLine, productionRate(line,
+     tier, isMatching), currencyLabel. Single source of
+     truth for the rate table. Tuning is two constants:
+     BASE_RATE_PER_TIER and MATCH_BOOST.
+   - nation.ts: Nation gains `economy: Economy`. Initialized
+     to all-zeros in spawnNations.
+   - main.ts: tickProduction(dtMs) per frame — for each
+     alive nation, for each owned state, for each built
+     building, add rate * dt to the matching currency.
+     O(states * lines) per tick = ~750 ops, negligible.
+   - readout: one new "econ: pop X · food X · wood X ·
+     ore X · gold X" line under the recruit line.
+
+  Notes for future:
+   - No costs yet. Buildings still free + instant. Costs
+     are the next natural nail — they consume from
+     nation.economy, gating the build menu.
+   - No spending. Resources only accumulate. When costs
+     and unit upgrades land, the accumulator drains.
+   - No cap. Numbers grow unbounded. Probably fine for
+     now; a population cap (food gating pop growth)
+     comes naturally with food costs.
+   - AIs have 0 economy — they don't build. The gap will
+     widen until "AI builds too" lands (depends on this
+     nail being in first).
+
+---
+
 2026-05-12  Nail #8: grand-map resources + tile→state causation
   WHAT: Resources now live on the world grand map as
         scattered patches (BFS-grown blobs of grass tiles)

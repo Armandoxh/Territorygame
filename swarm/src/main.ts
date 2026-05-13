@@ -12,10 +12,16 @@ import type { Nation } from './nation';
 import { createGameModal, type GameModal } from './gameModal';
 import { readoutStore, type ViewLabel } from './store';
 import { createStateLayer, type StateLayer } from './stateLayer';
-import { initBuildings, buildTier, getBuildings, type BuildingLine } from './buildings';
+import { initBuildings, buildTier, getBuildings, BUILDING_LINES, type BuildingLine } from './buildings';
 import { createStateMenu, type StateMenu } from './stateMenu';
 import { createMapResourceLayer, type MapResourceLayer } from './mapResourceLayer';
-import { canBuildOnState } from './resources';
+import { canBuildOnState, matchingLineFor } from './resources';
+import {
+  emptyEconomy,
+  productionRate,
+  currencyForLine,
+  currencyLabel,
+} from './economy';
 
 // ----- World / camera constants -----
 const TILE_SIZE = 16;
@@ -318,6 +324,7 @@ function spawnNations(w: World, seed: number): Nation[] {
       regionCaptureProgress: null,
       recruitmentPick: 'infantry',
       recruitmentProgress: 0,
+      economy: emptyEconomy(),
     });
   }
   return out;
@@ -1157,6 +1164,35 @@ function addSoldier(n: Nation, type: UnitType) {
   n.army.setRegiments(regs);
 }
 
+// Per-frame economic production. For every nation that's still
+// alive, walk its owned states; for each built building, add its
+// rate × dt to the matching currency. Eliminated nations stop
+// producing (matches the recruitment / decision rules). Skipped
+// during battle entry/exit to keep the world frozen on snap, just
+// like the rest of the simulation; matches the gate in the main
+// tick.
+//
+// Per-state iteration: O(states × lines) = ~150 × 5 = ~750 ops/tick.
+// Cheap; no need to keep a per-nation-state cache yet.
+function tickProduction(dtMs: number) {
+  const dtSec = dtMs / 1000;
+  for (const n of nations) {
+    if (n.eliminated) continue;
+    for (const st of world.states) {
+      if (regionOwner[st.regionId] !== n.id) continue;
+      const built = getBuildings(st.id);
+      const matchLine = matchingLineFor(st.resource);
+      for (const line of BUILDING_LINES) {
+        const tier = built[line];
+        if (tier === 0) continue;
+        const rate = productionRate(line, tier, matchLine === line);
+        if (rate === 0) continue;
+        n.economy[currencyForLine(line)] += rate * dtSec;
+      }
+    }
+  }
+}
+
 function tickRecruitment(dtMs: number) {
   const dtSec = dtMs / 1000;
   for (const n of nations) {
@@ -1376,6 +1412,7 @@ app.ticker.add(() => {
     tickRegionClaims(dtMs);
     tickCapture(dtMs);
     tickRecruitment(dtMs);
+    tickProduction(dtMs);
   }
   renderCaptureProgress();
   tickBattleSystem(dtMs);
@@ -1485,6 +1522,17 @@ function renderReadout() {
       recruitLine = `  recruit: ${pickLabel} ${pct}% · ${total}/${cap} · ${rate.toFixed(1)}/s`;
     }
   }
+  // Economy line. Always shown so the player sees the loop even
+  // before they've built anything. Floor() so the player isn't
+  // staring at fractional accumulators (rate is per-second but
+  // we tick every frame so progress is fractional).
+  const e = player.economy;
+  const econLine =
+    `econ: ${currencyLabel('pop')} ${Math.floor(e.pop)}` +
+    ` · ${currencyLabel('food')} ${Math.floor(e.food)}` +
+    ` · ${currencyLabel('wood')} ${Math.floor(e.wood)}` +
+    ` · ${currencyLabel('ore')} ${Math.floor(e.ore)}` +
+    ` · ${currencyLabel('gold')} ${Math.floor(e.gold)}`;
   readoutEl.textContent =
     `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
     `seed ${currentSeed}\n` +
@@ -1492,6 +1540,7 @@ function renderReadout() {
     armyLine + '\n' +
     (armyComp ? `  yours: ${armyComp}\n` : '') +
     (recruitLine ? recruitLine + '\n' : '') +
+    econLine + '\n' +
     statusLine +
     (regionLine ? '\n' + regionLine : '');
 }

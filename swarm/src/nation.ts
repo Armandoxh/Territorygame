@@ -10,6 +10,7 @@
 
 import type { Army } from './army';
 import type { UnitType } from './units';
+import type { Economy } from './economy';
 
 export interface Nation {
   id: number;
@@ -58,4 +59,9 @@ export interface Nation {
   // stick to 'infantry' for now.
   recruitmentPick: UnitType;
   recruitmentProgress: number;
+  // Accumulated currency totals from buildings on owned states. Five
+  // currencies, one per building line — see economy.ts. Starts at 0
+  // on spawn; no cap, no spending yet. Future nails (build costs,
+  // army upgrades, victory conditions) consume from this.
+  economy: Economy;
 }

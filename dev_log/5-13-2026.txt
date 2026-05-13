@@ -1,0 +1,76 @@
+2026-05-13 — production effects (nail #9)
+
+The lynchpin nail. Up until now, buildings did nothing —
+the menu let you tier up, the matching ★ was decoration.
+Now each built tier outputs resources per second, and the
+matching boost (2x) is real.
+
+Currency layout (one per building line):
+  settlement -> pop
+  farmland   -> food
+  forestry   -> wood
+  mining     -> ore
+  merchant   -> gold
+
+Per-tier base rates (units/sec):
+  tier 1 = 1   tier 2 = 3   tier 3 = 7
+
+Match boost: 2x. Applied iff the line's matching resource
+(see resources.matchingLineFor) equals the state's
+resource. Settlement is universal (no matching resource by
+design) — gets no boost, just always produces pop on any
+state.
+
+Implementation:
+- economy.ts: Currency / Economy / productionRate /
+  currencyForLine. Rate table lives here, two-constant
+  tuning surface.
+- nation.ts: Nation gains `economy: Economy`, init'd to
+  all-zeros in spawnNations.
+- main.ts: tickProduction(dtMs) per frame. Iterates alive
+  nations × owned states × lines, adds rate * dtSec to
+  nation.economy[currency]. ~750 ops/tick. Cheap.
+- Readout: one new line shows the player's five totals as
+  floor()'d integers so the eye isn't tracking fractional
+  per-frame deltas.
+
+What this nail does NOT do (deferred — separate nails):
+- Costs: buildings still free + instant. economy only
+  accumulates. No drain side.
+- Spending: no army upgrades, no consumable, no victory
+  by economy. Resources are write-only for now.
+- Cap: numbers grow unbounded. Will probably gate pop
+  growth on food when both costs land.
+- AI economy: AIs don't build (the build menu is
+  player-only), so AI economies stay at 0. The gap
+  widens until "AI builds too" lands — which now has
+  a meaningful payoff to wire up since production
+  exists.
+
+Loop the player can now see:
+1. Tap region in own territory -> snap-zoom in.
+2. Tap a state -> menu (matching ★ tab auto-active).
+3. Build tier 1 of the matching line.
+4. Watch the corresponding currency tick up in the
+   readout.
+5. Build tier 2, tier 3 — rate doubles, quadruples.
+6. Build the matching line on non-matching states for
+   half the income (1x not 2x).
+
+The "where to invade next" question (locked-line rule
+shipped last nail) now has a quantitative answer in the
+readout: if your wood is climbing slowly you need more
+forest states.
+
+Open hooks for the next nail:
+- Build costs land in stateMenu (gate the available->
+  tap-to-build transition on having enough of a
+  currency). The buildTier validator should also
+  consume from nation.economy.
+- AI building: AI picks states + lines, calls buildTier
+  on its own behalf. Bias toward matching lines and
+  tiering up over building everywhere — keeps the
+  AI strategically focused.
+- Spending sinks: army recruitment cost (currently free
+  too) could draw from gold or pop. Wires neatly into
+  the existing getRecruitmentRate path.
