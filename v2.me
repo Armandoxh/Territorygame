@@ -12,6 +12,65 @@ seed of that repo's CHANGELOG / dev_log.
 
 ---
 
+2026-05-13  Nail #11: turn-based mode (pause and play)
+  WHAT: The game is now turn-based. Default state is PAUSED.
+        During the planning phase the player can:
+          - drag the army once to set a march
+          - tap states to inspect / build (unlimited)
+          - pan/zoom freely
+        Pressing END TURN starts a 5-second execute window
+        where the simulation runs at normal speed: armies
+        march, AI takes its moves, production accrues,
+        battles trigger. After 5 sec, the world re-pauses
+        and turnNumber++. Battles "freeze" the turn timer
+        so a long combat doesn't time-out the execute
+        window from under the player.
+  WHY:  User: "Make this a turn based game actually same
+        mechanics just turns. Pause-and-play model. Every
+        army gets one move, unlimited taps to state view,
+        and finished when I click end turn."
+
+  Architecture:
+   - main.ts gains a turn state machine: `paused`,
+     `turnNumber`, `turnExecuteEndMs` + startTurnExecute()
+     + tickTurnSystem() + resetTurnState(). Constant
+     TURN_EXECUTE_MS = 5000 is the only tuning knob.
+   - Ticker gates: army.tick(), tickAi(), tickEngagements,
+     tickRegionClaims, tickCapture, tickRecruitment,
+     tickProduction all now gated on `!paused`. UI ticks
+     (tickBattleSystem, tickRegionZoomSystem, camera
+     transforms, readout) stay always-on so transitions
+     don't freeze mid-animation.
+   - Drag handler: getDragHandler returns null while the
+     turn is executing, so the player can't redirect the
+     army mid-move. Plan during pause, watch during execute.
+   - END TURN button (HTML/CSS): bottom-right thumb-
+     reachable. Disabled during execute (label changes to
+     "executing…") so the player can't double-end.
+   - Readout: new "turn N · planning" or "turn N ·
+     executing (Ns)" line, with a per-frame countdown
+     during execute.
+
+  Notes for future:
+   - Movement allowance: currently "5 sec of real-time
+     movement" per turn. A future polish could be a fixed
+     tile budget instead (Civilization-style).
+   - AI doesn't have a "move budget" either — they just
+     simulate normally during the execute window. With
+     5-sec turns, AIs effectively get 1-2 decisions per
+     turn.
+   - State-menu build still works during the execute
+     window if it was open before END TURN — the menu
+     auto-closes on END TURN to keep the model "plan
+     during pause, watch during execute."
+   - Battle blocks turn-end: if a battle starts mid-
+     execute or its entry is queued, the turn timer
+     freezes until the battle fully resolves. Prevents
+     the awkward "battle in turn 2's planning phase"
+     case.
+
+---
+
 2026-05-13  Nail #10: build costs (drain side)
   WHAT: Buildings now consume currencies on construction.
         Per (line, tier) cost table in costs.ts. Thematic

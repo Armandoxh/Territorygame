@@ -221,6 +221,20 @@ const REGION_ZOOM_TRANSITION_MS = 360;
 // "as zoomed as battle scene" feel for symmetry.
 const REGION_ZOOM_CEILING = 6.0;
 
+// ----- Turn system -----
+// Pause-and-play turn model. The world is PAUSED by default — no
+// army movement, no AI decisions, no production. The player plans
+// (drag army to commit one move, tap states to build) for as long
+// as they want. END TURN starts a fixed-duration "execute" window
+// where the simulation runs at normal speed; once the window ends,
+// the world re-pauses and turnNumber++. Battle scene + region-zoom
+// transitions keep ticking during pause because they're UI animation,
+// not simulation.
+let paused = true;
+let turnNumber = 1;
+let turnExecuteEndMs: number | null = null;
+const TURN_EXECUTE_MS = 5000;
+
 // ----- Capture state is per-Nation (see nation.captureProgress). -----
 
 // ----- Game-over state -----
@@ -378,6 +392,8 @@ function loadMap(seed: number) {
   // state so the new world starts clean.
   forceExitBattle();
   forceExitRegionZoom();
+  resetTurnState();
+  updateEndTurnButton();
   for (const n of nations) n.captureProgress = null;
   gameOver = null;
   gameModal.hide();
@@ -564,6 +580,59 @@ function tickBattleSystem(dtMs: number) {
     }
   }
 }
+
+// ===== Turn system =====
+
+function startTurnExecute() {
+  if (gameOver) return;
+  if (!paused) return;  // already executing
+  if (inBattle || battleEntryTimer !== null || battleTransition !== null) return;
+  // Close any open menus — the execute window is "watch the world
+  // move", not "keep planning". The menu reopens after the next pause.
+  stateMenu.hide();
+  paused = false;
+  turnExecuteEndMs = performance.now() + TURN_EXECUTE_MS;
+  updateEndTurnButton();
+}
+
+function tickTurnSystem() {
+  if (paused) return;
+  if (turnExecuteEndMs === null) return;
+  // Don't end the turn while a battle is in flight, transitioning,
+  // or has been QUEUED (battleEntryTimer set but not yet committed).
+  // The turn extends until the battle fully resolves so the player
+  // isn't dropped back into "paused" with a battle still in motion.
+  if (
+    combatState === 'engaged' ||
+    inBattle ||
+    battleTransition !== null ||
+    battleEntryTimer !== null
+  ) {
+    // Push the deadline forward by ~one frame so as soon as the
+    // battle finishes the turn ends naturally (no abrupt jump).
+    turnExecuteEndMs = performance.now() + 200;
+    return;
+  }
+  if (performance.now() >= turnExecuteEndMs) {
+    paused = true;
+    turnExecuteEndMs = null;
+    turnNumber++;
+    updateEndTurnButton();
+  }
+}
+
+function resetTurnState() {
+  paused = true;
+  turnNumber = 1;
+  turnExecuteEndMs = null;
+  // updateEndTurnButton called by the button-init block once the
+  // DOM is resolved — at the time loadMap first runs the button
+  // var doesn't exist yet, so guard.
+}
+
+// Forward-declared; assigned where the button DOM node is resolved.
+// Updates the button's `disabled` attribute to match paused state.
+let updateEndTurnButton: () => void = () => {};
 
 // ===== Region-zoom (territory build) state machine =====
 
@@ -1341,7 +1410,10 @@ attachInput({
   target: app.canvas as HTMLCanvasElement,
   camera,
   getViewport: () => ({ w: app.screen.width, h: app.screen.height }),
-  getDragHandler: () => armyDragHandler,
+  // Army drag only during the planning phase — once you press END
+  // TURN, the army's plan is committed and the execute window plays
+  // it out. Re-drag is unlocked when the next turn begins.
+  getDragHandler: () => (paused ? armyDragHandler : null),
   // Zoom is locked during battle AND while inside region-zoom (or
   // transitioning to/from it) so the snap stays at the framed scale.
   // Pan stays free in both modes so the player can look around.
@@ -1406,20 +1478,25 @@ app.ticker.add(() => {
   const dtMs = app.ticker.deltaMS;
   const dtSec = dtMs / 1000;
 
-  // Per-nation ticks. Player + AI armies all tick unless their nation
-  // is currently engaged in the player-vs-AI battle scene.
-  for (const n of nations) {
-    if (!n.army) continue;
-    if (combatState === 'engaged') {
-      // Freeze both the player army and the active opponent. Other AIs
-      // continue moving so the world stays alive during your battle.
-      if (n.isPlayer) continue;
-      if (n === activeOpponent) continue;
+  tickTurnSystem();
+
+  // Per-nation ticks. Gated on !paused so the world is fully frozen
+  // during the planning phase of a turn. Battles + region-zoom UI
+  // animations still tick below; those are NOT simulation.
+  if (!paused) {
+    for (const n of nations) {
+      if (!n.army) continue;
+      if (combatState === 'engaged') {
+        // Freeze both the player army and the active opponent. Other AIs
+        // continue moving so the world stays alive during your battle.
+        if (n.isPlayer) continue;
+        if (n === activeOpponent) continue;
+      }
+      n.army.tick(dtSec);
     }
-    n.army.tick(dtSec);
   }
 
-  if (!gameOver) {
+  if (!gameOver && !paused) {
     tickAi(dtMs);
     tickEngagements();
     tickRegionClaims(dtMs);
@@ -1546,10 +1623,23 @@ function renderReadout() {
     ` · ${currencyLabel('wood')} ${Math.floor(e.wood)}` +
     ` · ${currencyLabel('ore')} ${Math.floor(e.ore)}` +
     ` · ${currencyLabel('gold')} ${Math.floor(e.gold)}`;
+  // Turn line. "planning" while the world is paused (player can
+  // plan + build freely); "executing (Ns)" during the 5-sec window
+  // with remaining seconds counting down.
+  let turnLine: string;
+  if (paused) {
+    turnLine = `turn ${turnNumber} · planning`;
+  } else if (turnExecuteEndMs !== null) {
+    const remaining = Math.max(0, Math.ceil((turnExecuteEndMs - performance.now()) / 1000));
+    turnLine = `turn ${turnNumber} · executing (${remaining}s)`;
+  } else {
+    turnLine = `turn ${turnNumber}`;
+  }
   readoutEl.textContent =
     `swarm v2 · ${view} · ${zoom.toFixed(2)}x\n` +
     `seed ${currentSeed}\n` +
     `home #${player.capitalRegionId} · ${playerRegion.neighbors.length} borders\n` +
+    turnLine + '\n' +
     armyLine + '\n' +
     (armyComp ? `  yours: ${armyComp}\n` : '') +
     (recruitLine ? recruitLine + '\n' : '') +
@@ -1565,6 +1655,22 @@ const newMapBtn = document.getElementById('newmap')!;
 newMapBtn.addEventListener('click', () => {
   loadMap(Math.floor(Math.random() * 0x7fffffff));
 });
+
+// ===== End-turn button =====
+//
+// Assigns the forward-declared updateEndTurnButton so the turn state
+// machine can call it without coupling to the DOM. The button is
+// disabled while a turn is executing (5-sec window) so the player
+// can't double-end. After the window the world re-pauses and the
+// button re-enables.
+
+const endTurnBtn = document.getElementById('end-turn-btn') as HTMLButtonElement;
+endTurnBtn.addEventListener('click', () => startTurnExecute());
+updateEndTurnButton = () => {
+  endTurnBtn.disabled = !paused || gameOver !== null;
+  endTurnBtn.textContent = paused ? 'END TURN' : 'executing…';
+};
+updateEndTurnButton();
 
 // ===== Recruit-type toggle =====
 

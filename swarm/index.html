@@ -285,6 +285,39 @@
       }
       #game-modal-retry:active { background: rgba(110, 84, 42, 0.85); }
 
+      /* End-turn button. Bottom-right, thumb-reachable. Big green
+         while planning ("you can press me"); disabled grey during
+         the 5-sec execute window. */
+      #end-turn-btn {
+        position: fixed;
+        bottom: 18px;
+        right: 12px;
+        padding: 14px 22px;
+        background: rgba(70, 130, 60, 0.92);
+        color: #fff;
+        border: 1px solid rgba(180, 240, 170, 0.55);
+        border-radius: 8px;
+        font: 14px/1 ui-monospace, Menlo, monospace;
+        letter-spacing: 0.14em;
+        cursor: pointer;
+        touch-action: manipulation;
+        z-index: 6;
+        box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+      }
+      #end-turn-btn:active {
+        background: rgba(55, 100, 48, 0.95);
+        transform: translateY(1px);
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+      }
+      #end-turn-btn[disabled] {
+        background: rgba(70, 70, 70, 0.75);
+        border-color: rgba(255, 255, 255, 0.18);
+        color: rgba(255, 255, 255, 0.6);
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+
       /* State build menu. Bottom-anchored card with a tab strip
          across the top and 3 tier cards beneath the active tab. */
       #state-menu {
@@ -445,6 +478,7 @@
     <div id="readout">booting…</div>
     <button id="newmap" type="button">new map</button>
     <button id="recruit-toggle" type="button">recruit: INF</button>
+    <button id="end-turn-btn" type="button">END TURN</button>
     <div id="battle-menu">
       <div id="battle-menu-pre">
         <div class="comp-line"><span class="who">YOU</span><span id="battle-comp-player"></span></div>
