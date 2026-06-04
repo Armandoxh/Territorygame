@@ -10,19 +10,43 @@ import '../models/rumor.dart';
 class NewsEngine {
   NewsEngine._();
 
-  /// Base chance a rumor is true. The upgrade tree will raise this later.
-  static const double baseReliability = 0.25;
+  /// Base chance a rumor is true — a coin flip. The upgrade tree will raise
+  /// this later.
+  static const double baseReliability = 0.50;
 
-  static const int rumorsPerEdition = 3;
+  static const int rumorsPerEdition = 4;
 
-  static List<Rumor> generateEdition(Random rng, int day) {
-    final pool = Catalog.assets.where((a) => a.kind.isPriceBased).toList()
-      ..shuffle(rng);
-    final picks = pool.take(rumorsPerEdition);
-    return [for (final a in picks) _rumorFor(a, rng, day)];
+  static List<Rumor> generateEdition(Random rng, int week) {
+    final byKind = <AssetKind, List<AssetDef>>{};
+    for (final a in Catalog.assets) {
+      if (a.kind.isPriceBased) {
+        byKind.putIfAbsent(a.kind, () => []).add(a);
+      }
+    }
+
+    final picks = <AssetDef>[];
+    // Guarantee each edition covers the exciting categories.
+    for (final k in const [AssetKind.stock, AssetKind.etf, AssetKind.crypto]) {
+      final pool = byKind[k];
+      if (pool != null && pool.isNotEmpty) {
+        picks.add(pool[rng.nextInt(pool.length)]);
+      }
+    }
+    // One wildcard from any price-based asset (could be a bond or a repeat kind).
+    final all = Catalog.assets.where((a) => a.kind.isPriceBased).toList();
+    if (all.isNotEmpty) picks.add(all[rng.nextInt(all.length)]);
+
+    // Dedupe (keep first), then shuffle for presentation order.
+    final seen = <String>{};
+    final unique = [
+      for (final a in picks)
+        if (seen.add(a.id)) a,
+    ]..shuffle(rng);
+
+    return [for (final a in unique) _rumorFor(a, rng, week)];
   }
 
-  static Rumor _rumorFor(AssetDef a, Random rng, int day) {
+  static Rumor _rumorFor(AssetDef a, Random rng, int week) {
     final dir = rng.nextBool() ? 1 : -1;
     final magnitude =
         (a.dailyVol * (1.5 + rng.nextDouble() * 2.0)).clamp(0.02, 0.4);
@@ -32,7 +56,7 @@ class NewsEngine {
       magnitude: magnitude.toDouble(),
       reliability: baseReliability,
       headline: _headline(a, dir, rng),
-      createdDay: day,
+      createdWeek: week,
     );
   }
 

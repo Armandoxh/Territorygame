@@ -84,7 +84,7 @@ class Catalog {
       termDays: 26,
       minInvestment: 100,
       sector: 'Fixed Income',
-      blurb: 'Locked 26 days. 4.5% APY, redeemable at maturity.',
+      blurb: 'Locked 26 weeks. 4.5% APY, redeemable at maturity.',
     ),
     AssetDef(
       id: 'cd1y',
@@ -96,7 +96,7 @@ class Catalog {
       termDays: 52,
       minInvestment: 100,
       sector: 'Fixed Income',
-      blurb: 'Locked 52 days. 5.2% APY for committing longer.',
+      blurb: 'Locked 52 weeks. 5.2% APY for committing longer.',
     ),
     AssetDef(
       id: 'cd3y',
@@ -108,7 +108,7 @@ class Catalog {
       termDays: 156,
       minInvestment: 250,
       sector: 'Fixed Income',
-      blurb: 'Locked 156 days. 5.8% APY — best fixed rate, longest lock.',
+      blurb: 'Locked 156 weeks. 5.8% APY — best fixed rate, longest lock.',
     ),
     AssetDef(
       id: 'tbond',

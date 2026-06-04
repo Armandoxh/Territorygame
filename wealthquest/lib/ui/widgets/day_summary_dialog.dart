@@ -14,7 +14,7 @@ Future<void> showDaySummary(
     builder: (context) {
       final theme = Theme.of(context);
       return AlertDialog(
-        title: Text('Day ${game.day} • Age ${game.ageYears}'),
+        title: Text('Week ${game.day} • Age ${game.ageYears}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

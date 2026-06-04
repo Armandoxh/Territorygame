@@ -33,7 +33,7 @@ class NewsTab extends StatelessWidget {
                 ),
               ),
               Text(
-                'Day ${game.day}  •  Age ${game.ageYears}',
+                'Week ${game.day}  •  Age ${game.ageYears}',
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -46,8 +46,8 @@ class NewsTab extends StatelessWidget {
         _sectionTitle(theme, 'Word on the Street'),
         Text(
           game.reliabilityRevealed
-              ? 'Tips are running about ${pct(0.25)} accurate. Trade carefully.'
-              : 'Tips are unreliable — only some pan out. (A reliability upgrade is coming.)',
+              ? 'Tips are running about ${pct(0.50)} accurate. Trade carefully.'
+              : 'Tips are a coin flip — about half pan out. (A reliability upgrade is coming.)',
           style: theme.textTheme.bodySmall?.copyWith(
             fontStyle: FontStyle.italic,
             color: theme.colorScheme.onSurfaceVariant,

@@ -1,4 +1,4 @@
-/// A day job. Pay lands in cash every Next Day (one game week).
+/// A day job. Pay lands in cash every Next Week (one game week).
 class JobDef {
   final String id;
   final String title;

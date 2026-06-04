@@ -15,7 +15,7 @@ class Rumor {
   final double reliability;
 
   final String headline;
-  final int createdDay;
+  final int createdWeek;
 
   /// Set when the week resolves.
   bool resolved;
@@ -30,7 +30,7 @@ class Rumor {
     required this.magnitude,
     required this.reliability,
     required this.headline,
-    required this.createdDay,
+    required this.createdWeek,
     this.resolved = false,
     this.cameTrue = false,
     this.actualMove = 0,

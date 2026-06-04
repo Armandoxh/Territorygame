@@ -10,7 +10,7 @@ import '../models/holding.dart';
 import '../models/job.dart';
 import '../models/rumor.dart';
 
-/// Summary of what happened on a single Next Day, used to populate the
+/// Summary of what happened on a single Next Week, used to populate the
 /// post-advance dialog.
 class DayResult {
   final double income;
@@ -231,8 +231,8 @@ class GameController extends ChangeNotifier {
   /// Returns an error string, or null on success.
   String? sell(Holding h, double amount, {bool max = false}) {
     if (h.isLocked) {
-      final daysLeft = h.maturityDay - day;
-      return 'This CD is locked for $daysLeft more day(s).';
+      final weeksLeft = h.maturityDay - day;
+      return 'This CD is locked for $weeksLeft more week(s).';
     }
     final value = valueOf(h);
     final amt = max ? value : amount;
@@ -378,7 +378,7 @@ class GameController extends ChangeNotifier {
     for (final e in events) {
       _log(e);
     }
-    _log('Day ${day}: net worth \$${after.toStringAsFixed(0)} (${after - before >= 0 ? '+' : ''}\$${(after - before).toStringAsFixed(0)}).');
+    _log('Week ${day}: net worth \$${after.toStringAsFixed(0)} (${after - before >= 0 ? '+' : ''}\$${(after - before).toStringAsFixed(0)}).');
 
     notifyListeners();
     return summary;

@@ -81,7 +81,7 @@ class AssetDef {
   /// Annual percentage yield for interest-bearing assets and bond coupons.
   final double apy;
 
-  /// Lock term in days for CDs (52 days == 1 in-game year). 0 if not a CD.
+  /// Lock term in weeks for CDs (52 weeks == 1 in-game year). 0 if not a CD.
   final int termDays;
 
   /// Minimum dollars required to open a position.

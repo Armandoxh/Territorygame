@@ -85,3 +85,20 @@
      resolution-and-bias step in advanceDay, fresh edition each
      week. ui/news_tab.dart + News bottom-nav slot + rumor card on
      the asset detail screen.
+
+2026-06-04  WealthQuest tweaks: 50/50 rumors, MAX fix, week framing
+  WHAT: (1) Rumor reliability 25% -> 50% (coin flip). (2) Each
+        edition now guarantees a rumor on a stock, an ETF, AND a
+        crypto (plus a wildcard) so tips aren't stock-only;
+        4 rumors/edition. (3) Fixed the "MAX" buy bug: the amount
+        sheet rounded UP (toStringAsFixed(0)) so Max could exceed
+        cash and get rejected — now it floors to whole cents, so
+        Max buys exactly what you can afford. (4) Removed the
+        day/week mix-up that hurt immersion: every user-facing
+        string now says WEEK — "Next Week" button, "Week N"
+        counters, CD terms in weeks, "matures week N", etc. One
+        press = one week; age still advances a year per 52 weeks.
+  WHY:  Direct user feedback: "make rumors 50/50; put them on ETF
+        and crypto too; MAX should buy as much as I can, not round
+        up; stop mixing day and week — Next Day should say Next
+        Week and advance my age by a week."

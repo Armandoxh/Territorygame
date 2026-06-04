@@ -56,8 +56,10 @@ class _AmountSheetState extends State<_AmountSheet> {
   }
 
   void _set(double v) {
-    final capped = v.clamp(0, widget.max);
-    _controller.text = capped.toStringAsFixed(capped >= 100 ? 0 : 2);
+    // Floor to whole cents so "Max" never rounds UP past what you can afford.
+    final capped = v.clamp(0, widget.max).toDouble();
+    final floored = (capped * 100).floorToDouble() / 100;
+    _controller.text = floored.toStringAsFixed(2);
     setState(() {});
   }
 

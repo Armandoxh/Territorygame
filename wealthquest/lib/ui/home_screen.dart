@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _nextDay() async {
+  Future<void> _nextWeek() async {
     final result = game.advanceDay();
     if (!mounted) return;
     await showDaySummary(context, game, result);
@@ -71,9 +71,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _nextDay,
+        onPressed: _nextWeek,
         icon: const Icon(Icons.skip_next),
-        label: const Text('Next Day'),
+        label: const Text('Next Week'),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: NavigationBar(
@@ -148,7 +148,7 @@ class _Header extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Day ${game.day}  •  Age ${game.ageYears}',
+                    'Week ${game.day}  •  Age ${game.ageYears}',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),

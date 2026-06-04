@@ -80,7 +80,7 @@ class DashboardTab extends StatelessWidget {
         Text('Recent activity', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         if (game.eventLog.isEmpty)
-          Text('Press Next Day to begin.',
+          Text('Press Next Week to begin.',
               style: theme.textTheme.bodyMedium)
         else
           ...game.eventLog.take(12).map(

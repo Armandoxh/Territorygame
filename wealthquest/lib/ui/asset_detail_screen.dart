@@ -34,7 +34,7 @@ class AssetDetailScreen extends StatelessWidget {
 
   Future<void> _sell(BuildContext context, Holding h) async {
     if (h.isLocked) {
-      _toast(context, 'Locked for ${h.maturityDay - game.day} more day(s).');
+      _toast(context, 'Locked for ${h.maturityDay - game.day} more week(s).');
       return;
     }
     final value = game.valueOf(h);
@@ -219,7 +219,7 @@ class AssetDetailScreen extends StatelessWidget {
     } else {
       rows.add(MapEntry('APY', pct(def.apy)));
       if (def.kind == AssetKind.cd) {
-        rows.add(MapEntry('Term', '${def.termDays} days'));
+        rows.add(MapEntry('Term', '${def.termDays} weeks'));
         rows.add(const MapEntry('Liquidity', 'Locked until maturity'));
       } else {
         rows.add(const MapEntry('Liquidity', 'Withdraw anytime'));
@@ -295,7 +295,7 @@ class AssetDetailScreen extends StatelessWidget {
               final sub = h.kind == AssetKind.cd
                   ? (h.matured
                       ? 'Matured • redeemable'
-                      : 'Locked • matures day ${h.maturityDay}')
+                      : 'Locked • matures week ${h.maturityDay}')
                   : h.kind.isInterestBearing
                       ? 'Balance'
                       : '${h.shares.toStringAsFixed(h.shares >= 10 ? 2 : 4)} units';
