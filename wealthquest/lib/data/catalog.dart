@@ -176,6 +176,7 @@ class Catalog {
       termDays: 26,
       minInvestment: 100,
       sector: 'Fixed Income',
+      insured: true,
       blurb: 'Locked 26 weeks. 4.5% APY, redeemable at maturity.',
     ),
     AssetDef(
@@ -188,6 +189,7 @@ class Catalog {
       termDays: 52,
       minInvestment: 100,
       sector: 'Fixed Income',
+      insured: true,
       blurb: 'Locked 52 weeks. 5.2% APY for committing longer.',
     ),
     AssetDef(
@@ -200,6 +202,7 @@ class Catalog {
       termDays: 156,
       minInvestment: 250,
       sector: 'Fixed Income',
+      insured: true,
       blurb: 'Locked 156 weeks. 5.8% APY — best fixed rate, longest lock.',
     ),
     AssetDef(

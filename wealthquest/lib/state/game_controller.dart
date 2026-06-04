@@ -3,9 +3,11 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../data/catalog.dart';
+import '../engine/climate_engine.dart';
 import '../engine/market_engine.dart';
 import '../engine/news_engine.dart';
 import '../models/asset.dart';
+import '../models/climate.dart';
 import '../models/holding.dart';
 import '../models/job.dart';
 import '../models/rumor.dart';
@@ -58,6 +60,10 @@ class GameController extends ChangeNotifier {
   /// Whether the exact reliability % is shown. Flipped on by the (future)
   /// upgrade tree.
   bool reliabilityRevealed = false;
+
+  // ---- Macro economy ----
+  MarketRegime regime = MarketRegime.normal;
+  SectorEvent? sectorEvent;
 
   /// Dollars bought this in-game year of capped assets (e.g. I Bonds). Reset
   /// every birthday.
@@ -341,19 +347,54 @@ class GameController extends ChangeNotifier {
       }
     }
 
-    // 4) Move all price-based markets (with rumor bias) and record history.
+    // 3b) Roll the macro climate and manage any sector boom/bust.
+    final prevRegime = regime;
+    regime = ClimateEngine.nextRegime(regime, _rng);
+    if (regime != prevRegime) {
+      events.add('${regime.emoji} ${regime.label}: ${regime.blurb}');
+    }
+    if (sectorEvent != null && sectorEvent!.weeksLeft <= 0) {
+      final s = sectorEvent!;
+      final name = s.sector == 'Digital' ? 'Crypto' : s.sector;
+      events.add('The $name ${s.isRally ? 'rally' : 'slump'} fades.');
+      sectorEvent = null;
+    }
+    if (sectorEvent == null && _rng.nextDouble() < 0.10) {
+      sectorEvent = ClimateEngine.randomSectorEvent(_rng);
+      events.add('🗞️ ${sectorEvent!.headline}.');
+    }
+
+    // 4) Move all price-based markets (rumor + climate + sector bias) and
+    //    record history.
     _prevPrices
       ..clear()
       ..addAll(_prices);
     for (final a in Catalog.assets) {
       if (!a.kind.isPriceBased) continue;
-      final next =
-          MarketEngine.stepPrice(_prices[a.id]!, a, _rng, bias: bias[a.id] ?? 0);
+      var mb = bias[a.id] ?? 0;
+      mb += regime.weeklyDrift * ClimateEngine.beta(a);
+      if (sectorEvent != null && a.sector == sectorEvent!.sector) {
+        mb += sectorEvent!.dir * sectorEvent!.magnitude;
+      }
+      final next = MarketEngine.stepPrice(_prices[a.id]!, a, _rng, bias: mb);
       _prices[a.id] = next;
       final hist = priceHistory[a.id]!;
       hist.add(next);
       if (hist.length > 520) hist.removeAt(0); // cap ~10 years of weeks
     }
+
+    // 4b) A crash carves a slice off UNINSURED cash; insured cash is safe.
+    if (regime.isCrash) {
+      for (final h in holdings) {
+        if (h.kind.isInterestBearing &&
+            !Catalog.assetById(h.assetId).insured) {
+          h.balance *= (1 - ClimateEngine.crashCashLoss);
+        }
+      }
+    }
+
+    // Count down an active sector event (applied this week, expires later).
+    if (sectorEvent != null) sectorEvent!.weeksLeft -= 1;
 
     // Record realized moves on the resolved rumors and archive them.
     for (final r in currentRumors) {

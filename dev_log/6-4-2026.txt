@@ -163,3 +163,25 @@
         dominates because 'uninsured' has no teeth yet. Next nail:
         give insurance meaning via downturn risk (uninsured cash can
         lose in a crash; insured never does). Pending user's choice.
+
+2026-06-04  WealthQuest (build 9): market climate + crashes (insurance teeth)
+  WHAT: Added a macro layer that makes 'uninsured' finally matter (fixes
+        the MMF-dominates problem). models/climate.dart (MarketRegime:
+        boom/normal/downturn/crash/recovery + SectorEvent) and
+        engine/climate_engine.dart (Markov regime transitions, per-asset
+        beta, sector boom/bust generator). Each week the regime rolls and
+        applies a market-wide drift scaled by each asset's beta (bonds
+        barely move, crypto swings hard); a CRASH applies a severe drop
+        AND carves 2% off uninsured cash (MMF, CMA) while FDIC/govt
+        options are untouched. Occasional sector events ('Tech rally',
+        'Energy slump') bias one sector for 1-3 weeks. A climate banner
+        on the News tab shows the current regime + active sector event;
+        regime changes/crashes/sector events surface in the Next Week
+        summary. Marked CDs insured so crashes don't hit them.
+  WHY:  User: 'why would a player not just take the 4.8% MMF and ignore
+        the rest?' Right — uninsured had no teeth. Now the yield premium
+        of uninsured cash is a real risk premium paid back in crashes,
+        and insured cash is a genuine safe harbor.
+  TUNING: crash ~0.8%/wk from calm, ~5% from a bear; crashCashLoss 2%;
+        beta = vol/0.03 capped at 2.0. Knobs in climate.dart /
+        climate_engine.dart.

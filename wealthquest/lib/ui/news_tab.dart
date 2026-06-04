@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/catalog.dart';
+import '../models/climate.dart';
 import '../models/rumor.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
@@ -43,6 +44,8 @@ class NewsTab extends StatelessWidget {
         ),
         const Divider(thickness: 2, height: 24),
 
+        _climateBanner(theme),
+
         _sectionTitle(theme, 'Word on the Street'),
         Text(
           game.reliabilityRevealed
@@ -67,6 +70,50 @@ class NewsTab extends StatelessWidget {
           ...game.lastResolved.map((r) => _ResolvedRow(rumor: r)),
         ],
       ],
+    );
+  }
+
+  Widget _climateBanner(ThemeData theme) {
+    final reg = game.regime;
+    final bad = reg == MarketRegime.downturn || reg == MarketRegime.crash;
+    final good = reg == MarketRegime.boom || reg == MarketRegime.recovery;
+    final c = bad ? kLoss : (good ? kGain : theme.colorScheme.onSurfaceVariant);
+    final ev = game.sectorEvent;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: c.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: c.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(reg.emoji, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Text(
+                'Market climate: ${reg.label}',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(color: c, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(reg.blurb, style: theme.textTheme.bodySmall),
+          if (ev != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              '${ev.isRally ? '▲' : '▼'} ${ev.headline}',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: ev.isRally ? kGain : kLoss),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
