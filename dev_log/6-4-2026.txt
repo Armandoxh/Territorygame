@@ -230,3 +230,12 @@
   WHY:  User picked: lower wages + bigger expenses, fix crypto premium,
         harsher shocks (taxes + real estate coming as their own nails).
   NEXT: real-estate system (property ladder + mortgages), then taxes.
+
+2026-06-04  WealthQuest (build 12): restore the equity risk premium
+  WHAT: Build-11 agent report showed harsher shocks erased the equity
+        premium — All-HYSA ($2.55M, 0% dd) BEAT All-S&P ($1.83M, 36% dd).
+        Fix: added MarketEngine.driftScale (1.5) global expected-return
+        dial lifting every price-asset's drift over the fixed cash rate
+        (cash untouched); softened steady bear drift -0.008 -> -0.005
+        while KEEPING harsh crashes (-0.13). Target ladder: cash < bonds
+        < stocks < crypto in expected return, rising drawdown.
