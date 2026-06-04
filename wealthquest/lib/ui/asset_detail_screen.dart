@@ -6,6 +6,7 @@ import '../state/game_controller.dart';
 import '../util/format.dart';
 import 'widgets/amount_sheet.dart';
 import 'widgets/price_chart.dart';
+import 'widgets/swipe_back.dart';
 import 'widgets/ui_helpers.dart';
 
 /// Drill-in screen for a single investment: chart, fundamentals, your
@@ -59,7 +60,8 @@ class AssetDetailScreen extends StatelessWidget {
         final positions =
             game.holdings.where((h) => h.assetId == def.id).toList();
 
-        return Scaffold(
+        return SwipeBack(
+          child: Scaffold(
           appBar: AppBar(
             title: Text(def.name),
             bottom: PreferredSize(
@@ -103,6 +105,7 @@ class AssetDetailScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
         );
       },
     );

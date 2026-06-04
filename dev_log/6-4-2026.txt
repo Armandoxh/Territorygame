@@ -113,3 +113,13 @@
   WHY:  User reported still seeing the old "Next Day" button after the
         rename deployed — classic Flutter web SW double-reload caching.
         This removes the friction for all future iterations.
+
+2026-06-04  WealthQuest: swipe-to-go-back on the asset detail screen
+  WHAT: Added ui/widgets/swipe_back.dart and wrapped the asset detail
+        screen in it. A horizontal fling (either direction) pops the
+        route instantly via Navigator instead of falling through to the
+        browser's edge-swipe back, which reloaded the whole web app and
+        felt slow.
+  WHY:  User: "Swipe left to go back is a must. Right now it loads the
+        page and takes time." The slowness was Safari's history-back
+        reloading the SPA; an in-app pop is instant.
