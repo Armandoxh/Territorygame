@@ -86,6 +86,7 @@ class AssetDetailScreen extends StatelessWidget {
                   ),
                 ),
               ],
+              if (priceBased) _rumorsSection(context),
               const SizedBox(height: 12),
               _statsCard(context),
               const SizedBox(height: 12),
@@ -126,6 +127,66 @@ class AssetDetailScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _rumorsSection(BuildContext context) {
+    final rumors = game.currentRumorsForAsset(def.id);
+    if (rumors.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.newspaper, size: 18),
+                  const SizedBox(width: 8),
+                  Text('Word on the street',
+                      style: theme.textTheme.titleSmall),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...rumors.map((r) {
+                final color = r.isBullish ? kGain : kLoss;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        r.isBullish
+                            ? Icons.trending_up
+                            : Icons.trending_down,
+                        size: 16,
+                        color: color,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text('"${r.headline}"',
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(fontStyle: FontStyle.italic)),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 4),
+              Text(
+                'Rumors are often wrong — trade with skepticism.',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

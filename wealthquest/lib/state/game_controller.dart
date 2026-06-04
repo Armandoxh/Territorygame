@@ -4,9 +4,11 @@ import 'package:flutter/foundation.dart';
 
 import '../data/catalog.dart';
 import '../engine/market_engine.dart';
+import '../engine/news_engine.dart';
 import '../models/asset.dart';
 import '../models/holding.dart';
 import '../models/job.dart';
+import '../models/rumor.dart';
 
 /// Summary of what happened on a single Next Day, used to populate the
 /// post-advance dialog.
@@ -48,6 +50,15 @@ class GameController extends ChangeNotifier {
   final List<double> netWorthHistory = [];
   final List<String> eventLog = [];
 
+  // ---- Newspaper / rumor mill ----
+  List<Rumor> currentRumors = [];
+  List<Rumor> lastResolved = [];
+  final List<Rumor> rumorArchive = [];
+
+  /// Whether the exact reliability % is shown. Flipped on by the (future)
+  /// upgrade tree.
+  bool reliabilityRevealed = false;
+
   int _nextHoldingId = 1;
 
   GameController({int? seed})
@@ -62,8 +73,12 @@ class GameController extends ChangeNotifier {
       }
     }
     netWorthHistory.add(netWorth);
+    currentRumors = NewsEngine.generateEdition(_rng, day);
     _log('You turn 18 and land a job as a ${job.title}. Time to build wealth.');
   }
+
+  List<Rumor> currentRumorsForAsset(String assetId) =>
+      currentRumors.where((r) => r.assetId == assetId).toList();
 
   // ---- Derived time ----
   int get ageYears => Catalog.startAge + day ~/ 52;
@@ -279,20 +294,54 @@ class GameController extends ChangeNotifier {
       }
     }
 
-    // 3) Move all price-based markets and record history.
+    // 3) Resolve this week's rumors into a per-asset price bias.
+    final bias = <String, double>{};
+    var rumorsTrue = 0;
+    for (final r in currentRumors) {
+      final isTrue = _rng.nextDouble() < r.reliability;
+      r.resolved = true;
+      r.cameTrue = isTrue;
+      if (isTrue) {
+        bias[r.assetId] = (bias[r.assetId] ?? 0) + r.dir * r.magnitude;
+        rumorsTrue++;
+      } else {
+        // A false rumor sometimes swings the other way, sometimes fizzles.
+        final b = _rng.nextBool() ? -r.dir * r.magnitude * 0.7 : 0.0;
+        bias[r.assetId] = (bias[r.assetId] ?? 0) + b;
+      }
+    }
+
+    // 4) Move all price-based markets (with rumor bias) and record history.
     _prevPrices
       ..clear()
       ..addAll(_prices);
     for (final a in Catalog.assets) {
       if (!a.kind.isPriceBased) continue;
-      final next = MarketEngine.stepPrice(_prices[a.id]!, a, _rng);
+      final next =
+          MarketEngine.stepPrice(_prices[a.id]!, a, _rng, bias: bias[a.id] ?? 0);
       _prices[a.id] = next;
       final hist = priceHistory[a.id]!;
       hist.add(next);
       if (hist.length > 520) hist.removeAt(0); // cap ~10 years of weeks
     }
 
-    // 4) Pay dividends + bond coupons into cash (after prices settle).
+    // Record realized moves on the resolved rumors and archive them.
+    for (final r in currentRumors) {
+      r.actualMove = dailyChange(r.assetId);
+    }
+    lastResolved = currentRumors;
+    for (final r in currentRumors.reversed) {
+      rumorArchive.insert(0, r);
+    }
+    if (rumorArchive.length > 80) {
+      rumorArchive.removeRange(80, rumorArchive.length);
+    }
+    if (currentRumors.isNotEmpty) {
+      events.add(
+          '📰 Rumor mill: $rumorsTrue of ${currentRumors.length} tips proved true.');
+    }
+
+    // 5) Pay dividends + bond coupons into cash (after prices settle).
     var dividends = 0.0;
     for (final h in holdings) {
       if (!h.kind.isPriceBased) continue;
@@ -303,12 +352,15 @@ class GameController extends ChangeNotifier {
       dividends += pay;
     }
 
-    // 5) Tick the clock; birthday on year boundaries.
+    // 6) Tick the clock; birthday on year boundaries.
     final hadBirthday = (day + 1) % 52 == 0;
     day += 1;
     if (hadBirthday) {
       events.add('🎂 Happy birthday — you are now $ageYears.');
     }
+
+    // 7) Publish next week's edition of rumors.
+    currentRumors = NewsEngine.generateEdition(_rng, day);
 
     netWorthHistory.add(netWorth);
     final after = netWorth;

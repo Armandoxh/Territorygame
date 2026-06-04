@@ -14,10 +14,12 @@ class MarketEngine {
 
   /// Advance a price-based asset by one day (= one game week).
   ///
-  /// Geometric random walk: `price *= 1 + drift + vol * N(0,1)`, floored so a
-  /// price can crater but never goes to zero or negative.
-  static double stepPrice(double price, AssetDef def, Random rng) {
-    final ret = def.dailyDrift + def.dailyVol * gauss(rng);
+  /// Geometric random walk: `price *= 1 + drift + vol * N(0,1) + bias`, floored
+  /// so a price can crater but never goes to zero or negative. [bias] carries
+  /// the effect of a resolved rumor for the week.
+  static double stepPrice(double price, AssetDef def, Random rng,
+      {double bias = 0}) {
+    final ret = def.dailyDrift + def.dailyVol * gauss(rng) + bias;
     final next = price * (1 + ret);
     final floor = def.basePrice * 0.01;
     return next < floor ? floor : next;

@@ -1,0 +1,96 @@
+import 'dart:math';
+
+import '../data/catalog.dart';
+import '../models/asset.dart';
+import '../models/rumor.dart';
+
+/// Generates the weekly newspaper edition — a handful of rumors targeting
+/// random price-based assets. Pure given the [Random], so it stays
+/// deterministic under a seed.
+class NewsEngine {
+  NewsEngine._();
+
+  /// Base chance a rumor is true. The upgrade tree will raise this later.
+  static const double baseReliability = 0.25;
+
+  static const int rumorsPerEdition = 3;
+
+  static List<Rumor> generateEdition(Random rng, int day) {
+    final pool = Catalog.assets.where((a) => a.kind.isPriceBased).toList()
+      ..shuffle(rng);
+    final picks = pool.take(rumorsPerEdition);
+    return [for (final a in picks) _rumorFor(a, rng, day)];
+  }
+
+  static Rumor _rumorFor(AssetDef a, Random rng, int day) {
+    final dir = rng.nextBool() ? 1 : -1;
+    final magnitude =
+        (a.dailyVol * (1.5 + rng.nextDouble() * 2.0)).clamp(0.02, 0.4);
+    return Rumor(
+      assetId: a.id,
+      dir: dir,
+      magnitude: magnitude.toDouble(),
+      reliability: baseReliability,
+      headline: _headline(a, dir, rng),
+      createdDay: day,
+    );
+  }
+
+  static String _headline(AssetDef a, int dir, Random rng) {
+    final bull = dir > 0;
+    final List<String> pool;
+    switch (a.kind) {
+      case AssetKind.crypto:
+        pool = bull
+            ? [
+                'Influencers are pumping ${a.name} — "next leg up is coming"',
+                'Whispers of a major exchange listing for ${a.ticker}',
+                'Forums say smart money is quietly piling into ${a.name}',
+              ]
+            : [
+                'Chatter of a security exploit hitting ${a.name}',
+                'Talk that a whale is about to dump ${a.ticker}',
+                'Rumors of a regulatory crackdown on ${a.name}',
+              ];
+        break;
+      case AssetKind.bond:
+        pool = bull
+            ? [
+                'Word is the Fed will cut rates — ${a.name} set to rally',
+                'Insiders expect heavy demand for ${a.ticker} at auction',
+              ]
+            : [
+                'Chatter of a surprise rate hike — pressure on ${a.name}',
+                'Rumors of a credit downgrade for ${a.ticker}',
+              ];
+        break;
+      case AssetKind.etf:
+        pool = bull
+            ? [
+                'Strategists whisper a ${a.sector} rally is brewing (${a.ticker})',
+                'Big funds reportedly rotating into ${a.name}',
+              ]
+            : [
+                'Talk that ${a.sector} is about to roll over (${a.ticker})',
+                'Outflows rumored from ${a.name}',
+              ];
+        break;
+      case AssetKind.stock:
+      default:
+        pool = bull
+            ? [
+                'Insiders whisper ${a.name} is about to land a blockbuster deal',
+                'Word is ${a.name} crushed earnings this quarter',
+                'Rumor: a big fund is quietly accumulating ${a.ticker}',
+                'Buzz of a buyout offer for ${a.name}',
+              ]
+            : [
+                'Talk of an accounting probe at ${a.name}',
+                'Sources hint ${a.name} will badly miss its numbers',
+                'Rumor: key executives are heading for the exits at ${a.ticker}',
+                'Whispers of a product recall at ${a.name}',
+              ];
+    }
+    return pool[rng.nextInt(pool.length)];
+  }
+}

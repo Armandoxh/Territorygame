@@ -58,3 +58,30 @@
         cap, net worth of companies, historic highs/lows.
         Everything a real investor needs to make a decision."
         This is nail 1 of 2; the rumor-mill newspaper is nail 2.
+
+2026-06-04  WealthQuest nail: rumor-mill newspaper
+  WHAT: Added "The Daily Ledger" — a News tab that publishes a
+        weekly edition of 2-3 rumors, each a bullish/bearish tip
+        on one asset. Rumors mechanically bias next week's price
+        move, but the mill is only ~25% reliable (base): a true
+        rumor (25%) moves the asset its predicted way; a false one
+        sometimes swings the other way, sometimes fizzles. Each
+        week resolves last edition's tips (TRUE/FALSE stamp +
+        actual move) and publishes a fresh one. Rumors also surface
+        on each asset's detail screen ("Word on the street"). Built
+        for the future upgrade tree: reliability is a field and a
+        `reliabilityRevealed` flag gates showing the exact %, which
+        stays hidden for now per the user's spec.
+  WHY:  User: "a newspaper rumor mill — news that's most likely
+        true but may swing the other way, right ~25% of the time.
+        When we get the upgrade tree I want the user to see the %
+        probability that news is right." Nail 2 of 2.
+
+  Architecture:
+   - models/rumor.dart, engine/news_engine.dart (headline
+     templates per asset kind + generator, deterministic under
+     seed). MarketEngine.stepPrice gained an optional `bias`.
+   - GameController: currentRumors / lastResolved / rumorArchive +
+     resolution-and-bias step in advanceDay, fresh edition each
+     week. ui/news_tab.dart + News bottom-nav slot + rumor card on
+     the asset detail screen.
