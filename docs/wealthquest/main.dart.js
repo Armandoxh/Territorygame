@@ -26391,7 +26391,7 @@ if(l.E(0,r.a))q.push(r)}B.c.Zz(q,a)
 n=A.c([],t.AT)
 for(k=q.length,s=0;s<q.length;q.length===k||(0,A.v)(q),++s){r=q[s]
 j=a.Ip()?1:-1
-n.push(new A.hM(r.a,j,B.d.di(r.w*(1.5+a.oo()*2),0.02,0.4),0.5,A.aK_(r,j,a)))}return n},
+n.push(new A.hM(r.a,j,B.d.di(r.w*(1.2+a.oo()*1.6),0.015,0.18),0.5,A.aK_(r,j,a)))}return n},
 aK_(a,b,c){var s,r,q,p,o,n=b>0
 switch(a.e.a){case 5:s=t.s
 r=a.b
@@ -26464,11 +26464,11 @@ case 1:return"Markets are steady."
 case 2:return"Stocks are sliding."
 case 3:return"Severe sell-off \u2014 uninsured cash takes a hit."
 case 4:return"Markets are bouncing back."}},
-aJq(a){switch(a.a){case 0:return 0.01
+aJq(a){switch(a.a){case 0:return 0.006
 case 1:return 0
-case 2:return-0.008
-case 3:return-0.16
-case 4:return 0.012}},
+case 2:return-0.005
+case 3:return-0.09
+case 4:return 0.007}},
 oU:function oU(a,b){this.a=a
 this.b=b},
 abT:function abT(a,b,c,d,e){var _=this
@@ -27154,7 +27154,7 @@ return A.c([o*m+l*k+j*n,o*r+l*q+j*s,o*p[0]+l*p[1]+j*p[2]],t.n)},
 aGW(a){var s,r=a.w
 if(r<=0)return 0
 s=r/0.03
-return s>2?2:s},
+return s>1.5?1.5:s},
 aGX(a,b){var s=b.oo()
 switch(a.a){case 3:return B.m7
 case 4:return s<0.45?B.m7:B.fp
@@ -87992,7 +87992,7 @@ k=r.h(0,n)
 k.toString
 a6=B.d.di(l.oo(),1e-12,1)
 a7=l.oo()
-a8=k*(1+(a4.r+a4.w*(Math.sqrt(-2*Math.log(a6))*Math.cos(6.283185307179586*a7))+a5))
+a8=k*(1+(a4.r+a4.w*0.55*(Math.sqrt(-2*Math.log(a6))*Math.cos(6.283185307179586*a7))+a5))
 a9=a4.f*0.01
 if(a8<a9)a8=a9
 r.m(0,n,a8)
@@ -88000,7 +88000,7 @@ b0=b6.h(0,n)
 b0.push(a8)
 if(b0.length>520)B.c.mR(b0,0)}if(b4.ax===B.fq)for(b6=s.length,p=0;p<s.length;s.length===b6||(0,A.v)(s),++p){o=s[p]
 r=o.c
-if((r===B.bo||r===B.aB)&&!$.lj().h(0,o.b).db)o.e*=0.98}b6=b4.ay
+if((r===B.bo||r===B.aB)&&!$.lj().h(0,o.b).db)o.e*=0.988}b6=b4.ay
 if(b6!=null)--b6.e
 for(b6=b4.z,r=b6.length,p=0;p<b6.length;b6.length===r||(0,A.v)(b6),++p){g=b6[p]
 g.x=b4.tU(g.a)}b6=b4.Q=b4.z
@@ -88339,7 +88339,7 @@ q=s.akq(q==null?i.k3:q,B.aN,1)}q=A.ao("WealthQuest",k,k,k,k,q,k,k)
 if(r)s=k
 else{r=i.rx
 s=s.aV(r==null?i.k3:r)}r=t.p
-s=A.cX(A.c([q,A.ao("v0.7.0 \xb7 build 9",k,k,k,k,s,k,k)],r),B.S,B.c8,B.I,0)
+s=A.cX(A.c([q,A.ao("v0.7.1 \xb7 build 10",k,k,k,k,s,k,k)],r),B.S,B.c8,B.I,0)
 q=j.at
 p=q==null
 if(p)o=k
