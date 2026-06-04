@@ -24,6 +24,12 @@ class Holding {
 
   bool matured;
 
+  /// True for a short position (a bet the price falls). [shares] is the size
+  /// borrowed, [costBasis] is the cash margin posted, [entryPrice] is the price
+  /// it was opened at.
+  final bool isShort;
+  final double entryPrice;
+
   Holding({
     required this.id,
     required this.assetId,
@@ -34,6 +40,8 @@ class Holding {
     required this.openedDay,
     this.maturityDay = 0,
     this.matured = false,
+    this.isShort = false,
+    this.entryPrice = 0,
   });
 
   /// A CD that hasn't matured yet can't be redeemed.

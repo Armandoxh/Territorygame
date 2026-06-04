@@ -121,6 +121,29 @@ class _HoldingTile extends StatelessWidget {
     _toast(context, err ?? 'Sold ${money(amount)} of ${def.name}.');
   }
 
+  Future<void> _cover(BuildContext context) async {
+    final def = Catalog.assetById(holding.assetId);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('Cover short on ${def.name}?'),
+        content: Text(
+            'Close this short for ${money(game.valueOf(holding))} back to cash.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Cover')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final err = game.coverShort(holding);
+    _toast(context, err ?? 'Covered short on ${def.name}.');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -129,7 +152,9 @@ class _HoldingTile extends StatelessWidget {
     final pl = game.profitOf(holding);
 
     final String subtitle;
-    if (holding.kind == AssetKind.cd) {
+    if (holding.isShort) {
+      subtitle = 'SHORT • entry ${price(holding.entryPrice)}';
+    } else if (holding.kind == AssetKind.cd) {
       subtitle = holding.matured
           ? 'Matured • redeemable'
           : 'Locked • matures month ${holding.maturityDay}';
@@ -147,9 +172,11 @@ class _HoldingTile extends StatelessWidget {
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: holding.isLocked
-            ? const Icon(Icons.lock_outline)
-            : const Icon(Icons.show_chart),
+        leading: holding.isShort
+            ? const Icon(Icons.trending_down, color: kLoss)
+            : holding.isLocked
+                ? const Icon(Icons.lock_outline)
+                : const Icon(Icons.show_chart),
         title: Text(def.name),
         subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
         trailing: Column(
@@ -164,7 +191,7 @@ class _HoldingTile extends StatelessWidget {
                     ?.copyWith(color: gainColor(pl))),
           ],
         ),
-        onTap: () => _sell(context),
+        onTap: () => holding.isShort ? _cover(context) : _sell(context),
       ),
     );
   }

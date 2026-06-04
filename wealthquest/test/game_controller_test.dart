@@ -212,4 +212,43 @@ void main() {
       expect(g.properties.first.loanBalance, lessThan(1000));
     });
   });
+
+  group('Short positions', () {
+    test('opening a short posts margin and is net-worth-neutral', () {
+      final g = GameController(seed: 1);
+      g.cash = 10000;
+      final nwBefore = g.netWorth;
+      final err = g.short(Catalog.assetById('spx'), 1000);
+      expect(err, isNull);
+      expect(g.cash, closeTo(10000 - 1000, 1e-6));
+      final h = g.holdings.firstWhere((x) => x.isShort);
+      expect(g.valueOf(h), closeTo(1000, 1e-6)); // entry == current at open
+      expect(g.netWorth, closeTo(nwBefore, 1.0)); // cash down, position up
+    });
+
+    test('covering a fresh short returns the margin', () {
+      final g = GameController(seed: 1);
+      g.cash = 10000;
+      g.short(Catalog.assetById('spx'), 1000);
+      final h = g.holdings.firstWhere((x) => x.isShort);
+      final cashBefore = g.cash;
+      expect(g.coverShort(h), isNull);
+      expect(g.cash, closeTo(cashBefore + 1000, 1e-6));
+      expect(g.holdings.where((x) => x.isShort), isEmpty);
+    });
+
+    test('a long and a short on the same asset are separate positions', () {
+      final g = GameController(seed: 1);
+      g.cash = 10000;
+      g.buy(Catalog.assetById('spx'), 1000);
+      g.short(Catalog.assetById('spx'), 1000);
+      expect(g.holdings.where((x) => x.assetId == 'spx').length, 2);
+    });
+
+    test('cannot short a cash instrument', () {
+      final g = GameController(seed: 1);
+      g.cash = 10000;
+      expect(g.short(Catalog.assetById('hysa'), 100), isNotNull);
+    });
+  });
 }

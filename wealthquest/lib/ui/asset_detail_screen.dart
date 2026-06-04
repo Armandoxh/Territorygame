@@ -5,7 +5,7 @@ import '../models/holding.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
 import 'widgets/amount_sheet.dart';
-import 'widgets/price_chart.dart';
+import 'widgets/candle_chart.dart';
 import 'widgets/swipe_back.dart';
 import 'widgets/ui_helpers.dart';
 
@@ -38,6 +38,20 @@ class AssetDetailScreen extends StatelessWidget {
     if (amount == null || !context.mounted) return;
     final err = game.buy(def, amount);
     _toast(context, err ?? 'Bought ${money(amount)} of ${def.name}.');
+  }
+
+  Future<void> _short(BuildContext context) async {
+    final amount = await showAmountSheet(
+      context,
+      title: 'Short ${def.name}',
+      actionLabel: 'Open short',
+      max: game.cash,
+      helper:
+          'You profit if the price FALLS. Your stake is the margin — you get stopped out if the price roughly doubles.',
+    );
+    if (amount == null || !context.mounted) return;
+    final err = game.short(def, amount);
+    _toast(context, err ?? 'Opened a ${money(amount)} short on ${def.name}.');
   }
 
   Future<void> _sell(BuildContext context, Holding h) async {
@@ -91,7 +105,7 @@ class AssetDetailScreen extends StatelessWidget {
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: PriceChart(series: game.priceHistoryFor(def.id)),
+                    child: CandleChart(series: game.priceHistoryFor(def.id)),
                   ),
                 ),
               ],
@@ -105,11 +119,32 @@ class AssetDetailScreen extends StatelessWidget {
               const SizedBox(height: 4),
               Text(def.blurb, style: theme.textTheme.bodyMedium),
               const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () => _buy(context),
-                icon: const Icon(Icons.add),
-                label: Text('Buy ${def.name}'),
-              ),
+              if (priceBased)
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _buy(context),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Buy'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _short(context),
+                        icon: const Icon(Icons.trending_down),
+                        label: const Text('Short'),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                FilledButton.icon(
+                  onPressed: () => _buy(context),
+                  icon: const Icon(Icons.add),
+                  label: Text('Buy ${def.name}'),
+                ),
             ],
           ),
         ),
@@ -315,13 +350,15 @@ class AssetDetailScreen extends StatelessWidget {
             ...positions.map((h) {
               final value = game.valueOf(h);
               final pl = game.profitOf(h);
-              final sub = h.kind == AssetKind.cd
-                  ? (h.matured
-                      ? 'Matured • redeemable'
-                      : 'Locked • matures month ${h.maturityDay}')
-                  : h.kind.isInterestBearing
-                      ? 'Balance'
-                      : '${h.shares.toStringAsFixed(h.shares >= 10 ? 2 : 4)} units';
+              final sub = h.isShort
+                  ? 'SHORT • ${h.shares.toStringAsFixed(2)} @ ${price(h.entryPrice)}'
+                  : h.kind == AssetKind.cd
+                      ? (h.matured
+                          ? 'Matured • redeemable'
+                          : 'Locked • matures month ${h.maturityDay}')
+                      : h.kind.isInterestBearing
+                          ? 'Balance'
+                          : '${h.shares.toStringAsFixed(h.shares >= 10 ? 2 : 4)} units';
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
@@ -333,7 +370,11 @@ class AssetDetailScreen extends StatelessWidget {
                           Text(money(value),
                               style: theme.textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.bold)),
-                          Text(sub, style: theme.textTheme.bodySmall),
+                          Text(sub,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: h.isShort ? kLoss : null,
+                                  fontWeight:
+                                      h.isShort ? FontWeight.bold : null)),
                           Text(
                             '${pl >= 0 ? '+' : ''}${money(pl)}',
                             style: theme.textTheme.bodySmall
@@ -343,8 +384,19 @@ class AssetDetailScreen extends StatelessWidget {
                       ),
                     ),
                     OutlinedButton(
-                      onPressed: h.isLocked ? null : () => _sell(context, h),
-                      child: Text(h.kind == AssetKind.cd ? 'Redeem' : 'Sell'),
+                      onPressed: h.isShort
+                          ? () {
+                              final err = game.coverShort(h);
+                              _toast(context, err ?? 'Covered short.');
+                            }
+                          : h.isLocked
+                              ? null
+                              : () => _sell(context, h),
+                      child: Text(h.isShort
+                          ? 'Cover'
+                          : h.kind == AssetKind.cd
+                              ? 'Redeem'
+                              : 'Sell'),
                     ),
                   ],
                 ),

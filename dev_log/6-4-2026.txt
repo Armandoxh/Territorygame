@@ -307,3 +307,21 @@
   WHAT: Agent seeds 5 -> 15 for stable medians (real estate RNG draws
         reshuffled the market stream). Crypto drift BTQ 0.006->0.0075,
         ETQ 0.0065->0.008 so its median clears cash, lottery shape kept.
+
+2026-06-04  WealthQuest (build 19): candlestick charts + short positions
+  WHAT: (1) Replaced both charts with a trading-style CandleChart
+        (ui/widgets/candle_chart.dart): green/red candlesticks with
+        synthetic wicks from the close series, gridlines, price labels,
+        dashed last-price line. Used on the asset detail (price) and the
+        dashboard (net worth). Removed price_chart.dart + networth_chart.
+        (2) SHORT positions: Holding.isShort + entryPrice; controller
+        short(def, amount) posts cash margin (net-worth-neutral at open),
+        valueOf = margin + shares*(entry - price) floored at 0,
+        coverShort returns value to cash, margin-call stop-out in
+        advanceMonth when a short's value hits 0 (~price doubles). Shorts
+        skip dividends/passive and never merge with longs. UI: Buy|Short
+        buttons on the (price-based) detail screen, SHORT badge + Cover
+        in the position card and Portfolio tab. Unit tests for margin/
+        net-worth-neutral open, cover, separate long+short, no-cash-short.
+  WHY:  User: "make all the charts look like ticker graphs. Also have a
+        short position we can place."

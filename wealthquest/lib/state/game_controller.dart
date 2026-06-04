@@ -124,6 +124,11 @@ class GameController extends ChangeNotifier {
 
   // ---- Valuation ----
   double valueOf(Holding h) {
+    if (h.isShort) {
+      // Margin + gain: you profit as the price falls below your entry.
+      final v = h.costBasis + h.shares * (h.entryPrice - priceOf(h.assetId));
+      return v < 0 ? 0 : v; // can't go below zero (stopped out)
+    }
     if (h.kind.isInterestBearing) return h.balance;
     return h.shares * priceOf(h.assetId);
   }
@@ -217,6 +222,7 @@ class GameController extends ChangeNotifier {
   double get dailyPassiveIncome {
     var sum = 0.0;
     for (final h in holdings) {
+      if (h.isShort) continue;
       final def = Catalog.assetById(h.assetId);
       if (h.kind.isInterestBearing) {
         sum += h.balance * _effectiveApy(def, h.balance) / Catalog.stepsPerYear;
@@ -258,7 +264,9 @@ class GameController extends ChangeNotifier {
   // ---- Holdings lookup ----
   Holding? holdingForAsset(String assetId) {
     for (final h in holdings) {
-      if (h.assetId == assetId && h.kind != AssetKind.cd) return h;
+      if (h.assetId == assetId && h.kind != AssetKind.cd && !h.isShort) {
+        return h;
+      }
     }
     return null;
   }
@@ -364,6 +372,42 @@ class GameController extends ChangeNotifier {
     if (valueOf(h) <= 0.01) holdings.remove(h);
 
     _log('Sold \$${amt.toStringAsFixed(0)} of ${def.name}.');
+    notifyListeners();
+    return null;
+  }
+
+  /// Open a short position with [amount] dollars of margin on a market-traded
+  /// asset — you profit if the price falls, and get stopped out if it roughly
+  /// doubles. Returns an error string, or null on success.
+  String? short(AssetDef def, double amount) {
+    if (!def.kind.isPriceBased) {
+      return 'You can only short market-traded assets.';
+    }
+    if (amount <= 0) return 'Enter an amount greater than \$0.';
+    if (amount > cash + 0.001) return 'Not enough cash for margin.';
+    final price = priceOf(def.id);
+    cash -= amount; // post margin
+    holdings.add(Holding(
+      id: _nextHoldingId++,
+      assetId: def.id,
+      kind: def.kind,
+      shares: amount / price,
+      costBasis: amount,
+      openedDay: day,
+      isShort: true,
+      entryPrice: price,
+    ));
+    _log('Opened a \$${amount.toStringAsFixed(0)} short on ${def.name}.');
+    notifyListeners();
+    return null;
+  }
+
+  /// Close (cover) a short, returning its current value to cash.
+  String? coverShort(Holding h) {
+    if (!h.isShort) return 'Not a short position.';
+    cash += valueOf(h);
+    holdings.remove(h);
+    _log('Covered short on ${Catalog.assetById(h.assetId).name}.');
     notifyListeners();
     return null;
   }
@@ -507,10 +551,20 @@ class GameController extends ChangeNotifier {
           '📰 Rumor mill: $rumorsTrue of ${currentRumors.length} tips proved true.');
     }
 
+    // 4c) Margin call: a short that has lost all its margin is stopped out.
+    holdings.removeWhere((h) {
+      if (h.isShort && valueOf(h) <= 0.01) {
+        events.add(
+            '💥 Your short on ${Catalog.assetById(h.assetId).name} was stopped out.');
+        return true;
+      }
+      return false;
+    });
+
     // 5) Pay dividends + bond coupons into cash (after prices settle).
     var dividends = 0.0;
     for (final h in holdings) {
-      if (!h.kind.isPriceBased) continue;
+      if (h.isShort || !h.kind.isPriceBased) continue;
       final def = Catalog.assetById(h.assetId);
       if (def.incomeYield <= 0) continue;
       final pay = valueOf(h) * def.incomeYield / Catalog.stepsPerYear;

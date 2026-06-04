@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../state/game_controller.dart';
 import '../util/format.dart';
-import 'widgets/networth_chart.dart';
+import 'widgets/candle_chart.dart';
 import 'widgets/ui_helpers.dart';
 
 class DashboardTab extends StatelessWidget {
@@ -27,7 +27,7 @@ class DashboardTab extends StatelessWidget {
                 Text('Net worth over time',
                     style: theme.textTheme.titleMedium),
                 const SizedBox(height: 12),
-                NetWorthChart(history: game.netWorthHistory),
+                CandleChart(series: game.netWorthHistory, height: 140),
               ],
             ),
           ),
