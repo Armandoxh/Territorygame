@@ -10,6 +10,11 @@ class MarketEngine {
   /// THE knob to make the whole market choppier or steadier.
   static const double volScale = 0.55;
 
+  /// Global expected-return dial: every price-based asset's weekly drift is
+  /// multiplied by this. >1 widens the risk premium of stocks/crypto over the
+  /// fixed cash rate (which this does NOT touch). Tune so risk beats cash.
+  static const double driftScale = 1.5;
+
   /// One standard-normal sample via Box–Muller.
   static double gauss(Random rng) {
     final u1 = rng.nextDouble().clamp(1e-12, 1.0);
@@ -24,7 +29,8 @@ class MarketEngine {
   /// the effect of a resolved rumor for the week.
   static double stepPrice(double price, AssetDef def, Random rng,
       {double bias = 0}) {
-    final ret = def.dailyDrift + def.dailyVol * volScale * gauss(rng) + bias;
+    final ret =
+        def.dailyDrift * driftScale + def.dailyVol * volScale * gauss(rng) + bias;
     final next = price * (1 + ret);
     final floor = def.basePrice * 0.01;
     return next < floor ? floor : next;
