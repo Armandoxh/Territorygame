@@ -302,3 +302,8 @@
         30-year finite/payoff run.
   WHY:  User: real estate ladder, fair appreciation, mortgage fee,
         varying mortgage types/rates, selectable down payment.
+
+2026-06-04  WealthQuest (build 18): 15-seed agent + crypto bump
+  WHAT: Agent seeds 5 -> 15 for stable medians (real estate RNG draws
+        reshuffled the market stream). Crypto drift BTQ 0.006->0.0075,
+        ETQ 0.0065->0.008 so its median clears cash, lottery shape kept.
