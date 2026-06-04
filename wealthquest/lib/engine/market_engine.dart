@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../data/catalog.dart';
 import '../models/asset.dart';
 
 /// Pure market math, kept out of the controller so it can be unit-tested in
@@ -29,8 +30,9 @@ class MarketEngine {
   /// the effect of a resolved rumor for the week.
   static double stepPrice(double price, AssetDef def, Random rng,
       {double bias = 0}) {
-    final ret =
-        def.dailyDrift * driftScale + def.dailyVol * volScale * gauss(rng) + bias;
+    final ret = def.dailyDrift * driftScale * Catalog.driftStepFactor +
+        def.dailyVol * volScale * Catalog.volStepFactor * gauss(rng) +
+        bias;
     final next = price * (1 + ret);
     final floor = def.basePrice * 0.01;
     return next < floor ? floor : next;

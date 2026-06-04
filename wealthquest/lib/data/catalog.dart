@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../models/asset.dart';
 import '../models/job.dart';
 
@@ -13,13 +15,24 @@ class Catalog {
   Catalog._();
 
   static const int startAge = 18;
-  static const double startingCash = 500;
+  static const double startingCash = 2000;
 
-  /// Weekly living expenses: a base, plus lifestyle creep that scales with
+  /// How many advances ("Next Month") make up a year. Change this one number to
+  /// re-cadence the whole sim; rates and magnitudes scale off it.
+  static const int stepsPerYear = 12; // monthly
+
+  /// Catalog drift/vol are authored at a weekly reference scale. These convert
+  /// them to the active cadence so the ANNUAL return/volatility (and the tuned
+  /// balance) stay the same regardless of pace.
+  static const double _refStepsPerYear = 52;
+  static double get driftStepFactor => _refStepsPerYear / stepsPerYear; // ~4.33
+  static double get volStepFactor => sqrt(_refStepsPerYear / stepsPerYear); // ~2.08
+
+  /// Monthly living expenses: a base, plus lifestyle creep that scales with
   /// what you earn (the more you make, the more you spend) and a little with
   /// age. Tuned so saving takes real discipline and investment growth matters.
-  static double weeklyExpenses(int age, double weeklyPay) =>
-      140 + 0.35 * weeklyPay + (age - startAge) * 2;
+  static double monthlyExpenses(int age, double monthlyPay) =>
+      600 + 0.35 * monthlyPay + (age - startAge) * 9;
 
   static JobDef get startingJob => jobs.first;
 
@@ -122,17 +135,17 @@ class Catalog {
     ),
     AssetDef(
       id: 'tbill',
-      name: '13-Week T-Bill',
+      name: '3-Month T-Bill',
       ticker: 'TBILL',
       categoryId: 'cash',
       kind: AssetKind.cd,
       apy: 0.042,
-      termDays: 13,
+      termDays: 3,
       minInvestment: 100,
       sector: 'Government',
       creditRating: 'AAA',
       insured: true,
-      blurb: 'U.S. government-backed, ultra-safe. 4.2% for a 13-week lock — '
+      blurb: 'U.S. government-backed, ultra-safe. 4.2% for a 3-month lock — '
           'beats the HYSA if you can spare it.',
     ),
     AssetDef(
@@ -142,7 +155,7 @@ class Catalog {
       categoryId: 'cash',
       kind: AssetKind.cd,
       apy: 0.048,
-      termDays: 52,
+      termDays: 12,
       minInvestment: 25,
       sector: 'Government',
       creditRating: 'AAA',
@@ -176,11 +189,11 @@ class Catalog {
       categoryId: 'fixed',
       kind: AssetKind.cd,
       apy: 0.045,
-      termDays: 26,
+      termDays: 6,
       minInvestment: 100,
       sector: 'Fixed Income',
       insured: true,
-      blurb: 'Locked 26 weeks. 4.5% APY, redeemable at maturity.',
+      blurb: 'Locked 6 months. 4.5% APY, redeemable at maturity.',
     ),
     AssetDef(
       id: 'cd1y',
@@ -189,11 +202,11 @@ class Catalog {
       categoryId: 'fixed',
       kind: AssetKind.cd,
       apy: 0.052,
-      termDays: 52,
+      termDays: 12,
       minInvestment: 100,
       sector: 'Fixed Income',
       insured: true,
-      blurb: 'Locked 52 weeks. 5.2% APY for committing longer.',
+      blurb: 'Locked 12 months. 5.2% APY for committing longer.',
     ),
     AssetDef(
       id: 'cd3y',
@@ -202,11 +215,11 @@ class Catalog {
       categoryId: 'fixed',
       kind: AssetKind.cd,
       apy: 0.058,
-      termDays: 156,
+      termDays: 36,
       minInvestment: 250,
       sector: 'Fixed Income',
       insured: true,
-      blurb: 'Locked 156 weeks. 5.8% APY — best fixed rate, longest lock.',
+      blurb: 'Locked 36 months. 5.8% APY — best fixed rate, longest lock.',
     ),
     AssetDef(
       id: 'tbond',
@@ -447,7 +460,7 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 43250.0,
-      dailyDrift: 0.010,
+      dailyDrift: 0.0074,
       dailyVol: 0.11,
       sector: 'Digital',
       sharesOutstanding: 1.95e7,
@@ -460,7 +473,7 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 2280.0,
-      dailyDrift: 0.011,
+      dailyDrift: 0.0082,
       dailyVol: 0.13,
       sector: 'Digital',
       sharesOutstanding: 1.2e8,
@@ -483,13 +496,14 @@ class Catalog {
 
   /// The career ladder. Higher rungs unlock with age; the player picks one
   /// in the Life tab.
+  // Pay is per month.
   static const List<JobDef> jobs = [
-    JobDef(id: 'barista', title: 'Barista', pay: 300, minAge: 18),
-    JobDef(id: 'retail', title: 'Retail Associate', pay: 380, minAge: 18),
-    JobDef(id: 'junior_dev', title: 'Junior Developer', pay: 850, minAge: 20),
-    JobDef(id: 'accountant', title: 'Accountant', pay: 1150, minAge: 22),
-    JobDef(id: 'engineer', title: 'Software Engineer', pay: 1700, minAge: 24),
-    JobDef(id: 'banker', title: 'Investment Banker', pay: 2800, minAge: 26),
+    JobDef(id: 'barista', title: 'Barista', pay: 1300, minAge: 18),
+    JobDef(id: 'retail', title: 'Retail Associate', pay: 1650, minAge: 18),
+    JobDef(id: 'junior_dev', title: 'Junior Developer', pay: 3700, minAge: 20),
+    JobDef(id: 'accountant', title: 'Accountant', pay: 5000, minAge: 22),
+    JobDef(id: 'engineer', title: 'Software Engineer', pay: 7400, minAge: 24),
+    JobDef(id: 'banker', title: 'Investment Banker', pay: 12000, minAge: 26),
   ];
 
   // ---- Lookups (built once) ----

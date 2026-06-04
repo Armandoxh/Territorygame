@@ -24,9 +24,9 @@ void main() {
       expect(r.income, g.job.pay);
     });
 
-    test('age increments after 52 days', () {
+    test('age increments after one year of months', () {
       final g = GameController(seed: 1);
-      for (var i = 0; i < 52; i++) {
+      for (var i = 0; i < Catalog.stepsPerYear; i++) {
         g.advanceDay();
       }
       expect(g.ageYears, 19);
@@ -59,18 +59,18 @@ void main() {
       g.advanceDay();
       final after = g.valueOf(g.holdings.first);
       expect(after, greaterThan(start));
-      expect(after, closeTo(start * (1 + hysa.apy / 52), 1e-6));
+      expect(after, closeTo(start * (1 + hysa.apy / Catalog.stepsPerYear), 1e-6));
     });
 
     test('CDs are locked until maturity, then redeemable', () {
       final g = GameController(seed: 1);
-      final cd = Catalog.assetById('cd6'); // 26-day term
+      final cd = Catalog.assetById('cd6'); // 6-month term
       g.buy(cd, 500);
       final holding = g.holdings.first;
       expect(holding.isLocked, isTrue);
       expect(g.sell(holding, 100), isNotNull); // rejected while locked
 
-      for (var i = 0; i < 26; i++) {
+      for (var i = 0; i < cd.termDays; i++) {
         g.advanceDay();
       }
       expect(holding.matured, isTrue);
@@ -147,7 +147,7 @@ void main() {
       final ib = Catalog.assetById('ibond');
       expect(g.buy(ib, 10000), isNull); // up to the $10k/yr cap
       expect(g.buy(ib, 100), isNotNull); // over the cap -> rejected
-      for (var i = 0; i < 52; i++) {
+      for (var i = 0; i < Catalog.stepsPerYear; i++) {
         g.advanceDay();
       }
       expect(g.buy(ib, 5000), isNull); // cap resets after a year

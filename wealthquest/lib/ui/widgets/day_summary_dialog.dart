@@ -14,7 +14,7 @@ Future<void> showDaySummary(
     builder: (context) {
       final theme = Theme.of(context);
       return AlertDialog(
-        title: Text('Week ${game.day} • Age ${game.ageYears}'),
+        title: Text('Month ${game.day} • Age ${game.ageYears}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -41,7 +41,7 @@ Future<void> showDaySummary(
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                '${r.netWorthDelta >= 0 ? '▲' : '▼'} ${money(r.netWorthDelta.abs())} this week',
+                '${r.netWorthDelta >= 0 ? '▲' : '▼'} ${money(r.netWorthDelta.abs())} this month',
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: gainColor(r.netWorthDelta)),
               ),

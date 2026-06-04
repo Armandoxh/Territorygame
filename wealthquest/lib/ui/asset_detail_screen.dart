@@ -32,7 +32,7 @@ class AssetDetailScreen extends StatelessWidget {
       actionLabel: 'Buy',
       max: maxBuy,
       helper: def.kind.isPriceBased
-          ? 'Price ${price(game.priceOf(def.id))} • ${signedPct(game.dailyChange(def.id))} this week'
+          ? 'Price ${price(game.priceOf(def.id))} • ${signedPct(game.dailyChange(def.id))} this month'
           : capNote ?? def.blurb,
     );
     if (amount == null || !context.mounted) return;
@@ -42,7 +42,7 @@ class AssetDetailScreen extends StatelessWidget {
 
   Future<void> _sell(BuildContext context, Holding h) async {
     if (h.isLocked) {
-      _toast(context, 'Locked for ${h.maturityDay - game.day} more week(s).');
+      _toast(context, 'Locked for ${h.maturityDay - game.day} more month(s).');
       return;
     }
     final value = game.valueOf(h);
@@ -132,7 +132,7 @@ class AssetDetailScreen extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            '${ch >= 0 ? '▲' : '▼'} ${signedPct(ch)} this week',
+            '${ch >= 0 ? '▲' : '▼'} ${signedPct(ch)} this month',
             style: theme.textTheme.titleMedium?.copyWith(color: gainColor(ch)),
           ),
         ),
@@ -206,8 +206,8 @@ class AssetDetailScreen extends StatelessWidget {
 
     if (def.kind.isPriceBased) {
       rows.add(MapEntry('Market cap', moneyCompact(game.marketCap(def))));
-      rows.add(MapEntry('52-wk high', price(game.high52(def.id))));
-      rows.add(MapEntry('52-wk low', price(game.low52(def.id))));
+      rows.add(MapEntry('1-yr high', price(game.high52(def.id))));
+      rows.add(MapEntry('1-yr low', price(game.low52(def.id))));
       rows.add(MapEntry('Volatility', '${pct(def.annualVol)} / yr'));
       if (def.kind.isEquity) {
         final pe = game.peRatio(def);
@@ -238,7 +238,7 @@ class AssetDetailScreen extends StatelessWidget {
       rows.add(MapEntry('Rate', def.rateType));
       rows.add(MapEntry('Insured', def.insured ? 'FDIC / Govt' : 'Not insured'));
       if (def.kind == AssetKind.cd) {
-        rows.add(MapEntry('Term', '${def.termDays} weeks'));
+        rows.add(MapEntry('Term', '${def.termDays} months'));
         rows.add(const MapEntry('Liquidity', 'Locked until maturity'));
       } else {
         rows.add(const MapEntry('Liquidity', 'Withdraw anytime'));
@@ -318,7 +318,7 @@ class AssetDetailScreen extends StatelessWidget {
               final sub = h.kind == AssetKind.cd
                   ? (h.matured
                       ? 'Matured • redeemable'
-                      : 'Locked • matures week ${h.maturityDay}')
+                      : 'Locked • matures month ${h.maturityDay}')
                   : h.kind.isInterestBearing
                       ? 'Balance'
                       : '${h.shares.toStringAsFixed(h.shares >= 10 ? 2 : 4)} units';

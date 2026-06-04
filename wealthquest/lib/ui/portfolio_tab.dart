@@ -103,7 +103,7 @@ class _HoldingTile extends StatelessWidget {
     final def = Catalog.assetById(holding.assetId);
     if (holding.isLocked) {
       final left = holding.maturityDay - game.day;
-      _toast(context, '${def.name} is locked for $left more week(s).');
+      _toast(context, '${def.name} is locked for $left more month(s).');
       return;
     }
     final value = game.valueOf(holding);
@@ -113,7 +113,7 @@ class _HoldingTile extends StatelessWidget {
       actionLabel: 'Sell',
       max: value,
       helper: holding.kind.isPriceBased
-          ? 'Price ${price(game.priceOf(def.id))} • ${signedPct(game.dailyChange(def.id))} this week'
+          ? 'Price ${price(game.priceOf(def.id))} • ${signedPct(game.dailyChange(def.id))} this month'
           : null,
     );
     if (amount == null || !context.mounted) return;
@@ -132,7 +132,7 @@ class _HoldingTile extends StatelessWidget {
     if (holding.kind == AssetKind.cd) {
       subtitle = holding.matured
           ? 'Matured • redeemable'
-          : 'Locked • matures week ${holding.maturityDay}';
+          : 'Locked • matures month ${holding.maturityDay}';
     } else if (holding.kind.isInterestBearing) {
       subtitle = '${def.kind.label} • ${pct(def.apy)} APY';
     } else {

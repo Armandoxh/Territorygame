@@ -33,21 +33,22 @@ class ClimateEngine {
         return MarketRegime.recovery;
       case MarketRegime.recovery:
         return r < 0.45 ? MarketRegime.recovery : MarketRegime.normal;
+      // Probabilities are PER MONTH, tuned for ~0.5-0.8 crashes/year.
       case MarketRegime.boom:
-        if (r < 0.80) return MarketRegime.boom;
-        if (r < 0.94) return MarketRegime.normal;
-        if (r < 0.99) return MarketRegime.downturn;
-        return MarketRegime.crash; // ~1%
+        if (r < 0.72) return MarketRegime.boom;
+        if (r < 0.90) return MarketRegime.normal;
+        if (r < 0.97) return MarketRegime.downturn;
+        return MarketRegime.crash; // ~3%
       case MarketRegime.downturn:
-        if (r < 0.70) return MarketRegime.downturn;
-        if (r < 0.85) return MarketRegime.normal;
-        if (r < 0.93) return MarketRegime.boom;
-        return MarketRegime.crash; // ~7% — bear markets crash more often
+        if (r < 0.62) return MarketRegime.downturn;
+        if (r < 0.80) return MarketRegime.normal;
+        if (r < 0.90) return MarketRegime.boom;
+        return MarketRegime.crash; // ~10% — bear markets crash more often
       case MarketRegime.normal:
-        if (r < 0.84) return MarketRegime.normal;
-        if (r < 0.91) return MarketRegime.boom;
-        if (r < 0.988) return MarketRegime.downturn;
-        return MarketRegime.crash; // ~1.2%
+        if (r < 0.82) return MarketRegime.normal;
+        if (r < 0.90) return MarketRegime.boom;
+        if (r < 0.96) return MarketRegime.downturn;
+        return MarketRegime.crash; // ~4%
     }
   }
 

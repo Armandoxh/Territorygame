@@ -91,9 +91,9 @@ class GameController extends ChangeNotifier {
       currentRumors.where((r) => r.assetId == assetId).toList();
 
   // ---- Derived time ----
-  int get ageYears => Catalog.startAge + day ~/ 52;
-  int get yearsPlayed => day ~/ 52;
-  double get dailyExpenses => Catalog.weeklyExpenses(ageYears, job.pay);
+  int get ageYears => Catalog.startAge + day ~/ Catalog.stepsPerYear;
+  int get yearsPlayed => day ~/ Catalog.stepsPerYear;
+  double get dailyExpenses => Catalog.monthlyExpenses(ageYears, job.pay);
 
   // ---- Prices ----
   double priceOf(String assetId) => _prices[assetId] ?? 1.0;
@@ -132,9 +132,9 @@ class GameController extends ChangeNotifier {
     for (final h in holdings) {
       final def = Catalog.assetById(h.assetId);
       if (h.kind.isInterestBearing) {
-        sum += h.balance * _effectiveApy(def, h.balance) / 52;
+        sum += h.balance * _effectiveApy(def, h.balance) / Catalog.stepsPerYear;
       } else if (def.incomeYield > 0) {
-        sum += valueOf(h) * def.incomeYield / 52;
+        sum += valueOf(h) * def.incomeYield / Catalog.stepsPerYear;
       }
     }
     return sum;
@@ -152,7 +152,9 @@ class GameController extends ChangeNotifier {
   double _extremeInWindow(String assetId, {required bool high}) {
     final hist = priceHistory[assetId];
     if (hist == null || hist.isEmpty) return priceOf(assetId);
-    final window = hist.length > 52 ? hist.sublist(hist.length - 52) : hist;
+    final window = hist.length > Catalog.stepsPerYear
+        ? hist.sublist(hist.length - Catalog.stepsPerYear)
+        : hist;
     var ext = window.first;
     for (final v in window) {
       if (high ? v > ext : v < ext) ext = v;
@@ -252,8 +254,8 @@ class GameController extends ChangeNotifier {
   /// Returns an error string, or null on success.
   String? sell(Holding h, double amount, {bool max = false}) {
     if (h.isLocked) {
-      final weeksLeft = h.maturityDay - day;
-      return 'This CD is locked for $weeksLeft more week(s).';
+      final monthsLeft = h.maturityDay - day;
+      return 'This CD is locked for $monthsLeft more month(s).';
     }
     final value = valueOf(h);
     final amt = max ? value : amount;
@@ -283,7 +285,7 @@ class GameController extends ChangeNotifier {
   void takeJob(JobDef j) {
     if (j.id == job.id) return;
     job = j;
-    _log('New job: ${j.title} — \$${j.pay.toStringAsFixed(0)}/week.');
+    _log('New job: ${j.title} — \$${j.pay.toStringAsFixed(0)}/month.');
     notifyListeners();
   }
 
@@ -321,7 +323,8 @@ class GameController extends ChangeNotifier {
     for (final h in holdings) {
       if (!h.kind.isInterestBearing) continue;
       final def = Catalog.assetById(h.assetId);
-      final gain = h.balance * _effectiveApy(def, h.balance) / 52;
+      final gain =
+          h.balance * _effectiveApy(def, h.balance) / Catalog.stepsPerYear;
       h.balance += gain;
       interest += gain;
       if (h.kind == AssetKind.cd && !h.matured && day + 1 >= h.maturityDay) {
@@ -372,7 +375,12 @@ class GameController extends ChangeNotifier {
     for (final a in Catalog.assets) {
       if (!a.kind.isPriceBased) continue;
       var mb = bias[a.id] ?? 0;
-      mb += regime.weeklyDrift * ClimateEngine.beta(a);
+      // Persistent regimes are a rate (scale with step length); a crash is a
+      // discrete shock (a bad month) whose magnitude does not scale.
+      final regimeDrift = regime.isCrash
+          ? regime.weeklyDrift
+          : regime.weeklyDrift * Catalog.driftStepFactor;
+      mb += regimeDrift * ClimateEngine.beta(a);
       if (sectorEvent != null && a.sector == sectorEvent!.sector) {
         mb += sectorEvent!.dir * sectorEvent!.magnitude;
       }
@@ -418,13 +426,13 @@ class GameController extends ChangeNotifier {
       if (!h.kind.isPriceBased) continue;
       final def = Catalog.assetById(h.assetId);
       if (def.incomeYield <= 0) continue;
-      final pay = valueOf(h) * def.incomeYield / 52;
+      final pay = valueOf(h) * def.incomeYield / Catalog.stepsPerYear;
       cash += pay;
       dividends += pay;
     }
 
     // 6) Tick the clock; birthday on year boundaries.
-    final hadBirthday = (day + 1) % 52 == 0;
+    final hadBirthday = (day + 1) % Catalog.stepsPerYear == 0;
     day += 1;
     if (hadBirthday) {
       events.add('🎂 Happy birthday — you are now $ageYears.');
@@ -450,7 +458,7 @@ class GameController extends ChangeNotifier {
     for (final e in events) {
       _log(e);
     }
-    _log('Week ${day}: net worth \$${after.toStringAsFixed(0)} (${after - before >= 0 ? '+' : ''}\$${(after - before).toStringAsFixed(0)}).');
+    _log('Month ${day}: net worth \$${after.toStringAsFixed(0)} (${after - before >= 0 ? '+' : ''}\$${(after - before).toStringAsFixed(0)}).');
 
     notifyListeners();
     return summary;

@@ -98,7 +98,7 @@ class _AssetRow extends StatelessWidget {
       bottomColor = gainColor(ch);
     } else {
       top = '${pct(def.apy)} APY';
-      bottom = def.kind == AssetKind.cd ? '${def.termDays}w lock' : 'liquid';
+      bottom = def.kind == AssetKind.cd ? '${def.termDays}mo lock' : 'liquid';
     }
 
     return Card(

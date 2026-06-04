@@ -34,7 +34,7 @@ class NewsTab extends StatelessWidget {
                 ),
               ),
               Text(
-                'Week ${game.day}  •  Age ${game.ageYears}',
+                'Month ${game.day}  •  Age ${game.ageYears}',
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -58,14 +58,14 @@ class NewsTab extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         if (game.currentRumors.isEmpty)
-          Text('Quiet week. No rumors circulating.',
+          Text('Quiet month. No rumors circulating.',
               style: theme.textTheme.bodyMedium)
         else
           ...game.currentRumors.map((r) => _RumorCard(game: game, rumor: r)),
 
         if (game.lastResolved.isNotEmpty) ...[
           const SizedBox(height: 16),
-          _sectionTitle(theme, 'Last Week, Settled'),
+          _sectionTitle(theme, 'Last Month, Settled'),
           const SizedBox(height: 4),
           ...game.lastResolved.map((r) => _ResolvedRow(rumor: r)),
         ],
@@ -220,7 +220,7 @@ class _ResolvedRow extends StatelessWidget {
               children: [
                 Text(rumor.headline, style: theme.textTheme.bodySmall),
                 Text(
-                  '${def.ticker} moved ${signedPct(rumor.actualMove)} that week',
+                  '${def.ticker} moved ${signedPct(rumor.actualMove)} that month',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: gainColor(rumor.actualMove),
                   ),

@@ -63,7 +63,7 @@ void _takeBestJob(GameController g) {
 /// into a diversified mix — and de-risks into insured cash during bad climates.
 void diversified(GameController g) {
   _takeBestJob(g);
-  final buffer = g.dailyExpenses * 8;
+  final buffer = g.dailyExpenses * 3;
   final investable = g.cash - buffer;
   if (investable < 50) return;
 
@@ -88,7 +88,7 @@ void diversified(GameController g) {
 
 Strategy _allIn(String id) => (g) {
       _takeBestJob(g);
-      final buffer = g.dailyExpenses * 8;
+      final buffer = g.dailyExpenses * 3;
       final investable = g.cash - buffer;
       final def = Catalog.assetById(id);
       if (investable > 1 && investable >= def.minInvestment) {
@@ -98,7 +98,7 @@ Strategy _allIn(String id) => (g) {
 
 void main() {
   const years = 25;
-  const weeks = years * 52;
+  const weeks = years * Catalog.stepsPerYear;
   const seeds = [1, 2, 3, 7, 42];
 
   final strategies = <String, Strategy>{
@@ -117,7 +117,7 @@ void main() {
     final lines = <String>[];
     lines.add('');
     lines.add('================ WealthQuest play-agent report ================');
-    lines.add('Each agent starts at 18 with \$500 and plays $years years.');
+    lines.add('Each agent starts at 18 with \$2,000 and plays $years years.');
 
     strategies.forEach((name, strat) {
       final results = [for (final s in seeds) _run(name, strat, s, weeks)];

@@ -37,7 +37,7 @@ class DashboardTab extends StatelessWidget {
           children: [
             Expanded(
               child: _StatCard(
-                label: 'Weekly salary',
+                label: 'Monthly salary',
                 value: money(game.job.pay),
                 sub: game.job.title,
                 color: kGain,
@@ -48,7 +48,7 @@ class DashboardTab extends StatelessWidget {
               child: _StatCard(
                 label: 'Living expenses',
                 value: '-${money(game.dailyExpenses)}',
-                sub: 'per week',
+                sub: 'per month',
                 color: kLoss,
               ),
             ),
@@ -68,7 +68,7 @@ class DashboardTab extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: _StatCard(
-                label: 'Net weekly flow',
+                label: 'Net monthly flow',
                 value: '${netCashFlow >= 0 ? '+' : ''}${money(netCashFlow)}',
                 sub: 'into cash',
                 color: gainColor(netCashFlow),
@@ -80,7 +80,7 @@ class DashboardTab extends StatelessWidget {
         Text('Recent activity', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         if (game.eventLog.isEmpty)
-          Text('Press Next Week to begin.',
+          Text('Press Next Month to begin.',
               style: theme.textTheme.bodyMedium)
         else
           ...game.eventLog.take(12).map(

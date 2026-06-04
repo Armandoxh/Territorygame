@@ -74,7 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _nextWeek,
         icon: const Icon(Icons.skip_next),
-        label: const Text('Next Week'),
+        label: const Text('Next Month'),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: NavigationBar(
@@ -169,7 +169,7 @@ class _Header extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Week ${game.day}  •  Age ${game.ageYears}',
+                    'Month ${game.day}  •  Age ${game.ageYears}',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
