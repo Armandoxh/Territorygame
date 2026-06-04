@@ -123,3 +123,24 @@
   WHY:  User: "Swipe left to go back is a must. Right now it loads the
         page and takes time." The slowness was Safari's history-back
         reloading the SPA; an in-app pop is instant.
+
+2026-06-04  WealthQuest: more cash instruments + version badge + release rule
+  WHAT: Added 6 cash-category instruments (research-backed): Checking
+        (0.5%), Money Market Account (4%), Cash Management Account
+        (4.2%), 13-Week T-Bill (3.6%, short lock), Series I Bond
+        (4.8%, 1-yr lock, $10k/yr cap — inflation hedge, new
+        annual-purchase-cap mechanic), and an Ultra-Short Bond Fund
+        (~4.5%, tiny price wobble, etf-kind). New AssetDef field
+        annualPurchaseCap; GameController tracks per-year purchases
+        and resets each birthday; detail screen shows the cap +
+        remaining and the buy MAX respects it. Fixed market-row CD
+        label 'd lock' -> 'w lock'.
+        Also added a VERSION BADGE: lib/version.dart (kAppVersion +
+        kBuildNumber), shown pinned at the top of the home header so
+        the user can confirm the live page is current. Created
+        wealthquest/CLAUDE.md with the release rule: bump kBuildNumber
+        on every deploy, kAppVersion for features, keep pubspec +
+        the pinned 'CURRENT BUILD' line in sync. This is build 7.
+  WHY:  User: research what else fits Cash (added all picks); and
+        "put a release version number, increment it every build, pin
+        it at the top so I know what I'm looking at is current."

@@ -1,7 +1,7 @@
 name: wealthquest
 description: "A mobile life-sim / stock-market game. Start at 18 with a day job; each Next Day is a week — watch your investments perform."
 publish_to: "none"
-version: 0.1.0+1
+version: 0.5.0+7
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

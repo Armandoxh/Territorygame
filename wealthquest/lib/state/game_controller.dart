@@ -59,6 +59,10 @@ class GameController extends ChangeNotifier {
   /// upgrade tree.
   bool reliabilityRevealed = false;
 
+  /// Dollars bought this in-game year of capped assets (e.g. I Bonds). Reset
+  /// every birthday.
+  final Map<String, double> _purchasedThisYear = {};
+
   int _nextHoldingId = 1;
 
   GameController({int? seed})
@@ -173,8 +177,19 @@ class GameController extends ChangeNotifier {
     if (amount < def.minInvestment) {
       return 'Minimum for ${def.name} is \$${def.minInvestment.toStringAsFixed(0)}.';
     }
+    if (def.annualPurchaseCap > 0) {
+      final remaining = remainingAnnualCap(def);
+      if (amount > remaining + 0.001) {
+        return remaining <= 0.001
+            ? '${def.name}: \$${def.annualPurchaseCap.toStringAsFixed(0)}/year limit already reached.'
+            : 'Only \$${remaining.toStringAsFixed(0)} of ${def.name} left to buy this year.';
+      }
+    }
 
     cash -= amount;
+    if (def.annualPurchaseCap > 0) {
+      _purchasedThisYear[def.id] = (_purchasedThisYear[def.id] ?? 0) + amount;
+    }
 
     if (def.kind.isInterestBearing) {
       if (def.kind == AssetKind.savings) {
@@ -269,6 +284,14 @@ class GameController extends ChangeNotifier {
   List<JobDef> get availableJobs =>
       Catalog.jobs.where((j) => ageYears >= j.minAge).toList();
 
+  /// Remaining dollars you can still buy of a capped asset this year.
+  double remainingAnnualCap(AssetDef def) {
+    if (def.annualPurchaseCap <= 0) return double.infinity;
+    final used = _purchasedThisYear[def.id] ?? 0;
+    final r = def.annualPurchaseCap - used;
+    return r < 0 ? 0 : r;
+  }
+
   /// The heart of the loop. Advance one day (= one in-game week).
   DayResult advanceDay() {
     final before = netWorth;
@@ -357,6 +380,7 @@ class GameController extends ChangeNotifier {
     day += 1;
     if (hadBirthday) {
       events.add('🎂 Happy birthday — you are now $ageYears.');
+      _purchasedThisYear.clear(); // annual purchase caps reset each year
     }
 
     // 7) Publish next week's edition of rumors.

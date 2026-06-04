@@ -139,5 +139,17 @@ void main() {
       final r = g.advanceDay();
       expect(r.dividends, greaterThan(0));
     });
+
+    test('Series I Bond respects annual cap and resets each year', () {
+      final g = GameController(seed: 5);
+      g.cash = 30000;
+      final ib = Catalog.assetById('ibond');
+      expect(g.buy(ib, 10000), isNull); // up to the $10k/yr cap
+      expect(g.buy(ib, 100), isNotNull); // over the cap -> rejected
+      for (var i = 0; i < 52; i++) {
+        g.advanceDay();
+      }
+      expect(g.buy(ib, 5000), isNull); // cap resets after a year
+    });
   });
 }

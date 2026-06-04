@@ -19,14 +19,21 @@ class AssetDetailScreen extends StatelessWidget {
   final AssetDef def;
 
   Future<void> _buy(BuildContext context) async {
+    var maxBuy = game.cash;
+    String? capNote;
+    if (def.annualPurchaseCap > 0) {
+      final remaining = game.remainingAnnualCap(def);
+      if (remaining < maxBuy) maxBuy = remaining;
+      capNote = '${money(remaining)} left to buy this year (cap ${moneyWhole(def.annualPurchaseCap)}/yr)';
+    }
     final amount = await showAmountSheet(
       context,
       title: 'Buy ${def.name}',
       actionLabel: 'Buy',
-      max: game.cash,
+      max: maxBuy,
       helper: def.kind.isPriceBased
           ? 'Price ${price(game.priceOf(def.id))} • ${signedPct(game.dailyChange(def.id))} this week'
-          : def.blurb,
+          : capNote ?? def.blurb,
     );
     if (amount == null || !context.mounted) return;
     final err = game.buy(def, amount);
@@ -227,6 +234,10 @@ class AssetDetailScreen extends StatelessWidget {
       } else {
         rows.add(const MapEntry('Liquidity', 'Withdraw anytime'));
       }
+    }
+    if (def.annualPurchaseCap > 0) {
+      rows.add(MapEntry('Annual limit', '${moneyWhole(def.annualPurchaseCap)}/yr'));
+      rows.add(MapEntry('Left this year', moneyWhole(game.remainingAnnualCap(def))));
     }
     if (def.minInvestment > 0) {
       rows.add(MapEntry('Minimum', moneyWhole(def.minInvestment)));

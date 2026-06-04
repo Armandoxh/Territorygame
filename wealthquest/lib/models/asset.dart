@@ -107,6 +107,10 @@ class AssetDef {
   /// Credit rating for bonds, e.g. "AAA". Empty if not applicable.
   final String creditRating;
 
+  /// Maximum dollars that can be bought per in-game year (52 weeks). 0 = no
+  /// cap. Used by Series I Bonds.
+  final double annualPurchaseCap;
+
   final String blurb;
 
   const AssetDef({
@@ -127,6 +131,7 @@ class AssetDef {
     this.dividendYield = 0,
     this.expenseRatio = 0,
     this.creditRating = '',
+    this.annualPurchaseCap = 0,
     this.blurb = '',
   });
 
