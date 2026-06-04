@@ -13,7 +13,7 @@ import '../models/job.dart';
 class DayResult {
   final double income;
   final double expenses;
-  final double coupons;
+  final double dividends; // dividends + bond coupons
   final double interest;
   final double netWorthBefore;
   final double netWorthAfter;
@@ -22,7 +22,7 @@ class DayResult {
   const DayResult({
     required this.income,
     required this.expenses,
-    required this.coupons,
+    required this.dividends,
     required this.interest,
     required this.netWorthBefore,
     required this.netWorthAfter,
@@ -43,6 +43,7 @@ class GameController extends ChangeNotifier {
 
   final Map<String, double> _prices = {};
   final Map<String, double> _prevPrices = {};
+  final Map<String, List<double>> priceHistory = {};
   final List<Holding> holdings = [];
   final List<double> netWorthHistory = [];
   final List<String> eventLog = [];
@@ -57,6 +58,7 @@ class GameController extends ChangeNotifier {
       if (a.kind.isPriceBased) {
         _prices[a.id] = a.basePrice;
         _prevPrices[a.id] = a.basePrice;
+        priceHistory[a.id] = [a.basePrice];
       }
     }
     netWorthHistory.add(netWorth);
@@ -98,18 +100,45 @@ class GameController extends ChangeNotifier {
 
   double get netWorth => cash + holdingsValue;
 
-  /// Estimated income next day that isn't your salary (interest + coupons).
+  /// Estimated income next day that isn't your salary (interest + dividends +
+  /// bond coupons).
   double get dailyPassiveIncome {
     var sum = 0.0;
     for (final h in holdings) {
       final def = Catalog.assetById(h.assetId);
       if (h.kind.isInterestBearing) {
         sum += h.balance * def.apy / 52;
-      } else if (h.kind.paysCoupon) {
-        sum += valueOf(h) * def.apy / 52;
+      } else if (def.incomeYield > 0) {
+        sum += valueOf(h) * def.incomeYield / 52;
       }
     }
     return sum;
+  }
+
+  // ---- Fundamentals for the detail screen ----
+  List<double> priceHistoryFor(String assetId) =>
+      priceHistory[assetId] ?? const [];
+
+  double marketCap(AssetDef def) => priceOf(def.id) * def.sharesOutstanding;
+
+  double high52(String assetId) => _extremeInWindow(assetId, high: true);
+  double low52(String assetId) => _extremeInWindow(assetId, high: false);
+
+  double _extremeInWindow(String assetId, {required bool high}) {
+    final hist = priceHistory[assetId];
+    if (hist == null || hist.isEmpty) return priceOf(assetId);
+    final window = hist.length > 52 ? hist.sublist(hist.length - 52) : hist;
+    var ext = window.first;
+    for (final v in window) {
+      if (high ? v > ext : v < ext) ext = v;
+    }
+    return ext;
+  }
+
+  /// P/E ratio for equities, or null when not meaningful (no/negative earnings).
+  double? peRatio(AssetDef def) {
+    if (def.eps <= 0) return null;
+    return priceOf(def.id) / def.eps;
   }
 
   // ---- Holdings lookup ----
@@ -250,24 +279,28 @@ class GameController extends ChangeNotifier {
       }
     }
 
-    // 3) Move all price-based markets.
+    // 3) Move all price-based markets and record history.
     _prevPrices
       ..clear()
       ..addAll(_prices);
     for (final a in Catalog.assets) {
-      if (a.kind.isPriceBased) {
-        _prices[a.id] = MarketEngine.stepPrice(_prices[a.id]!, a, _rng);
-      }
+      if (!a.kind.isPriceBased) continue;
+      final next = MarketEngine.stepPrice(_prices[a.id]!, a, _rng);
+      _prices[a.id] = next;
+      final hist = priceHistory[a.id]!;
+      hist.add(next);
+      if (hist.length > 520) hist.removeAt(0); // cap ~10 years of weeks
     }
 
-    // 4) Pay bond coupons into cash (after prices settle).
-    var coupons = 0.0;
+    // 4) Pay dividends + bond coupons into cash (after prices settle).
+    var dividends = 0.0;
     for (final h in holdings) {
-      if (!h.kind.paysCoupon) continue;
+      if (!h.kind.isPriceBased) continue;
       final def = Catalog.assetById(h.assetId);
-      final coupon = valueOf(h) * def.apy / 52;
-      cash += coupon;
-      coupons += coupon;
+      if (def.incomeYield <= 0) continue;
+      final pay = valueOf(h) * def.incomeYield / 52;
+      cash += pay;
+      dividends += pay;
     }
 
     // 5) Tick the clock; birthday on year boundaries.
@@ -283,7 +316,7 @@ class GameController extends ChangeNotifier {
     final summary = DayResult(
       income: income,
       expenses: expenses,
-      coupons: coupons,
+      dividends: dividends,
       interest: interest,
       netWorthBefore: before,
       netWorthAfter: after,

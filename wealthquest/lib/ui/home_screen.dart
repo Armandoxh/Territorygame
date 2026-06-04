@@ -31,6 +31,20 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  Widget _buildTab(int index) {
+    switch (index) {
+      case 1:
+        return MarketTab(game: game);
+      case 2:
+        return PortfolioTab(game: game);
+      case 3:
+        return LifeTab(game: game);
+      case 0:
+      default:
+        return DashboardTab(game: game);
+    }
+  }
+
   Future<void> _nextDay() async {
     final result = game.advanceDay();
     if (!mounted) return;
@@ -39,13 +53,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = [
-      DashboardTab(game: game),
-      MarketTab(game: game),
-      PortfolioTab(game: game),
-      LifeTab(game: game),
-    ];
-
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -54,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: ListenableBuilder(
                 listenable: game,
-                builder: (context, _) => tabs[_tab],
+                builder: (context, _) => _buildTab(_tab),
               ),
             ),
           ],

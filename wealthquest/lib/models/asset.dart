@@ -10,8 +10,8 @@ enum AssetKind {
   savings, // liquid, accrues interest every day, withdraw anytime
   cd, // locked for a fixed term, accrues interest, redeemable at maturity
   bond, // price-based + pays a coupon into cash each day
-  stock, // price-based, random walk
-  etf, // price-based, lower volatility basket
+  stock, // price-based, random walk, may pay dividends
+  etf, // price-based, lower volatility basket, may pay dividends
   crypto, // price-based, high volatility
 }
 
@@ -23,6 +23,8 @@ extension AssetKindX on AssetKind {
       this == AssetKind.stock ||
       this == AssetKind.etf ||
       this == AssetKind.crypto;
+
+  bool get isEquity => this == AssetKind.stock || this == AssetKind.etf;
 
   bool get paysCoupon => this == AssetKind.bond;
 
@@ -44,7 +46,7 @@ extension AssetKindX on AssetKind {
   }
 }
 
-/// A top-level grouping shown as a section in the Market tab.
+/// A top-level grouping shown as a sub-tab in the Market screen.
 class AssetCategory {
   final String id;
   final String label;
@@ -57,7 +59,8 @@ class AssetCategory {
   });
 }
 
-/// One investable instrument.
+/// One investable instrument. Carries the data a real investor would scan
+/// before making a decision: price dynamics, income, size, and quality.
 class AssetDef {
   final String id;
   final String name;
@@ -84,6 +87,26 @@ class AssetDef {
   /// Minimum dollars required to open a position.
   final double minInvestment;
 
+  // ---- Depth / fundamentals (mostly for the detail screen) ----
+
+  /// Industry sector, e.g. "Technology". Empty for cash-like instruments.
+  final String sector;
+
+  /// Shares / coins / units outstanding. Market cap = price * this.
+  final double sharesOutstanding;
+
+  /// Annual earnings per share. Drives P/E. <= 0 means unprofitable (P/E N/A).
+  final double eps;
+
+  /// Annual dividend yield for stocks/ETFs (paid into cash weekly).
+  final double dividendYield;
+
+  /// Annual fund expense ratio for ETFs (informational).
+  final double expenseRatio;
+
+  /// Credit rating for bonds, e.g. "AAA". Empty if not applicable.
+  final String creditRating;
+
   final String blurb;
 
   const AssetDef({
@@ -98,6 +121,19 @@ class AssetDef {
     this.apy = 0,
     this.termDays = 0,
     this.minInvestment = 0,
+    this.sector = '',
+    this.sharesOutstanding = 0,
+    this.eps = 0,
+    this.dividendYield = 0,
+    this.expenseRatio = 0,
+    this.creditRating = '',
     this.blurb = '',
   });
+
+  /// Cash income yield for price-based holdings: bond coupon or stock/ETF
+  /// dividend. Crypto pays nothing.
+  double get incomeYield => kind == AssetKind.bond ? apy : dividendYield;
+
+  /// Annualized volatility, the way it's usually quoted (≈ daily * sqrt(52)).
+  double get annualVol => dailyVol * 7.211; // sqrt(52)
 }

@@ -108,4 +108,36 @@ void main() {
       expect(g.availableJobs.any((j) => j.id == 'barista'), isTrue);
     });
   });
+
+  group('Fundamentals & income', () {
+    test('price history grows one point per day', () {
+      final g = GameController(seed: 3);
+      final start = g.priceHistoryFor('spx').length;
+      g.advanceDay();
+      g.advanceDay();
+      expect(g.priceHistoryFor('spx').length, start + 2);
+    });
+
+    test('market cap is price times shares outstanding', () {
+      final g = GameController(seed: 3);
+      final apt = Catalog.assetById('apt');
+      expect(
+        g.marketCap(apt),
+        closeTo(g.priceOf('apt') * apt.sharesOutstanding, 1e-3),
+      );
+    });
+
+    test('P/E is null for unprofitable companies', () {
+      final g = GameController(seed: 3);
+      expect(g.peRatio(Catalog.assetById('bio')), isNull); // negative EPS
+      expect(g.peRatio(Catalog.assetById('apt')), isNotNull);
+    });
+
+    test('holding a dividend payer produces dividend cash', () {
+      final g = GameController(seed: 3);
+      g.buy(Catalog.assetById('divx'), 400); // 3.8% yield ETF
+      final r = g.advanceDay();
+      expect(r.dividends, greaterThan(0));
+    });
+  });
 }

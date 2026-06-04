@@ -35,3 +35,26 @@
      loop, kept tunables in data/catalog.dart, engine branches
      on AssetKind (not specific assets) so new instruments are
      data not code. Deferred scope listed in the README.
+
+2026-06-04  WealthQuest nail: market sub-tabs + per-asset depth
+  WHAT: Restructured the Market screen into per-category sub-tabs
+        (Cash / Bonds & CDs / Stocks / Funds / Crypto), each its
+        own scrollable window. Every row drills into a new
+        per-asset detail screen with a price-history chart and a
+        full stat sheet: market cap, 52-wk high/low, annualized
+        volatility, P/E + EPS (equities), dividend yield / coupon,
+        expense ratio (ETFs), credit rating (bonds), your position
+        + P/L, and buy/sell. Added the supporting mechanics:
+        per-asset price history tracking, market cap (price x
+        shares outstanding), P/E, and dividends paid weekly from
+        stocks/ETFs (generalized the old bond-coupon path via
+        AssetDef.incomeYield). Enriched the catalog with deep
+        fundamentals on every instrument and added 7 new ones
+        (MMF, 3yr CD, muni, FNB, MEDI, TECH, BNDX) so each sub-tab
+        is full. Fixed a latent bug where tab content didn't
+        refresh after Next Day until switching tabs.
+  WHY:  User: "have each section of investment be its own tab in a
+        sub window. Add 10x more depth — price histories, market
+        cap, net worth of companies, historic highs/lows.
+        Everything a real investor needs to make a decision."
+        This is nail 1 of 2; the rumor-mill newspaper is nail 2.

@@ -61,7 +61,7 @@ class DashboardTab extends StatelessWidget {
               child: _StatCard(
                 label: 'Passive income',
                 value: money(game.dailyPassiveIncome),
-                sub: 'interest + coupons',
+                sub: 'interest + dividends',
                 color: kGain,
               ),
             ),
