@@ -38,7 +38,7 @@ jobs:
           flutter --version
           flutter create . --platforms=web
           flutter pub get
-          flutter build web --release --base-href /Territorygame/wealthquest/
+          flutter build web --release --base-href /Territorygame/wealthquest/ --pwa-strategy=none
 
       - name: Deploy to Pages branch
         uses: peaceiris/actions-gh-pages@v4
