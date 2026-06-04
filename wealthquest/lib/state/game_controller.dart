@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../data/catalog.dart';
+import '../data/properties.dart';
 import '../engine/climate_engine.dart';
 import '../engine/market_engine.dart';
 import '../engine/news_engine.dart';
@@ -10,6 +11,7 @@ import '../models/asset.dart';
 import '../models/climate.dart';
 import '../models/holding.dart';
 import '../models/job.dart';
+import '../models/property.dart';
 import '../models/rumor.dart';
 
 /// Summary of what happened on a single Next Week, used to populate the
@@ -19,6 +21,7 @@ class DayResult {
   final double expenses;
   final double dividends; // dividends + bond coupons
   final double interest;
+  final double mortgage; // total mortgage payments made this month
   final double netWorthBefore;
   final double netWorthAfter;
   final List<String> events;
@@ -28,6 +31,7 @@ class DayResult {
     required this.expenses,
     required this.dividends,
     required this.interest,
+    this.mortgage = 0,
     required this.netWorthBefore,
     required this.netWorthAfter,
     required this.events,
@@ -49,6 +53,15 @@ class GameController extends ChangeNotifier {
   final Map<String, double> _prevPrices = {};
   final Map<String, List<double>> priceHistory = {};
   final List<Holding> holdings = [];
+
+  // ---- Real estate ----
+  final Map<String, double> propertyPrices = {}; // live listing price per def
+  final List<PropertyHolding> properties = [];
+  int _nextPropertyId = 1;
+
+  /// Minimum down payment fraction to get a mortgage.
+  static const double minDownFraction = 0.05;
+
   final List<double> netWorthHistory = [];
   final List<String> eventLog = [];
 
@@ -81,6 +94,9 @@ class GameController extends ChangeNotifier {
         _prevPrices[a.id] = a.basePrice;
         priceHistory[a.id] = [a.basePrice];
       }
+    }
+    for (final p in Properties.ladder) {
+      propertyPrices[p.id] = p.basePrice;
     }
     netWorthHistory.add(netWorth);
     currentRumors = NewsEngine.generateEdition(_rng, day);
@@ -123,7 +139,78 @@ class GameController extends ChangeNotifier {
     return sum;
   }
 
-  double get netWorth => cash + holdingsValue;
+  double get netWorth => cash + holdingsValue + propertiesEquity;
+
+  // ---- Real estate ----
+  double propertyPriceOf(String defId) => propertyPrices[defId] ?? 0;
+
+  double get propertiesEquity {
+    var sum = 0.0;
+    for (final p in properties) {
+      sum += p.equity;
+    }
+    return sum;
+  }
+
+  double get monthlyMortgageDue {
+    var sum = 0.0;
+    for (final p in properties) {
+      if (!p.isPaidOff) sum += p.monthlyPayment;
+    }
+    return sum;
+  }
+
+  /// Buy a property with the chosen financing and down payment fraction.
+  /// Returns an error string, or null on success.
+  String? buyProperty(PropertyDef def, MortgageType m, double downFraction) {
+    final price = propertyPriceOf(def.id);
+    if (downFraction < minDownFraction - 1e-9) {
+      return 'Minimum down payment is ${(minDownFraction * 100).toStringAsFixed(0)}%.';
+    }
+    if (downFraction > 1) downFraction = 1;
+    final down = price * downFraction;
+    if (down > cash + 0.01) return 'Not enough cash for the down payment.';
+
+    final loan = price - down;
+    final payment = mortgageMonthlyPayment(loan, m.annualRate, m.termMonths);
+    if (loan > 0 && payment > job.pay * 0.45) {
+      return 'Income too low to qualify — the payment would exceed 45% of '
+          'your monthly pay. Earn more or put more down.';
+    }
+
+    cash -= down;
+    properties.add(PropertyHolding(
+      id: _nextPropertyId++,
+      defId: def.id,
+      currentValue: price,
+      loanBalance: loan,
+      monthlyPayment: payment,
+      annualRate: m.annualRate,
+      termMonths: m.termMonths,
+      purchasePrice: price,
+    ));
+    _log('Bought ${def.name} for ${_usd(price)} '
+        '(${(downFraction * 100).toStringAsFixed(0)}% down, ${m.name}).');
+    notifyListeners();
+    return null;
+  }
+
+  /// Sell a property: cash changes by its equity (you pay off the loan from the
+  /// sale). Returns an error, or null on success.
+  String? sellProperty(PropertyHolding h) {
+    final equity = h.equity;
+    if (equity < 0 && cash + equity < 0) {
+      return 'This home is underwater — you need ${_usd(-equity)} cash to '
+          'clear the loan on sale.';
+    }
+    cash += equity;
+    properties.remove(h);
+    _log('Sold ${Properties.byId(h.defId).name} for ${_usd(equity)} equity.');
+    notifyListeners();
+    return null;
+  }
+
+  String _usd(double v) => '\$${v.toStringAsFixed(0)}';
 
   /// Estimated income next day that isn't your salary (interest + dividends +
   /// bond coupons).
@@ -431,6 +518,33 @@ class GameController extends ChangeNotifier {
       dividends += pay;
     }
 
+    // 5b) Real estate: appreciate listings + owned homes, then service loans.
+    var mortgagePaid = 0.0;
+    for (final pd in Properties.ladder) {
+      final cur = propertyPrices[pd.id]!;
+      final np = cur *
+          (1 + pd.monthlyAppreciation + pd.monthlyVol * MarketEngine.gauss(_rng));
+      propertyPrices[pd.id] = np < pd.basePrice * 0.2 ? pd.basePrice * 0.2 : np;
+    }
+    for (final h in properties) {
+      final pd = Properties.byId(h.defId);
+      final r = pd.monthlyAppreciation + pd.monthlyVol * MarketEngine.gauss(_rng);
+      h.currentValue *= (1 + r);
+      if (h.currentValue < 0) h.currentValue = 0;
+      if (!h.isPaidOff) {
+        final interest = h.loanBalance * (h.annualRate / 12);
+        var principal = h.monthlyPayment - interest;
+        if (principal > h.loanBalance) principal = h.loanBalance;
+        if (principal < 0) principal = 0;
+        final pay = interest + principal;
+        h.loanBalance -= principal;
+        cash -= pay;
+        mortgagePaid += pay;
+        h.monthsPaid += 1;
+        if (h.isPaidOff) events.add('🏠 Paid off your ${pd.name}!');
+      }
+    }
+
     // 6) Tick the clock; birthday on year boundaries.
     final hadBirthday = (day + 1) % Catalog.stepsPerYear == 0;
     day += 1;
@@ -450,6 +564,7 @@ class GameController extends ChangeNotifier {
       expenses: expenses,
       dividends: dividends,
       interest: interest,
+      mortgage: mortgagePaid,
       netWorthBefore: before,
       netWorthAfter: after,
       events: events,

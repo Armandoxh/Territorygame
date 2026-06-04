@@ -8,6 +8,7 @@ import 'life_tab.dart';
 import 'market_tab.dart';
 import 'news_tab.dart';
 import 'portfolio_tab.dart';
+import 'property_tab.dart';
 import 'widgets/day_summary_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -40,8 +41,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case 2:
         return PortfolioTab(game: game);
       case 3:
-        return NewsTab(game: game);
+        return PropertyTab(game: game);
       case 4:
+        return NewsTab(game: game);
+      case 5:
         return LifeTab(game: game);
       case 0:
       default:
@@ -95,6 +98,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.account_balance_wallet_outlined),
             selectedIcon: Icon(Icons.account_balance_wallet),
             label: 'Portfolio',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Property',
           ),
           NavigationDestination(
             icon: Icon(Icons.newspaper_outlined),

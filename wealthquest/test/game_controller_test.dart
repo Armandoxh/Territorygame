@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wealthquest/data/catalog.dart';
+import 'package:wealthquest/data/properties.dart';
 import 'package:wealthquest/models/asset.dart';
+import 'package:wealthquest/models/property.dart';
 import 'package:wealthquest/state/game_controller.dart';
 
 void main() {
@@ -151,6 +153,63 @@ void main() {
         g.advanceDay();
       }
       expect(g.buy(ib, 5000), isNull); // cap resets after a year
+    });
+  });
+
+  group('Real estate', () {
+    test('amortization matches the textbook formula', () {
+      // \$100k at 6% over 360 months ≈ \$599.55/mo.
+      final pmt = mortgageMonthlyPayment(100000, 0.06, 360);
+      expect(pmt, closeTo(599.55, 0.5));
+    });
+
+    test('buying a property uses the down payment and creates equity', () {
+      final g = GameController(seed: 1);
+      g.cash = 200000;
+      final shack = Properties.byId('shack');
+      final price = g.propertyPriceOf('shack');
+      final err = g.buyProperty(shack, Properties.mortgages.first, 0.20);
+      expect(err, isNull);
+      expect(g.properties, hasLength(1));
+      final h = g.properties.first;
+      expect(g.cash, closeTo(200000 - price * 0.20, 1e-6));
+      expect(h.loanBalance, closeTo(price * 0.80, 1e-6));
+      expect(h.equity, closeTo(price * 0.20, 1e-6)); // value==price at purchase
+      expect(g.netWorth, closeTo(g.cash + h.equity, 1.0));
+    });
+
+    test('paying the mortgage reduces the loan balance (builds equity)', () {
+      final g = GameController(seed: 1);
+      g.cash = 200000;
+      g.buyProperty(Properties.byId('shack'), Properties.mortgages.first, 0.20);
+      final loanStart = g.properties.first.loanBalance;
+      g.advanceDay();
+      expect(g.properties.first.loanBalance, lessThan(loanStart));
+      expect(g.properties.first.monthsPaid, 1);
+    });
+
+    test('a mansion is unaffordable on a barista wage', () {
+      final g = GameController(seed: 1);
+      g.cash = 500000;
+      // Big loan -> payment far exceeds 45% of a barista's pay.
+      final err = g.buyProperty(
+          Properties.byId('luxury'), Properties.mortgages.first, 0.10);
+      expect(err, isNotNull);
+    });
+
+    test('owning a mortgaged home stays finite for 30 years', () {
+      final g = GameController(seed: 7);
+      g.cash = 50000;
+      expect(
+          g.buyProperty(Properties.byId('shack'), Properties.mortgages.first,
+              0.20),
+          isNull);
+      for (var i = 0; i < 30 * Catalog.stepsPerYear; i++) {
+        g.advanceDay();
+        expect(g.netWorth.isFinite, isTrue);
+      }
+      // A 30-year loan should be fully (or nearly) paid off after 30 years.
+      expect(g.properties.first.loanBalance, lessThan(1000));
     });
   });
 }

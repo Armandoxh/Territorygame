@@ -36,7 +36,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Visit the remaining tabs without throwing.
-    for (final tab in const ['News', 'Portfolio', 'Life', 'Home']) {
+    for (final tab in const ['Property', 'News', 'Portfolio', 'Life', 'Home']) {
       await tester.tap(find.text(tab));
       await tester.pumpAndSettle();
     }

@@ -25,6 +25,8 @@ Future<void> showDaySummary(
               _row(theme, 'Interest earned', money(r.interest), kGain),
             if (r.dividends > 0.005)
               _row(theme, 'Dividends & coupons', money(r.dividends), kGain),
+            if (r.mortgage > 0.005)
+              _row(theme, 'Mortgage paid', '-${money(r.mortgage)}', kLoss),
             const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -282,3 +282,23 @@
   WHAT: Build-15 ladder healthy (stocks ~$4.6M median > cash ~$2.5M;
         auditor green) except crypto undershot (median $1.35M < cash).
         Bumped crypto drift BTQ 0.0045->0.006, ETQ 0.005->0.0065.
+
+2026-06-04  WealthQuest (build 17): REAL ESTATE system
+  WHAT: Added the property ladder + mortgages (user's big request).
+        models/property.dart (PropertyDef, MortgageType, PropertyHolding
+        + amortization), data/properties.dart (ladder: shack -> studio
+        -> 1BR -> 2BR -> house -> luxury, monthly appreciation ~3-4.5%/yr
+        low vol; mortgages: 30yr fixed 6.5%, 15yr fixed 5.8%, 5/1 ARM
+        5.5%). Controller: propertyPrices (appreciating listings),
+        owned properties, buyProperty(def, mortgage, downFraction) with
+        a 45%-of-income DTI gate + min 5% down, sellProperty (cash +=
+        equity), monthly appreciation + mortgage servicing (interest vs
+        principal; principal builds equity), net worth now includes
+        property equity. DayResult.mortgage + summary line. New Property
+        bottom-nav tab: browse ladder, buy sheet with a down-payment
+        slider + mortgage-type chips + live monthly-payment/DTI preview,
+        manage owned (equity, loan, payment, sell). Unit tests for
+        amortization, buy/equity, mortgage paydown, DTI gate, and a
+        30-year finite/payoff run.
+  WHY:  User: real estate ladder, fair appreciation, mortgage fee,
+        varying mortgage types/rates, selectable down payment.
