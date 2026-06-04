@@ -52,6 +52,7 @@ void main() {
 
     test('savings accrues interest each day', () {
       final g = GameController(seed: 1);
+      g.cash = 5000; // fund the test beyond the $500 starting cash
       final hysa = Catalog.assetById('hysa');
       g.buy(hysa, 1000);
       final start = g.valueOf(g.holdings.first);
