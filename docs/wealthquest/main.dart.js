@@ -26467,7 +26467,7 @@ case 3:return"Severe sell-off \u2014 uninsured cash takes a hit."
 case 4:return"Markets are bouncing back."}},
 aJr(a){switch(a.a){case 0:return 0.006
 case 1:return 0
-case 2:return-0.008
+case 2:return-0.005
 case 3:return-0.13
 case 4:return 0.007}},
 oU:function oU(a,b){this.a=a
@@ -87993,7 +87993,7 @@ k=r.h(0,n)
 k.toString
 a6=B.d.di(l.oo(),1e-12,1)
 a7=l.oo()
-a8=k*(1+(a4.r+a4.w*0.55*(Math.sqrt(-2*Math.log(a6))*Math.cos(6.283185307179586*a7))+a5))
+a8=k*(1+(a4.r*1.5+a4.w*0.55*(Math.sqrt(-2*Math.log(a6))*Math.cos(6.283185307179586*a7))+a5))
 a9=a4.f*0.01
 if(a8<a9)a8=a9
 r.m(0,n,a8)
@@ -88342,7 +88342,7 @@ q=s.akq(q==null?i.k3:q,B.aN,1)}q=A.ao("WealthQuest",k,k,k,k,q,k,k)
 if(r)s=k
 else{r=i.rx
 s=s.aV(r==null?i.k3:r)}r=t.p
-s=A.cX(A.c([q,A.ao("v0.8.0 \xb7 build 11",k,k,k,k,s,k,k)],r),B.S,B.c8,B.I,0)
+s=A.cX(A.c([q,A.ao("v0.8.1 \xb7 build 12",k,k,k,k,s,k,k)],r),B.S,B.c8,B.I,0)
 q=j.at
 p=q==null
 if(p)o=k
