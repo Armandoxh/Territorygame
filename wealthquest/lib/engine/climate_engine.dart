@@ -10,10 +10,10 @@ class ClimateEngine {
   ClimateEngine._();
 
   /// Fraction an uninsured cash holding loses in a crash week.
-  static const double crashCashLoss = 0.012;
+  static const double crashCashLoss = 0.02;
 
   static const double _refVol = 0.03; // a "typical" stock's weekly vol
-  static const double _maxBeta = 1.5;
+  static const double _maxBeta = 1.8;
 
   /// How hard an asset swings with the macro climate. Low-vol assets (bonds,
   /// cash funds) barely move; crypto swings the most. Capped so a crash doesn't
@@ -40,14 +40,14 @@ class ClimateEngine {
         return MarketRegime.crash; // ~1%
       case MarketRegime.downturn:
         if (r < 0.70) return MarketRegime.downturn;
-        if (r < 0.87) return MarketRegime.normal;
-        if (r < 0.95) return MarketRegime.boom;
-        return MarketRegime.crash; // ~5% — bear markets crash more often
+        if (r < 0.85) return MarketRegime.normal;
+        if (r < 0.93) return MarketRegime.boom;
+        return MarketRegime.crash; // ~7% — bear markets crash more often
       case MarketRegime.normal:
         if (r < 0.84) return MarketRegime.normal;
         if (r < 0.91) return MarketRegime.boom;
-        if (r < 0.992) return MarketRegime.downturn;
-        return MarketRegime.crash; // ~0.8%
+        if (r < 0.988) return MarketRegime.downturn;
+        return MarketRegime.crash; // ~1.2%
     }
   }
 

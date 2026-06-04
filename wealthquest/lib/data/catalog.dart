@@ -15,8 +15,11 @@ class Catalog {
   static const int startAge = 18;
   static const double startingCash = 500;
 
-  /// Weekly living expenses, rising slightly with age (lifestyle creep).
-  static double dailyExpenses(int age) => 300 + (age - startAge) * 5;
+  /// Weekly living expenses: a base, plus lifestyle creep that scales with
+  /// what you earn (the more you make, the more you spend) and a little with
+  /// age. Tuned so saving takes real discipline and investment growth matters.
+  static double weeklyExpenses(int age, double weeklyPay) =>
+      140 + 0.35 * weeklyPay + (age - startAge) * 2;
 
   static JobDef get startingJob => jobs.first;
 
@@ -444,7 +447,7 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 43250.0,
-      dailyDrift: 0.004,
+      dailyDrift: 0.006,
       dailyVol: 0.11,
       sector: 'Digital',
       sharesOutstanding: 1.95e7,
@@ -457,7 +460,7 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 2280.0,
-      dailyDrift: 0.0045,
+      dailyDrift: 0.007,
       dailyVol: 0.13,
       sector: 'Digital',
       sharesOutstanding: 1.2e8,
@@ -481,12 +484,12 @@ class Catalog {
   /// The career ladder. Higher rungs unlock with age; the player picks one
   /// in the Life tab.
   static const List<JobDef> jobs = [
-    JobDef(id: 'barista', title: 'Barista', pay: 520, minAge: 18),
-    JobDef(id: 'retail', title: 'Retail Associate', pay: 640, minAge: 18),
-    JobDef(id: 'junior_dev', title: 'Junior Developer', pay: 1500, minAge: 20),
-    JobDef(id: 'accountant', title: 'Accountant', pay: 1900, minAge: 22),
-    JobDef(id: 'engineer', title: 'Software Engineer', pay: 3000, minAge: 24),
-    JobDef(id: 'banker', title: 'Investment Banker', pay: 5000, minAge: 26),
+    JobDef(id: 'barista', title: 'Barista', pay: 300, minAge: 18),
+    JobDef(id: 'retail', title: 'Retail Associate', pay: 380, minAge: 18),
+    JobDef(id: 'junior_dev', title: 'Junior Developer', pay: 850, minAge: 20),
+    JobDef(id: 'accountant', title: 'Accountant', pay: 1150, minAge: 22),
+    JobDef(id: 'engineer', title: 'Software Engineer', pay: 1700, minAge: 24),
+    JobDef(id: 'banker', title: 'Investment Banker', pay: 2800, minAge: 26),
   ];
 
   // ---- Lookups (built once) ----

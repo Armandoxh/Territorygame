@@ -57,9 +57,9 @@ extension MarketRegimeX on MarketRegime {
       case MarketRegime.normal:
         return 0.0;
       case MarketRegime.downturn:
-        return -0.005;
+        return -0.008;
       case MarketRegime.crash:
-        return -0.09;
+        return -0.13;
       case MarketRegime.recovery:
         return 0.007;
     }

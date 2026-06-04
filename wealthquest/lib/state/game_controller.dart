@@ -93,7 +93,7 @@ class GameController extends ChangeNotifier {
   // ---- Derived time ----
   int get ageYears => Catalog.startAge + day ~/ 52;
   int get yearsPlayed => day ~/ 52;
-  double get dailyExpenses => Catalog.dailyExpenses(ageYears);
+  double get dailyExpenses => Catalog.weeklyExpenses(ageYears, job.pay);
 
   // ---- Prices ----
   double priceOf(String assetId) => _prices[assetId] ?? 1.0;

@@ -216,3 +216,17 @@
         side. Can't drive the rendered Flutter canvas from the sandbox,
         so this exercises the real mechanics + UI wiring in CI instead.
   NOTE: test-only change — app is byte-identical, still build 10.
+
+2026-06-04  WealthQuest (build 11): economy rebalance so investing matters
+  WHAT: Play-agent revealed salary dominated everything (all-HYSA ~tied
+        the best strategies; crypto was strictly dominated). Step 1 of
+        the rebalance: cut wages ~45% (banker 5000->2800/wk etc.);
+        expenses now scale with income (lifestyle creep):
+        140 + 0.35*pay + (age-18)*2, so high earners spend more.
+        Crypto risk premium: BTQ drift 0.004->0.006, ETQ 0.0045->0.007.
+        Harsher shocks per user: crash drift -0.09->-0.13, bear
+        -0.005->-0.008, beta cap 1.5->1.8, crash cash hit 1.2%->2%,
+        crash freq up (~1.2% calm, ~7% in a bear).
+  WHY:  User picked: lower wages + bigger expenses, fix crypto premium,
+        harsher shocks (taxes + real estate coming as their own nails).
+  NEXT: real-estate system (property ladder + mortgages), then taxes.
