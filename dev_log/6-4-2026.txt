@@ -268,3 +268,12 @@
   WHY:  User: "instead of weeks can we go by months? All APR etc and
         market events have to trickle across [monthly]." Sets up real
         estate (monthly mortgages) next.
+
+2026-06-04  WealthQuest (build 15): revamp agent (3 kinds) + monthly re-tune
+  WHAT: Agent split into TUNNEL (all-in one asset), MIXED (diversified),
+        and AUDITOR (no trading; asserts netWorth==cash+holdings, the
+        cash-flow identity, history sync, no NaN every month). Report adds
+        MEDIAN (robust to crypto skew). Fixed ui_flow_test 'Next Week'.
+        Build-14 showed monthly compounding exploded returns (crypto avg
+        $602M); re-tune driftScale 1.5->1.0, crypto BTQ 0.0074->0.0045/
+        vol 0.09, ETQ 0.005/vol 0.10. Agent to re-measure.
