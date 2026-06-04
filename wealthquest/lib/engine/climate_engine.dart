@@ -10,10 +10,10 @@ class ClimateEngine {
   ClimateEngine._();
 
   /// Fraction an uninsured cash holding loses in a crash week.
-  static const double crashCashLoss = 0.02;
+  static const double crashCashLoss = 0.012;
 
   static const double _refVol = 0.03; // a "typical" stock's weekly vol
-  static const double _maxBeta = 2.0;
+  static const double _maxBeta = 1.5;
 
   /// How hard an asset swings with the macro climate. Low-vol assets (bonds,
   /// cash funds) barely move; crypto swings the most. Capped so a crash doesn't

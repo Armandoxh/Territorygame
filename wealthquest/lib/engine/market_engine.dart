@@ -5,6 +5,11 @@ import '../models/asset.dart';
 /// Pure market math, kept out of the controller so it can be unit-tested in
 /// isolation and reasoned about deterministically (seed the [Random]).
 class MarketEngine {
+  /// Global "market calm" dial: every asset's weekly volatility is multiplied
+  /// by this. 1.0 = raw catalog values; lower = calmer week-to-week swings.
+  /// THE knob to make the whole market choppier or steadier.
+  static const double volScale = 0.55;
+
   /// One standard-normal sample via Box–Muller.
   static double gauss(Random rng) {
     final u1 = rng.nextDouble().clamp(1e-12, 1.0);
@@ -19,7 +24,7 @@ class MarketEngine {
   /// the effect of a resolved rumor for the week.
   static double stepPrice(double price, AssetDef def, Random rng,
       {double bias = 0}) {
-    final ret = def.dailyDrift + def.dailyVol * gauss(rng) + bias;
+    final ret = def.dailyDrift + def.dailyVol * volScale * gauss(rng) + bias;
     final next = price * (1 + ret);
     final floor = def.basePrice * 0.01;
     return next < floor ? floor : next;

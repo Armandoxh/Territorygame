@@ -53,15 +53,15 @@ extension MarketRegimeX on MarketRegime {
   double get weeklyDrift {
     switch (this) {
       case MarketRegime.boom:
-        return 0.010;
+        return 0.006;
       case MarketRegime.normal:
         return 0.0;
       case MarketRegime.downturn:
-        return -0.008;
+        return -0.005;
       case MarketRegime.crash:
-        return -0.16;
+        return -0.09;
       case MarketRegime.recovery:
-        return 0.012;
+        return 0.007;
     }
   }
 

@@ -185,3 +185,17 @@
   TUNING: crash ~0.8%/wk from calm, ~5% from a bear; crashCashLoss 2%;
         beta = vol/0.03 capped at 2.0. Knobs in climate.dart /
         climate_engine.dart.
+
+2026-06-04  WealthQuest (build 10): calmer markets (volatility tuning)
+  WHAT: Dialed the whole market calmer per user feedback ("weekly swings
+        and crashes might be too much"). Added MarketEngine.volScale
+        (0.55) — a single global knob multiplying every asset's weekly
+        volatility — so ~45% less week-to-week noise (index ~1.2%/wk,
+        blue chips ~1.7%, crypto ~6%, memecoin ~15%). Drift (expected
+        return) left intact so wealth still compounds, just smoother.
+        Softened the climate: crash drift -0.16 -> -0.09, boom/downturn/
+        recovery trimmed, beta cap 2.0 -> 1.5, crash uninsured-cash hit
+        2% -> 1.2%. Trimmed rumor swing magnitudes (clamp 0.4 -> 0.18)
+        so tips don't dwarf the calmer baseline.
+  WHY:  User wanted "much calmer / realistic." volScale is now THE dial
+        for future choppiness tweaks.

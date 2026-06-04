@@ -49,7 +49,7 @@ class NewsEngine {
   static Rumor _rumorFor(AssetDef a, Random rng, int week) {
     final dir = rng.nextBool() ? 1 : -1;
     final magnitude =
-        (a.dailyVol * (1.5 + rng.nextDouble() * 2.0)).clamp(0.02, 0.4);
+        (a.dailyVol * (1.2 + rng.nextDouble() * 1.6)).clamp(0.015, 0.18);
     return Rumor(
       assetId: a.id,
       dir: dir,
