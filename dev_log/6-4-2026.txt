@@ -1,0 +1,37 @@
+2026-06-04  New game: WealthQuest (Flutter mobile finance sim)
+  WHAT: Scaffolded a brand-new, standalone Flutter game under
+        wealthquest/ on branch claude/new-mobile-game-repo-JDskF.
+        It's unrelated to v1 (territory) and v2 (swarm) — a
+        personal-finance / stock-market life sim. Core loop:
+        start at age 18 with a day job; press "Next Day" to
+        advance one in-game WEEK; salary lands, living expenses
+        come out, every market moves (random walk), interest +
+        bond coupons accrue, CDs mature, you age up every 52
+        days. Data-driven catalog of 17 instruments across 5
+        categories (savings, CDs, bonds, stocks, ETFs, crypto)
+        — adding one is a single AssetDef entry. Four tabs:
+        Dashboard (net-worth sparkline + cash-flow + activity
+        feed), Market (buy), Portfolio (sell/redeem + live P/L),
+        Life (age-gated career ladder). Pure, seedable market
+        engine with unit tests (test/game_controller_test.dart).
+  WHY:  User: "I want to create a new game/ repo. It is a mobile
+        app... a stock market simulator. At the end of the day
+        you say next day and see how your assets perform. CDs,
+        bonds, all types of investments in categories. Start
+        small, passive income from a day job at 18, every 'day'
+        is a week." Picked: separate repo, Flutter, private.
+
+  Notes:
+   - Intended target was a STANDALONE GitHub repo
+     (Armandoxh/wealthquest, private). The session's GitHub
+     integration is scoped to armandoxh/territorygame, so
+     create_repository returned 403. Built it here in
+     wealthquest/ instead; README documents the git subtree
+     split to relocate it to its own repo later.
+   - Flutter not installed in the sandbox, so this ships
+     lib/ + pubspec + tests only. Run `flutter create .` to
+     generate android/ios/web around the existing lib/.
+   - Followed the repo's incremental mantra: nailed ONE core
+     loop, kept tunables in data/catalog.dart, engine branches
+     on AssetKind (not specific assets) so new instruments are
+     data not code. Deferred scope listed in the README.

@@ -1,0 +1,177 @@
+import 'package:flutter/material.dart';
+
+import '../data/catalog.dart';
+import '../models/asset.dart';
+import '../models/holding.dart';
+import '../state/game_controller.dart';
+import '../util/format.dart';
+import 'widgets/amount_sheet.dart';
+import 'widgets/ui_helpers.dart';
+
+class PortfolioTab extends StatelessWidget {
+  const PortfolioTab({super.key, required this.game});
+
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (game.holdings.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.savings_outlined,
+                  size: 56, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(height: 12),
+              Text('No investments yet',
+                  style: theme.textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                'Head to the Market tab and put your cash to work.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final totalValue = game.holdingsValue;
+    var totalCost = 0.0;
+    for (final h in game.holdings) {
+      totalCost += h.costBasis;
+    }
+    final totalPl = totalValue - totalCost;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Invested value',
+                        style: theme.textTheme.labelMedium),
+                    Text(moneyWhole(totalValue),
+                        style: theme.textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Total P/L', style: theme.textTheme.labelMedium),
+                    Text(
+                      '${totalPl >= 0 ? '+' : ''}${money(totalPl)}',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: gainColor(totalPl),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...game.holdings.map((h) => _HoldingTile(game: game, holding: h)),
+      ],
+    );
+  }
+}
+
+class _HoldingTile extends StatelessWidget {
+  const _HoldingTile({required this.game, required this.holding});
+
+  final GameController game;
+  final Holding holding;
+
+  Future<void> _sell(BuildContext context) async {
+    final def = Catalog.assetById(holding.assetId);
+    if (holding.isLocked) {
+      final left = holding.maturityDay - game.day;
+      _toast(context, '${def.name} is locked for $left more day(s).');
+      return;
+    }
+    final value = game.valueOf(holding);
+    final amount = await showAmountSheet(
+      context,
+      title: 'Sell ${def.name}',
+      actionLabel: 'Sell',
+      max: value,
+      helper: holding.kind.isPriceBased
+          ? 'Price ${price(game.priceOf(def.id))} • ${signedPct(game.dailyChange(def.id))} this week'
+          : null,
+    );
+    if (amount == null || !context.mounted) return;
+    final err = game.sell(holding, amount, max: amount >= value - 0.01);
+    _toast(context, err ?? 'Sold ${money(amount)} of ${def.name}.');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final def = Catalog.assetById(holding.assetId);
+    final value = game.valueOf(holding);
+    final pl = game.profitOf(holding);
+
+    final String subtitle;
+    if (holding.kind == AssetKind.cd) {
+      subtitle = holding.matured
+          ? 'Matured • redeemable'
+          : 'Locked • matures day ${holding.maturityDay}';
+    } else if (holding.kind.isInterestBearing) {
+      subtitle = '${def.kind.label} • ${pct(def.apy)} APY';
+    } else {
+      subtitle =
+          '${holding.shares.toStringAsFixed(holding.shares >= 10 ? 1 : 4)} @ ${price(game.priceOf(def.id))}';
+    }
+
+    final plLabel = holding.kind == AssetKind.savings
+        ? 'interest +${money(pl)}'
+        : '${pl >= 0 ? '+' : ''}${money(pl)}';
+
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: holding.isLocked
+            ? const Icon(Icons.lock_outline)
+            : const Icon(Icons.show_chart),
+        title: Text(def.name),
+        subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
+        trailing: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(money(value),
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            Text(plLabel,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: gainColor(pl))),
+          ],
+        ),
+        onTap: () => _sell(context),
+      ),
+    );
+  }
+}
+
+void _toast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+}
