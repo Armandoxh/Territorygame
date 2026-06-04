@@ -112,7 +112,7 @@ void mixed(GameController g) {
 void main() {
   const years = 25;
   final months = years * Catalog.stepsPerYear;
-  const seeds = [1, 2, 3, 7, 42];
+  const seeds = [1, 2, 3, 4, 5, 7, 11, 13, 17, 21, 33, 42, 77, 99, 123];
 
   test('TUNNEL + MIXED agents: $years-year scoreboard', () {
     final out = StringBuffer()
