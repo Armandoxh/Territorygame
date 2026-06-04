@@ -239,3 +239,11 @@
         (cash untouched); softened steady bear drift -0.008 -> -0.005
         while KEEPING harsh crashes (-0.13). Target ladder: cash < bonds
         < stocks < crypto in expected return, rising drawdown.
+
+2026-06-04  WealthQuest (build 13): fix crypto risk/reward
+  WHAT: Build-12 ladder was right except crypto was dominated (worst
+        avg AND worst drawdown, ceiling below stocks). Bumped crypto
+        expected return: BTQ drift 0.006->0.010, ETQ 0.007->0.011, so
+        crypto becomes the true high-risk/high-reward top with the
+        biggest ceiling (variance/89% drawdown preserved). Agent to
+        verify crypto avg now clears cash/stocks with a high ceiling.
