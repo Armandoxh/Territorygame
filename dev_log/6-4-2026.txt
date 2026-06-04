@@ -277,3 +277,8 @@
         Build-14 showed monthly compounding exploded returns (crypto avg
         $602M); re-tune driftScale 1.5->1.0, crypto BTQ 0.0074->0.0045/
         vol 0.09, ETQ 0.005/vol 0.10. Agent to re-measure.
+
+2026-06-04  WealthQuest (build 16): crypto nudge for monthly balance
+  WHAT: Build-15 ladder healthy (stocks ~$4.6M median > cash ~$2.5M;
+        auditor green) except crypto undershot (median $1.35M < cash).
+        Bumped crypto drift BTQ 0.0045->0.006, ETQ 0.005->0.0065.
