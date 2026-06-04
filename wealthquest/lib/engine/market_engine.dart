@@ -14,7 +14,7 @@ class MarketEngine {
   /// Global expected-return dial: every price-based asset's weekly drift is
   /// multiplied by this. >1 widens the risk premium of stocks/crypto over the
   /// fixed cash rate (which this does NOT touch). Tune so risk beats cash.
-  static const double driftScale = 1.5;
+  static const double driftScale = 1.0;
 
   /// One standard-normal sample via Box–Muller.
   static double gauss(Random rng) {

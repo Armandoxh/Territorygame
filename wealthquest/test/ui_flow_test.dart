@@ -15,8 +15,8 @@ void main() {
     expect(find.text('Net Worth'), findsOneWidget);
     expect(find.textContaining('build'), findsWidgets);
 
-    // Advance one week and dismiss the summary dialog.
-    await tester.tap(find.text('Next Week'));
+    // Advance one month and dismiss the summary dialog.
+    await tester.tap(find.text('Next Month'));
     await tester.pumpAndSettle();
     expect(find.text('Continue'), findsOneWidget);
     await tester.tap(find.text('Continue'));
