@@ -199,3 +199,20 @@
         so tips don't dwarf the calmer baseline.
   WHY:  User wanted "much calmer / realistic." volScale is now THE dial
         for future choppiness tweaks.
+
+2026-06-04  WealthQuest: automated play-agent + UI smoke test (CI "on the side")
+  WHAT: Added test/play_agent_test.dart — an automated player that runs
+        the REAL game logic for 25 years across 5 seeds with several
+        strategies (diversified+climate-aware, all-HYSA, all-S&P,
+        all-crypto), checks invariants (finite net worth/cash, no NaN),
+        and prints a report (avg final net worth, max drawdown, whether
+        it ever went cash-negative). Added test/ui_flow_test.dart — a
+        widget smoke test that taps through the real screens (advance a
+        week, browse Market→Stocks, open an asset detail, visit every
+        tab). New workflow .github/workflows/wealthquest-sim.yml runs
+        `flutter test` on every push, separate from deploy so a failure
+        never blocks shipping; the agent report shows in the log.
+  WHY:  User asked for an agent to play the game and test the flow on the
+        side. Can't drive the rendered Flutter canvas from the sandbox,
+        so this exercises the real mechanics + UI wiring in CI instead.
+  NOTE: test-only change — app is byte-identical, still build 10.
