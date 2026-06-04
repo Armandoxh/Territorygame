@@ -113,7 +113,12 @@ class _AssetRow extends StatelessWidget {
         ),
         title: Text(def.name),
         subtitle: Text(
-          def.sector.isNotEmpty ? def.sector : def.kind.label,
+          () {
+            final base = def.sector.isNotEmpty ? def.sector : def.kind.label;
+            return def.minInvestment > 0
+                ? '$base · min ${moneyWhole(def.minInvestment)}'
+                : base;
+          }(),
           style: theme.textTheme.bodySmall,
         ),
         trailing: Column(

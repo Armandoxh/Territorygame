@@ -226,8 +226,17 @@ class AssetDetailScreen extends StatelessWidget {
       if (def.creditRating.isNotEmpty) {
         rows.add(MapEntry('Credit rating', def.creditRating));
       }
+      if (def.categoryId == 'cash') {
+        rows.add(MapEntry('Insured', def.insured ? 'FDIC / Govt' : 'Not insured'));
+      }
     } else {
       rows.add(MapEntry('APY', pct(def.apy)));
+      if (def.minBalance > 0) {
+        rows.add(MapEntry('Keep at least', moneyWhole(def.minBalance)));
+        rows.add(MapEntry('If below', '${pct(def.belowMinApy)} APY'));
+      }
+      rows.add(MapEntry('Rate', def.rateType));
+      rows.add(MapEntry('Insured', def.insured ? 'FDIC / Govt' : 'Not insured'));
       if (def.kind == AssetKind.cd) {
         rows.add(MapEntry('Term', '${def.termDays} weeks'));
         rows.add(const MapEntry('Liquidity', 'Locked until maturity'));

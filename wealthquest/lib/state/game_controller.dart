@@ -126,7 +126,7 @@ class GameController extends ChangeNotifier {
     for (final h in holdings) {
       final def = Catalog.assetById(h.assetId);
       if (h.kind.isInterestBearing) {
-        sum += h.balance * def.apy / 52;
+        sum += h.balance * _effectiveApy(def, h.balance) / 52;
       } else if (def.incomeYield > 0) {
         sum += valueOf(h) * def.incomeYield / 52;
       }
@@ -284,6 +284,13 @@ class GameController extends ChangeNotifier {
   List<JobDef> get availableJobs =>
       Catalog.jobs.where((j) => ageYears >= j.minAge).toList();
 
+  /// APY a liquid account actually earns given its balance (reduced when below
+  /// the account's minimum balance).
+  double _effectiveApy(AssetDef def, double balance) =>
+      (def.minBalance > 0 && balance < def.minBalance)
+          ? def.belowMinApy
+          : def.apy;
+
   /// Remaining dollars you can still buy of a capped asset this year.
   double remainingAnnualCap(AssetDef def) {
     if (def.annualPurchaseCap <= 0) return double.infinity;
@@ -308,7 +315,7 @@ class GameController extends ChangeNotifier {
     for (final h in holdings) {
       if (!h.kind.isInterestBearing) continue;
       final def = Catalog.assetById(h.assetId);
-      final gain = h.balance * def.apy / 52;
+      final gain = h.balance * _effectiveApy(def, h.balance) / 52;
       h.balance += gain;
       interest += gain;
       if (h.kind == AssetKind.cd && !h.matured && day + 1 >= h.maturityDay) {

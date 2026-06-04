@@ -111,6 +111,17 @@ class AssetDef {
   /// cap. Used by Series I Bonds.
   final double annualPurchaseCap;
 
+  /// Balance a liquid account must keep to earn [apy]; below it the account
+  /// earns [belowMinApy] instead. 0 = no minimum-balance requirement.
+  final double minBalance;
+
+  /// Reduced APY applied while balance is under [minBalance].
+  final double belowMinApy;
+
+  /// FDIC/government-insured against loss. Meaningful for cash & fixed income;
+  /// funds (MMF, CMA sweeps, bond funds) are not insured.
+  final bool insured;
+
   final String blurb;
 
   const AssetDef({
@@ -132,8 +143,26 @@ class AssetDef {
     this.expenseRatio = 0,
     this.creditRating = '',
     this.annualPurchaseCap = 0,
+    this.minBalance = 0,
+    this.belowMinApy = 0,
+    this.insured = false,
     this.blurb = '',
   });
+
+  /// How the yield behaves, for display. Locked products are fixed at purchase;
+  /// liquid accounts float with rates.
+  String get rateType {
+    switch (kind) {
+      case AssetKind.cd:
+        return 'Fixed';
+      case AssetKind.bond:
+        return 'Fixed coupon';
+      case AssetKind.savings:
+        return 'Variable';
+      default:
+        return '';
+    }
+  }
 
   /// Cash income yield for price-based holdings: bond coupon or stock/ETF
   /// dividend. Crypto pays nothing.

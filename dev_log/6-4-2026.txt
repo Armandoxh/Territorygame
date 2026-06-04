@@ -144,3 +144,22 @@
   WHY:  User: research what else fits Cash (added all picks); and
         "put a release version number, increment it every build, pin
         it at the top so I know what I'm looking at is current."
+
+2026-06-04  WealthQuest (build 8): differentiate cash instruments
+  WHAT: Made cash vehicles real trade-offs instead of clones. New
+        AssetDef fields: minBalance + belowMinApy (account earns the
+        reduced rate if balance drops under the minimum) and `insured`
+        (FDIC/govt). Tuned the ladder: HYSA 4% insured liquid; MMA
+        4.3% insured but must keep $1k (else 0.5%); CMA 4.6% uninsured,
+        $2.5k min; T-Bill 4.2% insured but locked 13w; I-Bond 4.8%
+        insured locked 1y capped; MMF 4.8% uninsured liquid; Ultra-Short
+        ~5% uninsured price-wobble. Surfaced minimums on market rows and
+        added Insured / Rate (Fixed|Variable) / min-balance rows to the
+        detail stat sheet. Controller now accrues at the reduced APY
+        when under minBalance.
+  WHY:  User: these were 'virtually the same, just another asset to buy'
+        — differentiate them like real life (min investment, etc).
+  NOTE: Known gap raised by user — MMF (4.8%, liquid, low min) still
+        dominates because 'uninsured' has no teeth yet. Next nail:
+        give insurance meaning via downturn risk (uninsured cash can
+        lose in a crash; insured never does). Pending user's choice.

@@ -59,7 +59,8 @@ class Catalog {
       apy: 0.04,
       minInvestment: 1,
       sector: 'Cash',
-      blurb: 'Withdraw anytime. ~4% APY, basically no risk.',
+      insured: true,
+      blurb: 'Withdraw anytime, FDIC-insured. 4% APY, no strings.',
     ),
     AssetDef(
       id: 'mmf',
@@ -70,7 +71,9 @@ class Catalog {
       apy: 0.048,
       minInvestment: 500,
       sector: 'Cash',
-      blurb: 'Slightly higher yield than savings, still liquid.',
+      insured: false,
+      blurb: 'Higher yield than a HYSA, still liquid — but it\'s a fund, '
+          'so NOT FDIC-insured.',
     ),
     AssetDef(
       id: 'chk',
@@ -81,7 +84,8 @@ class Catalog {
       apy: 0.005,
       minInvestment: 0,
       sector: 'Cash',
-      blurb: 'Instant access, almost no yield. Don\'t park real money here.',
+      insured: true,
+      blurb: 'Instant access, almost no yield. Don\'t park real savings here.',
     ),
     AssetDef(
       id: 'mma',
@@ -89,10 +93,14 @@ class Catalog {
       ticker: 'MMA',
       categoryId: 'cash',
       kind: AssetKind.savings,
-      apy: 0.040,
+      apy: 0.043,
       minInvestment: 1000,
+      minBalance: 1000,
+      belowMinApy: 0.005,
       sector: 'Cash',
-      blurb: 'Bank account, FDIC-insured, ~4% APY. Liquid.',
+      insured: true,
+      blurb: 'FDIC-insured, 4.3% APY — but you must keep \$1,000 in or the '
+          'rate drops to 0.5%.',
     ),
     AssetDef(
       id: 'cma',
@@ -100,10 +108,14 @@ class Catalog {
       ticker: 'CMA',
       categoryId: 'cash',
       kind: AssetKind.savings,
-      apy: 0.042,
+      apy: 0.046,
       minInvestment: 2500,
+      minBalance: 2500,
+      belowMinApy: 0.01,
       sector: 'Cash',
-      blurb: 'Brokerage sweep. ~4.2% APY, liquid, checking-like features.',
+      insured: false,
+      blurb: 'Brokerage sweep, 4.6% APY. Higher min, keep \$2,500 in, and '
+          'NOT FDIC-insured.',
     ),
     AssetDef(
       id: 'tbill',
@@ -111,12 +123,14 @@ class Catalog {
       ticker: 'TBILL',
       categoryId: 'cash',
       kind: AssetKind.cd,
-      apy: 0.036,
+      apy: 0.042,
       termDays: 13,
       minInvestment: 100,
       sector: 'Government',
       creditRating: 'AAA',
-      blurb: 'U.S. government-backed. ~3.6%, 13-week lock, ultra-safe.',
+      insured: true,
+      blurb: 'U.S. government-backed, ultra-safe. 4.2% for a 13-week lock — '
+          'beats the HYSA if you can spare it.',
     ),
     AssetDef(
       id: 'ibond',
@@ -130,7 +144,9 @@ class Catalog {
       sector: 'Government',
       creditRating: 'AAA',
       annualPurchaseCap: 10000,
-      blurb: 'Inflation-protected. 1-year lock, capped at \$10k/year.',
+      insured: true,
+      blurb: 'Inflation-protected, government-backed. 1-year lock, '
+          'capped at \$10k/year.',
     ),
     AssetDef(
       id: 'usbf',
@@ -141,11 +157,12 @@ class Catalog {
       basePrice: 50.0,
       dailyDrift: 0.0002,
       dailyVol: 0.003,
-      dividendYield: 0.045,
+      dividendYield: 0.050,
       expenseRatio: 0.0008,
       sector: 'Fixed Income',
       sharesOutstanding: 0.5e9,
-      blurb: 'Near-cash: ~4.5% yield, tiny price wobble, not FDIC-insured.',
+      insured: false,
+      blurb: 'Near-cash: ~5% yield, tiny price wobble, not FDIC-insured.',
     ),
 
     // ---- Bonds & CDs ----
