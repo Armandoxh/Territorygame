@@ -26,6 +26,11 @@ class DayResult {
   final double mortgage; // total mortgage payments made this month
   final double netWorthBefore;
   final double netWorthAfter;
+  final double cashBefore;
+  final double cashAfter;
+  final double overdraftFee; // 10% penalty charged while in the red
+  final bool marginCall; // 4th month in the red — UI forces a liquidation
+  final List<String> portfolioNotes; // shout-outs about your holdings & cash
   final List<String> events;
 
   const DayResult({
@@ -36,10 +41,16 @@ class DayResult {
     this.mortgage = 0,
     required this.netWorthBefore,
     required this.netWorthAfter,
+    required this.cashBefore,
+    required this.cashAfter,
+    this.overdraftFee = 0,
+    this.marginCall = false,
+    this.portfolioNotes = const [],
     required this.events,
   });
 
   double get netWorthDelta => netWorthAfter - netWorthBefore;
+  double get cashDelta => cashAfter - cashBefore;
 }
 
 /// The whole game lives here: time, cash, job, market prices, and holdings.
@@ -66,6 +77,35 @@ class GameController extends ChangeNotifier {
   final List<PendingBet> bets = [];
   int _nextEventId = 1;
   int _nextBetId = 1;
+
+  // ---- Cash discipline ----
+  /// Consecutive months ended with negative cash. Months 1–3 cost an overdraft
+  /// fee; month 4 triggers a margin call (the UI forces a liquidation).
+  int monthsCashNegative = 0;
+
+  /// Fee charged each grace month you're overdrawn, as a fraction of the debt.
+  static const double overdraftFeeRate = 0.10;
+
+  /// How many months you can run negative before the margin call hits.
+  static const int overdraftGraceMonths = 3;
+
+  /// Call after the player resolves a margin call (cash back to ≥ 0).
+  void clearOverdraftStreak() {
+    monthsCashNegative = 0;
+    notifyListeners();
+  }
+
+  /// Assets the player could sell to raise cash in a margin call: any unlocked
+  /// holding, plus any property with non-negative (affordable) equity.
+  bool get hasLiquidatableAssets {
+    for (final h in holdings) {
+      if (h.isShort || !h.isLocked) return true;
+    }
+    for (final h in properties) {
+      if (h.equity >= 0 || cash + h.equity >= 0) return true;
+    }
+    return false;
+  }
 
   /// Minimum down payment fraction to get a mortgage.
   static const double minDownFraction = 0.05;
@@ -547,6 +587,7 @@ class GameController extends ChangeNotifier {
   /// The heart of the loop. Advance one day (= one in-game week).
   DayResult advanceDay() {
     final before = netWorth;
+    final cashBefore = cash;
     final events = <String>[];
 
     // 1) Salary in, living expenses out.
@@ -746,6 +787,34 @@ class GameController extends ChangeNotifier {
     sportsSlate = SportsEngine.generateSlate(_rng, _nextEventId);
     _nextEventId += sportsSlate.length;
 
+    // 5d) Cash discipline. Three grace months in the red each cost a 10%
+    //     overdraft fee; the 4th flips a margin call that the UI turns into a
+    //     forced liquidation (sell investments or real estate to get to ≥ $0).
+    var overdraftFee = 0.0;
+    var marginCall = false;
+    if (cash < -0.01) {
+      monthsCashNegative += 1;
+      if (monthsCashNegative > overdraftGraceMonths) {
+        marginCall = true;
+        events.add(
+            '🚨 MARGIN CALL — $monthsCashNegative months in the red. You must '
+            'liquidate assets to get back above \$0.');
+      } else {
+        overdraftFee = (-cash) * overdraftFeeRate;
+        cash -= overdraftFee;
+        events.add(
+            '🏦 Overdraft fee −\$${overdraftFee.toStringAsFixed(0)} '
+            '(month $monthsCashNegative of $overdraftGraceMonths overdrawn — '
+            'clear it or face a margin call).');
+      }
+    } else {
+      monthsCashNegative = 0;
+    }
+
+    // Portfolio shout-outs: your biggest mover this month, and a nudge if a lot
+    // of cash is sitting idle. Built from the pre-/post-step prices above.
+    final portfolioNotes = _portfolioNotes();
+
     // 6) Tick the clock; birthday on year boundaries.
     final hadBirthday = (day + 1) % Catalog.stepsPerYear == 0;
     day += 1;
@@ -768,6 +837,11 @@ class GameController extends ChangeNotifier {
       mortgage: mortgagePaid,
       netWorthBefore: before,
       netWorthAfter: after,
+      cashBefore: cashBefore,
+      cashAfter: cash,
+      overdraftFee: overdraftFee,
+      marginCall: marginCall,
+      portfolioNotes: portfolioNotes,
       events: events,
     );
 
@@ -778,6 +852,60 @@ class GameController extends ChangeNotifier {
 
     notifyListeners();
     return summary;
+  }
+
+  /// Human-readable call-outs about the portfolio for the monthly recap: the
+  /// biggest dollar winner and loser among market holdings, and a nudge when a
+  /// lot of cash is sitting idle instead of working.
+  List<String> _portfolioNotes() {
+    final notes = <String>[];
+
+    Holding? topWin, topLoss;
+    var topWinAmt = 0.0, topLossAmt = 0.0;
+    for (final h in holdings) {
+      if (h.kind.isInterestBearing) continue;
+      final p0 = _prevPrices[h.assetId];
+      final p1 = _prices[h.assetId];
+      if (p0 == null || p1 == null || p0 <= 0) continue;
+      final delta = h.shares * (h.isShort ? (p0 - p1) : (p1 - p0));
+      if (delta > topWinAmt) {
+        topWinAmt = delta;
+        topWin = h;
+      }
+      if (delta < topLossAmt) {
+        topLossAmt = delta;
+        topLoss = h;
+      }
+    }
+
+    String pct(Holding h) {
+      final p0 = _prevPrices[h.assetId]!;
+      final p1 = _prices[h.assetId]!;
+      final v = ((p1 - p0) / p0) * (h.isShort ? -1 : 1) * 100;
+      return '${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}%';
+    }
+
+    if (topWin != null && topWinAmt > 1) {
+      final def = Catalog.assetById(topWin.assetId);
+      final tag = topWin.isShort ? ' short' : '';
+      notes.add('📈 Your ${def.ticker}$tag was the top gainer this month: '
+          '${pct(topWin)} (+\$${topWinAmt.toStringAsFixed(0)}).');
+    }
+    if (topLoss != null && topLossAmt < -1) {
+      final def = Catalog.assetById(topLoss.assetId);
+      final tag = topLoss.isShort ? ' short' : '';
+      notes.add('📉 Your ${def.ticker}$tag dragged the most: '
+          '${pct(topLoss)} (−\$${(-topLossAmt).toStringAsFixed(0)}).');
+    }
+
+    // Idle-cash nudge: lots of cash, little invested. Only when solidly positive.
+    final runway = dailyExpenses * 3;
+    if (cash > runway && holdingsValue < cash * 0.5 && cash > 1000) {
+      notes.add('💤 \$${cash.toStringAsFixed(0)} is sitting in cash earning '
+          'little — put more of it to work in Sherwood.');
+    }
+
+    return notes;
   }
 
   void _log(String message) {

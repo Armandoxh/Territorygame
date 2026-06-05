@@ -2,14 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../state/game_controller.dart';
 import 'day_summary_dialog.dart';
+import 'margin_call_sheet.dart';
 import 'swipe_back.dart';
 
 /// Advance the simulation one month and show the recap. Available from the
-/// phone home and inside every app.
+/// phone home and inside every app. A sustained cash shortfall follows the
+/// recap with a blocking margin-call liquidation.
 Future<void> nextMonth(BuildContext context, GameController game) async {
   final r = game.advanceDay();
   if (!context.mounted) return;
   await showDaySummary(context, game, r);
+  if (r.marginCall && context.mounted) {
+    await showMarginCall(context, game);
+  }
 }
 
 /// A full-screen "app" launched from the phone home: an app bar (with optional

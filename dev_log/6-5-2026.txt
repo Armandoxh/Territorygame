@@ -15,3 +15,13 @@ shows a SegmentedButton toggle to flip to Parlay (one combined stake, multiplied
 all-must-hit). _placeSingles places each staked pick as its own straight bet and leaves
 un-staked picks in the slip; _placeParlay combines. Per-pick stake controllers are
 tracked in a Map keyed by eventId and disposed on remove/clear. No engine change.
+build 29 (v0.18.0) — Cash now matters + richer monthly recap. Negative cash had zero
+consequence; player wanted stakes. Added a cash-discipline mechanic in advanceDay:
+months 1-3 in the red each cost a 10% overdraft fee (monthsCashNegative counter); the
+4th consecutive red month flips DayResult.marginCall, which nextMonth() turns into a
+blocking margin-call dialog (margin_call_sheet.dart) with Portfolio + Real estate tabs —
+the player must sell holdings/properties until cash ≥ $0, then clearOverdraftStreak()
+resets it. Locked CDs/bonds can't be sold; if nothing is liquidatable they can continue.
+The recap (day_summary_dialog) now shows Cash + its monthly delta (red when negative),
+an overdraft-fee line, and portfolio shout-outs (top gainer/loser by $, and an idle-cash
+nudge) built by GameController._portfolioNotes(). Next up (build 30): the Life app.

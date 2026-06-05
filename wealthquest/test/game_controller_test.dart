@@ -388,4 +388,39 @@ void main() {
       expect(g.cash, closeTo(1000, 1e-6));
     });
   });
+
+  group('Cash discipline', () {
+    test('grace months charge an overdraft fee, month 4 is a margin call', () {
+      final g = GameController(seed: 1);
+      g.cash = -10000; // deep in the red, stays negative for months
+      for (var month = 1; month <= 3; month++) {
+        final r = g.advanceDay();
+        expect(g.monthsCashNegative, month);
+        expect(r.overdraftFee, greaterThan(0));
+        expect(r.marginCall, isFalse);
+      }
+      final r4 = g.advanceDay();
+      expect(r4.marginCall, isTrue);
+      expect(r4.overdraftFee, 0); // margin call replaces the fee
+      expect(g.monthsCashNegative, 4);
+    });
+
+    test('getting back above zero resets the streak', () {
+      final g = GameController(seed: 1);
+      g.cash = -5000;
+      g.advanceDay();
+      expect(g.monthsCashNegative, 1);
+      g.cash = 50000; // player covered the shortfall
+      g.advanceDay();
+      expect(g.monthsCashNegative, 0);
+    });
+
+    test('the recap carries cash and its delta', () {
+      final g = GameController(seed: 1);
+      final before = g.cash;
+      final r = g.advanceDay();
+      expect(r.cashAfter, closeTo(g.cash, 1e-6));
+      expect(r.cashDelta, closeTo(g.cash - before, 1e-6));
+    });
+  });
 }

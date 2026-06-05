@@ -1,6 +1,6 @@
 # WealthQuest — repo notes for Claude
 
-## ▶ CURRENT BUILD: v0.17.0 · build 28
+## ▶ CURRENT BUILD: v0.18.0 · build 29
 
 This number is the source of truth. It is shown **pinned at the top of the
 in-app header** so the user can confirm the live page is the latest build (and
