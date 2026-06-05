@@ -75,7 +75,37 @@ class _OwnedCard extends StatelessWidget {
                   '${pct(holding.annualRate)} · $monthsLeft mo left'),
             ] else
               _kv(theme, 'Status', 'Paid off 🎉'),
-            const SizedBox(height: 8),
+            const Divider(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Rent it out', style: theme.textTheme.titleSmall),
+                      const SizedBox(height: 2),
+                      Text(
+                        holding.rentedOut
+                            ? (holding.occupied
+                                ? 'Occupied · +${money(holding.monthlyRent)}/mo coming in'
+                                : 'Listed · no tenant at the moment')
+                            : 'Earn ~${money(holding.monthlyRent)}/mo when occupied '
+                                '(tenants ~75% of months).',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: holding.occupied
+                                ? kGain
+                                : theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: holding.rentedOut,
+                  onChanged: (_) => game.toggleRental(holding),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [

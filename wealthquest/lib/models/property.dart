@@ -57,6 +57,13 @@ class PropertyHolding {
   final double purchasePrice;
   int monthsPaid;
 
+  /// Whether you're listing this home for rent (landlord mode).
+  bool rentedOut;
+
+  /// Whether a tenant is in place this month (re-rolled each month while
+  /// [rentedOut]). Drives whether rent comes in.
+  bool occupied;
+
   PropertyHolding({
     required this.id,
     required this.defId,
@@ -67,7 +74,12 @@ class PropertyHolding {
     required this.termMonths,
     required this.purchasePrice,
     this.monthsPaid = 0,
+    this.rentedOut = false,
+    this.occupied = false,
   });
+
+  /// Gross monthly rent if occupied: a fixed fraction of current value.
+  double get monthlyRent => currentValue * 0.006;
 
   /// What you'd walk away with (before selling costs): value minus what you
   /// still owe. Can go negative if the home is "underwater".

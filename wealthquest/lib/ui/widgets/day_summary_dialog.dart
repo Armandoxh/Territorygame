@@ -26,6 +26,8 @@ Future<void> showDaySummary(
               _row(theme, 'Interest earned', money(r.interest), kGain),
             if (r.dividends > 0.005)
               _row(theme, 'Dividends & coupons', money(r.dividends), kGain),
+            if (r.rent > 0.005)
+              _row(theme, 'Rent collected', money(r.rent), kGain),
             if (r.mortgage > 0.005)
               _row(theme, 'Mortgage paid', '-${money(r.mortgage)}', kLoss),
             if (r.overdraftFee > 0.005)

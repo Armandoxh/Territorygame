@@ -52,3 +52,10 @@ way to pay down the loan. Added GameController.payDownMortgage(h, amount, {max})
 cash straight to principal (capped at the balance), monthly payment unchanged so the loan
 just retires sooner; zeroes out and flips isPaidOff when cleared. Nestly's owned-property
 card gets a "Pay down loan" button → amount sheet (MAX pays it off free and clear).
+build 34 (v0.21.0) — Rent out property (note 4 of the batch). Owned homes can now be a
+landlord play. PropertyHolding gains rentedOut + occupied flags and monthlyRent (0.6% of
+value/mo); GameController.toggleRental(h) lists/unlists. In advanceDay's real-estate block,
+each rented home rolls occupancy (occupancyChance = 0.75); when occupied, rent lands in cash
+and offsets part of the mortgage, summarized in events and a new "Rent collected" recap row
+(DayResult.rent). Nestly's owned card gets a Rent-it-out switch + live occupancy status.
+Defaults to tune later if needed: 0.6%/mo rent, 75% occupancy.

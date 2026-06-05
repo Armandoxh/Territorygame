@@ -24,6 +24,7 @@ class DayResult {
   final double expenses;
   final double dividends; // dividends + bond coupons
   final double interest;
+  final double rent; // rent collected from tenanted properties
   final double mortgage; // total mortgage payments made this month
   final double netWorthBefore;
   final double netWorthAfter;
@@ -39,6 +40,7 @@ class DayResult {
     required this.expenses,
     required this.dividends,
     required this.interest,
+    this.rent = 0,
     this.mortgage = 0,
     required this.netWorthBefore,
     required this.netWorthAfter,
@@ -387,6 +389,22 @@ class GameController extends ChangeNotifier {
         : 'Paid ${_usd(applied)} toward your ${pd.name} loan.');
     notifyListeners();
     return null;
+  }
+
+  /// Chance a rented-out home has a paying tenant in any given month.
+  static const double occupancyChance = 0.75;
+
+  /// List a property for rent (or take it off the market). While rented, each
+  /// month rolls for a tenant; when occupied, rent lands in cash and offsets a
+  /// chunk of the mortgage. Taking it off the market clears any tenant.
+  void toggleRental(PropertyHolding h) {
+    h.rentedOut = !h.rentedOut;
+    if (!h.rentedOut) h.occupied = false;
+    final pd = Properties.byId(h.defId);
+    _log(h.rentedOut
+        ? 'Listed your ${pd.name} for rent.'
+        : 'Took your ${pd.name} off the rental market.');
+    notifyListeners();
   }
 
   String _usd(double v) => '\$${v.toStringAsFixed(0)}';
@@ -788,8 +806,11 @@ class GameController extends ChangeNotifier {
       dividends += pay;
     }
 
-    // 5b) Real estate: appreciate listings + owned homes, then service loans.
+    // 5b) Real estate: appreciate listings + owned homes, collect rent, then
+    //     service loans.
     var mortgagePaid = 0.0;
+    var rentCollected = 0.0;
+    var rentedUnits = 0, occupiedUnits = 0;
     for (final pd in Properties.ladder) {
       final cur = propertyPrices[pd.id]!;
       final np = cur *
@@ -801,6 +822,19 @@ class GameController extends ChangeNotifier {
       final r = pd.monthlyAppreciation + pd.monthlyVol * MarketEngine.gauss(_rng);
       h.currentValue *= (1 + r);
       if (h.currentValue < 0) h.currentValue = 0;
+      // Rent: a listed home finds a tenant most (not all) months; when occupied
+      // the rent lands in cash and helps cover the mortgage.
+      if (h.rentedOut) {
+        rentedUnits += 1;
+        h.occupied = _rng.nextDouble() < occupancyChance;
+        if (h.occupied) {
+          cash += h.monthlyRent;
+          rentCollected += h.monthlyRent;
+          occupiedUnits += 1;
+        }
+      } else {
+        h.occupied = false;
+      }
       if (!h.isPaidOff) {
         final interest = h.loanBalance * (h.annualRate / 12);
         var principal = h.monthlyPayment - interest;
@@ -813,6 +847,12 @@ class GameController extends ChangeNotifier {
         h.monthsPaid += 1;
         if (h.isPaidOff) events.add('🏠 Paid off your ${pd.name}!');
       }
+    }
+    if (rentedUnits > 0) {
+      events.add(rentCollected > 0
+          ? '🔑 Rent collected: +\$${rentCollected.toStringAsFixed(0)} '
+              '($occupiedUnits of $rentedUnits unit${rentedUnits == 1 ? '' : 's'} occupied).'
+          : '🔑 No rent this month — your rental${rentedUnits == 1 ? ' sat' : 's sat'} vacant.');
     }
 
     // 5c) Resolve sports bets, then post a fresh slate.
@@ -877,6 +917,7 @@ class GameController extends ChangeNotifier {
       expenses: expenses,
       dividends: dividends,
       interest: interest,
+      rent: rentCollected,
       mortgage: mortgagePaid,
       netWorthBefore: before,
       netWorthAfter: after,
