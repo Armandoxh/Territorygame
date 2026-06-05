@@ -4,6 +4,7 @@ import '../data/properties.dart';
 import '../models/property.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
+import 'widgets/amount_sheet.dart';
 import 'widgets/ui_helpers.dart';
 
 /// Real estate: browse the property ladder, buy with a chosen down payment and
@@ -75,21 +76,52 @@ class _OwnedCard extends StatelessWidget {
             ] else
               _kv(theme, 'Status', 'Paid off 🎉'),
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton(
-                onPressed: () {
-                  final err = game.sellProperty(holding);
-                  _toast(context,
-                      err ?? 'Sold ${def.name} for ${money(holding.equity)}.');
-                },
-                child: const Text('Sell'),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (!holding.isPaidOff)
+                  TextButton(
+                    onPressed: () => _payDown(context),
+                    child: const Text('Pay down loan'),
+                  ),
+                const SizedBox(width: 4),
+                OutlinedButton(
+                  onPressed: () {
+                    final err = game.sellProperty(holding);
+                    _toast(context,
+                        err ?? 'Sold ${def.name} for ${money(holding.equity)}.');
+                  },
+                  child: const Text('Sell'),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _payDown(BuildContext context) async {
+    final def = Properties.byId(holding.defId);
+    final maxPay =
+        holding.loanBalance < game.cash ? holding.loanBalance : game.cash;
+    final amount = await showAmountSheet(
+      context,
+      title: 'Pay down ${def.name}',
+      actionLabel: 'Pay',
+      max: maxPay,
+      helper: 'Loan balance ${money(holding.loanBalance)} · cash '
+          '${money(game.cash)}. Tap MAX to pay it off and own it free and clear.',
+    );
+    if (amount == null || !context.mounted) return;
+    final payoff = amount >= holding.loanBalance - 0.01;
+    final err = game.payDownMortgage(holding, amount, max: payoff);
+    _toast(
+        context,
+        err ??
+            (payoff
+                ? 'Paid off ${def.name} — it\'s all yours. 🎉'
+                : 'Paid ${money(amount)} toward your ${def.name} loan.'));
   }
 }
 

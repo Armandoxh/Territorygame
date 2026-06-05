@@ -369,6 +369,26 @@ class GameController extends ChangeNotifier {
     return null;
   }
 
+  /// Pay [amount] of cash straight onto a property's loan principal (or the
+  /// whole balance if [max]). The monthly payment is unchanged — knocking down
+  /// principal early just pays the loan off sooner. Returns an error, or null.
+  String? payDownMortgage(PropertyHolding h, double amount, {bool max = false}) {
+    if (h.isPaidOff) return 'This loan is already paid off.';
+    final amt = max ? h.loanBalance : amount;
+    if (amt <= 0) return 'Enter an amount greater than \$0.';
+    if (amt > cash + 0.001) return 'Not enough cash.';
+    final applied = amt > h.loanBalance ? h.loanBalance : amt;
+    cash -= applied;
+    h.loanBalance -= applied;
+    if (h.loanBalance < 0.01) h.loanBalance = 0;
+    final pd = Properties.byId(h.defId);
+    _log(h.isPaidOff
+        ? 'Paid off your ${pd.name} (−${_usd(applied)}). 🎉'
+        : 'Paid ${_usd(applied)} toward your ${pd.name} loan.');
+    notifyListeners();
+    return null;
+  }
+
   String _usd(double v) => '\$${v.toStringAsFixed(0)}';
 
   /// Estimated income next day that isn't your salary (interest + dividends +

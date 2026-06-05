@@ -47,3 +47,8 @@ one-line tip rows (direction icon, short headline, ticker chip), and added short
 Estate (regime-flavored housing read) and 🏈 Sports (slate/open-bets teaser) sections plus
 the settled list. Much less to read; scannable by category. Dropped the wordy reliability
 preamble. No engine change.
+build 33 (v0.20.1) — Pay off mortgage early (note 3 of the batch). Owning property gave no
+way to pay down the loan. Added GameController.payDownMortgage(h, amount, {max}) — applies
+cash straight to principal (capped at the balance), monthly payment unchanged so the loan
+just retires sooner; zeroes out and flips isPaidOff when cleared. Nestly's owned-property
+card gets a "Pay down loan" button → amount sheet (MAX pays it off free and clear).
