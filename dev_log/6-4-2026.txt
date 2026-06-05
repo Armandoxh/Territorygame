@@ -356,3 +356,11 @@
         LADDER agents save in HYSA until they can afford a fund, then move
         in. Mixed agent uses MMF once its cash sleeve is big.
   WHY:  Build-20 agent showed funds ~= cash (late-game gates + idle cash).
+
+2026-06-04  WealthQuest (build 22): fix fund balance (risk over-corrected)
+  WHAT: Build-21 ladder agent (honest) showed the high-tier funds netted
+        WORSE than free HYSA (Hedge $2.40M < HYSA $2.52M) — crashLoss
+        6%/10% ate the whole yield premium. Cut crashLoss: MMF 0.02->0.015,
+        Income 0.03->0.015, Private Credit 0.06->0.03, Hedge 0.10->0.045,
+        so the funds net above cash in a rising ladder; the LOCK-UP
+        illiquidity is now the main cost (the trade-off the user wanted).

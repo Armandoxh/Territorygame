@@ -88,9 +88,9 @@ class Catalog {
       minInvestment: 10000,
       sector: 'Cash',
       insured: false,
-      crashLoss: 0.02,
+      crashLoss: 0.015,
       blurb: 'Higher yield than a HYSA, still liquid. \$10k to open, NOT '
-          'FDIC-insured (can dip ~2% in a crash).',
+          'FDIC-insured (can dip slightly in a crash).',
     ),
     AssetDef(
       id: 'chk',
@@ -117,7 +117,7 @@ class Catalog {
       insured: false,
       lockKind: LockKind.penalty,
       earlyPenalty: 0.5,
-      crashLoss: 0.03,
+      crashLoss: 0.015,
       blurb: '~6.5% yield, \$20k minimum. Pull out before a year and you '
           'forfeit half your gains. Dips in bad years.',
     ),
@@ -133,7 +133,7 @@ class Catalog {
       sector: 'Credit',
       insured: false,
       lockKind: LockKind.hard,
-      crashLoss: 0.06,
+      crashLoss: 0.03,
       blurb: '~8.5% for \$100k, hard-locked 2 years. Real drawdowns when the '
           'economy turns.',
     ),
@@ -149,7 +149,7 @@ class Catalog {
       sector: 'Alternatives',
       insured: false,
       lockKind: LockKind.hard,
-      crashLoss: 0.10,
+      crashLoss: 0.045,
       blurb: '~11% for the \$400k club, hard-locked 3 years. Big swings; ugly '
           'years happen.',
     ),
