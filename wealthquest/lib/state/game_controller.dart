@@ -170,11 +170,17 @@ class GameController extends ChangeNotifier {
   /// Place [stake] on the home (or away) side of one event (a straight bet).
   String? placeBet(SportsEvent e, bool home, double stake) => placeParlay([
         ParlayLeg(
+          eventId: e.id,
           label: '${home ? e.home : e.away} (vs ${home ? e.away : e.home})',
           decimalOdds: home ? e.homeDecimal : e.awayDecimal,
           winProb: home ? e.homeProb : 1 - e.homeProb,
         )
       ], stake);
+
+  /// True if the player already has an open wager touching [eventId] — used to
+  /// lock a game once it's been bet (you can only bet a game once).
+  bool hasBetOn(int eventId) =>
+      bets.any((b) => b.eventIds.contains(eventId));
 
   /// Place a wager across [legs]: one leg is a straight bet; 2+ legs is a
   /// parlay where every leg must hit (odds and the long-shot both multiply).
@@ -182,6 +188,16 @@ class GameController extends ChangeNotifier {
     if (legs.isEmpty) return 'Add at least one pick.';
     if (stake <= 0) return 'Enter a stake greater than \$0.';
     if (stake > cash + 0.001) return 'Not enough cash.';
+    // One bet per game: a parlay can't double up a single matchup, and you
+    // can't add a leg for a game you already have an open bet on. This stops
+    // two wagers on the same game from resolving against each other.
+    final seen = <int>{};
+    for (final l in legs) {
+      if (!seen.add(l.eventId)) return 'You can only pick each game once.';
+      if (hasBetOn(l.eventId)) {
+        return 'You already have a bet on that game — only one per game.';
+      }
+    }
     cash -= stake;
     var dec = 1.0;
     var prob = 1.0;
@@ -192,6 +208,7 @@ class GameController extends ChangeNotifier {
     bets.add(PendingBet(
       id: _nextBetId++,
       legs: [for (final l in legs) l.label],
+      eventIds: [for (final l in legs) l.eventId],
       stake: stake,
       decimalOdds: dec,
       winProb: prob,

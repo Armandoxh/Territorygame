@@ -66,7 +66,12 @@ class _SportsBodyState extends State<SportsBody> {
     final stake = double.tryParse(_stakeCtrl.text) ?? 0;
     final legs = [
       for (final l in _slip)
-        ParlayLeg(label: l.label, decimalOdds: l.decimalOdds, winProb: l.winProb)
+        ParlayLeg(
+          eventId: l.eventId,
+          label: l.label,
+          decimalOdds: l.decimalOdds,
+          winProb: l.winProb,
+        )
     ];
     final err = game.placeParlay(legs, stake);
     if (err != null) {
@@ -220,6 +225,7 @@ class _SportsBodyState extends State<SportsBody> {
       ),
       ...games.map((e) => _EventCard(
             event: e,
+            locked: game.hasBetOn(e.id),
             homeSelected: _selected(e.id, true),
             awaySelected: _selected(e.id, false),
             onPick: (home) => _toggle(e, home),
@@ -231,12 +237,14 @@ class _SportsBodyState extends State<SportsBody> {
 class _EventCard extends StatelessWidget {
   const _EventCard({
     required this.event,
+    required this.locked,
     required this.homeSelected,
     required this.awaySelected,
     required this.onPick,
   });
 
   final SportsEvent event;
+  final bool locked;
   final bool homeSelected;
   final bool awaySelected;
   final void Function(bool home) onPick;
@@ -246,10 +254,12 @@ class _EventCard extends StatelessWidget {
     final theme = Theme.of(context);
     Widget pick(bool home, String team, double dec, bool sel) {
       final label = '$team  ${SportsEngine.american(dec)}';
+      // A game you've already bet is locked — only one wager per game.
+      final onPressed = locked ? null : () => onPick(home);
       return Expanded(
         child: sel
-            ? FilledButton(onPressed: () => onPick(home), child: Text(label))
-            : OutlinedButton(onPressed: () => onPick(home), child: Text(label)),
+            ? FilledButton(onPressed: onPressed, child: Text(label))
+            : OutlinedButton(onPressed: onPressed, child: Text(label)),
       );
     }
 
@@ -262,13 +272,25 @@ class _EventCard extends StatelessWidget {
             Text('${event.home}  vs  ${event.away}',
                 style: theme.textTheme.bodyMedium),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                pick(true, event.home, event.homeDecimal, homeSelected),
-                const SizedBox(width: 10),
-                pick(false, event.away, event.awayDecimal, awaySelected),
-              ],
-            ),
+            if (locked)
+              Row(
+                children: [
+                  Icon(Icons.lock_outline,
+                      size: 16, color: theme.colorScheme.outline),
+                  const SizedBox(width: 6),
+                  Text('Bet placed — settles next month',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.outline)),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  pick(true, event.home, event.homeDecimal, homeSelected),
+                  const SizedBox(width: 10),
+                  pick(false, event.away, event.awayDecimal, awaySelected),
+                ],
+              ),
           ],
         ),
       ),

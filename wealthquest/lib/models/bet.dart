@@ -27,10 +27,12 @@ class SportsEvent {
 
 /// One pick in a bet (a single bet is just a 1-leg parlay).
 class ParlayLeg {
+  final int eventId;
   final String label;
   final double decimalOdds;
   final double winProb;
   const ParlayLeg({
+    required this.eventId,
     required this.label,
     required this.decimalOdds,
     required this.winProb,
@@ -42,6 +44,9 @@ class ParlayLeg {
 class PendingBet {
   final int id;
   final List<String> legs;
+
+  /// The event id each leg covers — used to enforce one open bet per game.
+  final List<int> eventIds;
   final double stake;
   final double decimalOdds;
   final double winProb;
@@ -49,6 +54,7 @@ class PendingBet {
   PendingBet({
     required this.id,
     required this.legs,
+    required this.eventIds,
     required this.stake,
     required this.decimalOdds,
     required this.winProb,

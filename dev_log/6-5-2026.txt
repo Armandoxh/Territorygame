@@ -1,0 +1,9 @@
+build 27 (v0.16.1) — One bet per game. The user bet twice on the same game/team,
+advanced a month, and saw one of the two wagers win while the other lost — because
+each PendingBet rolled its own independent _rng.nextDouble() at resolution, so two
+bets on one matchup could (and did) contradict each other. Fix: track eventIds on
+PendingBet and reject any wager touching a game you already have an open bet on (and
+any parlay that lists the same game twice) in placeParlay; added hasBetOn(eventId).
+The DraftDay UI now locks a matchup once it's bet — the odds buttons are replaced by
+a "Bet placed — settles next month" lock row. Added regression tests for both the
+straight-bet and parlay duplicate cases.

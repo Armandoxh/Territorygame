@@ -336,15 +336,56 @@ void main() {
       final e1 = g.sportsSlate[0];
       final e2 = g.sportsSlate[1];
       final legs = [
-        ParlayLeg(label: 'a', decimalOdds: e1.homeDecimal, winProb: e1.homeProb),
         ParlayLeg(
-            label: 'b', decimalOdds: e2.awayDecimal, winProb: 1 - e2.homeProb),
+            eventId: e1.id,
+            label: 'a',
+            decimalOdds: e1.homeDecimal,
+            winProb: e1.homeProb),
+        ParlayLeg(
+            eventId: e2.id,
+            label: 'b',
+            decimalOdds: e2.awayDecimal,
+            winProb: 1 - e2.homeProb),
       ];
       expect(g.placeParlay(legs, 50), isNull);
       final bet = g.bets.last;
       expect(bet.isParlay, isTrue);
       expect(bet.decimalOdds, closeTo(e1.homeDecimal * e2.awayDecimal, 1e-9));
       expect(g.netWorth, closeTo(1000, 1.0)); // cash 950 + pending 50
+    });
+
+    test('only one bet per game — a second wager on it is rejected', () {
+      final g = GameController(seed: 1);
+      g.cash = 1000;
+      final e = g.sportsSlate.first;
+      expect(g.placeBet(e, true, 100), isNull);
+      expect(g.hasBetOn(e.id), isTrue);
+      // Same game, even the same side, can't be bet again.
+      expect(g.placeBet(e, true, 100), isNotNull);
+      expect(g.placeBet(e, false, 100), isNotNull);
+      expect(g.bets.length, 1);
+      expect(g.cash, closeTo(900, 1e-6)); // the rejected bets took nothing
+    });
+
+    test('a parlay cannot include the same game twice', () {
+      final g = GameController(seed: 1);
+      g.cash = 1000;
+      final e = g.sportsSlate.first;
+      final legs = [
+        ParlayLeg(
+            eventId: e.id,
+            label: 'home',
+            decimalOdds: e.homeDecimal,
+            winProb: e.homeProb),
+        ParlayLeg(
+            eventId: e.id,
+            label: 'away',
+            decimalOdds: e.awayDecimal,
+            winProb: 1 - e.homeProb),
+      ];
+      expect(g.placeParlay(legs, 50), isNotNull); // rejected
+      expect(g.bets, isEmpty);
+      expect(g.cash, closeTo(1000, 1e-6));
     });
   });
 }
