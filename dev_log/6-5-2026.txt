@@ -59,3 +59,10 @@ each rented home rolls occupancy (occupancyChance = 0.75); when occupied, rent l
 and offsets part of the mortgage, summarized in events and a new "Rent collected" recap row
 (DayResult.rent). Nestly's owned card gets a Rent-it-out switch + live occupancy status.
 Defaults to tune later if needed: 0.6%/mo rent, 75% occupancy.
+build 35 (v0.21.1) — Sportsbook readability (note 5 of the batch). DraftDay odds were
+opaque (+150/-200) and parlays were hard. Replaced American odds everywhere with plain
+language: each pick button is now a tap-card showing the team, "$100 → $260" (what a $100
+bet returns), and a Favorite/Underdog tag, with a clear selected state (highlight + check).
+Rewrote the how-to banner in plain English incl. how to build a parlay. Slip now shows
+"2.60×" multipliers and "All N must win · pays X×" instead of combined American odds. Pure
+UI; betting logic/one-bet-per-game/Singles-Parlay toggle unchanged.

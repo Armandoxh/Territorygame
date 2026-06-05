@@ -27,6 +27,12 @@ class _SlipLeg {
   _SlipLeg(this.eventId, this.home, this.label, this.decimalOdds, this.winProb);
 }
 
+/// What a $100 bet pays back in total at these odds, e.g. "$100 → $260".
+String _payBack(double dec) => '\$100 → \$${(dec * 100).round()}';
+
+/// Payout multiplier, e.g. "2.60×".
+String _mult(double dec) => '${dec.toStringAsFixed(2)}×';
+
 class _SportsBodyState extends State<SportsBody> {
   final List<_SlipLeg> _slip = [];
 
@@ -174,9 +180,10 @@ class _SportsBodyState extends State<SportsBody> {
             border: Border.all(color: kLoss.withOpacity(0.4)),
           ),
           child: Text(
-            '⚠ House edge ~6% per leg — and a parlay multiplies the vig too. '
-            'Tap odds to add picks, then choose Singles or Parlay in your slip. '
-            'Bets resolve on Next Month. For fun, not your retirement.',
+            'How to bet: tap a team to pick it. "\$100 → \$260" means a \$100 '
+            'bet pays back \$260 if they win. Pick 2+ teams and switch your '
+            'slip to Parlay to combine them into one bigger-payout bet (all '
+            'must win). The house keeps an edge, so bet for fun.',
             style: theme.textTheme.bodySmall,
           ),
         ),
@@ -269,7 +276,7 @@ class _SportsBodyState extends State<SportsBody> {
                   Expanded(
                       child:
                           Text(l.label, style: theme.textTheme.bodyMedium)),
-                  Text(SportsEngine.american(l.decimalOdds),
+                  Text(_mult(l.decimalOdds),
                       style: theme.textTheme.bodyMedium
                           ?.copyWith(fontWeight: FontWeight.bold)),
                   IconButton(
@@ -280,7 +287,7 @@ class _SportsBodyState extends State<SportsBody> {
                 ],
               ),
             )),
-        Text('Combined odds: ${SportsEngine.american(dec)}',
+        Text('All ${_slip.length} must win · pays ${_mult(dec)} your stake',
             style: theme.textTheme.bodyMedium
                 ?.copyWith(fontWeight: FontWeight.bold, color: kGain)),
         const SizedBox(height: 8),
@@ -349,7 +356,7 @@ class _SportsBodyState extends State<SportsBody> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(l.label, style: theme.textTheme.bodyMedium),
-                      Text(SportsEngine.american(l.decimalOdds),
+                      Text('${_mult(l.decimalOdds)} · ${_payBack(l.decimalOdds)}',
                           style: theme.textTheme.labelSmall
                               ?.copyWith(fontWeight: FontWeight.bold)),
                     ],
@@ -457,13 +464,56 @@ class _EventCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     Widget pick(bool home, String team, double dec, bool sel) {
-      final label = '$team  ${SportsEngine.american(dec)}';
       // A game you've already bet is locked — only one wager per game.
-      final onPressed = locked ? null : () => onPick(home);
+      final fav = dec < 2.0; // shorter price = favorite
       return Expanded(
-        child: sel
-            ? FilledButton(onPressed: onPressed, child: Text(label))
-            : OutlinedButton(onPressed: onPressed, child: Text(label)),
+        child: InkWell(
+          onTap: locked ? null : () => onPick(home),
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              color: sel
+                  ? theme.colorScheme.primary.withOpacity(0.18)
+                  : Colors.transparent,
+              border: Border.all(
+                color: sel
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.outlineVariant,
+                width: sel ? 2 : 1,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (sel) ...[
+                      Icon(Icons.check_circle,
+                          size: 16, color: theme.colorScheme.primary),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(team,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(_payBack(dec),
+                    style: theme.textTheme.labelMedium
+                        ?.copyWith(color: kGain, fontWeight: FontWeight.w700)),
+                Text(fav ? 'Favorite' : 'Underdog',
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
