@@ -349,3 +349,10 @@
   WHY:  User design discussion: scale APY with type + higher entry +
         minimum hold; mix of hard locks and penalties; high yield = real
         risk. Yield ladder first; goals/progression spine to follow.
+
+2026-06-04  WealthQuest (build 21): lower fund entry mins + smarter agent
+  WHAT: Lowered fund entry minimums (Income $50k->$20k, Private Credit
+        $250k->$100k, Hedge $1M->$400k). Fixed agent idle-cash flaw: new
+        LADDER agents save in HYSA until they can afford a fund, then move
+        in. Mixed agent uses MMF once its cash sleeve is big.
+  WHY:  Build-20 agent showed funds ~= cash (late-game gates + idle cash).
