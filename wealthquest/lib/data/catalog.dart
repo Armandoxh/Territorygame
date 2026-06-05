@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../models/asset.dart';
+import '../models/education.dart';
 import '../models/job.dart';
 
 /// The single source of truth for the game's economy: starting conditions,
@@ -568,17 +569,60 @@ class Catalog {
     ),
   ];
 
-  /// The career ladder. Higher rungs unlock with age; the player picks one
-  /// in the Life tab.
-  // Pay is per month.
+  /// The career ladder. Entry jobs need nothing; better rungs require a degree
+  /// (see [degrees]) — a real time + money investment. Pay is per month.
   static const List<JobDef> jobs = [
-    JobDef(id: 'barista', title: 'Barista', pay: 1300, minAge: 18),
-    JobDef(id: 'retail', title: 'Retail Associate', pay: 1650, minAge: 18),
-    JobDef(id: 'junior_dev', title: 'Junior Developer', pay: 3700, minAge: 20),
-    JobDef(id: 'accountant', title: 'Accountant', pay: 5000, minAge: 22),
-    JobDef(id: 'engineer', title: 'Software Engineer', pay: 7400, minAge: 24),
-    JobDef(id: 'banker', title: 'Investment Banker', pay: 12000, minAge: 26),
+    JobDef(id: 'barista', title: 'Barista', pay: 1300),
+    JobDef(id: 'retail', title: 'Retail Associate', pay: 1650),
+    JobDef(
+        id: 'junior_dev',
+        title: 'Junior Developer',
+        pay: 3700,
+        requiredEdu: 1),
+    JobDef(id: 'accountant', title: 'Accountant', pay: 5000, requiredEdu: 2),
+    JobDef(
+        id: 'engineer',
+        title: 'Software Engineer',
+        pay: 7400,
+        requiredEdu: 2),
+    JobDef(
+        id: 'banker',
+        title: 'Investment Banker',
+        pay: 12000,
+        requiredEdu: 3),
   ];
+
+  /// Degree programs. Each is a study period (part-time pay while enrolled) and
+  /// tuition borrowed as a student loan that compounds until repaid.
+  static const List<DegreeDef> degrees = [
+    DegreeDef(
+      id: 'associate',
+      name: "Associate's Degree",
+      level: 1,
+      years: 2,
+      tuition: 18000,
+      blurb: 'Two years. Opens the door to skilled entry-level roles.',
+    ),
+    DegreeDef(
+      id: 'bachelor',
+      name: "Bachelor's Degree",
+      level: 2,
+      years: 4,
+      tuition: 60000,
+      blurb: 'Four years. The standard key to professional careers.',
+    ),
+    DegreeDef(
+      id: 'master',
+      name: "Master's Degree",
+      level: 3,
+      years: 6,
+      tuition: 110000,
+      blurb: 'Six years. Unlocks the highest-paying roles in the game.',
+    ),
+  ];
+
+  /// Annual interest rate on the outstanding student-loan balance.
+  static const double studentLoanRate = 0.06;
 
   // ---- Lookups (built once) ----
   static final Map<String, AssetDef> _byId = {

@@ -12,6 +12,7 @@ import '../engine/sports_engine.dart';
 import '../models/asset.dart';
 import '../models/bet.dart';
 import '../models/climate.dart';
+import '../models/education.dart';
 import '../models/holding.dart';
 import '../models/job.dart';
 import '../models/property.dart';
@@ -219,7 +220,11 @@ class GameController extends ChangeNotifier {
   }
 
   double get netWorth =>
-      cash + holdingsValue + propertiesEquity + pendingBetsValue;
+      cash +
+      holdingsValue +
+      propertiesEquity +
+      pendingBetsValue -
+      studentLoan;
 
   // ---- Sports betting ----
   /// Open wagers, valued at their stake until they resolve next month.
@@ -618,16 +623,75 @@ class GameController extends ChangeNotifier {
     return null;
   }
 
-  /// Switch to a different job from the ladder.
+  // ---- Education / careers ----
+  /// Highest credential earned: 0 none, 1 associate, 2 bachelor, 3 master.
+  int eduLevel = 0;
+
+  /// The degree currently being studied (null = not enrolled).
+  String? enrolledDegreeId;
+
+  /// Months left until the enrolled degree completes.
+  int enrollMonthsLeft = 0;
+
+  /// Outstanding student-loan balance (compounds monthly until repaid).
+  double studentLoan = 0;
+
+  bool get isStudying => enrolledDegreeId != null;
+
+  DegreeDef? get enrolledDegree {
+    final id = enrolledDegreeId;
+    if (id == null) return null;
+    for (final d in Catalog.degrees) {
+      if (d.id == id) return d;
+    }
+    return null;
+  }
+
+  /// Take-home pay this month — halved to part-time while you're studying.
+  double get effectivePay => isStudying ? job.pay * 0.5 : job.pay;
+
+  bool meetsEducation(JobDef j) => eduLevel >= j.requiredEdu;
+
+  /// Enroll in a degree: borrow the tuition as a student loan and start the
+  /// clock. You keep working part-time. Returns an error, or null on success.
+  String? enroll(DegreeDef d) {
+    if (isStudying) return "You're already enrolled in a program.";
+    if (eduLevel >= d.level) return 'You already hold this credential.';
+    studentLoan += d.tuition;
+    enrolledDegreeId = d.id;
+    enrollMonthsLeft = d.months;
+    _log('Enrolled in ${d.name} — borrowed ${_usd(d.tuition)}. '
+        'You go part-time (half pay) for ${d.years} years.');
+    notifyListeners();
+    return null;
+  }
+
+  /// Pay [amount] of cash toward the student loan (or all of it if [max]).
+  String? payStudentLoan(double amount, {bool max = false}) {
+    if (studentLoan <= 0) return 'No student loan to pay.';
+    final amt = max ? studentLoan : amount;
+    if (amt <= 0) return 'Enter an amount greater than \$0.';
+    if (amt > cash + 0.001) return 'Not enough cash.';
+    final applied = amt > studentLoan ? studentLoan : amt;
+    cash -= applied;
+    studentLoan -= applied;
+    if (studentLoan < 0.01) studentLoan = 0;
+    _log('Paid ${_usd(applied)} toward your student loan.');
+    notifyListeners();
+    return null;
+  }
+
+  /// Switch to a different job from the ladder. Requires the credential.
   void takeJob(JobDef j) {
     if (j.id == job.id) return;
+    if (!meetsEducation(j)) return; // UI prevents this, but guard anyway
     job = j;
     _log('New job: ${j.title} — \$${j.pay.toStringAsFixed(0)}/month.');
     notifyListeners();
   }
 
   List<JobDef> get availableJobs =>
-      Catalog.jobs.where((j) => ageYears >= j.minAge).toList();
+      Catalog.jobs.where((j) => ageYears >= j.minAge && meetsEducation(j)).toList();
 
   /// APY a liquid account actually earns given its balance (reduced when below
   /// the account's minimum balance).
@@ -651,11 +715,26 @@ class GameController extends ChangeNotifier {
     attendedEventThisMonth = false; // a fresh month, a fresh night out
     final events = <String>[];
 
-    // 1) Salary in, living expenses out.
-    final income = job.pay;
+    // 1) Salary in (part-time pay while studying), living expenses out.
+    final income = effectivePay;
     final expenses = dailyExpenses;
     cash += income;
     cash -= expenses;
+
+    // 1b) Education: advance any degree in progress, and compound the loan.
+    if (isStudying) {
+      enrollMonthsLeft -= 1;
+      if (enrollMonthsLeft <= 0) {
+        final d = enrolledDegree!;
+        eduLevel = eduLevel >= d.level ? eduLevel : d.level;
+        enrolledDegreeId = null;
+        enrollMonthsLeft = 0;
+        events.add('🎓 You earned your ${d.name}! New careers are open.');
+      }
+    }
+    if (studentLoan > 0) {
+      studentLoan *= (1 + Catalog.studentLoanRate / Catalog.stepsPerYear);
+    }
 
     // 2) Accrue interest and check CD maturities.
     var interest = 0.0;

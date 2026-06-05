@@ -423,4 +423,42 @@ void main() {
       expect(r.cashDelta, closeTo(g.cash - before, 1e-6));
     });
   });
+
+  group('Education & careers', () {
+    test('a degree-gated job is blocked until the degree is earned', () {
+      final g = GameController(seed: 1);
+      final banker = Catalog.jobs.firstWhere((j) => j.requiredEdu == 3);
+      g.takeJob(banker);
+      expect(g.job.id, isNot(banker.id)); // blocked, still entry job
+    });
+
+    test('enrolling borrows tuition, halves pay, and completes after the term',
+        () {
+      final g = GameController(seed: 1);
+      final assoc = Catalog.degrees.firstWhere((d) => d.level == 1);
+      final fullPay = g.job.pay;
+      expect(g.enroll(assoc), isNull);
+      expect(g.isStudying, isTrue);
+      expect(g.studentLoan, greaterThanOrEqualTo(assoc.tuition));
+      expect(g.effectivePay, closeTo(fullPay * 0.5, 1e-6));
+      for (var i = 0; i < assoc.months; i++) {
+        g.advanceDay();
+      }
+      expect(g.isStudying, isFalse);
+      expect(g.eduLevel, 1);
+      expect(g.effectivePay, closeTo(fullPay, 1e-6));
+    });
+
+    test('the student loan compounds and reduces net worth', () {
+      final g = GameController(seed: 1);
+      final bach = Catalog.degrees.firstWhere((d) => d.level == 2);
+      g.enroll(bach);
+      final loan0 = g.studentLoan;
+      g.advanceDay();
+      expect(g.studentLoan, greaterThan(loan0)); // interest accrued
+      g.cash = 200000;
+      expect(g.payStudentLoan(0, max: true), isNull);
+      expect(g.studentLoan, 0);
+    });
+  });
 }

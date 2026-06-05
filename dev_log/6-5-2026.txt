@@ -66,3 +66,15 @@ bet returns), and a Favorite/Underdog tag, with a clear selected state (highligh
 Rewrote the how-to banner in plain English incl. how to build a parlay. Slip now shows
 "2.60×" multipliers and "All N must win · pays X×" instead of combined American odds. Pure
 UI; betting logic/one-bet-per-game/Singles-Parlay toggle unchanged.
+build 36 (v0.22.0) — Jobs cost time + money via degrees (note 6, final of the batch).
+Switching jobs was free/age-gated; now better careers require a credential. New models/
+education.dart (DegreeDef + educationLabel); Catalog.degrees = Associate(2yr/$18k) /
+Bachelor(4yr/$60k) / Master(6yr/$110k), JobDef.requiredEdu gates junior_dev(1)/accountant+
+engineer(2)/banker(3). GameController gains eduLevel, enrolledDegreeId, enrollMonthsLeft,
+studentLoan + enroll()/payStudentLoan()/effectivePay/meetsEducation; per user's choices,
+enrolling borrows tuition as a student loan (compounds at studentLoanRate 6%/yr, subtracted
+from net worth) and drops you to PART-TIME (half pay) until you graduate. advanceDay ticks
+the term, completes the degree, compounds the loan. Hustl (life_tab) rebuilt: You card +
+in-progress study card + loan card (Pay loan) + Education (enroll w/ confirm) + gated
+Careers. Vault balance sheet + dashboard cash-flow/salary now reflect the loan and part-time
+pay. Tests added for gating, enroll→graduate, and loan compounding/payoff.

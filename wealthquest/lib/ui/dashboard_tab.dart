@@ -13,7 +13,8 @@ class DashboardTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final netCashFlow = game.job.pay + game.dailyPassiveIncome - game.dailyExpenses;
+    final netCashFlow =
+        game.effectivePay + game.dailyPassiveIncome - game.dailyExpenses;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
@@ -40,8 +41,10 @@ class DashboardTab extends StatelessWidget {
             Expanded(
               child: _StatCard(
                 label: 'Monthly salary',
-                value: money(game.job.pay),
-                sub: game.job.title,
+                value: money(game.effectivePay),
+                sub: game.isStudying
+                    ? '${game.job.title} (part-time)'
+                    : game.job.title,
                 color: kGain,
               ),
             ),
@@ -132,6 +135,10 @@ class _BalanceSheet extends StatelessWidget {
             if (liabilities > 0) ...[
               const SizedBox(height: 4),
               _line(theme, 'Mortgages owed', -liabilities, color: kLoss),
+            ],
+            if (game.studentLoan > 0) ...[
+              const SizedBox(height: 4),
+              _line(theme, 'Student loan', -game.studentLoan, color: kLoss),
             ],
             const Divider(height: 16),
             Row(
