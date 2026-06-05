@@ -130,3 +130,13 @@ Silver — safe havens; Crude Oil, Natural Gas, Copper, Wheat) under categoryId 
 to the macro cycle (bid in crash/downturn, drag in boom) instead of with beta. Commodities
 excluded from the rumor mill. mixed agent's vtm weight moved to divx. Tests for commodities +
 fast-forward added.
+build 43 (v0.26.0) — Crises & decisions (note 3a of the batch; user chose "frequent &
+punchy"). New models/crisis.dart (CrisisEvent + CrisisChoice) + data/crises.dart: a library
+of 10 blocking decision events (lawsuit, medical, startup buy-in, inheritance, repairs, tax
+audit, year-end bonus cash-vs-stock, shady tip, recession hedge→gold, buy-the-dip→S&P), most
+with stakes scaled to net worth so they still bite in a rich late game; some gated by regime.
+GameController: pendingCrisis + crisisChance 0.13/mo (fires after month 6, never stacks),
+DayResult.crisis flag, resolveCrisis(); advanceMonths now halts on a crisis too. UI:
+crisis_sheet.dart shows a non-dismissible decision dialog (pick → see outcome → continue),
+wired into nextMonth + fastForward after the recap/margin-call. Effects only apply on resolve
+so the agents/auditors (which never resolve) stay cash-flow-consistent. Tests added. Next: prestige/restart.

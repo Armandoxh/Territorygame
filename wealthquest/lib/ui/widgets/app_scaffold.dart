@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../state/game_controller.dart';
+import 'crisis_sheet.dart';
 import 'day_summary_dialog.dart';
 import 'margin_call_sheet.dart';
 import 'swipe_back.dart';
@@ -15,16 +16,23 @@ Future<void> nextMonth(BuildContext context, GameController game) async {
   if (r.marginCall && context.mounted) {
     await showMarginCall(context, game);
   }
+  if (game.pendingCrisis != null && context.mounted) {
+    await showCrisis(context, game);
+  }
 }
 
 /// Fast-forward [n] months (each one really simulated) and show one combined
-/// recap. Stops early — and surfaces the margin call — if you run out of cash.
+/// recap. Stops early — and surfaces the margin call or a pending decision —
+/// if one comes up.
 Future<void> fastForward(BuildContext context, GameController game, int n) async {
   final out = game.advanceMonths(n);
   if (!context.mounted) return;
   await showDaySummary(context, game, out.result, monthsCovered: out.months);
   if (out.result.marginCall && context.mounted) {
     await showMarginCall(context, game);
+  }
+  if (game.pendingCrisis != null && context.mounted) {
+    await showCrisis(context, game);
   }
 }
 

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../data/catalog.dart';
+import '../data/crises.dart';
 import '../data/life.dart';
 import '../data/properties.dart';
 import '../engine/climate_engine.dart';
@@ -12,6 +13,7 @@ import '../engine/sports_engine.dart';
 import '../models/asset.dart';
 import '../models/bet.dart';
 import '../models/climate.dart';
+import '../models/crisis.dart';
 import '../models/education.dart';
 import '../models/holding.dart';
 import '../models/job.dart';
@@ -33,6 +35,7 @@ class DayResult {
   final double cashAfter;
   final double overdraftFee; // 10% penalty charged while in the red
   final bool marginCall; // 4th month in the red — UI forces a liquidation
+  final bool crisis; // a decision event is pending — UI must resolve it
   final List<String> portfolioNotes; // shout-outs about your holdings & cash
   final List<String> events;
 
@@ -49,6 +52,7 @@ class DayResult {
     required this.cashAfter,
     this.overdraftFee = 0,
     this.marginCall = false,
+    this.crisis = false,
     this.portfolioNotes = const [],
     required this.events,
   });
@@ -97,6 +101,24 @@ class GameController extends ChangeNotifier {
   void clearOverdraftStreak() {
     monthsCashNegative = 0;
     notifyListeners();
+  }
+
+  // ---- Crises / decisions ----
+  /// A pending decision event the player must resolve (blocks fast-forward).
+  CrisisEvent? pendingCrisis;
+
+  /// Monthly chance a crisis fires (~one every 7-8 months) once you're settled.
+  static const double crisisChance = 0.13;
+
+  /// Apply the chosen option to the pending crisis and clear it. Returns the
+  /// outcome line to show the player.
+  String resolveCrisis(CrisisChoice choice) {
+    final title = pendingCrisis?.title ?? 'Decision';
+    final result = choice.apply(this, _rng);
+    pendingCrisis = null;
+    _log('$title — $result');
+    notifyListeners();
+    return result;
   }
 
   // ---- Life / events ----
@@ -1004,6 +1026,14 @@ class GameController extends ChangeNotifier {
       _purchasedThisYear.clear(); // annual purchase caps reset each year
     }
 
+    // 6b) Life happens: occasionally a crisis/decision interrupts. Settle in
+    //     for a few months first, and never stack two at once.
+    var crisisTriggered = false;
+    if (pendingCrisis == null && day > 6 && _rng.nextDouble() < crisisChance) {
+      pendingCrisis = Crises.pick(this, _rng);
+      crisisTriggered = pendingCrisis != null;
+    }
+
     // 7) Publish next week's edition of rumors.
     currentRumors = NewsEngine.generateEdition(_rng, day);
 
@@ -1023,6 +1053,7 @@ class GameController extends ChangeNotifier {
       cashAfter: cash,
       overdraftFee: overdraftFee,
       marginCall: marginCall,
+      crisis: crisisTriggered,
       portfolioNotes: portfolioNotes,
       events: events,
     );
@@ -1053,6 +1084,7 @@ class GameController extends ChangeNotifier {
         fee = 0.0;
     final events = <String>[];
     var marginCall = false;
+    var crisis = false;
     var done = 0;
     for (var i = 0; i < n; i++) {
       final r = advanceDay();
@@ -1065,10 +1097,10 @@ class GameController extends ChangeNotifier {
       fee += r.overdraftFee;
       events.addAll(r.events);
       done++;
-      if (r.marginCall) {
-        marginCall = true;
-        break;
-      }
+      if (r.marginCall) marginCall = true;
+      if (r.crisis) crisis = true;
+      // A margin call or a pending decision must be handled before going on.
+      if (r.marginCall || r.crisis) break;
     }
     final agg = DayResult(
       income: income,
@@ -1079,6 +1111,7 @@ class GameController extends ChangeNotifier {
       mortgage: mortgage,
       overdraftFee: fee,
       marginCall: marginCall,
+      crisis: crisis,
       netWorthBefore: before,
       netWorthAfter: netWorth,
       cashBefore: cashStart,

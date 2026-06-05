@@ -504,4 +504,26 @@ void main() {
       expect(g.sell(h, 0, max: true), isNull);
     });
   });
+
+  group('Crises & decisions', () {
+    test('a decision event fires and a choice resolves it', () {
+      final g = GameController(seed: 5)..cash = 50000;
+      var fired = false;
+      for (var i = 0; i < 300 && !fired; i++) {
+        if (g.advanceDay().crisis) fired = true;
+      }
+      expect(fired, isTrue, reason: 'a crisis should fire within 300 months');
+      expect(g.pendingCrisis, isNotNull);
+      final outcome = g.resolveCrisis(g.pendingCrisis!.choices.first);
+      expect(outcome, isNotEmpty);
+      expect(g.pendingCrisis, isNull); // cleared after the choice
+    });
+
+    test('fast-forward halts on a pending decision (or margin call)', () {
+      final g = GameController(seed: 5)..cash = 50000;
+      final out = g.advanceMonths(300);
+      expect(out.months, lessThan(300)); // something interrupted the run
+      expect(g.pendingCrisis != null || out.result.marginCall, isTrue);
+    });
+  });
 }
