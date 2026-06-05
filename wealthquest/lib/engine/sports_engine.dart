@@ -18,26 +18,37 @@ class SportsEngine {
     'Raptors', 'Comets', 'Bandits',
   ];
 
-  static const List<String> _sports = ['🏈', '🏀', '⚾', '⚽', '🏒', '🎾'];
+  /// [name, emoji] per sport — the slate has a section for each.
+  static const List<List<String>> sports = [
+    ['Football', '🏈'],
+    ['Basketball', '🏀'],
+    ['Baseball', '⚾'],
+    ['Soccer', '⚽'],
+    ['Hockey', '🏒'],
+    ['Tennis', '🎾'],
+  ];
+
+  static const int gamesPerSport = 2;
 
   static List<SportsEvent> generateSlate(Random rng, int startId) {
-    final pool = List<String>.of(_teams)..shuffle(rng);
     final events = <SportsEvent>[];
     var id = startId;
-    for (var i = 0;
-        i + 1 < pool.length && events.length < eventsPerSlate;
-        i += 2) {
-      final p = 0.30 + rng.nextDouble() * 0.40; // home win prob 0.30–0.70
-      events.add(SportsEvent(
-        id: id++,
-        sport: _sports[rng.nextInt(_sports.length)],
-        home: pool[i],
-        away: pool[i + 1],
-        homeProb: p,
-        // Fair payout shaved by the vig -> EV per $1 is exactly -vig on each side.
-        homeDecimal: (1 / p) * (1 - vig),
-        awayDecimal: (1 / (1 - p)) * (1 - vig),
-      ));
+    for (final s in sports) {
+      final pool = List<String>.of(_teams)..shuffle(rng);
+      for (var g = 0; g < gamesPerSport; g++) {
+        final p = 0.30 + rng.nextDouble() * 0.40; // home win prob 0.30–0.70
+        events.add(SportsEvent(
+          id: id++,
+          sportName: s[0],
+          sport: s[1],
+          home: pool[g * 2],
+          away: pool[g * 2 + 1],
+          homeProb: p,
+          // Fair payout shaved by the vig -> EV per $1 is exactly -vig per leg.
+          homeDecimal: (1 / p) * (1 - vig),
+          awayDecimal: (1 / (1 - p)) * (1 - vig),
+        ));
+      }
     }
     return events;
   }

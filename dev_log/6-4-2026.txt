@@ -414,3 +414,17 @@
         -EV odds, resolves-and-clears.
   WHY:  User: "have a sports betting app." A high-variance, -EV money
         sink — the degenerate cousin of crypto.
+
+2026-06-04  WealthQuest (build 26): parlays + per-sport sections (DraftDay)
+  WHAT: DraftDay now has a section per sport (Football/Basketball/Baseball/
+        Soccer/Hockey/Tennis, 2 games each) and PARLAYS. models/bet.dart
+        gains ParlayLeg; PendingBet now holds a list of leg labels (title
+        getter, isParlay). Engine slate generates per-sport with a
+        sportName. Controller: placeParlay(legs, stake) — odds and win-prob
+        multiply across legs (vig compounds, so parlays are worse EV);
+        placeBet is now a 1-leg parlay. ui/sports_app.dart rewritten with a
+        DraftKings-style BET SLIP: tap odds to add picks (highlighted),
+        2+ picks = a parlay, live combined odds + to-win, stake field,
+        place. Open bets show parlay legs. Tests: parlay multiplies odds +
+        net-worth-neutral.
+  WHY:  User: "add parlays like DraftKings; add a section for each sport."

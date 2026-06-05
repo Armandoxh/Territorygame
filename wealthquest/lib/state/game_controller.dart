@@ -167,20 +167,38 @@ class GameController extends ChangeNotifier {
     return sum;
   }
 
-  /// Place [stake] on the home (or away) side of an event. Returns an error
-  /// string, or null on success.
-  String? placeBet(SportsEvent e, bool home, double stake) {
+  /// Place [stake] on the home (or away) side of one event (a straight bet).
+  String? placeBet(SportsEvent e, bool home, double stake) => placeParlay([
+        ParlayLeg(
+          label: '${home ? e.home : e.away} (vs ${home ? e.away : e.home})',
+          decimalOdds: home ? e.homeDecimal : e.awayDecimal,
+          winProb: home ? e.homeProb : 1 - e.homeProb,
+        )
+      ], stake);
+
+  /// Place a wager across [legs]: one leg is a straight bet; 2+ legs is a
+  /// parlay where every leg must hit (odds and the long-shot both multiply).
+  String? placeParlay(List<ParlayLeg> legs, double stake) {
+    if (legs.isEmpty) return 'Add at least one pick.';
     if (stake <= 0) return 'Enter a stake greater than \$0.';
     if (stake > cash + 0.001) return 'Not enough cash.';
     cash -= stake;
+    var dec = 1.0;
+    var prob = 1.0;
+    for (final l in legs) {
+      dec *= l.decimalOdds;
+      prob *= l.winProb;
+    }
     bets.add(PendingBet(
       id: _nextBetId++,
-      label: '${home ? e.home : e.away} (vs ${home ? e.away : e.home})',
+      legs: [for (final l in legs) l.label],
       stake: stake,
-      decimalOdds: home ? e.homeDecimal : e.awayDecimal,
-      winProb: home ? e.homeProb : 1 - e.homeProb,
+      decimalOdds: dec,
+      winProb: prob,
     ));
-    _log('Placed \$${stake.toStringAsFixed(0)} on ${home ? e.home : e.away}.');
+    _log(legs.length == 1
+        ? 'Placed \$${stake.toStringAsFixed(0)} on ${legs.first.label}.'
+        : 'Placed a \$${stake.toStringAsFixed(0)} ${legs.length}-leg parlay.');
     notifyListeners();
     return null;
   }
@@ -702,9 +720,9 @@ class GameController extends ChangeNotifier {
         final payout = b.stake * b.decimalOdds;
         cash += payout;
         events.add(
-            '🎉 Bet won: +\$${(payout - b.stake).toStringAsFixed(0)} on ${b.label}.');
+            '🎉 Bet won: +\$${(payout - b.stake).toStringAsFixed(0)} on ${b.title}.');
       } else {
-        events.add('❌ Bet lost: −\$${b.stake.toStringAsFixed(0)} on ${b.label}.');
+        events.add('❌ Bet lost: −\$${b.stake.toStringAsFixed(0)} on ${b.title}.');
       }
     }
     bets.clear();

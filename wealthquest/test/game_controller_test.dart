@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wealthquest/data/catalog.dart';
 import 'package:wealthquest/data/properties.dart';
 import 'package:wealthquest/models/asset.dart';
+import 'package:wealthquest/models/bet.dart';
 import 'package:wealthquest/models/property.dart';
 import 'package:wealthquest/state/game_controller.dart';
 
@@ -327,6 +328,23 @@ void main() {
       expect(g.bets, isNotEmpty);
       g.advanceDay();
       expect(g.bets, isEmpty); // resolved
+    });
+
+    test('a parlay multiplies the legs odds and stays net-worth-neutral', () {
+      final g = GameController(seed: 1);
+      g.cash = 1000;
+      final e1 = g.sportsSlate[0];
+      final e2 = g.sportsSlate[1];
+      final legs = [
+        ParlayLeg(label: 'a', decimalOdds: e1.homeDecimal, winProb: e1.homeProb),
+        ParlayLeg(
+            label: 'b', decimalOdds: e2.awayDecimal, winProb: 1 - e2.homeProb),
+      ];
+      expect(g.placeParlay(legs, 50), isNull);
+      final bet = g.bets.last;
+      expect(bet.isParlay, isTrue);
+      expect(bet.decimalOdds, closeTo(e1.homeDecimal * e2.awayDecimal, 1e-9));
+      expect(g.netWorth, closeTo(1000, 1.0)); // cash 950 + pending 50
     });
   });
 }
