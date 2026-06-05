@@ -112,13 +112,13 @@ class Catalog {
       kind: AssetKind.fund,
       apy: 0.065,
       termDays: 12,
-      minInvestment: 50000,
+      minInvestment: 20000,
       sector: 'Credit',
       insured: false,
       lockKind: LockKind.penalty,
       earlyPenalty: 0.5,
       crashLoss: 0.03,
-      blurb: '~6.5% yield, \$50k minimum. Pull out before a year and you '
+      blurb: '~6.5% yield, \$20k minimum. Pull out before a year and you '
           'forfeit half your gains. Dips in bad years.',
     ),
     AssetDef(
@@ -129,12 +129,12 @@ class Catalog {
       kind: AssetKind.fund,
       apy: 0.085,
       termDays: 24,
-      minInvestment: 250000,
+      minInvestment: 100000,
       sector: 'Credit',
       insured: false,
       lockKind: LockKind.hard,
       crashLoss: 0.06,
-      blurb: '~8.5% for \$250k, hard-locked 2 years. Real drawdowns when the '
+      blurb: '~8.5% for \$100k, hard-locked 2 years. Real drawdowns when the '
           'economy turns.',
     ),
     AssetDef(
@@ -145,12 +145,12 @@ class Catalog {
       kind: AssetKind.fund,
       apy: 0.11,
       termDays: 36,
-      minInvestment: 1000000,
+      minInvestment: 400000,
       sector: 'Alternatives',
       insured: false,
       lockKind: LockKind.hard,
       crashLoss: 0.10,
-      blurb: '~11% for the \$1M club, hard-locked 3 years. Big swings; ugly '
+      blurb: '~11% for the \$400k club, hard-locked 3 years. Big swings; ugly '
           'years happen.',
     ),
     AssetDef(

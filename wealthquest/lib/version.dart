@@ -4,7 +4,7 @@
 /// notable features) — see wealthquest/CLAUDE.md. The badge pinned at the top
 /// of the home header shows this, so you can instantly confirm the live page is
 /// the latest build (and not a stale cache).
-const String kAppVersion = '0.12.0';
-const int kBuildNumber = 20;
+const String kAppVersion = '0.12.1';
+const int kBuildNumber = 21;
 
 String get appVersionLabel => 'v$kAppVersion · build $kBuildNumber';

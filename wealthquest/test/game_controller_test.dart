@@ -255,9 +255,9 @@ void main() {
   group('Yield funds', () {
     test('funds enforce a high entry minimum', () {
       final g = GameController(seed: 1);
-      g.cash = 20000;
-      // Income Fund needs \$50k.
-      expect(g.buy(Catalog.assetById('income_fund'), 20000), isNotNull);
+      g.cash = 15000;
+      // Income Fund needs \$20k.
+      expect(g.buy(Catalog.assetById('income_fund'), 15000), isNotNull);
     });
 
     test('penalty-lock fund forfeits a slice of gains on early exit', () {

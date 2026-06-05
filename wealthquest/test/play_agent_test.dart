@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wealthquest/data/catalog.dart';
 import 'package:wealthquest/models/climate.dart';
+import 'package:wealthquest/models/holding.dart';
 import 'package:wealthquest/state/game_controller.dart';
 
 /// Automated players ("agents") that exercise the real game logic via
@@ -83,6 +84,32 @@ Strategy _tunnel(String id) => (g) {
       }
     };
 
+Holding? _hysaHolding(GameController g) {
+  for (final h in g.holdings) {
+    if (h.assetId == 'hysa') return h;
+  }
+  return null;
+}
+
+/// Like a real player saving toward a high-entry fund: park spare cash in a
+/// HYSA (earning 4%) until you can afford the fund, then move it in.
+Strategy _ladderInto(String fundId) => (g) {
+      _takeBestJob(g);
+      final fund = Catalog.assetById(fundId);
+      final buffer = g.dailyExpenses * 3;
+      final hysa = _hysaHolding(g);
+      final liquid = g.cash + (hysa?.balance ?? 0);
+      if (liquid - buffer >= fund.minInvestment) {
+        if (hysa != null) g.sell(hysa, hysa.balance, max: true);
+        final investable = g.cash - buffer;
+        if (investable >= fund.minInvestment) g.buy(fund, investable);
+      } else {
+        final investable = g.cash - buffer;
+        final hysaDef = Catalog.assetById('hysa');
+        if (investable >= hysaDef.minInvestment) g.buy(hysaDef, investable);
+      }
+    };
+
 // ---------------------------------------------------------------------------
 // AGENT 2: MIXED — diversified, de-risks into insured cash in bad climates.
 // ---------------------------------------------------------------------------
@@ -93,6 +120,8 @@ void mixed(GameController g) {
   if (investable < 50) return;
   final defensive =
       g.regime == MarketRegime.downturn || g.regime == MarketRegime.crash;
+  // Climb the cash ladder: use the higher-yield MMF once the sleeve is big.
+  final cashId = (investable * 0.20) >= 10000 ? 'mmf' : 'hysa';
   final plan = defensive
       ? <(String, double)>[('hysa', 1.0)]
       : <(String, double)>[
@@ -100,7 +129,7 @@ void mixed(GameController g) {
           ('vtm', 0.15),
           ('bndx', 0.15),
           ('btq', 0.10),
-          ('hysa', 0.20),
+          (cashId, 0.20),
         ];
   for (final (id, weight) in plan) {
     final def = Catalog.assetById(id);
@@ -122,15 +151,14 @@ void main() {
           'horizon: $years years · seeds: ${seeds.length}')
       ..writeln('')
       ..writeln('TUNNEL agents (all-in on one thing):');
-    for (final id in const [
-      'hysa',
-      'tbond',
-      'income_fund',
-      'spx',
-      'mega',
-      'btq'
-    ]) {
+    for (final id in const ['hysa', 'tbond', 'spx', 'mega', 'btq']) {
       out.writeln(_summarize(Catalog.assetById(id).name, _tunnel(id), seeds, months));
+    }
+    out.writeln('');
+    out.writeln('LADDER agents (save in HYSA, then climb into the fund):');
+    for (final id in const ['income_fund', 'priv_credit', 'hedge_fund']) {
+      out.writeln(_summarize(
+          Catalog.assetById(id).name, _ladderInto(id), seeds, months));
     }
     out
       ..writeln('')
