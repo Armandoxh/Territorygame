@@ -7,3 +7,11 @@ any parlay that lists the same game twice) in placeParlay; added hasBetOn(eventI
 The DraftDay UI now locks a matchup once it's bet — the odds buttons are replaced by
 a "Bet placed — settles next month" lock row. Added regression tests for both the
 straight-bet and parlay duplicate cases.
+build 28 (v0.17.0) — Explicit Singles/Parlay slip. The old DraftDay slip auto-fused
+any 2+ picks into a single parlay, with no real "create parlay" affordance — the user
+asked for a button. Reworked SportsBody so the slip now defaults to Singles (each pick
+its own bet with its own stake field + per-pick to-win) and, once you have 2+ picks,
+shows a SegmentedButton toggle to flip to Parlay (one combined stake, multiplied odds,
+all-must-hit). _placeSingles places each staked pick as its own straight bet and leaves
+un-staked picks in the slip; _placeParlay combines. Per-pick stake controllers are
+tracked in a Map keyed by eventId and disposed on remove/clear. No engine change.

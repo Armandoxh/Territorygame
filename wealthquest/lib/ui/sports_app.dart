@@ -29,15 +29,30 @@ class _SlipLeg {
 
 class _SportsBodyState extends State<SportsBody> {
   final List<_SlipLeg> _slip = [];
+
+  /// Stake field for a combined parlay (singles use their own per-pick fields).
   final _stakeCtrl = TextEditingController();
+
+  /// Per-pick stake fields, keyed by event id, for the Singles view.
+  final Map<int, TextEditingController> _singleCtrls = {};
+
+  /// Singles (false) vs Parlay (true). You start in Singles and tap "Parlay"
+  /// to deliberately combine your picks — that toggle IS "create a parlay".
+  bool _parlayMode = false;
 
   GameController get game => widget.game;
 
   @override
   void dispose() {
     _stakeCtrl.dispose();
+    for (final c in _singleCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
+
+  TextEditingController _ctrlFor(int eventId) =>
+      _singleCtrls.putIfAbsent(eventId, () => TextEditingController());
 
   void _toggle(SportsEvent e, bool home) {
     setState(() {
@@ -53,6 +68,7 @@ class _SportsBodyState extends State<SportsBody> {
         _slip.add(leg);
       } else if (_slip[i].home == home) {
         _slip.removeAt(i); // tapping the same side again removes it
+        _singleCtrls.remove(e.id)?.dispose();
       } else {
         _slip[i] = leg; // swap to the other side
       }
@@ -62,7 +78,62 @@ class _SportsBodyState extends State<SportsBody> {
   bool _selected(int eventId, bool home) =>
       _slip.any((l) => l.eventId == eventId && l.home == home);
 
-  void _place() {
+  void _removeLeg(int eventId) {
+    setState(() {
+      _slip.removeWhere((x) => x.eventId == eventId);
+      _singleCtrls.remove(eventId)?.dispose();
+    });
+  }
+
+  void _clearSlip() {
+    setState(() {
+      _slip.clear();
+      for (final c in _singleCtrls.values) {
+        c.dispose();
+      }
+      _singleCtrls.clear();
+      _stakeCtrl.clear();
+    });
+  }
+
+  /// Place every picked leg as its own straight bet (each with its own stake).
+  /// Picks with no stake are left in the slip; the rest are cleared.
+  void _placeSingles() {
+    final placed = <int>[];
+    String? firstErr;
+    for (final l in List.of(_slip)) {
+      final stake = double.tryParse(_ctrlFor(l.eventId).text) ?? 0;
+      if (stake <= 0) continue;
+      final err = game.placeParlay([
+        ParlayLeg(
+          eventId: l.eventId,
+          label: l.label,
+          decimalOdds: l.decimalOdds,
+          winProb: l.winProb,
+        )
+      ], stake);
+      if (err != null) {
+        firstErr ??= err;
+      } else {
+        placed.add(l.eventId);
+      }
+    }
+    if (placed.isEmpty) {
+      _toast(firstErr ?? 'Enter a stake on at least one pick.');
+      return;
+    }
+    setState(() {
+      for (final id in placed) {
+        _slip.removeWhere((x) => x.eventId == id);
+        _singleCtrls.remove(id)?.dispose();
+      }
+    });
+    _toast(firstErr ??
+        'Placed ${placed.length} single${placed.length == 1 ? '' : 's'}. Good luck.');
+  }
+
+  /// Combine all picks into one parlay (every leg must hit; odds multiply).
+  void _placeParlay() {
     final stake = double.tryParse(_stakeCtrl.text) ?? 0;
     final legs = [
       for (final l in _slip)
@@ -78,11 +149,8 @@ class _SportsBodyState extends State<SportsBody> {
       _toast(err);
       return;
     }
-    setState(() {
-      _slip.clear();
-      _stakeCtrl.clear();
-    });
-    _toast('Bet placed. Resolves on Next Month — good luck.');
+    _clearSlip();
+    _toast('Parlay placed. Resolves on Next Month — good luck.');
   }
 
   void _toast(String m) {
@@ -107,6 +175,7 @@ class _SportsBodyState extends State<SportsBody> {
           ),
           child: Text(
             '⚠ House edge ~6% per leg — and a parlay multiplies the vig too. '
+            'Tap odds to add picks, then choose Singles or Parlay in your slip. '
             'Bets resolve on Next Month. For fun, not your retirement.',
             style: theme.textTheme.bodySmall,
           ),
@@ -124,13 +193,7 @@ class _SportsBodyState extends State<SportsBody> {
   }
 
   Widget _buildSlip(ThemeData theme) {
-    var dec = 1.0;
-    for (final l in _slip) {
-      dec *= l.decimalOdds;
-    }
-    final stake = double.tryParse(_stakeCtrl.text) ?? 0;
-    final payout = stake * dec;
-    final isParlay = _slip.length > 1;
+    final showParlay = _parlayMode && _slip.length >= 2;
     return Card(
       color: theme.colorScheme.primary.withOpacity(0.10),
       child: Padding(
@@ -141,41 +204,161 @@ class _SportsBodyState extends State<SportsBody> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(isParlay ? 'Parlay slip (${_slip.length} legs)' : 'Bet slip',
-                    style: theme.textTheme.titleMedium),
+                Text('Bet slip', style: theme.textTheme.titleMedium),
                 TextButton(
-                  onPressed: () => setState(_slip.clear),
+                  onPressed: _clearSlip,
                   child: const Text('Clear'),
                 ),
               ],
             ),
-            ..._slip.map((l) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text(l.label, style: theme.textTheme.bodyMedium)),
-                      Text(SportsEngine.american(l.decimalOdds),
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.bold)),
-                      IconButton(
-                        visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.close, size: 16),
-                        onPressed: () =>
-                            setState(() => _slip.removeWhere((x) => x.eventId == l.eventId)),
-                      ),
-                    ],
-                  ),
-                )),
-            if (isParlay)
-              Text('Combined: ${SportsEngine.american(dec)}',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.bold, color: kGain)),
+            // 2+ picks unlock the Singles/Parlay choice — that's how you make
+            // a parlay: add picks, then tap "Parlay" to combine them.
+            if (_slip.length >= 2) ...[
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<bool>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(
+                      value: false,
+                      label: Text('Singles'),
+                      icon: Icon(Icons.receipt_long, size: 18),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: Text('Parlay'),
+                      icon: Icon(Icons.auto_awesome, size: 18),
+                    ),
+                  ],
+                  selected: {_parlayMode},
+                  onSelectionChanged: (s) =>
+                      setState(() => _parlayMode = s.first),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                showParlay
+                    ? 'One bet — all ${_slip.length} picks must hit. Odds multiply, one stake.'
+                    : 'Each pick is placed as its own bet with its own stake.',
+                style: theme.textTheme.labelSmall,
+              ),
+            ],
             const SizedBox(height: 8),
-            Row(
+            if (showParlay) _buildParlay(theme) else _buildSingles(theme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildParlay(ThemeData theme) {
+    var dec = 1.0;
+    for (final l in _slip) {
+      dec *= l.decimalOdds;
+    }
+    final stake = double.tryParse(_stakeCtrl.text) ?? 0;
+    final payout = stake * dec;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ..._slip.map((l) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  Expanded(
+                      child:
+                          Text(l.label, style: theme.textTheme.bodyMedium)),
+                  Text(SportsEngine.american(l.decimalOdds),
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close, size: 16),
+                    onPressed: () => _removeLeg(l.eventId),
+                  ),
+                ],
+              ),
+            )),
+        Text('Combined odds: ${SportsEngine.american(dec)}',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.bold, color: kGain)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _stakeCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  prefixText: '\$ ',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                  labelText: 'Parlay stake',
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('to win', style: theme.textTheme.labelSmall),
+                Text(money(payout),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold, color: kGain)),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        FilledButton(
+          onPressed: stake > 0 ? _placeParlay : null,
+          child: Text('Place ${_slip.length}-leg parlay'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSingles(ThemeData theme) {
+    var totalStake = 0.0;
+    var totalPayout = 0.0;
+    var staked = 0;
+    for (final l in _slip) {
+      final s = double.tryParse(_ctrlFor(l.eventId).text) ?? 0;
+      if (s > 0) staked++;
+      totalStake += s;
+      totalPayout += s * l.decimalOdds;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ..._slip.map((l) {
+          final ctrl = _ctrlFor(l.eventId);
+          final s = double.tryParse(ctrl.text) ?? 0;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
               children: [
                 Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l.label, style: theme.textTheme.bodyMedium),
+                      Text(SportsEngine.american(l.decimalOdds),
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 88,
                   child: TextField(
-                    controller: _stakeCtrl,
+                    controller: ctrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
@@ -183,33 +366,54 @@ class _SportsBodyState extends State<SportsBody> {
                     ],
                     onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(
-                      prefixText: '\$ ',
+                      prefixText: '\$',
                       isDense: true,
                       border: OutlineInputBorder(),
                       labelText: 'Stake',
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('to win', style: theme.textTheme.labelSmall),
-                    Text(money(payout),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold, color: kGain)),
-                  ],
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 60,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('win', style: theme.textTheme.labelSmall),
+                      Text(s > 0 ? money(s * l.decimalOdds) : '—',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: kGain, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.close, size: 16),
+                  onPressed: () => _removeLeg(l.eventId),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            FilledButton(
-              onPressed: stake > 0 ? _place : null,
-              child: Text(isParlay ? 'Place parlay' : 'Place bet'),
-            ),
-          ],
+          );
+        }),
+        if (_slip.length >= 2) ...[
+          const Divider(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Total stake ${money(totalStake)}',
+                  style: theme.textTheme.bodySmall),
+              Text('to win ${money(totalPayout)}',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: kGain, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ],
+        const SizedBox(height: 10),
+        FilledButton(
+          onPressed: staked > 0 ? _placeSingles : null,
+          child: Text(staked <= 1 ? 'Place bet' : 'Place $staked singles'),
         ),
-      ),
+      ],
     );
   }
 
