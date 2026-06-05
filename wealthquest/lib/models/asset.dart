@@ -14,6 +14,7 @@ enum AssetKind {
   stock, // price-based, random walk, may pay dividends
   etf, // price-based, lower volatility basket, may pay dividends
   crypto, // price-based, high volatility
+  commodity, // price-based, no income; metals act as safe havens
 }
 
 /// How a holding's lock-up works.
@@ -33,7 +34,8 @@ extension AssetKindX on AssetKind {
       this == AssetKind.bond ||
       this == AssetKind.stock ||
       this == AssetKind.etf ||
-      this == AssetKind.crypto;
+      this == AssetKind.crypto ||
+      this == AssetKind.commodity;
 
   bool get isEquity => this == AssetKind.stock || this == AssetKind.etf;
 
@@ -55,6 +57,8 @@ extension AssetKindX on AssetKind {
         return 'ETF';
       case AssetKind.crypto:
         return 'Crypto';
+      case AssetKind.commodity:
+        return 'Commodity';
     }
   }
 }
@@ -150,6 +154,10 @@ class AssetDef {
   /// Multiplied up in downturns/crashes. 0 = no default risk (Treasuries).
   final double defaultRisk;
 
+  /// A safe-haven asset (gold/silver) that rises when the market is fearful and
+  /// lags when it's greedy — moves COUNTER to the macro cycle.
+  final bool safeHaven;
+
   final String blurb;
 
   const AssetDef({
@@ -178,6 +186,7 @@ class AssetDef {
     this.earlyPenalty = 0,
     this.crashLoss = 0,
     this.defaultRisk = 0,
+    this.safeHaven = false,
     this.blurb = '',
   });
 

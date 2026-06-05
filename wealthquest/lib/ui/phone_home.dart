@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
 import '../version.dart';
+import 'commodities_app.dart';
 import 'dashboard_tab.dart';
 import 'invest_app.dart';
 import 'life_app.dart';
@@ -126,6 +127,17 @@ class _PhoneHomeState extends State<PhoneHome> {
                         icon: Icons.spa,
                         color: const Color(0xFF00897B),
                         onTap: () => _open(LifeApp(game: game)),
+                      ),
+                      _AppIcon(
+                        label: 'Comex',
+                        sub: 'Commodities',
+                        icon: Icons.diamond,
+                        color: const Color(0xFFB8860B),
+                        onTap: () => _open(AppScaffold(
+                          game: game,
+                          title: 'Comex',
+                          body: (_) => CommoditiesBody(game: game),
+                        )),
                       ),
                     ],
                   ),

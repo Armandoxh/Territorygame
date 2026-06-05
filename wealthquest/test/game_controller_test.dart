@@ -483,4 +483,25 @@ void main() {
       expect(out.months, lessThanOrEqualTo(4)); // stopped at the margin call
     });
   });
+
+  group('Commodities', () {
+    test('exist, flag safe havens, and stay out of the Sherwood market tabs',
+        () {
+      final commodities = Catalog.assetsInCategory('commodities');
+      expect(commodities, isNotEmpty);
+      expect(commodities.every((a) => a.kind == AssetKind.commodity), isTrue);
+      expect(commodities.any((a) => a.id == 'gold' && a.safeHaven), isTrue);
+      // Not part of the investing app's category tabs — they live in Comex.
+      expect(Catalog.categories.any((c) => c.id == 'commodities'), isFalse);
+    });
+
+    test('a safe-haven metal can be bought and sold like any price asset', () {
+      final g = GameController(seed: 1)..cash = 10000;
+      final gold = Catalog.assetById('gold');
+      expect(g.buy(gold, 5000), isNull);
+      final h = g.holdings.firstWhere((x) => x.assetId == 'gold');
+      expect(g.valueOf(h), closeTo(5000, 1));
+      expect(g.sell(h, 0, max: true), isNull);
+    });
+  });
 }

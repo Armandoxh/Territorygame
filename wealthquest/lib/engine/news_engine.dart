@@ -32,8 +32,11 @@ class NewsEngine {
         picks.add(pool[rng.nextInt(pool.length)]);
       }
     }
-    // One wildcard from any price-based asset (could be a bond or a repeat kind).
-    final all = Catalog.assets.where((a) => a.kind.isPriceBased).toList();
+    // One wildcard from any price-based asset (could be a bond or a repeat
+    // kind). Commodities trade in their own app and stay out of the rumor mill.
+    final all = Catalog.assets
+        .where((a) => a.kind.isPriceBased && a.kind != AssetKind.commodity)
+        .toList();
     if (all.isNotEmpty) picks.add(all[rng.nextInt(all.length)]);
 
     // Dedupe (keep first), then shuffle for presentation order.

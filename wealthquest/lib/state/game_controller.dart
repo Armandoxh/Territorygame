@@ -809,7 +809,19 @@ class GameController extends ChangeNotifier {
       final regimeDrift = regime.isCrash
           ? regime.weeklyDrift
           : regime.weeklyDrift * Catalog.driftStepFactor;
-      mb += regimeDrift * ClimateEngine.beta(a);
+      if (a.safeHaven) {
+        // Counter-cyclical: a bid in fear, a drag in greed (inverse to the
+        // macro cycle instead of moving with it).
+        if (regime.isCrash) {
+          mb += 0.05;
+        } else if (regime == MarketRegime.downturn) {
+          mb += 0.015 * Catalog.driftStepFactor;
+        } else if (regime == MarketRegime.boom) {
+          mb -= 0.006 * Catalog.driftStepFactor;
+        }
+      } else {
+        mb += regimeDrift * ClimateEngine.beta(a);
+      }
       if (sectorEvent != null && a.sector == sectorEvent!.sector) {
         mb += sectorEvent!.dir * sectorEvent!.magnitude;
       }

@@ -119,3 +119,14 @@ bar — "Next Month" + "6 mo" + "12 mo" (FittedBox so it never overflows) — wi
 home, AppScaffold, invest_app, life_app. The recap takes monthsCovered to retitle ("12
 months · now Age X" / "Net change"). Tests: advanceMonths advances the clock 12 + aggregates;
 fast-forward halts at a margin call. Next in batch: trim investments + commodities app; endgame.
+build 42 (v0.25.0) — Trim true dupes + Comex commodities app (note 2 of the batch; user
+chose "merge true dupes only"). Removed VTM (Total Market ETF) — drift 0.0016/vol 0.024/div
+1.4% was a statistical clone of SPX; everything else is genuinely differentiated so it stays.
+Added a commodities desk: new AssetKind.commodity + AssetDef.safeHaven flag; six goods (Gold,
+Silver — safe havens; Crude Oil, Natural Gas, Copper, Wheat) under categoryId 'commodities'
+(deliberately NOT in Catalog.categories so they don't clutter Sherwood). New Comex app
+(commodities_app.dart) lists them with a safe-haven badge; trade via the normal detail screen
+(buy/sell/short), positions show in the portfolio. advanceDay: safe-haven assets move COUNTER
+to the macro cycle (bid in crash/downturn, drag in boom) instead of with beta. Commodities
+excluded from the rumor mill. mixed agent's vtm weight moved to divx. Tests for commodities +
+fast-forward added.

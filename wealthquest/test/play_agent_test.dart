@@ -126,7 +126,7 @@ void mixed(GameController g) {
       ? <(String, double)>[('hysa', 1.0)]
       : <(String, double)>[
           ('spx', 0.40),
-          ('vtm', 0.15),
+          ('divx', 0.15),
           ('bndx', 0.15),
           ('btq', 0.10),
           (cashId, 0.20),
