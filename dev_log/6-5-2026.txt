@@ -40,3 +40,10 @@ pill to each paying row in market_tab (_Subtitle): "3.5% div" for stocks/ETFs wi
 dividendYield, "4.2% coupon" for bonds. Crypto/growth names show nothing. The detail
 screen already listed Dividend yield/Coupon in Key stats, so this just closes the
 browse-list gap. No engine change.
+build 32 (v0.20.0) — Categorized the Ledger (note 2 of the batch). The news was one long
+wordy scroll of big italic rumor cards. Rewrote news_tab to group this month's rumors by
+asset kind into compact sections — 📈 Stocks, 🧺 ETFs, 🪙 Crypto, 📜 Bonds — each a header +
+one-line tip rows (direction icon, short headline, ticker chip), and added short 🏠 Real
+Estate (regime-flavored housing read) and 🏈 Sports (slate/open-bets teaser) sections plus
+the settled list. Much less to read; scannable by category. Dropped the wordy reliability
+preamble. No engine change.

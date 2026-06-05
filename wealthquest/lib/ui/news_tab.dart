@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/catalog.dart';
+import '../models/asset.dart';
 import '../models/climate.dart';
 import '../models/rumor.dart';
 import '../state/game_controller.dart';
@@ -8,20 +9,51 @@ import '../util/format.dart';
 import 'asset_detail_screen.dart';
 import 'widgets/ui_helpers.dart';
 
-/// "The Daily Ledger" — a newspaper of rumors. Tips hint at where prices are
-/// headed, but the rumor mill is only right some of the time (25% at base).
+/// "The Daily Ledger" — a newspaper of rumors, now split into scannable
+/// sections (stocks, ETFs, crypto, bonds) plus quick real-estate and sports
+/// reads. Tips hint at where prices are headed, but they're a coin flip.
 class NewsTab extends StatelessWidget {
   const NewsTab({super.key, required this.game});
 
   final GameController game;
 
+  /// Order + heading (with emoji) for each market-rumor category.
+  static const List<AssetKind> _order = [
+    AssetKind.stock,
+    AssetKind.etf,
+    AssetKind.crypto,
+    AssetKind.bond,
+  ];
+
+  static String _heading(AssetKind k) {
+    switch (k) {
+      case AssetKind.stock:
+        return '📈  Stocks';
+      case AssetKind.etf:
+        return '🧺  ETFs';
+      case AssetKind.crypto:
+        return '🪙  Crypto';
+      case AssetKind.bond:
+        return '📜  Bonds';
+      default:
+        return k.label;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Group this month's rumors by asset kind.
+    final byKind = <AssetKind, List<Rumor>>{};
+    for (final r in game.currentRumors) {
+      final k = Catalog.assetById(r.assetId).kind;
+      byKind.putIfAbsent(k, () => []).add(r);
+    }
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [
-        // Masthead
         Center(
           child: Column(
             children: [
@@ -46,30 +78,62 @@ class NewsTab extends StatelessWidget {
 
         _climateBanner(theme),
 
-        _sectionTitle(theme, 'Word on the Street'),
-        Text(
-          game.reliabilityRevealed
-              ? 'Tips are running about ${pct(0.50)} accurate. Trade carefully.'
-              : 'Tips are a coin flip — about half pan out. (A reliability upgrade is coming.)',
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontStyle: FontStyle.italic,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 8),
+        // Market tips, grouped by category.
         if (game.currentRumors.isEmpty)
-          Text('Quiet month. No rumors circulating.',
+          Text('Quiet month on the markets — no rumors circulating.',
               style: theme.textTheme.bodyMedium)
         else
-          ...game.currentRumors.map((r) => _RumorCard(game: game, rumor: r)),
+          for (final k in _order)
+            if (byKind[k] != null)
+              _Section(
+                title: _heading(k),
+                children: [
+                  for (final r in byKind[k]!) _RumorRow(game: game, rumor: r),
+                ],
+              ),
 
-        if (game.lastResolved.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          _sectionTitle(theme, 'Last Month, Settled'),
-          const SizedBox(height: 4),
-          ...game.lastResolved.map((r) => _ResolvedRow(rumor: r)),
-        ],
+        // Real estate + sports quick reads (always present).
+        _Section(title: '🏠  Real Estate', children: [_realEstateLine(theme)]),
+        _Section(title: '🏈  Sports', children: [_sportsLine(theme)]),
+
+        if (game.lastResolved.isNotEmpty)
+          _Section(
+            title: '🗞️  Last Month, Settled',
+            children: [
+              for (final r in game.lastResolved) _ResolvedRow(rumor: r),
+            ],
+          ),
       ],
+    );
+  }
+
+  Widget _realEstateLine(ThemeData theme) {
+    final reg = game.regime;
+    final String text;
+    if (reg == MarketRegime.boom || reg == MarketRegime.recovery) {
+      text = 'Buyers are out in force — homes move fast and prices are firming.';
+    } else if (reg == MarketRegime.downturn || reg == MarketRegime.crash) {
+      text = 'The market is cooling; sellers are trimming prices to close deals.';
+    } else {
+      text = 'Housing is steady this month — slow, dependable appreciation.';
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(text, style: theme.textTheme.bodyMedium),
+    );
+  }
+
+  Widget _sportsLine(ThemeData theme) {
+    final n = game.sportsSlate.length;
+    final open = game.bets.length;
+    final text = n == 0
+        ? 'No games on the board right now.'
+        : '$n games on the board this month'
+            '${open > 0 ? ' · you have $open open bet${open == 1 ? '' : 's'}' : ''}'
+            '. Place a wager in DraftDay.';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(text, style: theme.textTheme.bodyMedium),
     );
   }
 
@@ -116,20 +180,39 @@ class NewsTab extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _sectionTitle(ThemeData theme, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Text(
-        text,
-        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-      ),
+/// A titled group of news rows with a thin divider header.
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 14, bottom: 2),
+          child: Text(
+            title,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        const Divider(height: 8),
+        ...children,
+      ],
     );
   }
 }
 
-class _RumorCard extends StatelessWidget {
-  const _RumorCard({required this.game, required this.rumor});
+/// A compact, one-glance market tip: direction icon, short headline, ticker.
+class _RumorRow extends StatelessWidget {
+  const _RumorRow({required this.game, required this.rumor});
 
   final GameController game;
   final Rumor rumor;
@@ -140,44 +223,42 @@ class _RumorCard extends StatelessWidget {
     final def = Catalog.assetById(rumor.assetId);
     final color = rumor.isBullish ? kGain : kLoss;
 
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AssetDetailScreen(game: game, def: def),
-          ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AssetDetailScreen(game: game, def: def),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(rumor.isBullish ? Icons.trending_up : Icons.trending_down,
-                  color: color),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '"${rumor.headline}"',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontStyle: FontStyle.italic,
-                        height: 1.25,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${rumor.isBullish ? 'Bullish' : 'Bearish'} tip • ${def.ticker} • ${def.name}',
-                      style: theme.textTheme.labelMedium?.copyWith(color: color),
-                    ),
-                  ],
-                ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(rumor.isBullish ? Icons.trending_up : Icons.trending_down,
+                color: color, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '"${rumor.headline}"',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontStyle: FontStyle.italic, height: 1.2),
               ),
-              const Icon(Icons.chevron_right, size: 18),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(def.ticker,
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: color, fontWeight: FontWeight.w700)),
+            ),
+          ],
         ),
       ),
     );
@@ -218,7 +299,10 @@ class _ResolvedRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(rumor.headline, style: theme.textTheme.bodySmall),
+                Text(rumor.headline,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall),
                 Text(
                   '${def.ticker} moved ${signedPct(rumor.actualMove)} that month',
                   style: theme.textTheme.labelSmall?.copyWith(
