@@ -146,6 +146,10 @@ class AssetDef {
   /// cash). 0 = safe. Drives the "high yield = real risk" trade-off.
   final double crashLoss;
 
+  /// Monthly base probability that this bond's issuer DEFAULTS (price craters).
+  /// Multiplied up in downturns/crashes. 0 = no default risk (Treasuries).
+  final double defaultRisk;
+
   final String blurb;
 
   const AssetDef({
@@ -173,6 +177,7 @@ class AssetDef {
     this.lockKind = LockKind.none,
     this.earlyPenalty = 0,
     this.crashLoss = 0,
+    this.defaultRisk = 0,
     this.blurb = '',
   });
 

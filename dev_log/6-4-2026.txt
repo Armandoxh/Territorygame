@@ -364,3 +364,18 @@
         Income 0.03->0.015, Private Credit 0.06->0.03, Hedge 0.10->0.045,
         so the funds net above cash in a rising ladder; the LOCK-UP
         illiquidity is now the main cost (the trade-off the user wanted).
+
+2026-06-04  WealthQuest (build 23): bond maturity ladder + unique junk bond
+  WHAT: User: bonds need 2/4/6/10-year options and the bottom 3 felt
+        same-y. Replaced single Treasury + redundant Muni with a Treasury
+        MATURITY LADDER (2/4/6/10-Year, ust2/ust4/ust6/ust10): longer =
+        higher coupon (4.3->5.3%) AND bigger price vol (duration risk).
+        Added a UNIQUE bond: High-Yield (Junk) Bond — 9.5% coupon, B-rated,
+        with a new DEFAULT mechanic (AssetDef.defaultRisk): each month a
+        chance the issuer defaults and the price takes a ~45% hit, 3x more
+        likely in a downturn, 6x in a crash. Gave Corporate a tiny default
+        risk too, so Treasury->Corporate->Junk is a clear safe->risky line.
+        Detail screen shows a 'Default risk' stat. Agent tbond refs ->
+        ust10. Tests for the ladder + junk default risk.
+  WHY:  User: "2 year, 4 year, 6, 10 option; find a unique type of bond,
+        the bottom 3 seem the same."

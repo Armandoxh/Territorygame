@@ -282,4 +282,21 @@ void main() {
       expect(g.sell(h, 1000), isNotNull); // blocked while locked
     });
   });
+
+  group('Bonds', () {
+    test('treasury ladder: longer maturity = higher coupon and more price risk',
+        () {
+      final c = Catalog.assetById;
+      expect(c('ust2').apy, lessThan(c('ust4').apy));
+      expect(c('ust4').apy, lessThan(c('ust6').apy));
+      expect(c('ust6').apy, lessThan(c('ust10').apy));
+      expect(c('ust2').dailyVol, lessThan(c('ust10').dailyVol));
+    });
+
+    test('junk bond carries default risk; treasuries do not', () {
+      expect(Catalog.assetById('junk').defaultRisk, greaterThan(0));
+      expect(Catalog.assetById('junk').apy, greaterThan(0.08));
+      expect(Catalog.assetById('ust10').defaultRisk, 0);
+    });
+  });
 }

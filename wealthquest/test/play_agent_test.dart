@@ -151,7 +151,7 @@ void main() {
           'horizon: $years years · seeds: ${seeds.length}')
       ..writeln('')
       ..writeln('TUNNEL agents (all-in on one thing):');
-    for (final id in const ['hysa', 'tbond', 'spx', 'mega', 'btq']) {
+    for (final id in const ['hysa', 'ust10', 'spx', 'mega', 'btq']) {
       out.writeln(_summarize(Catalog.assetById(id).name, _tunnel(id), seeds, months));
     }
     out.writeln('');
@@ -184,7 +184,7 @@ void main() {
       final g = GameController(seed: seed)..cash = 60000;
       // Open a broad starting position once; the auditor never trades again,
       // so the monthly cash-flow identity must hold exactly.
-      for (final id in const ['hysa', 'spx', 'tbond', 'btq', 'divx']) {
+      for (final id in const ['hysa', 'spx', 'ust10', 'btq', 'divx']) {
         g.buy(Catalog.assetById(id), 6000);
       }
       g.buy(Catalog.assetById('cd1y'), 4000); // a locked position too

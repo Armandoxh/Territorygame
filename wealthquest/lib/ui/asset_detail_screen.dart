@@ -261,6 +261,10 @@ class AssetDetailScreen extends StatelessWidget {
       if (def.creditRating.isNotEmpty) {
         rows.add(MapEntry('Credit rating', def.creditRating));
       }
+      if (def.defaultRisk > 0) {
+        rows.add(MapEntry('Default risk',
+            '~${(def.defaultRisk * 12 * 100).toStringAsFixed(1)}%/yr, spikes in downturns'));
+      }
       if (def.categoryId == 'cash') {
         rows.add(MapEntry('Insured', def.insured ? 'FDIC / Govt' : 'Not insured'));
       }

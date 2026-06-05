@@ -540,6 +540,24 @@ class GameController extends ChangeNotifier {
       if (hist.length > 520) hist.removeAt(0); // cap ~10 years of weeks
     }
 
+    // 4a2) Bond defaults: a shaky issuer can crater its price — far more likely
+    //      when the economy sours. Hits every holder of that bond.
+    for (final a in Catalog.assets) {
+      if (!a.kind.isPriceBased || a.defaultRisk <= 0) continue;
+      final mult = regime.isCrash
+          ? 6.0
+          : regime == MarketRegime.downturn
+              ? 3.0
+              : regime == MarketRegime.boom
+                  ? 0.5
+                  : 1.0;
+      if (_rng.nextDouble() < a.defaultRisk * mult) {
+        _prices[a.id] = _prices[a.id]! * 0.55;
+        events.add(
+            '⚠ ${a.name} issuer defaulted — bondholders took a ~45% hit.');
+      }
+    }
+
     // 4b) Downside risk on interest-bearing balances: a crash carves a slice
     //     off uninsured cash & yield funds (per-asset crashLoss); a bear market
     //     bleeds them mildly. Insured cash (crashLoss 0) is untouched.
