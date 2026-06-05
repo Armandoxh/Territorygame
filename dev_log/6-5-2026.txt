@@ -140,3 +140,14 @@ DayResult.crisis flag, resolveCrisis(); advanceMonths now halts on a crisis too.
 crisis_sheet.dart shows a non-dismissible decision dialog (pick → see outcome → continue),
 wired into nextMonth + fastForward after the recap/margin-call. Effects only apply on resolve
 so the agents/auditors (which never resolve) stay cash-flow-consistent. Tests added. Next: prestige/restart.
+build 44 (v0.27.0) — Prestige / retirement with content unlocks (note 3b, final of the
+batch; user chose "unlock content"). Once net worth >= $1M (GameController.retireThreshold)
+a "You can retire — start a new life" button appears on the phone home; retiring shows a
+legacy screen (final net worth/age + what's newly unlocked via Catalog.unlocksAt) then
+rebuilds a fresh GameController at prestige+1 (in-session; no save system exists yet, so it
+carries within a session like everything else). AssetDef + JobDef gain unlockLevel; added
+prestige-gated content: Hedge Fund Manager (P1) & Tech CEO (P2) careers, Pre-IPO Unicorn
+stock (P1), Platinum safe-haven commodity (P1). game.unlockedJobs/unlockedAssets() filter by
+prestige; market_tab, commodities_app, life_tab use them. Prestige badge on the status panel.
+Tests for the retire threshold + prestige gating. NOTE: full cross-refresh persistence (a
+real save system) is a natural follow-up if wanted.

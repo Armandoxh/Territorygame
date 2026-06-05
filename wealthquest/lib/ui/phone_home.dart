@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/catalog.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
 import '../version.dart';
@@ -23,12 +24,13 @@ class PhoneHome extends StatefulWidget {
 }
 
 class _PhoneHomeState extends State<PhoneHome> {
-  late final GameController game;
+  int _prestige = 0;
+  late GameController game;
 
   @override
   void initState() {
     super.initState();
-    game = GameController();
+    game = GameController(prestige: _prestige);
   }
 
   @override
@@ -41,6 +43,60 @@ class _PhoneHomeState extends State<PhoneHome> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => app));
   }
 
+  /// Retire (once eligible): show a legacy screen, then start a fresh life at
+  /// the next prestige level — which unlocks new content.
+  Future<void> _retire() async {
+    final newLevel = _prestige + 1;
+    final unlocks = Catalog.unlocksAt(newLevel);
+    final theme = Theme.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Retire & start over?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                'You retire at age ${game.ageYears} with a net worth of '
+                '${moneyWhole(game.netWorth)}. A life well played.',
+                style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 12),
+            Text('Begin again at 18 as ★ Prestige $newLevel.',
+                style: theme.textTheme.titleSmall),
+            if (unlocks.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('Newly unlocked:',
+                  style: theme.textTheme.labelMedium
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              for (final u in unlocks)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('• $u', style: theme.textTheme.bodySmall),
+                ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep playing')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Retire')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      setState(() {
+        final old = game;
+        _prestige = newLevel;
+        game = GameController(prestige: _prestige);
+        old.dispose();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -51,7 +107,16 @@ class _PhoneHomeState extends State<PhoneHome> {
           builder: (context, _) {
             return Column(
               children: [
-                _StatusPanel(game: game),
+                _StatusPanel(game: game, prestige: _prestige),
+                if (game.canRetire)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: FilledButton.icon(
+                      onPressed: _retire,
+                      icon: const Icon(Icons.celebration),
+                      label: const Text('You can retire — start a new life'),
+                    ),
+                  ),
                 Expanded(
                   child: GridView.count(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
@@ -158,8 +223,9 @@ class _PhoneHomeState extends State<PhoneHome> {
 }
 
 class _StatusPanel extends StatelessWidget {
-  const _StatusPanel({required this.game});
+  const _StatusPanel({required this.game, required this.prestige});
   final GameController game;
+  final int prestige;
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +245,9 @@ class _StatusPanel extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text('Month ${game.day}  •  Age ${game.ageYears}',
+          Text(
+              'Month ${game.day}  •  Age ${game.ageYears}'
+              '${prestige > 0 ? '  •  ★ Prestige $prestige' : ''}',
               style: theme.textTheme.labelMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 6),

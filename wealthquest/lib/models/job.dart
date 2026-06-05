@@ -13,11 +13,16 @@ class JobDef {
   /// master). You can't take the job until you've earned the credential.
   final int requiredEdu;
 
+  /// Prestige level at which this job becomes available (0 = always). Higher
+  /// rungs unlock by retiring and starting over.
+  final int unlockLevel;
+
   const JobDef({
     required this.id,
     required this.title,
     required this.pay,
     this.minAge = 18,
     this.requiredEdu = 0,
+    this.unlockLevel = 0,
   });
 }

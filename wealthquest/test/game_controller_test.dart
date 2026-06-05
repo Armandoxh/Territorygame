@@ -526,4 +526,25 @@ void main() {
       expect(g.pendingCrisis != null || out.result.marginCall, isTrue);
     });
   });
+
+  group('Prestige & retirement', () {
+    test('retirement unlocks at the net-worth threshold', () {
+      final g = GameController(seed: 1);
+      expect(g.canRetire, isFalse);
+      g.cash = GameController.retireThreshold + 1;
+      expect(g.canRetire, isTrue);
+    });
+
+    test('higher prestige reveals more jobs and assets', () {
+      final g0 = GameController(seed: 1);
+      final g1 = GameController(seed: 1, prestige: 1);
+      expect(g1.unlockedJobs.length, greaterThan(g0.unlockedJobs.length));
+      expect(g1.unlockedAssets('commodities').length,
+          greaterThan(g0.unlockedAssets('commodities').length));
+      expect(g0.unlockedAssets('commodities').any((a) => a.id == 'platinum'),
+          isFalse);
+      expect(g1.unlockedAssets('commodities').any((a) => a.id == 'platinum'),
+          isTrue);
+    });
+  });
 }

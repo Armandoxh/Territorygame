@@ -449,6 +449,22 @@ class Catalog {
       eps: -1.2,
       blurb: 'Speculative biotech. Lottery-ticket volatility.',
     ),
+    AssetDef(
+      id: 'preipo',
+      name: 'Pre-IPO Unicorn',
+      ticker: 'UNI',
+      categoryId: 'equities',
+      kind: AssetKind.stock,
+      basePrice: 28.0,
+      dailyDrift: 0.0034,
+      dailyVol: 0.085,
+      sector: 'Technology',
+      sharesOutstanding: 0.3e9,
+      eps: -0.8,
+      unlockLevel: 1,
+      blurb: 'Late-stage private shares only the connected can buy. Huge upside, '
+          'huge risk. (Unlocked at Prestige 1.)',
+    ),
 
     // ---- Funds & ETFs ----
     AssetDef(
@@ -634,6 +650,22 @@ class Catalog {
       sharesOutstanding: 4.0e9,
       blurb: 'Harvests and droughts drive it — marches to its own drum.',
     ),
+    AssetDef(
+      id: 'platinum',
+      name: 'Platinum',
+      ticker: 'PLT',
+      categoryId: 'commodities',
+      kind: AssetKind.commodity,
+      basePrice: 980.0,
+      dailyDrift: 0.0006,
+      dailyVol: 0.04,
+      sector: 'Metals',
+      sharesOutstanding: 2.0e9,
+      safeHaven: true,
+      unlockLevel: 1,
+      blurb: 'A rarer safe-haven metal — both precious and industrial. '
+          '(Unlocked at Prestige 1.)',
+    ),
   ];
 
   /// The career ladder. Entry jobs need nothing; better rungs require a degree
@@ -657,6 +689,19 @@ class Catalog {
         title: 'Investment Banker',
         pay: 12000,
         requiredEdu: 3),
+    // Prestige-gated elite careers — unlocked by retiring and starting over.
+    JobDef(
+        id: 'hedgie',
+        title: 'Hedge Fund Manager',
+        pay: 22000,
+        requiredEdu: 3,
+        unlockLevel: 1),
+    JobDef(
+        id: 'ceo',
+        title: 'Tech CEO',
+        pay: 40000,
+        requiredEdu: 3,
+        unlockLevel: 2),
   ];
 
   /// Degree programs. Each is a study period (part-time pay while enrolled) and
@@ -701,4 +746,17 @@ class Catalog {
 
   static List<AssetDef> assetsInCategory(String categoryId) =>
       assets.where((a) => a.categoryId == categoryId).toList();
+
+  /// Names of content (jobs + assets) that unlock at exactly prestige [level].
+  /// Used by the retirement/legacy screen to show what's new next life.
+  static List<String> unlocksAt(int level) {
+    final out = <String>[];
+    for (final j in jobs) {
+      if (j.unlockLevel == level) out.add('${j.title} — career');
+    }
+    for (final a in assets) {
+      if (a.unlockLevel == level) out.add('${a.name} — ${a.kind.label.toLowerCase()}');
+    }
+    return out;
+  }
 }

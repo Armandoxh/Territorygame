@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../data/catalog.dart';
 import '../models/asset.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
@@ -18,7 +17,7 @@ class CommoditiesBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final items = Catalog.assetsInCategory('commodities');
+    final items = game.unlockedAssets('commodities');
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [

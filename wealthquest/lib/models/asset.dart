@@ -158,6 +158,10 @@ class AssetDef {
   /// lags when it's greedy — moves COUNTER to the macro cycle.
   final bool safeHaven;
 
+  /// Prestige level at which this asset unlocks (0 = always available). Earned
+  /// by retiring and starting over.
+  final int unlockLevel;
+
   final String blurb;
 
   const AssetDef({
@@ -187,6 +191,7 @@ class AssetDef {
     this.crashLoss = 0,
     this.defaultRisk = 0,
     this.safeHaven = false,
+    this.unlockLevel = 0,
     this.blurb = '',
   });
 

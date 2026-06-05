@@ -69,7 +69,7 @@ class LifeTab extends StatelessWidget {
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 8),
-        ...Catalog.jobs.map((j) => _JobTile(game: game, job: j)),
+        ...game.unlockedJobs.map((j) => _JobTile(game: game, job: j)),
       ],
     );
   }

@@ -52,7 +52,7 @@ class _CategoryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final assets = Catalog.assetsInCategory(category.id);
+    final assets = game.unlockedAssets(category.id);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [

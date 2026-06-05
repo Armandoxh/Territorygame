@@ -179,7 +179,16 @@ class GameController extends ChangeNotifier {
 
   int _nextHoldingId = 1;
 
-  GameController({int? seed})
+  /// How many times the player has retired and started over. Higher prestige
+  /// unlocks more content (assets, jobs). Carried into each new life.
+  final int prestige;
+
+  /// Net worth at which you're allowed to retire and start a fresh life.
+  static const double retireThreshold = 1000000;
+
+  bool get canRetire => netWorth >= retireThreshold;
+
+  GameController({int? seed, this.prestige = 0})
       : _rng = Random(seed ?? DateTime.now().millisecondsSinceEpoch),
         cash = Catalog.startingCash,
         job = Catalog.startingJob {
@@ -719,8 +728,21 @@ class GameController extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<JobDef> get availableJobs =>
-      Catalog.jobs.where((j) => ageYears >= j.minAge && meetsEducation(j)).toList();
+  List<JobDef> get availableJobs => Catalog.jobs
+      .where((j) =>
+          ageYears >= j.minAge &&
+          meetsEducation(j) &&
+          j.unlockLevel <= prestige)
+      .toList();
+
+  /// All jobs visible at the current prestige (some may still need a degree).
+  List<JobDef> get unlockedJobs =>
+      Catalog.jobs.where((j) => j.unlockLevel <= prestige).toList();
+
+  /// Assets in [categoryId] that are unlocked at the current prestige level.
+  List<AssetDef> unlockedAssets(String categoryId) => Catalog.assetsInCategory(categoryId)
+      .where((a) => a.unlockLevel <= prestige)
+      .toList();
 
   /// APY a liquid account actually earns given its balance (reduced when below
   /// the account's minimum balance).
