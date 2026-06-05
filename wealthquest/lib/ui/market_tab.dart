@@ -118,15 +118,7 @@ class _AssetRow extends StatelessWidget {
           ),
         ),
         title: Text(def.name),
-        subtitle: Text(
-          () {
-            final base = def.sector.isNotEmpty ? def.sector : def.kind.label;
-            return def.minInvestment > 0
-                ? '$base · min ${moneyWhole(def.minInvestment)}'
-                : base;
-          }(),
-          style: theme.textTheme.bodySmall,
-        ),
+        subtitle: _Subtitle(def: def),
         trailing: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -140,6 +132,50 @@ class _AssetRow extends StatelessWidget {
         ),
         onTap: () => _open(context),
       ),
+    );
+  }
+}
+
+/// Row subtitle: sector/type + minimum, plus a green income pill flagging
+/// assets that pay you cash (stock/ETF dividends or a bond coupon).
+class _Subtitle extends StatelessWidget {
+  const _Subtitle({required this.def});
+
+  final AssetDef def;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = def.sector.isNotEmpty ? def.sector : def.kind.label;
+    final text =
+        def.minInvestment > 0 ? '$base · min ${moneyWhole(def.minInvestment)}' : base;
+
+    // Bonds pay a coupon; stocks/ETFs may pay a dividend; crypto pays nothing.
+    final isCoupon = def.kind == AssetKind.bond;
+    final yield = isCoupon ? def.incomeYield : def.dividendYield;
+
+    return Row(
+      children: [
+        Flexible(
+          child: Text(text,
+              style: theme.textTheme.bodySmall, overflow: TextOverflow.ellipsis),
+        ),
+        if (yield > 0) ...[
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: kGain.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '${pct(yield)} ${isCoupon ? 'coupon' : 'div'}',
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: kGain, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

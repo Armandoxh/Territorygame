@@ -34,3 +34,9 @@ the user's "breakdown + events now, tiers later" choice); Events lists outings (
 meetup → charity gala, $100-$750) you can attend once per month — attendLifeEvent() deducts
 cash and drops a targeted tip into The Daily Ledger via NewsEngine.insiderTip(), with
 pricier rooms = higher reliability. attendedEventThisMonth resets each advanceDay.
+build 31 (v0.19.1) — Surface dividends (note 1 of a 6-item batch, done 1-by-1). The market
+browse list gave no at-a-glance signal of which assets pay you cash. Added a green income
+pill to each paying row in market_tab (_Subtitle): "3.5% div" for stocks/ETFs with a
+dividendYield, "4.2% coupon" for bonds. Crypto/growth names show nothing. The detail
+screen already listed Dividend yield/Coupon in Key stats, so this just closes the
+browse-list gap. No engine change.
