@@ -96,3 +96,10 @@ student lives leaner), so the first degree is survivable from a standing start i
 110k->200k, studentLoanRate 6%->7.5% — you graduate with a big compounding loan that competes
 with investing. Updated balance_report harness to mirror the new part-time/expense math and
 clamped the SCHOLAR drawdown metric (early sub-$0 dip no longer prints absurd %).
+build 39 (v0.23.1) — Monthly report redesign. The recap "read like an email" (7 labeled
+cash rows + bulleted paragraphs). Rebuilt day_summary_dialog as a visual snapshot: two hero
+stats (Net worth + Cash, each with a colored ▲/▼ move; cash turns red when negative), the
+month's cash flow as compact signed pills (+$1,300 Pay / −$1,181 Living / Rent / Mortgage /
+Fee — only the ones that happened) instead of a row list, a slim red banner when cash is
+negative, and highlights (portfolio notes + events) trimmed to 5 with a "+N more". Same
+DayResult data, far less reading. Continue button unchanged so the UI smoke test still passes.
