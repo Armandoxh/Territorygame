@@ -165,6 +165,24 @@ class GameController extends ChangeNotifier {
     return sum;
   }
 
+  /// Total market value of owned property (before debt).
+  double get propertyValue {
+    var sum = 0.0;
+    for (final p in properties) {
+      sum += p.currentValue;
+    }
+    return sum;
+  }
+
+  /// Total outstanding mortgage debt (a liability).
+  double get totalLoanBalance {
+    var sum = 0.0;
+    for (final p in properties) {
+      sum += p.loanBalance;
+    }
+    return sum;
+  }
+
   /// Buy a property with the chosen financing and down payment fraction.
   /// Returns an error string, or null on success.
   String? buyProperty(PropertyDef def, MortgageType m, double downFraction) {

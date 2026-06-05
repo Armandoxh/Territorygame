@@ -33,6 +33,8 @@ class DashboardTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        _BalanceSheet(game: game),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
@@ -101,6 +103,73 @@ class DashboardTab extends StatelessWidget {
                 ),
               ),
       ],
+    );
+  }
+}
+
+class _BalanceSheet extends StatelessWidget {
+  const _BalanceSheet({required this.game});
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final assets = game.cash + game.holdingsValue + game.propertyValue;
+    final liabilities = game.totalLoanBalance;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Balance sheet', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            _line(theme, 'Cash', game.cash),
+            _line(theme, 'Investments', game.holdingsValue),
+            if (game.propertyValue > 0) _line(theme, 'Property', game.propertyValue),
+            const Divider(height: 16),
+            _line(theme, 'Total assets', assets, bold: true),
+            if (liabilities > 0) ...[
+              const SizedBox(height: 4),
+              _line(theme, 'Mortgages owed', -liabilities, color: kLoss),
+            ],
+            const Divider(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Net worth',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                Text(moneyWhole(game.netWorth),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _line(ThemeData theme, String k, double v,
+      {bool bold = false, Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(k,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: bold ? FontWeight.bold : null,
+              )),
+          Text(moneyWhole(v),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: bold ? FontWeight.bold : FontWeight.w600,
+                  color: color)),
+        ],
+      ),
     );
   }
 }

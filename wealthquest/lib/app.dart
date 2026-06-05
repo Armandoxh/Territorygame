@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'ui/home_screen.dart';
+import 'ui/phone_home.dart';
 
 class WealthQuestApp extends StatelessWidget {
   const WealthQuestApp({super.key});
@@ -19,7 +19,7 @@ class WealthQuestApp extends StatelessWidget {
         colorScheme: colorScheme,
         scaffoldBackgroundColor: const Color(0xFF0E1512),
       ),
-      home: const HomeScreen(),
+      home: const PhoneHome(),
     );
   }
 }

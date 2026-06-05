@@ -379,3 +379,23 @@
         ust10. Tests for the ladder + junk default risk.
   WHY:  User: "2 year, 4 year, 6, 10 option; find a unique type of bond,
         the bottom 3 seem the same."
+
+2026-06-04  WealthQuest (build 24): UI revamp -> phone home with apps
+  WHAT: Replaced the 6-tab bottom nav with a PHONE HOME screen (status
+        panel: net worth, month, age, cash + version) and a grid of
+        app icons that each open full-screen:
+          - Vault (Bank): dashboard + a real balance sheet (assets:
+            cash/investments/property; liabilities: mortgages; net worth).
+          - Sherwood (Robinhood play): all investing — Portfolio + Market
+            tabs (browse, buy/sell/short).
+          - Nestly (real estate), Hustl (jobs), Ledger (news).
+        New ui/phone_home.dart, ui/invest_app.dart, widgets/app_scaffold
+        .dart (AppBar + Next Month FAB + swipe-to-home), shared nextMonth()
+        helper. Added controller getters propertyValue + totalLoanBalance
+        for the balance sheet. Deleted home_screen.dart. FABs use
+        heroTag:null to avoid push-transition hero conflicts. Rewrote the
+        UI smoke test for the new navigation. Every app + the home have a
+        persistent Next Month button.
+  WHY:  User: "entry point should be a phone home with apps — a bank app,
+        an investing app (Robinhood), separate apps for jobs, houses, and
+        news, so it's not cluttered."
