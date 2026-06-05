@@ -440,7 +440,8 @@ void main() {
       expect(g.enroll(assoc), isNull);
       expect(g.isStudying, isTrue);
       expect(g.studentLoan, greaterThanOrEqualTo(assoc.tuition));
-      expect(g.effectivePay, closeTo(fullPay * 0.5, 1e-6));
+      expect(g.effectivePay,
+          closeTo(fullPay * GameController.partTimePayFraction, 1e-6));
       for (var i = 0; i < assoc.months; i++) {
         g.advanceDay();
       }

@@ -87,3 +87,12 @@ LANDLORD-AUDITOR — verifies cash-flow identity incl. rent - mortgage - overdra
 rentals ~12-18%/yr ROE at low risk (rent over-covers mortgage, no carrying costs); degrees
 recoup in ~10-15mo (too cheap long-term) yet bleed ~-$370/mo in school (unaffordable early).
 Measurement layer only, no gameplay change.
+build 38 (v0.23.0) — Rebalance from the harness findings (rentals + degrees + school crunch).
+Rentals: monthlyRent 0.6%->0.5% of value so occupied rent ~= the mortgage (was 1.19x);
+ROE falls from 12-18% into the ~8-13% equities band. School crunch eased: part-time pay
+0.5->0.6 (partTimePayFraction const) AND living expenses now scale with effectivePay (a
+student lives leaner), so the first degree is survivable from a standing start instead of
+-$371/mo. Degrees made a real tradeoff: tuition assoc 18k->36k, bachelor 60k->100k, master
+110k->200k, studentLoanRate 6%->7.5% — you graduate with a big compounding loan that competes
+with investing. Updated balance_report harness to mirror the new part-time/expense math and
+clamped the SCHOLAR drawdown metric (early sub-$0 dip no longer prints absurd %).

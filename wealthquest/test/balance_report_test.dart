@@ -94,8 +94,8 @@ void main() {
       final bump = newPay - priorPay;
       final loanAfter = deg.tuition * pow(1 + Catalog.studentLoanRate, deg.years);
       final payback = bump > 0 ? loanAfter / bump : double.infinity;
-      final schoolCash =
-          0.5 * priorPay - Catalog.monthlyExpenses(20, priorPay);
+      final ptPay = GameController.partTimePayFraction * priorPay;
+      final schoolCash = ptPay - Catalog.monthlyExpenses(20, ptPay);
       out.writeln('  ${deg.name.padRight(14)} '
           '${_money(bump).padLeft(7)}/mo  ${_money(loanAfter.toDouble()).padLeft(8)}  '
           '${payback.toStringAsFixed(0).padLeft(4)} mo   ${_money(schoolCash).padLeft(8)}/mo');
@@ -187,7 +187,9 @@ void main() {
           expect(nw.isFinite && g.cash.isFinite, isTrue,
               reason: 'seed $s month $m: non-finite');
           if (nw > peak) peak = nw;
-          if (peak > 0) maxDd = max(maxDd, (peak - nw) / peak);
+          // Clamp so an early dip below $0 (tiny/negative peak) can't blow the
+          // ratio up past 100% — "went cash-negative" already tells that story.
+          if (peak > 0) maxDd = max(maxDd, ((peak - nw) / peak).clamp(0.0, 1.0));
           if (g.cash < -1) wentNeg = true;
         }
         finals.add(g.netWorth);

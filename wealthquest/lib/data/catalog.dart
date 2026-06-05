@@ -600,7 +600,7 @@ class Catalog {
       name: "Associate's Degree",
       level: 1,
       years: 2,
-      tuition: 18000,
+      tuition: 36000,
       blurb: 'Two years. Opens the door to skilled entry-level roles.',
     ),
     DegreeDef(
@@ -608,7 +608,7 @@ class Catalog {
       name: "Bachelor's Degree",
       level: 2,
       years: 4,
-      tuition: 60000,
+      tuition: 100000,
       blurb: 'Four years. The standard key to professional careers.',
     ),
     DegreeDef(
@@ -616,13 +616,14 @@ class Catalog {
       name: "Master's Degree",
       level: 3,
       years: 6,
-      tuition: 110000,
-      blurb: 'Six years. Unlocks the highest-paying roles in the game.',
+      tuition: 200000,
+      blurb: 'Six years. Unlocks the highest-paying roles — and a big loan.',
     ),
   ];
 
-  /// Annual interest rate on the outstanding student-loan balance.
-  static const double studentLoanRate = 0.06;
+  /// Annual interest rate on the outstanding student-loan balance. High enough
+  /// that paying it down competes with investing — a real decision.
+  static const double studentLoanRate = 0.075;
 
   // ---- Lookups (built once) ----
   static final Map<String, AssetDef> _byId = {

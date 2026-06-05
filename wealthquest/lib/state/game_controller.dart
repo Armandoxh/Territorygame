@@ -184,7 +184,10 @@ class GameController extends ChangeNotifier {
   // ---- Derived time ----
   int get ageYears => Catalog.startAge + day ~/ Catalog.stepsPerYear;
   int get yearsPlayed => day ~/ Catalog.stepsPerYear;
-  double get dailyExpenses => Catalog.monthlyExpenses(ageYears, job.pay);
+  // Living expenses scale with take-home pay, so going part-time for school
+  // also trims your lifestyle (a student lives leaner) — which keeps the
+  // during-school squeeze survivable.
+  double get dailyExpenses => Catalog.monthlyExpenses(ageYears, effectivePay);
 
   // ---- Prices ----
   double priceOf(String assetId) => _prices[assetId] ?? 1.0;
@@ -647,8 +650,12 @@ class GameController extends ChangeNotifier {
     return null;
   }
 
-  /// Take-home pay this month — halved to part-time while you're studying.
-  double get effectivePay => isStudying ? job.pay * 0.5 : job.pay;
+  /// Fraction of pay you keep while studying part-time.
+  static const double partTimePayFraction = 0.6;
+
+  /// Take-home pay this month — reduced to part-time while you're studying.
+  double get effectivePay =>
+      isStudying ? job.pay * partTimePayFraction : job.pay;
 
   bool meetsEducation(JobDef j) => eduLevel >= j.requiredEdu;
 
