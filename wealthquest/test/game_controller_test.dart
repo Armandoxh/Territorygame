@@ -462,4 +462,25 @@ void main() {
       expect(g.studentLoan, 0);
     });
   });
+
+  group('Fast-forward', () {
+    test('advanceMonths runs every month and aggregates the result', () {
+      final g = GameController(seed: 3);
+      final day0 = g.day;
+      final out = g.advanceMonths(12);
+      expect(out.months, 12);
+      expect(g.day, day0 + 12); // really advanced 12 months
+      expect(out.result.income, greaterThan(0)); // a year of salary summed
+      expect(out.result.expenses, greaterThan(0));
+      expect(out.result.netWorthAfter, closeTo(g.netWorth, 1e-6));
+      expect(out.result.cashAfter, closeTo(g.cash, 1e-6));
+    });
+
+    test('a fast-forward stops early when a margin call fires', () {
+      final g = GameController(seed: 3)..cash = -20000; // doomed to a margin call
+      final out = g.advanceMonths(12);
+      expect(out.result.marginCall, isTrue);
+      expect(out.months, lessThanOrEqualTo(4)); // stopped at the margin call
+    });
+  });
 }

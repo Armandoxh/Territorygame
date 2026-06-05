@@ -37,12 +37,7 @@ class InvestApp extends StatelessWidget {
               ],
             ),
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            heroTag: null,
-            onPressed: () => nextMonth(context, game),
-            icon: const Icon(Icons.skip_next),
-            label: const Text('Next Month'),
-          ),
+          floatingActionButton: advanceControls(context, game),
           floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
         ),
       ),

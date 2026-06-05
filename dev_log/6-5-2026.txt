@@ -110,3 +110,12 @@ section (Living expenses, Mortgage, Overdraft fee) with "Total out", a thick rul
 bold colored "Net this month". Below, running balances Net worth + Cash each with a ▲/▼
 move (cash red when negative), the negative-cash banner, and highlights trimmed to 4.
 Labeled, grouped by direction, color-coded — reads like a statement, not an email or chips.
+build 41 (v0.24.0) — Fast-forward (note 1 of a 3-item batch from a year-72 playthrough).
+Clicking Next Month hundreds of times was tedious. Added GameController.advanceMonths(n)
+which really runs advanceDay n times (markets/interest/rent/loan all real), sums the months
+into one aggregated DayResult, and stops early if a margin call fires (returns
+(result, months)). UI: app_scaffold now exposes fastForward() + a shared advanceControls()
+bar — "Next Month" + "6 mo" + "12 mo" (FittedBox so it never overflows) — wired into phone
+home, AppScaffold, invest_app, life_app. The recap takes monthsCovered to retitle ("12
+months · now Age X" / "Net change"). Tests: advanceMonths advances the clock 12 + aggregates;
+fast-forward halts at a margin call. Next in batch: trim investments + commodities app; endgame.

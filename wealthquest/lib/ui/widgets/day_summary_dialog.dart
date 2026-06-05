@@ -10,12 +10,16 @@ import 'ui_helpers.dart';
 Future<void> showDaySummary(
   BuildContext context,
   GameController game,
-  DayResult r,
-) {
+  DayResult r, {
+  int monthsCovered = 1,
+}) {
   return showDialog<void>(
     context: context,
     builder: (context) {
       final theme = Theme.of(context);
+      final header = monthsCovered <= 1
+          ? 'Month ${game.day}  ·  Age ${game.ageYears}'
+          : '$monthsCovered months  ·  now Age ${game.ageYears}';
 
       // Inflows (earnings) and outflows (costs) as line items.
       final income = <_Line>[
@@ -45,7 +49,7 @@ Future<void> showDaySummary(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Center(
-                child: Text('Month ${game.day}  ·  Age ${game.ageYears}',
+                child: Text(header,
                     style: theme.textTheme.labelMedium
                         ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               ),
@@ -66,7 +70,8 @@ Future<void> showDaySummary(
               const SizedBox(height: 10),
               Container(height: 2, color: theme.colorScheme.outlineVariant),
               const SizedBox(height: 8),
-              _netRow(theme, net),
+              _netRow(theme, net,
+                  label: monthsCovered > 1 ? 'Net change' : 'Net this month'),
 
               const SizedBox(height: 16),
               _balanceRow(theme, 'Net worth', r.netWorthAfter, r.netWorthDelta),
@@ -174,13 +179,13 @@ Widget _subtotal(ThemeData theme, String label, double amount, Color color,
   );
 }
 
-/// The headline result for the month.
-Widget _netRow(ThemeData theme, double net) {
+/// The headline result for the period.
+Widget _netRow(ThemeData theme, double net, {required String label}) {
   final color = gainColor(net);
   return Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text('Net this month',
+      Text(label,
           style:
               theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
       Text('${net >= 0 ? '+' : '−'}${moneyWhole(net.abs())}',

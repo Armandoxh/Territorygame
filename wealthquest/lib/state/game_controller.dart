@@ -1024,6 +1024,58 @@ class GameController extends ChangeNotifier {
     return summary;
   }
 
+  /// Fast-forward [n] months, actually running each one through [advanceDay]
+  /// (markets move, interest/rent/coupons accrue, the loan compounds — every
+  /// calculation is the real monthly one). Sums the months into a single recap.
+  /// Stops early if a margin call fires, since you must resolve that by hand.
+  /// Returns the aggregated result and how many months actually elapsed.
+  ({DayResult result, int months}) advanceMonths(int n) {
+    final before = netWorth;
+    final cashStart = cash;
+    var income = 0.0,
+        expenses = 0.0,
+        interest = 0.0,
+        dividends = 0.0,
+        rent = 0.0,
+        mortgage = 0.0,
+        fee = 0.0;
+    final events = <String>[];
+    var marginCall = false;
+    var done = 0;
+    for (var i = 0; i < n; i++) {
+      final r = advanceDay();
+      income += r.income;
+      expenses += r.expenses;
+      interest += r.interest;
+      dividends += r.dividends;
+      rent += r.rent;
+      mortgage += r.mortgage;
+      fee += r.overdraftFee;
+      events.addAll(r.events);
+      done++;
+      if (r.marginCall) {
+        marginCall = true;
+        break;
+      }
+    }
+    final agg = DayResult(
+      income: income,
+      expenses: expenses,
+      interest: interest,
+      dividends: dividends,
+      rent: rent,
+      mortgage: mortgage,
+      overdraftFee: fee,
+      marginCall: marginCall,
+      netWorthBefore: before,
+      netWorthAfter: netWorth,
+      cashBefore: cashStart,
+      cashAfter: cash,
+      events: events,
+    );
+    return (result: agg, months: done);
+  }
+
   /// Human-readable call-outs about the portfolio for the monthly recap: the
   /// biggest dollar winner and loser among market holdings, and a nudge when a
   /// lot of cash is sitting idle instead of working.
