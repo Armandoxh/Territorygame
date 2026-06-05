@@ -7,7 +7,9 @@ import '../data/properties.dart';
 import '../engine/climate_engine.dart';
 import '../engine/market_engine.dart';
 import '../engine/news_engine.dart';
+import '../engine/sports_engine.dart';
 import '../models/asset.dart';
+import '../models/bet.dart';
 import '../models/climate.dart';
 import '../models/holding.dart';
 import '../models/job.dart';
@@ -59,6 +61,12 @@ class GameController extends ChangeNotifier {
   final List<PropertyHolding> properties = [];
   int _nextPropertyId = 1;
 
+  // ---- Sports betting ----
+  List<SportsEvent> sportsSlate = [];
+  final List<PendingBet> bets = [];
+  int _nextEventId = 1;
+  int _nextBetId = 1;
+
   /// Minimum down payment fraction to get a mortgage.
   static const double minDownFraction = 0.05;
 
@@ -98,6 +106,8 @@ class GameController extends ChangeNotifier {
     for (final p in Properties.ladder) {
       propertyPrices[p.id] = p.basePrice;
     }
+    sportsSlate = SportsEngine.generateSlate(_rng, _nextEventId);
+    _nextEventId += sportsSlate.length;
     netWorthHistory.add(netWorth);
     currentRumors = NewsEngine.generateEdition(_rng, day);
     _log('You turn 18 and land a job as a ${job.title}. Time to build wealth.');
@@ -144,7 +154,36 @@ class GameController extends ChangeNotifier {
     return sum;
   }
 
-  double get netWorth => cash + holdingsValue + propertiesEquity;
+  double get netWorth =>
+      cash + holdingsValue + propertiesEquity + pendingBetsValue;
+
+  // ---- Sports betting ----
+  /// Open wagers, valued at their stake until they resolve next month.
+  double get pendingBetsValue {
+    var sum = 0.0;
+    for (final b in bets) {
+      sum += b.stake;
+    }
+    return sum;
+  }
+
+  /// Place [stake] on the home (or away) side of an event. Returns an error
+  /// string, or null on success.
+  String? placeBet(SportsEvent e, bool home, double stake) {
+    if (stake <= 0) return 'Enter a stake greater than \$0.';
+    if (stake > cash + 0.001) return 'Not enough cash.';
+    cash -= stake;
+    bets.add(PendingBet(
+      id: _nextBetId++,
+      label: '${home ? e.home : e.away} (vs ${home ? e.away : e.home})',
+      stake: stake,
+      decimalOdds: home ? e.homeDecimal : e.awayDecimal,
+      winProb: home ? e.homeProb : 1 - e.homeProb,
+    ));
+    _log('Placed \$${stake.toStringAsFixed(0)} on ${home ? e.home : e.away}.');
+    notifyListeners();
+    return null;
+  }
 
   // ---- Real estate ----
   double propertyPriceOf(String defId) => propertyPrices[defId] ?? 0;
@@ -656,6 +695,21 @@ class GameController extends ChangeNotifier {
         if (h.isPaidOff) events.add('🏠 Paid off your ${pd.name}!');
       }
     }
+
+    // 5c) Resolve sports bets, then post a fresh slate.
+    for (final b in bets) {
+      if (_rng.nextDouble() < b.winProb) {
+        final payout = b.stake * b.decimalOdds;
+        cash += payout;
+        events.add(
+            '🎉 Bet won: +\$${(payout - b.stake).toStringAsFixed(0)} on ${b.label}.');
+      } else {
+        events.add('❌ Bet lost: −\$${b.stake.toStringAsFixed(0)} on ${b.label}.');
+      }
+    }
+    bets.clear();
+    sportsSlate = SportsEngine.generateSlate(_rng, _nextEventId);
+    _nextEventId += sportsSlate.length;
 
     // 6) Tick the clock; birthday on year boundaries.
     final hadBirthday = (day + 1) % Catalog.stepsPerYear == 0;

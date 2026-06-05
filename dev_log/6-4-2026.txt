@@ -399,3 +399,18 @@
   WHY:  User: "entry point should be a phone home with apps — a bank app,
         an investing app (Robinhood), separate apps for jobs, houses, and
         news, so it's not cluttered."
+
+2026-06-04  WealthQuest (build 25): DraftDay — sports betting app
+  WHAT: Added a sports betting app (DraftDay) to the phone home. models/
+        bet.dart (SportsEvent, PendingBet), engine/sports_engine.dart
+        (monthly slate of matchups with a ~6% house vig baked into the
+        odds, so every bet is -EV; American-odds display). Controller:
+        sportsSlate + bets, placeBet (cash -> pending bet, net-worth-
+        neutral), resolution each Next Month (roll true win prob, pay
+        winners, clear, post a fresh slate), pendingBetsValue in net
+        worth. ui/sports_app.dart: house-edge warning, open bets with
+        potential payout, and the slate with two odds buttons per game.
+        Phone-home gets a DraftDay icon. Tests: net-worth-neutral place,
+        -EV odds, resolves-and-clears.
+  WHY:  User: "have a sports betting app." A high-variance, -EV money
+        sink — the degenerate cousin of crypto.

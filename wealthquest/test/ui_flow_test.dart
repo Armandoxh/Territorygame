@@ -41,7 +41,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Open every other app and return.
-    for (final app in const ['Vault', 'Nestly', 'Hustl', 'Ledger']) {
+    for (final app in const ['Vault', 'Nestly', 'Hustl', 'Ledger', 'DraftDay']) {
       await tester.tap(find.text(app));
       await tester.pumpAndSettle();
       nav().pop();

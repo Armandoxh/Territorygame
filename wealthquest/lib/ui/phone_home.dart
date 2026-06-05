@@ -8,6 +8,7 @@ import 'invest_app.dart';
 import 'life_tab.dart';
 import 'news_tab.dart';
 import 'property_tab.dart';
+import 'sports_app.dart';
 import 'widgets/app_scaffold.dart';
 
 /// The home screen is a phone: a status panel up top, a grid of "apps", and a
@@ -105,6 +106,17 @@ class _PhoneHomeState extends State<PhoneHome> {
                           game: game,
                           title: 'The Daily Ledger',
                           body: (_) => NewsTab(game: game),
+                        )),
+                      ),
+                      _AppIcon(
+                        label: 'DraftDay',
+                        sub: 'Sports bets',
+                        icon: Icons.sports_football,
+                        color: const Color(0xFFC62828),
+                        onTap: () => _open(AppScaffold(
+                          game: game,
+                          title: 'DraftDay',
+                          body: (_) => SportsBody(game: game),
                         )),
                       ),
                     ],

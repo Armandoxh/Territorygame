@@ -299,4 +299,34 @@ void main() {
       expect(Catalog.assetById('ust10').defaultRisk, 0);
     });
   });
+
+  group('Sports betting', () {
+    test('placing a bet is net-worth-neutral (cash -> pending bet)', () {
+      final g = GameController(seed: 1);
+      g.cash = 1000;
+      final nw = g.netWorth;
+      final e = g.sportsSlate.first;
+      expect(g.placeBet(e, true, 100), isNull);
+      expect(g.cash, closeTo(900, 1e-6));
+      expect(g.pendingBetsValue, closeTo(100, 1e-6));
+      expect(g.netWorth, closeTo(nw, 1.0));
+    });
+
+    test('the house has an edge — every bet is -EV', () {
+      final g = GameController(seed: 1);
+      for (final e in g.sportsSlate) {
+        expect(e.homeProb * e.homeDecimal, lessThan(1.0));
+        expect((1 - e.homeProb) * e.awayDecimal, lessThan(1.0));
+      }
+    });
+
+    test('a bet resolves and clears on the next month', () {
+      final g = GameController(seed: 1);
+      g.cash = 1000;
+      g.placeBet(g.sportsSlate.first, true, 100);
+      expect(g.bets, isNotEmpty);
+      g.advanceDay();
+      expect(g.bets, isEmpty); // resolved
+    });
+  });
 }
