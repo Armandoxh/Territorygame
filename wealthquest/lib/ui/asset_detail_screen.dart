@@ -272,9 +272,16 @@ class AssetDetailScreen extends StatelessWidget {
       }
       rows.add(MapEntry('Rate', def.rateType));
       rows.add(MapEntry('Insured', def.insured ? 'FDIC / Govt' : 'Not insured'));
-      if (def.kind == AssetKind.cd) {
+      if (def.crashLoss > 0) {
+        rows.add(MapEntry('Crash risk', '−${pct(def.crashLoss)} in a crash'));
+      }
+      if (def.kind == AssetKind.cd || def.lockKind == LockKind.hard) {
         rows.add(MapEntry('Term', '${def.termDays} months'));
-        rows.add(const MapEntry('Liquidity', 'Locked until maturity'));
+        rows.add(const MapEntry('Liquidity', 'Hard-locked until maturity'));
+      } else if (def.lockKind == LockKind.penalty) {
+        rows.add(MapEntry('Term', '${def.termDays} months'));
+        rows.add(MapEntry(
+            'Early exit', 'forfeit ${pct(def.earlyPenalty)} of gains'));
       } else {
         rows.add(const MapEntry('Liquidity', 'Withdraw anytime'));
       }
@@ -352,10 +359,12 @@ class AssetDetailScreen extends StatelessWidget {
               final pl = game.profitOf(h);
               final sub = h.isShort
                   ? 'SHORT • ${h.shares.toStringAsFixed(2)} @ ${price(h.entryPrice)}'
-                  : h.kind == AssetKind.cd
+                  : (h.kind == AssetKind.cd || h.kind == AssetKind.fund)
                       ? (h.matured
-                          ? 'Matured • redeemable'
-                          : 'Locked • matures month ${h.maturityDay}')
+                          ? 'Matured • free to withdraw'
+                          : h.hardLock
+                              ? 'Locked • matures month ${h.maturityDay}'
+                              : 'Early-exit fee until month ${h.maturityDay}')
                       : h.kind.isInterestBearing
                           ? 'Balance'
                           : '${h.shares.toStringAsFixed(h.shares >= 10 ? 2 : 4)} units';

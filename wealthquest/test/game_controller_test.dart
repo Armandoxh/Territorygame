@@ -251,4 +251,35 @@ void main() {
       expect(g.short(Catalog.assetById('hysa'), 100), isNotNull);
     });
   });
+
+  group('Yield funds', () {
+    test('funds enforce a high entry minimum', () {
+      final g = GameController(seed: 1);
+      g.cash = 20000;
+      // Income Fund needs \$50k.
+      expect(g.buy(Catalog.assetById('income_fund'), 20000), isNotNull);
+    });
+
+    test('penalty-lock fund forfeits a slice of gains on early exit', () {
+      final g = GameController(seed: 1);
+      g.cash = 60000;
+      g.buy(Catalog.assetById('income_fund'), 50000);
+      final h = g.holdings.firstWhere((x) => x.kind == AssetKind.fund);
+      h.balance = 55000; // pretend it grew \$5k
+      final cashBefore = g.cash;
+      expect(g.sell(h, h.balance, max: true), isNull);
+      // forfeit 50% of the \$5k gain = \$2.5k
+      expect(g.cash, closeTo(cashBefore + 55000 - 2500, 1.0));
+      expect(g.holdings.where((x) => x.kind == AssetKind.fund), isEmpty);
+    });
+
+    test('hard-locked fund cannot be sold before maturity', () {
+      final g = GameController(seed: 1);
+      g.cash = 300000;
+      g.buy(Catalog.assetById('priv_credit'), 250000);
+      final h = g.holdings.firstWhere((x) => x.kind == AssetKind.fund);
+      expect(h.isLocked, isTrue);
+      expect(g.sell(h, 1000), isNotNull); // blocked while locked
+    });
+  });
 }

@@ -154,10 +154,12 @@ class _HoldingTile extends StatelessWidget {
     final String subtitle;
     if (holding.isShort) {
       subtitle = 'SHORT • entry ${price(holding.entryPrice)}';
-    } else if (holding.kind == AssetKind.cd) {
+    } else if (holding.kind == AssetKind.cd || holding.kind == AssetKind.fund) {
       subtitle = holding.matured
-          ? 'Matured • redeemable'
-          : 'Locked • matures month ${holding.maturityDay}';
+          ? 'Matured • free to withdraw'
+          : holding.hardLock
+              ? 'Locked • matures month ${holding.maturityDay}'
+              : 'Early-exit fee until month ${holding.maturityDay}';
     } else if (holding.kind.isInterestBearing) {
       subtitle = '${def.kind.label} • ${pct(def.apy)} APY';
     } else {

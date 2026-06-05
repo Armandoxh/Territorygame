@@ -24,6 +24,10 @@ class Holding {
 
   bool matured;
 
+  /// True if this position is hard-locked until [maturityDay] (CDs, private
+  /// credit, hedge funds). Penalty-lock funds set this false.
+  final bool hardLock;
+
   /// True for a short position (a bet the price falls). [shares] is the size
   /// borrowed, [costBasis] is the cash margin posted, [entryPrice] is the price
   /// it was opened at.
@@ -40,10 +44,11 @@ class Holding {
     required this.openedDay,
     this.maturityDay = 0,
     this.matured = false,
+    this.hardLock = false,
     this.isShort = false,
     this.entryPrice = 0,
   });
 
-  /// A CD that hasn't matured yet can't be redeemed.
-  bool get isLocked => kind == AssetKind.cd && !matured;
+  /// A hard-locked position that hasn't matured can't be redeemed yet.
+  bool get isLocked => hardLock && !matured;
 }

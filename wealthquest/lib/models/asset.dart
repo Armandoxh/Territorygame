@@ -9,14 +9,25 @@
 enum AssetKind {
   savings, // liquid, accrues interest every day, withdraw anytime
   cd, // locked for a fixed term, accrues interest, redeemable at maturity
+  fund, // yield fund: high APY, locked (hard or penalty), can lose in downturns
   bond, // price-based + pays a coupon into cash each day
   stock, // price-based, random walk, may pay dividends
   etf, // price-based, lower volatility basket, may pay dividends
   crypto, // price-based, high volatility
 }
 
+/// How a holding's lock-up works.
+enum LockKind {
+  none, // withdraw anytime, no penalty
+  penalty, // withdraw early but forfeit a slice of your gains
+  hard, // can't withdraw before maturity (CDs, private credit, hedge funds)
+}
+
 extension AssetKindX on AssetKind {
-  bool get isInterestBearing => this == AssetKind.savings || this == AssetKind.cd;
+  bool get isInterestBearing =>
+      this == AssetKind.savings ||
+      this == AssetKind.cd ||
+      this == AssetKind.fund;
 
   bool get isPriceBased =>
       this == AssetKind.bond ||
@@ -34,6 +45,8 @@ extension AssetKindX on AssetKind {
         return 'Savings';
       case AssetKind.cd:
         return 'CD';
+      case AssetKind.fund:
+        return 'Fund';
       case AssetKind.bond:
         return 'Bond';
       case AssetKind.stock:
@@ -122,6 +135,17 @@ class AssetDef {
   /// funds (MMF, CMA sweeps, bond funds) are not insured.
   final bool insured;
 
+  /// How this holding locks up. [termDays] is the lock period.
+  final LockKind lockKind;
+
+  /// For penalty-lock funds: fraction of accrued gains forfeited if you
+  /// withdraw before maturity (0..1).
+  final double earlyPenalty;
+
+  /// Fraction of balance lost in a crash month (for risky funds / uninsured
+  /// cash). 0 = safe. Drives the "high yield = real risk" trade-off.
+  final double crashLoss;
+
   final String blurb;
 
   const AssetDef({
@@ -146,6 +170,9 @@ class AssetDef {
     this.minBalance = 0,
     this.belowMinApy = 0,
     this.insured = false,
+    this.lockKind = LockKind.none,
+    this.earlyPenalty = 0,
+    this.crashLoss = 0,
     this.blurb = '',
   });
 
@@ -158,6 +185,7 @@ class AssetDef {
       case AssetKind.bond:
         return 'Fixed coupon';
       case AssetKind.savings:
+      case AssetKind.fund:
         return 'Variable';
       default:
         return '';

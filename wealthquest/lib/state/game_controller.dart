@@ -264,7 +264,10 @@ class GameController extends ChangeNotifier {
   // ---- Holdings lookup ----
   Holding? holdingForAsset(String assetId) {
     for (final h in holdings) {
-      if (h.assetId == assetId && h.kind != AssetKind.cd && !h.isShort) {
+      if (h.assetId == assetId &&
+          h.kind != AssetKind.cd &&
+          h.kind != AssetKind.fund &&
+          !h.isShort) {
         return h;
       }
     }
@@ -311,7 +314,7 @@ class GameController extends ChangeNotifier {
           ));
         }
       } else {
-        // CD: always a fresh, individually-maturing position.
+        // CD / yield fund: a fresh, individually-maturing position.
         holdings.add(Holding(
           id: _nextHoldingId++,
           assetId: def.id,
@@ -320,6 +323,8 @@ class GameController extends ChangeNotifier {
           costBasis: amount,
           openedDay: day,
           maturityDay: day + def.termDays,
+          hardLock:
+              def.kind == AssetKind.cd || def.lockKind == LockKind.hard,
         ));
       }
     } else {
@@ -348,9 +353,10 @@ class GameController extends ChangeNotifier {
   /// Sell [amount] dollars out of a holding (or everything if [max]).
   /// Returns an error string, or null on success.
   String? sell(Holding h, double amount, {bool max = false}) {
+    final def = Catalog.assetById(h.assetId);
     if (h.isLocked) {
       final monthsLeft = h.maturityDay - day;
-      return 'This CD is locked for $monthsLeft more month(s).';
+      return 'Locked for $monthsLeft more month(s).';
     }
     final value = valueOf(h);
     final amt = max ? value : amount;
@@ -360,18 +366,26 @@ class GameController extends ChangeNotifier {
     }
 
     final frac = amt / value;
+
+    // Early-withdrawal penalty on penalty-lock funds before maturity.
+    var penalty = 0.0;
+    if (def.lockKind == LockKind.penalty && !h.matured) {
+      final gainsWithdrawn = (h.balance - h.costBasis) * frac;
+      if (gainsWithdrawn > 0) penalty = gainsWithdrawn * def.earlyPenalty;
+    }
+
     if (h.kind.isInterestBearing) {
       h.balance -= amt;
     } else {
       h.shares -= h.shares * frac;
     }
     h.costBasis -= h.costBasis * frac;
-    cash += amt;
+    cash += amt - penalty;
 
-    final def = Catalog.assetById(h.assetId);
     if (valueOf(h) <= 0.01) holdings.remove(h);
 
-    _log('Sold \$${amt.toStringAsFixed(0)} of ${def.name}.');
+    _log('Sold \$${amt.toStringAsFixed(0)} of ${def.name}'
+        '${penalty > 0 ? ' (−\$${penalty.toStringAsFixed(0)} early-exit fee)' : ''}.');
     notifyListeners();
     return null;
   }
@@ -458,9 +472,13 @@ class GameController extends ChangeNotifier {
           h.balance * _effectiveApy(def, h.balance) / Catalog.stepsPerYear;
       h.balance += gain;
       interest += gain;
-      if (h.kind == AssetKind.cd && !h.matured && day + 1 >= h.maturityDay) {
+      if ((h.kind == AssetKind.cd || h.kind == AssetKind.fund) &&
+          h.maturityDay > 0 &&
+          !h.matured &&
+          day + 1 >= h.maturityDay) {
         h.matured = true;
-        events.add('${def.name} matured — \$${h.balance.toStringAsFixed(0)} now redeemable.');
+        events.add(
+            '${def.name} reached maturity — \$${h.balance.toStringAsFixed(0)} now free to withdraw.');
       }
     }
 
@@ -522,13 +540,17 @@ class GameController extends ChangeNotifier {
       if (hist.length > 520) hist.removeAt(0); // cap ~10 years of weeks
     }
 
-    // 4b) A crash carves a slice off UNINSURED cash; insured cash is safe.
-    if (regime.isCrash) {
-      for (final h in holdings) {
-        if (h.kind.isInterestBearing &&
-            !Catalog.assetById(h.assetId).insured) {
-          h.balance *= (1 - ClimateEngine.crashCashLoss);
-        }
+    // 4b) Downside risk on interest-bearing balances: a crash carves a slice
+    //     off uninsured cash & yield funds (per-asset crashLoss); a bear market
+    //     bleeds them mildly. Insured cash (crashLoss 0) is untouched.
+    for (final h in holdings) {
+      if (!h.kind.isInterestBearing) continue;
+      final cl = Catalog.assetById(h.assetId).crashLoss;
+      if (cl <= 0) continue;
+      if (regime.isCrash) {
+        h.balance *= (1 - cl);
+      } else if (regime == MarketRegime.downturn) {
+        h.balance *= (1 - cl * 0.12); // mild monthly bleed in a bear market
       }
     }
 

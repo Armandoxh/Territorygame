@@ -122,7 +122,14 @@ void main() {
           'horizon: $years years · seeds: ${seeds.length}')
       ..writeln('')
       ..writeln('TUNNEL agents (all-in on one thing):');
-    for (final id in const ['hysa', 'tbond', 'spx', 'mega', 'btq']) {
+    for (final id in const [
+      'hysa',
+      'tbond',
+      'income_fund',
+      'spx',
+      'mega',
+      'btq'
+    ]) {
       out.writeln(_summarize(Catalog.assetById(id).name, _tunnel(id), seeds, months));
     }
     out

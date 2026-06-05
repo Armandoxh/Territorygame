@@ -325,3 +325,27 @@
         net-worth-neutral open, cover, separate long+short, no-cash-short.
   WHY:  User: "make all the charts look like ticker graphs. Also have a
         short position we can place."
+
+2026-06-04  WealthQuest (build 20): yield ladder (fun > realism discussion)
+  WHAT: User: "the game isn't fun — $500 unlocks the best APY, no
+        progression." Redesigned the Cash tier into an aspiration ladder
+        where APY scales with entry minimum + lock-up + RISK. New
+        AssetKind.fund + LockKind {none, penalty, hard} + AssetDef
+        lockKind/earlyPenalty/crashLoss. Ladder: Checking $0/0.5%,
+        HYSA $1k/4%, MMF $10k/4.8% (crashLoss 2%), Income Fund $50k/6.5%
+        (12mo penalty lock, forfeit 50% gains early, crashLoss 3%),
+        Private Credit $250k/8.5% (24mo HARD lock, crashLoss 6%), Hedge
+        $1M/11% (36mo HARD lock, crashLoss 10%). Removed redundant
+        MMA/CMA. High yields are UNINSURED and take real drawdowns in
+        crashes/bears (per-asset crashLoss replaces the old global hit),
+        so they don't dominate stocks/crypto or snowball risk-free.
+        Controller: fund buy = separate maturing holding (hardLock flag),
+        sell blocks hard locks + applies penalty on early penalty-lock
+        exit, maturity for funds, per-asset crash/bear balance risk.
+        UI: market-row lock labels, detail stats (Crash risk / Term /
+        Early-exit / Liquidity), position subtitles. Tests for entry min,
+        early-exit penalty, hard lock. Income Fund added to the agent
+        tunnel set.
+  WHY:  User design discussion: scale APY with type + higher entry +
+        minimum hold; mix of hard locks and penalties; high yield = real
+        risk. Yield ladder first; goals/progression spine to follow.
