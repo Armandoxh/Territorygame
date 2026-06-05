@@ -78,3 +78,12 @@ the term, completes the degree, compounds the loan. Hustl (life_tab) rebuilt: Yo
 in-progress study card + loan card (Pay loan) + Education (enroll w/ confirm) + gated
 Careers. Vault balance sheet + dashboard cash-flow/salary now reflect the loan and part-time
 pay. Tests added for gating, enroll→graduate, and loan compounding/payoff.
+build 37 (v0.22.1) — Balance harness. Concern: lots of interacting systems (rent, student
+loans, degrees, overdraft, betting) with no visibility into long-game balance. Added
+test/balance_report_test.dart: (1) BALANCE REPORT — closed-form economics per subsystem read
+from LIVE constants, flagged OK/WARN/CRITICAL vs target bands (CRIT fails CI, WARN = tuning
+signal). (2) AGENTS — LANDLORD + SCHOLAR 12-yr scoreboard exercising rent + degrees. (3)
+LANDLORD-AUDITOR — verifies cash-flow identity incl. rent - mortgage - overdraft. Findings:
+rentals ~12-18%/yr ROE at low risk (rent over-covers mortgage, no carrying costs); degrees
+recoup in ~10-15mo (too cheap long-term) yet bleed ~-$370/mo in school (unaffordable early).
+Measurement layer only, no gameplay change.
