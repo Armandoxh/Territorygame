@@ -151,3 +151,19 @@ stock (P1), Platinum safe-haven commodity (P1). game.unlockedJobs/unlockedAssets
 prestige; market_tab, commodities_app, life_tab use them. Prestige badge on the status panel.
 Tests for the retire threshold + prestige gating. NOTE: full cross-refresh persistence (a
 real save system) is a natural follow-up if wanted.
+build 45 (v0.28.0) — Big life-event catalog (10 -> 50) + a debt mechanic. Player loved the
+crises/6-month-skip and wanted ~50 varied events instead of scaled costs. Expanded
+data/crises.dart to 50 events across themes: money troubles, windfalls, career, PROPERTY/
+LANDLORD (eminent domain, developer offer, property-tax reassessment, roof emergency, tenant
+non-payment, trashed unit, squatters in a vacant rental, tenant prepay, gentrification value
+bump, HOA), LOAN SHARKS/DEBT, gambles/scams (startup, insider tip, pyramid, casino, crypto
+hack, overseas scam), markets (buyout, special dividend, hedge, buy-the-dip), and everyday
+life (wedding, friend loan, jury duty, pet vet, rent hike, brand deal, art flip, disaster,
+gala). Many gated by context (owns property / has a rental / vacant / holds crypto/stock /
+in debt / regime). New helpers pick random properties/holdings; effects can sell/modify
+properties & holdings, not just cash. Added a generic high-interest debt field (28%/yr,
+compounds in advanceDay, subtracts from net worth) so loan-shark/payday events mean
+something; payable via Vault balance sheet ("Pay down debt") or events (shark collects,
+consolidation). Tests: catalog >=45 with unique ids + choices; debt compounds & pays off.
+NOTE (important): this container was re-cloned at build 30 mid-session; remote was correct at
+build 44 — reset --hard origin before this work. All fine.

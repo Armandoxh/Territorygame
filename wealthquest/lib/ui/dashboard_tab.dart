@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../state/game_controller.dart';
 import '../util/format.dart';
+import 'widgets/amount_sheet.dart';
 import 'widgets/candle_chart.dart';
 import 'widgets/ui_helpers.dart';
 
@@ -140,6 +141,12 @@ class _BalanceSheet extends StatelessWidget {
               const SizedBox(height: 4),
               _line(theme, 'Student loan', -game.studentLoan, color: kLoss),
             ],
+            if (game.debt > 0) ...[
+              const SizedBox(height: 4),
+              _line(theme,
+                  'Debt (${pct(GameController.debtRate)}/yr)', -game.debt,
+                  color: kLoss),
+            ],
             const Divider(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -153,10 +160,38 @@ class _BalanceSheet extends StatelessWidget {
                         color: theme.colorScheme.primary)),
               ],
             ),
+            if (game.debt > 0) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonal(
+                  onPressed: () => _payDebt(context),
+                  child: const Text('Pay down debt'),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _payDebt(BuildContext context) async {
+    final maxPay = game.debt < game.cash ? game.debt : game.cash;
+    final amount = await showAmountSheet(
+      context,
+      title: 'Pay down debt',
+      actionLabel: 'Pay',
+      max: maxPay,
+      helper: 'Debt ${money(game.debt)} · cash ${money(game.cash)}. '
+          'It compounds at ${pct(GameController.debtRate)}/yr — clear it fast.',
+    );
+    if (amount == null || !context.mounted) return;
+    final err = game.payDebt(amount, max: amount >= game.debt - 0.01);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+          SnackBar(content: Text(err ?? 'Paid ${money(amount)} toward your debt.')));
   }
 
   Widget _line(ThemeData theme, String k, double v,

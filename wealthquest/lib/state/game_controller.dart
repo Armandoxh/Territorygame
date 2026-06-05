@@ -258,7 +258,8 @@ class GameController extends ChangeNotifier {
       holdingsValue +
       propertiesEquity +
       pendingBetsValue -
-      studentLoan;
+      studentLoan -
+      debt;
 
   // ---- Sports betting ----
   /// Open wagers, valued at their stake until they resolve next month.
@@ -704,6 +705,29 @@ class GameController extends ChangeNotifier {
     return null;
   }
 
+  // ---- High-interest debt (loan sharks, payday loans) ----
+  /// Nasty short-term debt that compounds fast and drags net worth. Taken on
+  /// via crisis events; pay it down before it snowballs.
+  double debt = 0;
+
+  /// Annual interest on [debt] — loan-shark territory.
+  static const double debtRate = 0.28;
+
+  /// Pay [amount] of cash toward your high-interest debt (or all if [max]).
+  String? payDebt(double amount, {bool max = false}) {
+    if (debt <= 0) return 'You have no debt to pay.';
+    final amt = max ? debt : amount;
+    if (amt <= 0) return 'Enter an amount greater than \$0.';
+    if (amt > cash + 0.001) return 'Not enough cash.';
+    final applied = amt > debt ? debt : amt;
+    cash -= applied;
+    debt -= applied;
+    if (debt < 0.01) debt = 0;
+    _log('Paid ${_usd(applied)} toward your debt.');
+    notifyListeners();
+    return null;
+  }
+
   /// Pay [amount] of cash toward the student loan (or all of it if [max]).
   String? payStudentLoan(double amount, {bool max = false}) {
     if (studentLoan <= 0) return 'No student loan to pay.';
@@ -785,6 +809,9 @@ class GameController extends ChangeNotifier {
     }
     if (studentLoan > 0) {
       studentLoan *= (1 + Catalog.studentLoanRate / Catalog.stepsPerYear);
+    }
+    if (debt > 0) {
+      debt *= (1 + debtRate / Catalog.stepsPerYear);
     }
 
     // 2) Accrue interest and check CD maturities.

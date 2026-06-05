@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wealthquest/data/catalog.dart';
+import 'package:wealthquest/data/crises.dart';
 import 'package:wealthquest/data/properties.dart';
 import 'package:wealthquest/models/asset.dart';
 import 'package:wealthquest/models/bet.dart';
@@ -524,6 +525,26 @@ void main() {
       final out = g.advanceMonths(300);
       expect(out.months, lessThan(300)); // something interrupted the run
       expect(g.pendingCrisis != null || out.result.marginCall, isTrue);
+    });
+
+    test('the event catalog is large and every event has options', () {
+      expect(Crises.all.length, greaterThanOrEqualTo(45));
+      for (final e in Crises.all) {
+        expect(e.choices, isNotEmpty, reason: '${e.id} has no choices');
+      }
+      // ids are unique
+      final ids = Crises.all.map((e) => e.id).toSet();
+      expect(ids.length, Crises.all.length);
+    });
+
+    test('high-interest debt compounds and can be paid off', () {
+      final g = GameController(seed: 1)..cash = 50000;
+      g.debt = 10000;
+      expect(g.netWorth, closeTo(40000, 1)); // debt subtracts from net worth
+      g.advanceDay();
+      expect(g.debt, greaterThan(10000)); // compounded
+      expect(g.payDebt(0, max: true), isNull);
+      expect(g.debt, 0);
     });
   });
 
