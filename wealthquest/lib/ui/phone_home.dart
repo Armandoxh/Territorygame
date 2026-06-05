@@ -5,6 +5,7 @@ import '../util/format.dart';
 import '../version.dart';
 import 'dashboard_tab.dart';
 import 'invest_app.dart';
+import 'life_app.dart';
 import 'life_tab.dart';
 import 'news_tab.dart';
 import 'property_tab.dart';
@@ -118,6 +119,13 @@ class _PhoneHomeState extends State<PhoneHome> {
                           title: 'DraftDay',
                           body: (_) => SportsBody(game: game),
                         )),
+                      ),
+                      _AppIcon(
+                        label: 'Life',
+                        sub: 'Expenses',
+                        icon: Icons.spa,
+                        color: const Color(0xFF00897B),
+                        onTap: () => _open(LifeApp(game: game)),
                       ),
                     ],
                   ),

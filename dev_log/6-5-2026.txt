@@ -25,3 +25,12 @@ resets it. Locked CDs/bonds can't be sold; if nothing is liquidatable they can c
 The recap (day_summary_dialog) now shows Cash + its monthly delta (red when negative),
 an overdraft-fee line, and portfolio shout-outs (top gainer/loser by $, and an idle-cash
 nudge) built by GameController._portfolioNotes(). Next up (build 30): the Life app.
+build 30 (v0.19.0) — Life app. New "Life" home-screen app (life_app.dart) with four tabs:
+Expenses shows the monthly living cost broken into Housing/Food/Transport/Insurance/
+Utilities/Fun slices (proportions in data/life.dart, dollars derived from dailyExpenses)
+and explains lifestyle creep; Housing and Transport show the apartment/car your income
+affords as read-only flavor (apartmentFor/carFor tiers, upgrades flagged "coming soon" per
+the user's "breakdown + events now, tiers later" choice); Events lists outings (crypto
+meetup → charity gala, $100-$750) you can attend once per month — attendLifeEvent() deducts
+cash and drops a targeted tip into The Daily Ledger via NewsEngine.insiderTip(), with
+pricier rooms = higher reliability. attendedEventThisMonth resets each advanceDay.

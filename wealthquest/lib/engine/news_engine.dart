@@ -46,6 +46,27 @@ class NewsEngine {
     return [for (final a in unique) _rumorFor(a, rng, week)];
   }
 
+  /// A single targeted tip the player picks up at a life event — same shape as
+  /// an edition rumor, but aimed at a chosen [kind] with a caller-set
+  /// [reliability] (events are better intel than the open rumor mill).
+  static Rumor insiderTip(
+      Random rng, int week, AssetKind kind, double reliability) {
+    final pool =
+        Catalog.assets.where((a) => a.kind == kind && a.kind.isPriceBased).toList();
+    final a = pool.isEmpty
+        ? Catalog.assets.firstWhere((x) => x.kind.isPriceBased)
+        : pool[rng.nextInt(pool.length)];
+    final base = _rumorFor(a, rng, week);
+    return Rumor(
+      assetId: base.assetId,
+      dir: base.dir,
+      magnitude: base.magnitude,
+      reliability: reliability,
+      headline: base.headline,
+      createdWeek: week,
+    );
+  }
+
   static Rumor _rumorFor(AssetDef a, Random rng, int week) {
     final dir = rng.nextBool() ? 1 : -1;
     final magnitude =

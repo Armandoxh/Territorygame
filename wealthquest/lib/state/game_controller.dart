@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../data/catalog.dart';
+import '../data/life.dart';
 import '../data/properties.dart';
 import '../engine/climate_engine.dart';
 import '../engine/market_engine.dart';
@@ -93,6 +94,27 @@ class GameController extends ChangeNotifier {
   void clearOverdraftStreak() {
     monthsCashNegative = 0;
     notifyListeners();
+  }
+
+  // ---- Life / events ----
+  /// You can attend one life event per month for a market tip. Reset each month.
+  bool attendedEventThisMonth = false;
+
+  /// Pay to attend [e]; in return you pick up a targeted tip that lands in this
+  /// month's edition of The Daily Ledger. One event per month. Returns an error
+  /// string, or null on success.
+  String? attendLifeEvent(LifeEvent e) {
+    if (attendedEventThisMonth) {
+      return "You've already been out this month — try again next month.";
+    }
+    if (e.cost > cash + 0.001) return 'Not enough cash.';
+    cash -= e.cost;
+    final tip = NewsEngine.insiderTip(_rng, day, e.tipKind, e.reliability);
+    currentRumors = [tip, ...currentRumors];
+    attendedEventThisMonth = true;
+    _log('Went to ${e.name} (−\$${e.cost.toStringAsFixed(0)}) and picked up a tip.');
+    notifyListeners();
+    return null;
   }
 
   /// Assets the player could sell to raise cash in a margin call: any unlocked
@@ -588,6 +610,7 @@ class GameController extends ChangeNotifier {
   DayResult advanceDay() {
     final before = netWorth;
     final cashBefore = cash;
+    attendedEventThisMonth = false; // a fresh month, a fresh night out
     final events = <String>[];
 
     // 1) Salary in, living expenses out.
