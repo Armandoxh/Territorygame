@@ -63,6 +63,26 @@ class DayResult {
 
 /// The whole game lives here: time, cash, job, market prices, and holdings.
 /// A [ChangeNotifier] so the UI rebuilds on any change.
+/// A lingering consequence of a decision — e.g. "no salary for 3 months" after
+/// taking a severance, or a recurring obligation. Ticks down each month.
+class OngoingEffect {
+  final String label;
+  int monthsLeft;
+
+  /// Cash drained each month while active (0 for a pure income suspension).
+  final double monthlyCost;
+
+  /// While active, your salary is suppressed to $0.
+  final bool suspendsIncome;
+
+  OngoingEffect({
+    required this.label,
+    required this.monthsLeft,
+    this.monthlyCost = 0,
+    this.suspendsIncome = false,
+  });
+}
+
 class GameController extends ChangeNotifier {
   final Random _rng;
 
@@ -109,6 +129,24 @@ class GameController extends ChangeNotifier {
 
   /// Monthly chance a crisis fires (~one every 7-8 months) once you're settled.
   static const double crisisChance = 0.13;
+
+  /// Lingering consequences of past decisions (e.g. unpaid leave after a
+  /// severance). Each ticks down monthly in [advanceDay].
+  final List<OngoingEffect> ongoing = [];
+
+  /// Go [months] without a salary — the consequence of taking a buyout, a
+  /// sabbatical, an injury, etc. (Used by crisis-event choices.)
+  void takeUnpaidLeave(int months, String reason) {
+    ongoing.add(OngoingEffect(
+        label: reason, monthsLeft: months, suspendsIncome: true));
+  }
+
+  /// Take on a recurring monthly obligation (alimony, support, a lease) that
+  /// drains [monthlyCost] for [months]. (Used by crisis-event choices.)
+  void addObligation(String label, double monthlyCost, int months) {
+    ongoing.add(OngoingEffect(
+        label: label, monthsLeft: months, monthlyCost: monthlyCost));
+  }
 
   /// Apply the chosen option to the pending crisis and clear it. Returns the
   /// outcome line to show the player.
@@ -685,9 +723,12 @@ class GameController extends ChangeNotifier {
   /// Fraction of pay you keep while studying part-time.
   static const double partTimePayFraction = 0.6;
 
-  /// Take-home pay this month — reduced to part-time while you're studying.
-  double get effectivePay =>
-      isStudying ? job.pay * partTimePayFraction : job.pay;
+  /// Take-home pay this month — $0 while a consequence suspends your income,
+  /// reduced to part-time while you're studying, otherwise full pay.
+  double get effectivePay {
+    if (ongoing.any((e) => e.suspendsIncome)) return 0;
+    return isStudying ? job.pay * partTimePayFraction : job.pay;
+  }
 
   bool meetsEducation(JobDef j) => eduLevel >= j.requiredEdu;
 
@@ -813,6 +854,16 @@ class GameController extends ChangeNotifier {
     if (debt > 0) {
       debt *= (1 + debtRate / Catalog.stepsPerYear);
     }
+
+    // 1c) Lingering consequences: drain any recurring cost, then tick down.
+    for (final e in ongoing) {
+      if (e.monthlyCost > 0) cash -= e.monthlyCost;
+      e.monthsLeft -= 1;
+    }
+    for (final e in ongoing.where((e) => e.monthsLeft <= 0)) {
+      events.add('✔ ${e.label} is over.');
+    }
+    ongoing.removeWhere((e) => e.monthsLeft <= 0);
 
     // 2) Accrue interest and check CD maturities.
     var interest = 0.0;

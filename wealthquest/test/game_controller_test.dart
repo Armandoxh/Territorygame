@@ -546,6 +546,33 @@ void main() {
       expect(g.payDebt(0, max: true), isNull);
       expect(g.debt, 0);
     });
+
+    test('the event pool grows with wealth (tiering)', () {
+      int poolFor(GameController g) => Crises.all
+          .where((e) =>
+              g.netWorth >= e.minNetWorth &&
+              g.netWorth <= e.maxNetWorth &&
+              e.eligible(g))
+          .length;
+      final poor = GameController(seed: 1); // ~$2k net worth
+      final rich = GameController(seed: 1)..cash = 10000000; // $10M
+      expect(poolFor(rich), greaterThan(poolFor(poor)));
+      // an expensive event is NOT available when poor
+      final expensive = Crises.all.firstWhere((e) => e.minNetWorth >= 700000);
+      expect(poor.netWorth >= expensive.minNetWorth, isFalse);
+    });
+
+    test('a severance suspends your pay for the consequence period', () {
+      final g = GameController(seed: 1)..cash = 100000;
+      g.takeUnpaidLeave(3, 'Between jobs');
+      expect(g.effectivePay, 0);
+      final r = g.advanceDay();
+      expect(r.income, 0); // no salary while suspended
+      g.advanceDay();
+      g.advanceDay();
+      expect(g.ongoing, isEmpty); // clears after 3 months
+      expect(g.effectivePay, greaterThan(0));
+    });
   });
 
   group('Prestige & retirement', () {

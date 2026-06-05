@@ -167,3 +167,20 @@ something; payable via Vault balance sheet ("Pay down debt") or events (shark co
 consolidation). Tests: catalog >=45 with unique ids + choices; debt compounds & pays off.
 NOTE (important): this container was re-cloned at build 30 mid-session; remote was correct at
 build 44 — reset --hard origin before this work. All fine.
+build 46 (v0.29.0) — Wealth-tiered life events + real consequences (web-researched). Per the
+player: stop showing events randomly — start cheap, unlock bigger/pricier ones as net worth
+grows, and every choice should cost something. Researched real "unexpected expenses" (Chase/
+SoFi/US Bank: furnace $1-12k, transmission, sewer backups, foundation, medical $6k OOP, legal
+$350/hr, avg surprise $5,500). Reworked data/crises.dart (~60 events) into NET-WORTH TIERS via
+new CrisisEvent.minNetWorth/maxNetWorth: T0 everyday-cheap flat-cost (phone, tires, vet,
+dental, appliance, ticket…) that FADE OUT when rich (maxNetWorth); T1 $30k+ (transmission,
+furnace, plumbing, hospital, lawsuit, headhunter, layoff); T2 $150k+ (foundation, major
+surgery, eldercare, startup, inheritance); T3 $750k+ (big lawsuit, divorce, family bailout,
+failed venture, luxury upkeep); T4 $5M+ (estate restructuring, headline lawsuit, art-forgery).
+Crises.pick now filters by net-worth band. CONSEQUENCES: new OngoingEffect system on
+GameController (ongoing list, takeUnpaidLeave/addObligation; effectivePay returns $0 while
+income suspended; advanceDay step 1c drains recurring costs + ticks down). Wired the user's
+example — layoff severance = cash now BUT 3 months no pay — plus headhunter (1 mo gap), injury/
+surgery (1-3 mo off), eldercare/divorce (recurring obligations), DIY move (month off). Active
+consequences show as red chips on the home status panel. Tests: pool grows with wealth;
+severance suspends pay for the period; catalog >=45 unique.

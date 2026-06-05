@@ -13,6 +13,7 @@ import 'news_tab.dart';
 import 'property_tab.dart';
 import 'sports_app.dart';
 import 'widgets/app_scaffold.dart';
+import 'widgets/ui_helpers.dart';
 
 /// The home screen is a phone: a status panel up top, a grid of "apps", and a
 /// persistent Next Month button. Each app opens full-screen.
@@ -260,6 +261,29 @@ class _StatusPanel extends StatelessWidget {
           const SizedBox(height: 4),
           Text('Cash ${moneyWhole(game.cash)}',
               style: theme.textTheme.bodyMedium),
+          if (game.ongoing.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final e in game.ongoing)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: kLoss.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${e.label} · ${e.monthsLeft} mo',
+                      style: theme.textTheme.labelSmall?.copyWith(color: kLoss),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );

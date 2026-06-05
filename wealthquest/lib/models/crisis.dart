@@ -21,6 +21,12 @@ class CrisisEvent {
   /// Whether this event can fire right now (e.g. only in a downturn).
   final bool Function(GameController g) eligible;
 
+  /// Net-worth band in which this event appears. Cheap everyday events start at
+  /// 0; bigger, pricier events only unlock once you're wealthy. A few petty
+  /// ones set [maxNetWorth] so they stop bothering a tycoon.
+  final double minNetWorth;
+  final double maxNetWorth;
+
   final List<CrisisChoice> choices;
 
   CrisisEvent({
@@ -30,6 +36,8 @@ class CrisisEvent {
     required this.body,
     required this.choices,
     this.eligible = _always,
+    this.minNetWorth = 0,
+    this.maxNetWorth = double.infinity,
   });
 }
 
