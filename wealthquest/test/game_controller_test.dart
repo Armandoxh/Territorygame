@@ -537,6 +537,36 @@ void main() {
       expect(ids.length, Crises.all.length);
     });
 
+    test('the same decision does not resurface back-to-back', () {
+      final g = GameController(seed: 5)..cash = 50000;
+      String? last;
+      var samples = 0;
+      for (var i = 0; i < 2000 && samples < 30; i++) {
+        if (g.advanceDay().crisis) {
+          final id = g.pendingCrisis!.id;
+          expect(id, isNot(equals(last)),
+              reason: 'crisis "$id" fired twice in a row');
+          last = id;
+          samples++;
+          g.resolveCrisis(g.pendingCrisis!.choices.first);
+        }
+      }
+      expect(samples, greaterThan(5),
+          reason: 'enough crises should fire to exercise repeat-avoidance');
+    });
+
+    test('crises still fire while the player is underwater', () {
+      final g = GameController(seed: 5)..cash = 200;
+      g.debt = 20000; // deep negative net worth
+      expect(g.netWorth, lessThan(0));
+      var fired = false;
+      for (var i = 0; i < 600 && !fired; i++) {
+        if (g.advanceDay().crisis) fired = true;
+      }
+      expect(fired, isTrue,
+          reason: 'a negative net worth should still draw base-tier events');
+    });
+
     test('high-interest debt compounds and can be paid off', () {
       final g = GameController(seed: 1)..cash = 50000;
       g.debt = 10000;

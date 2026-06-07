@@ -127,6 +127,16 @@ class GameController extends ChangeNotifier {
   /// A pending decision event the player must resolve (blocks fast-forward).
   CrisisEvent? pendingCrisis;
 
+  /// IDs of the most-recently-fired crises (oldest first). The picker skips
+  /// these so the same decision doesn't resurface back-to-back — the main
+  /// reason the event stream used to feel repetitive. Trimmed to the last
+  /// [_crisisMemory] entries.
+  final List<String> recentCrisisIds = [];
+
+  /// How many recent crises to remember and avoid repeating. Kept comfortably
+  /// below the eligible pool so there's always something fresh to draw.
+  static const int _crisisMemory = 8;
+
   /// Monthly chance a crisis fires (~one every 7-8 months) once you're settled.
   static const double crisisChance = 0.13;
 
@@ -1132,6 +1142,12 @@ class GameController extends ChangeNotifier {
     if (pendingCrisis == null && day > 6 && _rng.nextDouble() < crisisChance) {
       pendingCrisis = Crises.pick(this, _rng);
       crisisTriggered = pendingCrisis != null;
+      if (pendingCrisis != null) {
+        recentCrisisIds.add(pendingCrisis!.id);
+        if (recentCrisisIds.length > _crisisMemory) {
+          recentCrisisIds.removeRange(0, recentCrisisIds.length - _crisisMemory);
+        }
+      }
     }
 
     // 7) Publish next week's edition of rumors.

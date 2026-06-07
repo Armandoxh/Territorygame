@@ -1313,13 +1313,28 @@ class Crises {
   ];
 
   /// Pick a random event whose net-worth band and context allow it right now.
+  ///
+  /// Two things keep the stream from feeling repetitive:
+  ///  - The minimum-wealth floor is checked against a non-negative net worth,
+  ///    so a player who's gone *underwater* (negative net worth, e.g. after a
+  ///    payday loan) still draws from the base tier instead of getting nothing.
+  ///  - Events in [GameController.recentCrisisIds] are skipped so the same
+  ///    decision doesn't resurface back-to-back. If avoiding repeats would
+  ///    leave nothing, we fall back to the full eligible set rather than
+  ///    firing blank.
   static CrisisEvent? pick(GameController g, Random rng) {
     final nw = g.netWorth;
+    // Underwater players are treated as net worth 0 for the *floor* test only;
+    // the max-wealth cap still uses the real (possibly negative) figure.
+    final floorNw = nw < 0 ? 0.0 : nw;
     final eligible = all
         .where((e) =>
-            nw >= e.minNetWorth && nw <= e.maxNetWorth && e.eligible(g))
+            floorNw >= e.minNetWorth && nw <= e.maxNetWorth && e.eligible(g))
         .toList();
     if (eligible.isEmpty) return null;
-    return eligible[rng.nextInt(eligible.length)];
+    final fresh =
+        eligible.where((e) => !g.recentCrisisIds.contains(e.id)).toList();
+    final pool = fresh.isNotEmpty ? fresh : eligible;
+    return pool[rng.nextInt(pool.length)];
   }
 }
