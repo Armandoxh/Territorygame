@@ -140,6 +140,12 @@ class GameController extends ChangeNotifier {
   /// Monthly chance a crisis fires (~one every 7-8 months) once you're settled.
   static const double crisisChance = 0.13;
 
+  /// Master switch for the crisis/decision stream. Always true in normal play;
+  /// the balance harness flips it off to A/B-measure how much life events drag
+  /// on wealth. Gated so the trigger RNG is still consumed identically either
+  /// way, keeping default behavior unchanged.
+  bool crisesEnabled = true;
+
   /// Lingering consequences of past decisions (e.g. unpaid leave after a
   /// severance). Each ticks down monthly in [advanceDay].
   final List<OngoingEffect> ongoing = [];
@@ -1265,7 +1271,11 @@ class GameController extends ChangeNotifier {
     // 6b) Life happens: occasionally a crisis/decision interrupts. Settle in
     //     for a few months first, and never stack two at once.
     var crisisTriggered = false;
-    if (pendingCrisis == null && day > 6 && _rng.nextDouble() < crisisChance) {
+    // Draw the trigger under the same structural gate as before, so RNG is
+    // consumed identically whether or not crises are enabled.
+    final crisisRoll =
+        (pendingCrisis == null && day > 6) ? _rng.nextDouble() : 1.0;
+    if (crisesEnabled && crisisRoll < crisisChance) {
       pendingCrisis = Crises.pick(this, _rng);
       crisisTriggered = pendingCrisis != null;
       if (pendingCrisis != null) {
