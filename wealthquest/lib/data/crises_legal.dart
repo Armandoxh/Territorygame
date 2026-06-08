@@ -80,7 +80,7 @@ class LegalCrises {
       emoji: '👨‍⚖️',
       title: 'You\'ve been summoned for jury duty',
       body: 'A multi-week trial, and your employer doesn\'t make up the '
-          'difference. Civic duty pays $30 a day.',
+          'difference. Civic duty pays \$30 a day.',
       choices: [
         CrisisChoice('Serve like a good citizen', (g, rng) {
           unpaidLeave(g, 1, 'jury duty');
@@ -213,7 +213,7 @@ class LegalCrises {
     CrisisEvent(
       id: 'legal_sweepstakes',
       emoji: '🎉',
-      title: '"You\'ve WON a $50,000 prize!"',
+      title: '"You\'ve WON a \$50,000 prize!"',
       body: 'A call says you won a sweepstakes you don\'t remember entering. '
           'To release the prize, you just need to cover the "processing fee."',
       maxNetWorth: 250000,
@@ -507,7 +507,7 @@ class LegalCrises {
       body: 'You disputed a botched renovation and withheld payment. Now '
           'there\'s a mechanic\'s lien clouding your title.',
       minNetWorth: 150000,
-      eligible: (g) => g.properties > 0,
+      eligible: (g) => g.properties.isNotEmpty,
       choices: [
         CrisisChoice('Pay to clear the lien', (g, rng) {
           final pay = spendScaled(g, 0.03, 8000);

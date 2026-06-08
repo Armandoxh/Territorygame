@@ -103,7 +103,7 @@ class LifestyleCrises {
       id: 'life_subscription_box',
       emoji: '📦',
       title: 'A curated subscription box',
-      body: 'Monthly surprise goodies, "just $X a month." Delightful at first, '
+      body: 'Monthly surprise goodies, "just \$X a month." Delightful at first, '
           'easy to forget you\'re even paying for it.',
       maxNetWorth: 250000,
       choices: [

@@ -63,7 +63,7 @@ class HomeCrises {
       emoji: '🚗',
       title: 'The check-engine light is on',
       body: 'Solid, not blinking. The car drives fine. The internet says it '
-          'could be a $20 sensor or a $2,000 catalytic converter.',
+          'could be a \$20 sensor or a \$2,000 catalytic converter.',
       minNetWorth: 0,
       maxNetWorth: 300000,
       choices: [

@@ -511,7 +511,7 @@ class CareerCrises {
       id: 'career_linkedin_course',
       emoji: '📱',
       title: 'That "career-changing" online course',
-      body: 'An influencer swears their $200 course will double your salary. '
+      body: 'An influencer swears their \$200 course will double your salary. '
           'It probably won\'t. But what if it does?',
       maxNetWorth: 250000,
       choices: [

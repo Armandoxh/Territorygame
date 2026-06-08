@@ -335,7 +335,7 @@ class GamblingCrises {
       choices: [
         CrisisChoice('Buy a stack and play hard', (g, rng) {
           final r = wager(g, rng, rnd(rng, 800, 2000), 0.45, 2.0);
-          final gave = r < 0 ? -r : 0;
+          final gave = r < 0 ? -r : 0.0;
           return r > 0
               ? 'You run hot at the blackjack table — up ${usd(r)}, and the '
                   'charity still got your entry fee.'
