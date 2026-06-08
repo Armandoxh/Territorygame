@@ -36,17 +36,39 @@ double gain(GameController g, Random rng, num lo, num hi) {
   return a;
 }
 
+/// Clamp a raw crisis cost so a single popup can sting but never gouge: bounded
+/// at [GameController.crisisMaxNetWorthShare] of net worth (once you're past
+/// ~$100k, applied even in overdraft) and [GameController.crisisMaxCashShare] of
+/// cash on hand. This is the single chokepoint every themed-pack cost flows
+/// through, mirroring the base events' Crises._scaled.
+double _cap(GameController g, double amount) {
+  var amt = amount;
+  final nw = g.netWorth.abs();
+  if (nw > 100000) {
+    final ceiling = nw * g.crisisMaxNetWorthShare;
+    if (amt > ceiling) amt = ceiling;
+  }
+  if (g.cash > 0) {
+    final cashCap = g.cash * g.crisisMaxCashShare;
+    if (amt > cashCap) amt = cashCap;
+  }
+  return amt;
+}
+
 /// Spend cash (may push you into overdraft, like any real bill). Returns the
-/// amount spent.
+/// amount spent. Capped so no single popup gouges a cash-light player.
 double spend(GameController g, Random rng, num lo, num hi) {
-  final a = rnd(rng, lo, hi);
+  final a = _cap(g, rnd(rng, lo, hi));
   g.cash -= a;
   return a;
 }
 
-/// A net-worth-scaled cost. Returns the amount spent.
+/// A net-worth-scaled cost, dampened by [GameController.crisisCostScale] and
+/// capped. Returns the amount spent.
 double spendScaled(GameController g, double frac, double floor) {
-  final a = scaled(g, frac, floor);
+  var raw = g.netWorth.abs() * frac * g.crisisCostScale;
+  if (raw < floor) raw = floor;
+  final a = _cap(g, raw);
   g.cash -= a;
   return a;
 }
