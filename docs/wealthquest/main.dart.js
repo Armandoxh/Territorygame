@@ -27089,8 +27089,9 @@ for(s=0;s<8;++s){r=B.lZ[s]
 if(r.f===a)p.push(r.b+" \u2014 career")}for(s=0;s<40;++s){q=B.cm[s]
 if(q.go===a)p.push(q.b+" \u2014 "+A.Ji(q.e).toLowerCase())}return p},
 a1W:function a1W(a){this.a=a},
-bx(a,b,c){var s=Math.abs(a.ghi())*b
-return s<c?c:s},
+bx(a,b,c){var s,r=Math.abs(a.ghi())*b*0.55,q=r<c?c:r,p=a.c
+if(p>0){s=p*0.3
+if(q>s)q=s}return q},
 aMd(a,b,c){var s,r=$.e1().h(0,b)
 r.toString
 s=a.c
@@ -28028,23 +28029,23 @@ _.ax=_.at=1
 _.ay=0
 _.ch=null
 _.CW=k
-_.cy=l
-_.db=!1
-_.dx=m
-_.dy=n
-_.fr=o
-_.fx=p
-_.fy=q
-_.id=r
-_.k1=null
-_.k2=0.065
-_.k3=0
-_.k4=s
-_.ok=1
-_.p1=a0
-_.p2=0
-_.p3=null
-_.I$=_.RG=_.R8=_.p4=0
+_.dx=l
+_.dy=!1
+_.fr=m
+_.fx=n
+_.fy=o
+_.go=p
+_.id=q
+_.k2=r
+_.k3=null
+_.k4=0.065
+_.ok=0
+_.p1=s
+_.p2=1
+_.p3=a0
+_.p4=0
+_.R8=null
+_.I$=_.ry=_.rx=_.RG=0
 _.P$=a1
 _.a3$=_.a1$=0},
 aba:function aba(a){this.a=a},
@@ -29048,15 +29049,15 @@ return s},
 bG(a,b,c){var s=A.IH(a,b,c)
 a.c-=s
 return s},
-a_j(a,b){var s=a.R8+b
-a.R8=s<0?0:s},
-ko(a,b){if(a.p3==null)return!1
-a.p4+=b
+a_j(a,b){var s=a.rx+b
+a.rx=s<0?0:s},
+ko(a,b){if(a.R8==null)return!1
+a.RG+=b
 return!0},
 aSw(a,b){var s
-if(a.p3==null)return!1
-s=a.p4-b
-a.p4=s<1?1:s
+if(a.R8==null)return!1
+s=a.RG-b
+a.RG=s<1?1:s
 return!0},
 bF(a,b,c,d,e){var s,r=a.c
 r=c>r?r:c
@@ -29065,7 +29066,7 @@ if(b.E()<d){s=r*e
 a.c+=s
 return s}a.c-=r
 return-r},
-b5N(a){return a.p3!=null},
+b5N(a){return a.R8!=null},
 aWl(a){var s,r=a.w
 if(r<=0)return 0
 s=r/0.03
@@ -92903,7 +92904,7 @@ A.a3K.prototype={
 $2(a,b){var s,r=1000+b.E()*2000
 a.c+=r
 s=r*1.25
-a.RG=a.RG+s
+a.ry=a.ry+s
 return"Borrowed "+("$"+B.b.j(r,0))+"; you owe "+("$"+B.b.j(s,0))+"."},
 $S:0}
 A.a3L.prototype={
@@ -93012,7 +93013,7 @@ return"Settled the "+("$"+B.b.j(s,0))+" bill."},
 $S:0}
 A.a49.prototype={
 $2(a,b){var s=A.bx(a,0.05,3500)
-a.cy.push(new A.as("Hospital payment plan",6,s/6,!1))
+a.dx.push(new A.as("Hospital payment plan",6,s/6,!1))
 return"Spread "+("$"+B.b.j(s,0))+" over six months."},
 $S:0}
 A.a4a.prototype={
@@ -93061,7 +93062,7 @@ $S:0}
 A.a4i.prototype={
 $2(a,b){var s=a.d.c*2
 a.c+=s
-a.cy.push(new A.as("Job transition \u2014 no pay",1,0,!0))
+a.dx.push(new A.as("Job transition \u2014 no pay",1,0,!0))
 return"A "+("$"+B.f.j(s,0))+" bonus \u2014 but a month off the payroll first."},
 $S:0}
 A.a4k.prototype={
@@ -93073,7 +93074,7 @@ $S:0}
 A.a4l.prototype={
 $2(a,b){var s=a.d.c*2.5
 a.c+=s
-a.cy.push(new A.as("Between jobs \u2014 no salary",3,0,!0))
+a.dx.push(new A.as("Between jobs \u2014 no salary",3,0,!0))
 return"You take "+("$"+B.b.j(s,0))+" \u2014 but no salary for 3 months."},
 $S:0}
 A.a4m.prototype={
@@ -93109,19 +93110,19 @@ $S:0}
 A.a4s.prototype={
 $2(a,b){var s=1000+b.E()*1200
 a.c-=s
-a.cy.push(new A.as("Off work for the move",1,0,!0))
+a.dx.push(new A.as("Off work for the move",1,0,!0))
 return"Cheaper at "+("$"+B.b.j(s,0))+" \u2014 but you take a month off to do it."},
 $S:0}
 A.a4t.prototype={
 $2(a,b){var s=A.bx(a,0.03,2000)
 a.c-=s
-a.cy.push(new A.as("Recovering \u2014 no pay",2,0,!0))
+a.dx.push(new A.as("Recovering \u2014 no pay",2,0,!0))
 return"Surgery "+("$"+B.b.j(s,0))+", plus two months off work."},
 $S:0}
 A.a4v.prototype={
 $2(a,b){var s=A.bx(a,0.015,1200)
 a.c-=s
-if(b.E()<0.5){a.cy.push(new A.as("Re-injured \u2014 no pay",3,0,!0))
+if(b.E()<0.5){a.dx.push(new A.as("Re-injured \u2014 no pay",3,0,!0))
 return"You made it worse. "+("$"+B.b.j(s,0))+" and three months off."}return"You toughed it out. "+("$"+B.b.j(s,0))+" in bills."},
 $S:0}
 A.a4y.prototype={
@@ -93295,24 +93296,24 @@ $S:0}
 A.a2O.prototype={
 $2(a,b){var s=A.bx(a,0.06,15e3)
 a.c-=s
-a.cy.push(new A.as("Recovering \u2014 no pay",2,0,!0))
+a.dx.push(new A.as("Recovering \u2014 no pay",2,0,!0))
 return"$"+B.b.j(s,0)+" for top care, plus two months off."},
 $S:0}
 A.a2P.prototype={
 $2(a,b){var s=A.bx(a,0.03,8000)
 a.c-=s
-a.cy.push(new A.as("Recovering \u2014 no pay",1,0,!0))
+a.dx.push(new A.as("Recovering \u2014 no pay",1,0,!0))
 return"$"+B.b.j(s,0)+" out of pocket, a month off."},
 $S:0}
 A.a2Q.prototype={
 $2(a,b){var s=A.bx(a,0.01,3000)
-a.cy.push(new A.as("Eldercare",12,s,!1))
+a.dx.push(new A.as("Eldercare",12,s,!1))
 return"A good facility: about "+("$"+B.b.j(s,0))+"/mo for a year."},
 $S:0}
 A.a2R.prototype={
 $2(a,b){var s=A.bx(a,0.02,4000)
 a.c-=s
-a.cy.push(new A.as("Family caregiving \u2014 no pay",2,0,!0))
+a.dx.push(new A.as("Family caregiving \u2014 no pay",2,0,!0))
 return"Renovations "+("$"+B.b.j(s,0))+", and two months off to help."},
 $S:0}
 A.a2S.prototype={
@@ -93430,7 +93431,7 @@ $S:0}
 A.a3f.prototype={
 $2(a,b){var s=A.bx(a,0.12,8e4)
 a.c-=s
-a.cy.push(new A.as("Support payments",12,A.bx(a,0.004,3000),!1))
+a.dx.push(new A.as("Support payments",12,A.bx(a,0.004,3000),!1))
 return"A "+("$"+B.b.j(s,0))+" settlement, plus support for a year."},
 $S:0}
 A.a3g.prototype={
@@ -93485,7 +93486,7 @@ a.c-=s
 return"The dealer vanished. "+("$"+B.b.j(s,0))+" in legal fees."},
 $S:0}
 A.a3t.prototype={
-$1(a){var s=a.id
+$1(a){var s=a.k2
 return s===B.dO||s===B.er},
 $S:10}
 A.a3q.prototype={
@@ -93496,7 +93497,7 @@ A.a3r.prototype={
 $2(a,b){return"You stay the course."},
 $S:0}
 A.a3w.prototype={
-$1(a){var s=a.id
+$1(a){var s=a.k2
 return s===B.d5||s===B.d4},
 $S:10}
 A.a3u.prototype={
@@ -93514,7 +93515,7 @@ $1(a){return!B.d.n(this.a.CW,a.a)},
 $S:191}
 A.a1_.prototype={
 $2(a,b){var s=A.aC(a,b,6000,14e3)
-a.cy.push(new A.as("Job hunting after buyout",3,0,!0))
+a.dx.push(new A.as("Job hunting after buyout",3,0,!0))
 return"You pocket "+("$"+B.b.j(s,0))+" severance \u2014 now three lean months of job hunting with no salary."},
 $S:0}
 A.a10.prototype={
@@ -93522,7 +93523,7 @@ $2(a,b){return"You decline the envelope and keep your paycheck \u2014 for now."}
 $S:0}
 A.a11.prototype={
 $2(a,b){var s=A.aC(a,b,1200,3000)
-a.cy.push(new A.as("Retention clawback if you leave early",6,200,!1))
+a.dx.push(new A.as("Retention clawback if you leave early",6,200,!1))
 return"You bank a "+("$"+B.b.j(s,0))+" retention bonus, but you're locked in \u2014 $200/mo clawback hangs over you for six months."},
 $S:0}
 A.a1c.prototype={
@@ -93542,7 +93543,7 @@ $2(a,b){return"You file honest numbers and sleep fine."},
 $S:0}
 A.a1O.prototype={
 $2(a,b){var s=A.aC(a,b,2000,4000)
-a.cy.push(new A.as("Burnout: takeout, therapy, gym you never use",8,300,!1))
+a.dx.push(new A.as("Burnout: takeout, therapy, gym you never use",8,300,!1))
 return"A "+("$"+B.b.j(s,0))+" signing kicker \u2014 but burnout taxes you $300/mo for eight months."},
 $S:0}
 A.a1P.prototype={
@@ -93564,7 +93565,7 @@ A.a13.prototype={
 $2(a,b){return"You keep your cash and your current title."},
 $S:0}
 A.a14.prototype={
-$2(a,b){a.cy.push(new A.as("Lost client: leaner months ahead",5,250,!1))
+$2(a,b){a.dx.push(new A.as("Lost client: leaner months ahead",5,250,!1))
 return"Sweet freedom \u2014 but the gap costs you $250/mo for five months until you replace the income."},
 $S:0}
 A.a15.prototype={
@@ -93572,21 +93573,21 @@ $2(a,b){var s=A.aC(a,b,800,1800),r=A.E(a,b,200,500)
 return"You bank "+("$"+B.b.j(s,0))+", then blow "+("$"+B.b.j(r,0))+" on a spa day to recover from the call."},
 $S:0}
 A.a16.prototype={
-$2(a,b){a.cy.push(new A.as("On strike with the union",2,0,!0))
+$2(a,b){a.dx.push(new A.as("On strike with the union",2,0,!0))
 return"Solidarity has a price \u2014 two months unpaid on the line."},
 $S:0}
 A.a17.prototype={
 $2(a,b){var s=A.aC(a,b,1000,2500)
-a.cy.push(new A.as("Scab reputation: shunned, paying for lunches alone",6,120,!1))
+a.dx.push(new A.as("Scab reputation: shunned, paying for lunches alone",6,120,!1))
 return"You keep "+("$"+B.b.j(s,0))+' coming in, but "scab" sticks \u2014 $120/mo in social fallout for six months.'},
 $S:0}
 A.a18.prototype={
 $2(a,b){if(b.E()<0.5)return"They cave \u2014 "+("$"+B.b.j(A.aC(a,b,400,1200),0))+" home-office stipend and you keep your slippers on."
-a.cy.push(new A.as("Commute: gas, tolls, sad parking garage",6,180,!1))
+a.dx.push(new A.as("Commute: gas, tolls, sad parking garage",6,180,!1))
 return"They say no. You commute anyway \u2014 $180/mo for six months."},
 $S:0}
 A.a19.prototype={
-$2(a,b){a.cy.push(new A.as("Commute costs",6,180,!1))
+$2(a,b){a.dx.push(new A.as("Commute costs",6,180,!1))
 return"You comply \u2014 $180/mo in commuting for six months."},
 $S:0}
 A.a1a.prototype={
@@ -93634,7 +93635,7 @@ $2(a,b){return"You let the LinkedIn message rot in your inbox."},
 $S:0}
 A.a1o.prototype={
 $2(a,b){var s
-a.cy.push(new A.as("Bridging the pay gap to the startup",1,0,!0))
+a.dx.push(new A.as("Bridging the pay gap to the startup",1,0,!0))
 s=A.bF(a,b,6000,0.4,4)
 return s>=0?"A lean first month, then the equity pops \u2014 "+("$"+B.b.j(s,0))+" richer.":"A lean first month, and the cap table screws you \u2014 "+("$"+B.b.j(-s,0))+" gone."},
 $S:0}
@@ -93643,7 +93644,7 @@ $2(a,b){return"You keep the boring, reliable paycheck."},
 $S:0}
 A.a1q.prototype={
 $2(a,b){var s=A.aC(a,b,3000,7000)
-a.cy.push(new A.as("Recovering on workers' comp",2,0,!0))
+a.dx.push(new A.as("Recovering on workers' comp",2,0,!0))
 return"A "+("$"+B.b.j(s,0))+" settlement, and two months off your regular salary to actually heal."},
 $S:0}
 A.a1r.prototype={
@@ -93658,7 +93659,7 @@ $2(a,b){return"Bird in hand \u2014 "+("$"+B.b.j(A.aC(a,b,3000,6000),0))+" in you
 $S:0}
 A.a1u.prototype={
 $2(a,b){var s=A.aC(a,b,1500,3000)
-a.cy.push(new A.as("Running your own car: insurance, gas, repairs",6,350,!1))
+a.dx.push(new A.as("Running your own car: insurance, gas, repairs",6,350,!1))
 return"You pocket "+("$"+B.b.j(s,0))+" up front, then $350/mo keeping your own wheels on the road for six months."},
 $S:0}
 A.a1v.prototype={
@@ -93669,7 +93670,7 @@ $1(a){return 18+B.f.cr(a.b,12)>=28},
 $S:10}
 A.a1w.prototype={
 $2(a,b){var s
-a.cy.push(new A.as("Ramping up the consulting practice",4,0,!0))
+a.dx.push(new A.as("Ramping up the consulting practice",4,0,!0))
 s=A.bF(a,b,2e4,0.5,2.4)
 return s>=0?"Four dry months, then clients flood in \u2014 "+("$"+B.b.j(s,0))+" ahead.":"Four dry months and the pipeline stays empty \u2014 "+("$"+B.b.j(-s,0))+" burned."},
 $S:0}
@@ -93686,7 +93687,7 @@ $2(a,b){return"You decline the buy-in and keep your capital."},
 $S:0}
 A.a1C.prototype={
 $2(a,b){var s=A.aC(a,b,25e3,6e4)
-a.cy.push(new A.as("Between executive roles",3,0,!0))
+a.dx.push(new A.as("Between executive roles",3,0,!0))
 return"You glide out with "+("$"+B.b.j(s,0))+" and three months to find the next corner office."},
 $S:0}
 A.a1D.prototype={
@@ -93698,7 +93699,7 @@ A.a1G.prototype={
 $1(a){return 18+B.f.cr(a.b,12)>=30},
 $S:10}
 A.a1E.prototype={
-$2(a,b){a.cy.push(new A.as("On a well-earned sabbatical",6,0,!0))
+$2(a,b){a.dx.push(new A.as("On a well-earned sabbatical",6,0,!0))
 return"Six months unpaid and "+("$"+B.b.j(A.E(a,b,5000,12e3),0))+" on the trip \u2014 but you come back a human being again."},
 $S:0}
 A.a1F.prototype={
@@ -93830,7 +93831,7 @@ A.a7p.prototype={
 $2(a,b){return"You keep your evenings for your own classes."},
 $S:0}
 A.a7s.prototype={
-$1(a){return a.R8>5000},
+$1(a){return a.rx>5000},
 $S:10}
 A.a7q.prototype={
 $2(a,b){var s=A.E(a,b,300,800)
@@ -93856,7 +93857,7 @@ A.a7w.prototype={
 $2(a,b){return"You catch the keynotes from your couch."},
 $S:0}
 A.a7y.prototype={
-$2(a,b){a.cy.push(new A.as("Language app subscription",12,25+b.E()*35,!1))
+$2(a,b){a.dx.push(new A.as("Language app subscription",12,25+b.E()*35,!1))
 if(b.E()<0.4)return"You stick with it and land "+("$"+B.b.j(A.aC(a,b,1500,4000),0))+" of translation work."
 return"You're paying monthly... and on lesson three since March."},
 $S:0}
@@ -93864,7 +93865,7 @@ A.a7z.prototype={
 $2(a,b){return"You bookmark it with the other someday plans."},
 $S:0}
 A.a7A.prototype={
-$2(a,b){a.cy.push(new A.as("Career mentor retainer",6,150+b.E()*250,!1))
+$2(a,b){a.dx.push(new A.as("Career mentor retainer",6,150+b.E()*250,!1))
 return"Their connections already paid off \u2014 "+("$"+B.b.j(A.aC(a,b,1000,3000),0))+" in new work."},
 $S:0}
 A.a7B.prototype={
@@ -93880,7 +93881,7 @@ $2(a,b){return"You learn the basics without paying the upsell."},
 $S:0}
 A.a7E.prototype={
 $2(a,b){A.a_j(a,3000+b.E()*4000)
-a.cy.push(new A.as("Night-class commute & fees",8,80+b.E()*120,!1))
+a.dx.push(new A.as("Night-class commute & fees",8,80+b.E()*120,!1))
 return"You're building skills \u2014 on borrowed money and borrowed evenings."},
 $S:0}
 A.a7F.prototype={
@@ -93907,7 +93908,7 @@ $2(a,b){return'You hold the line. He says he "understands" in the voice that mea
 $S:0}
 A.a8I.prototype={
 $2(a,b){var s=A.E(a,b,150,450)
-a.cy.push(new A.as("Dog food & vet plan",18,60+b.E()*80,!1))
+a.dx.push(new A.as("Dog food & vet plan",18,60+b.E()*80,!1))
 return"Adoption fee "+("$"+B.b.j(s,0))+", plus a kibble-and-checkup tab for a while. Worth every cent of slobber."},
 $S:0}
 A.a8T.prototype={
@@ -93931,13 +93932,13 @@ A.a9m.prototype={
 $2(a,b){return"A "+("$"+B.b.j(A.E(a,b,150,500),0))+" gift and heartfelt regrets. They understand \u2014 mostly. The photos look incredible without you."},
 $S:0}
 A.a9n.prototype={
-$2(a,b){var s=a.cy
+$2(a,b){var s=a.dx
 s.push(new A.as("Parental leave",3,0,!0))
 s.push(new A.as("Daycare",24,1000+b.E()*900,!1))
 return"Three months of no salary and a daycare bill that rivals a mortgage. Also: the smell of a newborn's head. Net win."},
 $S:0}
 A.a8y.prototype={
-$2(a,b){var s=a.cy
+$2(a,b){var s=a.dx
 s.push(new A.as("Parental leave",1,0,!0))
 s.push(new A.as("Babysitting & supplies",18,300+b.E()*400,!1))
 return"One month off and Grandma covers Tuesdays. Cheaper, but you owe a lot of casseroles in return."},
@@ -93963,7 +93964,7 @@ $2(a,b){return"Board games and pot roast: "+("$"+B.b.j(A.E(a,b,200,600),0))+". C
 $S:0}
 A.a8E.prototype={
 $2(a,b){var s=A.E(a,b,600,1500)
-a.cy.push(new A.as("Travel team fees",9,200+b.E()*250,!1))
+a.dx.push(new A.as("Travel team fees",9,200+b.E()*250,!1))
 return"Cleats, club dues, and a season of gas-station coffee: "+("$"+B.b.j(s,0))+" now plus monthly. They light up on the field, though."},
 $S:0}
 A.a8F.prototype={
@@ -93990,7 +93991,7 @@ A.a8M.prototype={
 $2(a,b){var s
 if(b.E()<0.55)return"He makes every payment, on time, for a year. You feel like a genius mentor. $0 out of pocket."
 s=4000+b.E()*5000
-a.RG+=s
+a.ry+=s
 return"He defaults. The lender comes for the co-signer \u2014 that's you. "+("$"+B.b.j(s,0))+" of ugly debt is now yours."},
 $S:0}
 A.a8N.prototype={
@@ -94007,7 +94008,7 @@ $2(a,b){return"Everyone brings a dish; you cover the park permit and drinks for 
 $S:0}
 A.a8R.prototype={
 $2(a,b){var s=A.E(a,b,2000,6000)
-a.cy.push(new A.as("Shared debt payoff",12,200+b.E()*300,!1))
+a.dx.push(new A.as("Shared debt payoff",12,200+b.E()*300,!1))
 return"You knock "+("$"+B.b.j(s,0))+" off their balance now and split the rest monthly. Trust, with a price tag."},
 $S:0}
 A.a8S.prototype={
@@ -94015,11 +94016,11 @@ $2(a,b){return"You seed a "+("$"+B.b.j(A.E(a,b,500,1500),0))+' shared "us" accou
 $S:0}
 A.a8U.prototype={
 $2(a,b){var s=A.E(a,b,3000,9000)
-a.cy.push(new A.as("In-home care help",24,400+b.E()*500,!1))
+a.dx.push(new A.as("In-home care help",24,400+b.E()*500,!1))
 return"A grab-bar bathroom and a ramp: "+("$"+B.b.j(s,0))+", plus part-time aides monthly. Hard days, but she's home with you."},
 $S:0}
 A.a8V.prototype={
-$2(a,b){a.cy.push(new A.as("Assisted living gap",24,1500+b.E()*2000,!1))
+$2(a,b){a.dx.push(new A.as("Assisted living gap",24,1500+b.E()*2000,!1))
 return"You cover the gap her pension can't \u2014 a steep monthly bill. She's safe and social; your wallet feels it."},
 $S:0}
 A.a8W.prototype={
@@ -94054,7 +94055,7 @@ $S:0}
 A.a95.prototype={
 $2(a,b){var s,r=A.E(a,b,5000,12e3)
 if(b.E()<0.6){s=A.aC(a,b,3000,12e3)
-a.cy.push(new A.as("Sister's repayments",12,150+b.E()*250,!1))
+a.dx.push(new A.as("Sister's repayments",12,150+b.E()*250,!1))
 return"A real loan with a real schedule \u2014 "+("$"+B.b.j(r,0))+" out, "+("$"+B.b.j(s,0))+" and steady payments coming back. She's reliable."}return"You lend "+("$"+B.b.j(r,0))+' on a handshake-plus-spreadsheet. Payments start "next month." They always do.'},
 $S:0}
 A.a96.prototype={
@@ -94065,7 +94066,7 @@ $2(a,b){return"You put "+("$"+B.b.j(A.E(a,b,2500,6000),0))+" toward a reliable u
 $S:0}
 A.a98.prototype={
 $2(a,b){var s=A.aC(a,b,4e4,9e4)
-a.cy.push(new A.as("Cabin upkeep & taxes",24,600+b.E()*800,!1))
+a.dx.push(new A.as("Cabin upkeep & taxes",24,600+b.E()*800,!1))
 return"You bank "+("$"+B.b.j(s,0))+", then inherit a roof that leaks and a dock that doesn't. The sunsets, though."},
 $S:0}
 A.a99.prototype={
@@ -94075,7 +94076,7 @@ A.a9a.prototype={
 $2(a,b){return"You clear "+("$"+B.b.j(A.bG(a,0.18,3e4),0))+' of mortgage in one stroke. Your dad, who never cries, has to "go check on something."'},
 $S:0}
 A.a9b.prototype={
-$2(a,b){a.cy.push(new A.as("Parents' mortgage",24,1200+b.E()*1000,!1))
+$2(a,b){a.dx.push(new A.as("Parents' mortgage",24,1200+b.E()*1000,!1))
 return"You take over the monthly note for a while. Lighter today, a steady drip on your books for two years."},
 $S:0}
 A.a9c.prototype={
@@ -94089,12 +94090,12 @@ if(r>0)return"A measured "+("$"+B.b.j(s,0))+" buy-in returns "+("$"+B.b.j(r,0))+
 return"Your "+("$"+B.b.j(s,0))+" stake dips with the market. Salvageable, and you kept the bigger bag dry."},
 $S:0}
 A.a9f.prototype={
-$2(a,b){a.cy.push(new A.as("Memory care",24,4000+b.E()*3000,!1))
+$2(a,b){a.dx.push(new A.as("Memory care",24,4000+b.E()*3000,!1))
 return"Round-the-clock specialists and a real garden \u2014 a heavy monthly bill, but he's safe and cared for. Worth it."},
 $S:0}
 A.a9g.prototype={
 $2(a,b){var s=A.E(a,b,15e3,35e3)
-a.cy.push(new A.as("Care top-ups",24,1500+b.E()*1500,!1))
+a.dx.push(new A.as("Care top-ups",24,1500+b.E()*1500,!1))
 return"You prepay "+("$"+B.b.j(s,0))+" into a care fund and cover top-ups monthly. A balance of quality and not going broke."},
 $S:0}
 A.a9h.prototype={
@@ -94135,14 +94136,14 @@ $2(a,b){return"You nurse a beer for "+("$"+B.b.j(A.E(a,b,20,60),0))+" and keep y
 $S:0}
 A.ab2.prototype={
 $2(a,b){var s=A.aC(a,b,80,120)
-a.cy.push(new A.as("App rollover wagering",3,30+b.E()*40,!1))
+a.dx.push(new A.as("App rollover wagering",3,30+b.E()*40,!1))
 return"You pocket "+("$"+B.b.j(s,0))+' in "free" credit \u2014 and the rollover keeps you betting for a while.'},
 $S:0}
 A.ab3.prototype={
 $2(a,b){return"You recognize the trap and uninstall it. No bonus, no strings."},
 $S:0}
 A.ab4.prototype={
-$2(a,b){a.cy.push(new A.as("Daily scratch tickets",6,60+b.E()*80,!1))
+$2(a,b){a.dx.push(new A.as("Daily scratch tickets",6,60+b.E()*80,!1))
 if(b.E()<0.12)return"One ticket actually pops for "+("$"+B.b.j(A.aC(a,b,500,2000),0))+" \u2014 which guarantees you'll never stop now."
 return"You silver-dust your fingers daily for months. Mostly losers."},
 $S:0}
@@ -94181,7 +94182,7 @@ $2(a,b){return"You want no part of a securities case. You pass clean."},
 $S:0}
 A.aao.prototype={
 $2(a,b){var s,r=1000+b.E()*2000
-a.RG+=r
+a.ry+=r
 s=A.bF(a,b,r,0.45,2)
 return s>0?"You actually claw back "+("$"+B.b.j(s,0))+" \u2014 now just pay off that "+("$"+B.b.j(r,0))+" shark loan...":"You blew the borrowed "+("$"+B.b.j(r,0))+" too. Now you owe the shark with nothing to show."},
 $S:0}
@@ -94225,7 +94226,7 @@ $2(a,b){return"You play penny slots for "+("$"+B.b.j(A.E(a,b,200,600),0))+" and 
 $S:0}
 A.aaC.prototype={
 $2(a,b){var s=2000+b.E()*3000,r=A.bF(a,b,s,0.45,2)
-if(r<=0){a.RG+=s
+if(r<=0){a.ry+=s
 return"You lost on the cuff \u2014 now you owe the bookie "+("$"+B.b.j(s,0))+" at very persuasive interest."}return"It hit and you settle up clean \u2014 "+("$"+B.b.j(r,0))+" ahead, this time."},
 $S:0}
 A.aaD.prototype={
@@ -94316,13 +94317,13 @@ $2(a,b){return"You enjoy the courtside seats and quietly stop placing bets."},
 $S:0}
 A.abM.prototype={
 $2(a,b){var s=A.E(a,b,2500,6000)
-a.cy.push(new A.as("Recovering from wrist surgery",2,0,!0))
+a.dx.push(new A.as("Recovering from wrist surgery",2,0,!0))
 return"Set properly for "+("$"+B.b.j(s,0))+" \u2014 but two months one-handed and off work."},
 $S:0}
 A.abN.prototype={
 $2(a,b){var s,r=A.E(a,b,200,500)
 if(b.E()<0.45){s=A.E(a,b,3000,7000)
-a.cy.push(new A.as("Re-breaking a badly-healed wrist",3,0,!0))
+a.dx.push(new A.as("Re-breaking a badly-healed wrist",3,0,!0))
 return"It healed wrong. Re-broken and re-set for another "+("$"+B.b.j(s,0))+", and three months off."}return"Risky, but it knit fine. "+("$"+B.b.j(r,0))+" and a drugstore brace."},
 $S:0}
 A.abO.prototype={
@@ -94345,13 +94346,13 @@ A.act.prototype={
 $2(a,b){return"Standing desk and a good chair for "+("$"+B.b.j(A.E(a,b,600,1500),0))+" \u2014 your spine thanks you."},
 $S:0}
 A.acu.prototype={
-$2(a,b){a.cy.push(new A.as("Physical therapy sessions",3,120+b.E()*130,!1))
+$2(a,b){a.dx.push(new A.as("Physical therapy sessions",3,120+b.E()*130,!1))
 return"Three months of PT copays \u2014 slower, but it treats the cause."},
 $S:0}
 A.acv.prototype={
 $2(a,b){var s,r=A.E(a,b,20,60)
 if(b.E()<0.5){s=A.E(a,b,1000,3000)
-a.cy.push(new A.as("A blown-out back",1,0,!0))
+a.dx.push(new A.as("A blown-out back",1,0,!0))
 return"Your back gives out entirely; "+("$"+B.b.j(s,0))+" and a month flat on the floor."}return"It eases up on its own. "+("$"+B.b.j(r,0))+" of painkillers."},
 $S:0}
 A.acw.prototype={
@@ -94360,7 +94361,7 @@ $S:0}
 A.acx.prototype={
 $2(a,b){var s,r=A.E(a,b,15,50)
 if(b.E()<0.35){s=A.E(a,b,1500,4000)
-a.cy.push(new A.as("Hospitalized for dehydration",1,0,!0))
+a.dx.push(new A.as("Hospitalized for dehydration",1,0,!0))
 return"You got dangerously dehydrated; "+("$"+B.b.j(s,0))+" hospital bill and a week off."}return"Worst night of your life, but "+("$"+B.b.j(r,0))+" of electrolytes did it."},
 $S:0}
 A.abP.prototype={
@@ -94369,11 +94370,11 @@ $S:0}
 A.abQ.prototype={
 $2(a,b){var s
 if(b.E()<0.3){s=A.E(a,b,4000,9000)
-a.cy.push(new A.as("Treating a caught-late skin cancer",2,0,!0))
+a.dx.push(new A.as("Treating a caught-late skin cancer",2,0,!0))
 return"It was the bad kind. Caught late: "+("$"+B.b.j(s,0))+" and two months of treatment."}return"Months later it's unchanged. You got lucky this time."},
 $S:0}
 A.abR.prototype={
-$2(a,b){a.cy.push(new A.as("Gym membership",12,40+b.E()*50,!1))
+$2(a,b){a.dx.push(new A.as("Gym membership",12,40+b.E()*50,!1))
 if(b.E()<0.4)return"You actually go. Strongest and healthiest you've felt in years."
 return"You went in January. The dues keep coming anyway."},
 $S:0}
@@ -94381,20 +94382,20 @@ A.abS.prototype={
 $2(a,b){return"Decent shoes for "+("$"+B.b.j(A.E(a,b,80,200),0))+" and the open road. No contract."},
 $S:0}
 A.abT.prototype={
-$2(a,b){a.cy.push(new A.as("Therapy sessions",6,150+b.E()*150,!1))
+$2(a,b){a.dx.push(new A.as("Therapy sessions",6,150+b.E()*150,!1))
 if(b.E()<0.6)return"Half a year of work pays off \u2014 clearer head, and you dodge a costly burnout ("+("$"+B.b.j(A.aC(a,b,1000,3000),0))+" you'd have lost)."
 return"It's slow going, but you're steadier. Worth the monthly cost."},
 $S:0}
 A.abU.prototype={
 $2(a,b){var s
 if(b.E()<0.45){s=A.E(a,b,1500,4000)
-a.cy.push(new A.as("A full-blown burnout",1,0,!0))
+a.dx.push(new A.as("A full-blown burnout",1,0,!0))
 return"You hit a wall. "+("$"+B.b.j(s,0))+" in fallout and a month away to recover."}return"You white-knuckle through it. For now."},
 $S:0}
 A.abV.prototype={
 $2(a,b){var s,r=A.aC(a,b,1200,3500)
 if(b.E()<0.25){s=A.E(a,b,1500,4000)
-a.cy.push(new A.as("Recovering from trial side effects",1,0,!0))
+a.dx.push(new A.as("Recovering from trial side effects",1,0,!0))
 return"You banked "+("$"+B.b.j(r,0))+" but the side effects hit \u2014 "+("$"+B.b.j(s,0))+" in care and a month off."}return"Smooth sailing. You pocket "+("$"+B.b.j(r,0))+" for a few blood draws."},
 $S:0}
 A.abW.prototype={
@@ -94410,18 +94411,18 @@ $2(a,b){if(b.E()<0.55)return"White-knuckle, but you quit for free. Iron will."
 return"You caved by week two. "+("$"+B.b.j(A.E(a,b,100,300),0))+" on a fresh carton."},
 $S:0}
 A.ac_.prototype={
-$2(a,b){a.cy.push(new A.as("Health premium (cheap plan)",12,120+b.E()*80,!1))
+$2(a,b){a.dx.push(new A.as("Health premium (cheap plan)",12,120+b.E()*80,!1))
 if(b.E()<0.4)return"You low premiums all year \u2014 then a big bill hits the deductible: "+("$"+B.b.j(A.E(a,b,3000,7000),0))+" out of pocket."
 return"A healthy year. The low premium was the right bet."},
 $S:0}
 A.ac0.prototype={
-$2(a,b){a.cy.push(new A.as("Health premium (gold plan)",12,350+b.E()*200,!1))
+$2(a,b){a.dx.push(new A.as("Health premium (gold plan)",12,350+b.E()*200,!1))
 return"You pay more monthly, but a surprise bill won't wreck you."},
 $S:0}
 A.ac1.prototype={
 $2(a,b){var s,r=A.E(a,b,150,400)
 if(b.E()<0.3){s=A.E(a,b,800,2500)
-a.cy.push(new A.as("Recovering from a running injury",1,0,!0))
+a.dx.push(new A.as("Recovering from a running injury",1,0,!0))
 return"You blow out a knee at mile 19. "+("$"+B.b.j(r,0))+" entry plus "+("$"+B.b.j(s,0))+" in PT and a month off."}return"You finish! "+("$"+B.b.j(r,0))+" for a medal and the best high of your life."},
 $S:0}
 A.ac2.prototype={
@@ -94431,12 +94432,12 @@ A.ac3.prototype={
 $2(a,b){var s,r=A.E(a,b,300,700)
 if(b.E()<0.5)return"The second doc says skip surgery \u2014 "+("$"+B.b.j(r,0))+" just saved you an operation."
 s=A.E(a,b,2000,5000)
-a.cy.push(new A.as("Recovering from surgery",1,0,!0))
+a.dx.push(new A.as("Recovering from surgery",1,0,!0))
 return"Both agree you need it. "+("$"+B.b.j(r,0))+" for the opinion plus "+("$"+B.b.j(s,0))+" for the surgery anyway."},
 $S:0}
 A.ac4.prototype={
 $2(a,b){var s=A.E(a,b,2000,5000)
-a.cy.push(new A.as("Recovering from surgery",1,0,!0))
+a.dx.push(new A.as("Recovering from surgery",1,0,!0))
 return"Straight to the OR \u2014 "+("$"+B.b.j(s,0))+" and a month off. Hope it was needed."},
 $S:0}
 A.ac5.prototype={
@@ -94445,21 +94446,21 @@ if(b.E()<0.85)return"20/20 for "+("$"+B.b.j(s,0))+". You wake up and just... see
 return"Mild halos and dry eye; a "+("$"+B.b.j(A.E(a,b,800,2000),0))+" touch-up needed on top of the "+("$"+B.b.j(s,0))+"."},
 $S:0}
 A.ac6.prototype={
-$2(a,b){a.cy.push(new A.as("Contacts & lens refresh",12,30+b.E()*40,!1))
+$2(a,b){a.dx.push(new A.as("Contacts & lens refresh",12,30+b.E()*40,!1))
 return"You stick with frames \u2014 cheaper monthly, forever."},
 $S:0}
 A.ac7.prototype={
-$2(a,b){a.cy.push(new A.as("Brand-name medication",12,120+b.E()*160,!1))
+$2(a,b){a.dx.push(new A.as("Brand-name medication",12,120+b.E()*160,!1))
 return"It works perfectly \u2014 you just pay a premium every month."},
 $S:0}
 A.ac8.prototype={
-$2(a,b){a.cy.push(new A.as("Generic medication",12,20+b.E()*40,!1))
+$2(a,b){a.dx.push(new A.as("Generic medication",12,20+b.E()*40,!1))
 if(b.E()<0.35)return"The generic doesn't agree with you; "+("$"+B.b.j(A.E(a,b,600,1800),0))+" sorting out side effects before you switch back."
 return"The generic works just fine. Big savings each month."},
 $S:0}
 A.aca.prototype={
 $2(a,b){var s=A.E(a,b,1500,3500)
-a.cy.push(new A.as("Recovering from oral surgery",1,0,!0))
+a.dx.push(new A.as("Recovering from oral surgery",1,0,!0))
 return"You snooze through it for "+("$"+B.b.j(s,0))+" and recover for a few weeks."},
 $S:0}
 A.acb.prototype={
@@ -94469,13 +94470,13 @@ return"You get a dry socket. "+("$"+B.b.j(r,0))+" plus "+("$"+B.b.j(s,0))+" in f
 $S:0}
 A.acc.prototype={
 $2(a,b){var s=A.E(a,b,800,2000)
-a.cy.push(new A.as("CPAP supplies",6,20+b.E()*30,!1))
+a.dx.push(new A.as("CPAP supplies",6,20+b.E()*30,!1))
 return"You sleep like the dead (the good way) for "+("$"+B.b.j(s,0))+" plus supplies."},
 $S:0}
 A.acd.prototype={
 $2(a,b){var s
 if(b.E()<0.4){s=A.E(a,b,2500,6000)
-a.cy.push(new A.as("Heart trouble from untreated apnea",1,0,!0))
+a.dx.push(new A.as("Heart trouble from untreated apnea",1,0,!0))
 return"Years of bad sleep strain your heart; "+("$"+B.b.j(s,0))+" and a month of cardiac follow-up."}return"You manage, sort of. The snoring is somebody else's problem."},
 $S:0}
 A.ace.prototype={
@@ -94488,11 +94489,11 @@ $2(a,b){return"You unplug at home for "+("$"+B.b.j(A.E(a,b,100,400),0))+". Almos
 $S:0}
 A.acg.prototype={
 $2(a,b){var s=A.E(a,b,4000,9000)
-a.cy.push(new A.as("Recovering from knee replacement",2,0,!0))
+a.dx.push(new A.as("Recovering from knee replacement",2,0,!0))
 return"New knee for "+("$"+B.b.j(s,0))+" and two months of rehab \u2014 but you walk pain-free."},
 $S:0}
 A.ach.prototype={
-$2(a,b){var s,r=a.cy
+$2(a,b){var s,r=a.dx
 r.push(new A.as("Cortisone shots & braces",6,100+b.E()*150,!1))
 if(b.E()<0.45){s=A.E(a,b,4000,9000)
 r.push(new A.as("Emergency knee surgery",2,0,!0))
@@ -94518,22 +94519,22 @@ $2(a,b){return"You do the standard annual for "+("$"+B.b.j(A.E(a,b,150,400),0))+
 $S:0}
 A.acn.prototype={
 $2(a,b){var s=A.bG(a,0.05,8000)
-a.cy.push(new A.as("Recovering from a procedure",1,0,!0))
+a.dx.push(new A.as("Recovering from a procedure",1,0,!0))
 return"Flawless work for "+("$"+B.b.j(s,0))+" and a month of downtime. You feel great."},
 $S:0}
 A.aco.prototype={
 $2(a,b){var s,r=A.E(a,b,3000,6000)
 if(b.E()<0.4){s=A.bG(a,0.06,1e4)
-a.cy.push(new A.as("Fixing a botched procedure",2,0,!0))
+a.dx.push(new A.as("Fixing a botched procedure",2,0,!0))
 return"It got botched. "+("$"+B.b.j(r,0))+" wasted plus "+("$"+B.b.j(s,0))+" and two months to have it corrected back home."}return"Great result for "+("$"+B.b.j(r,0))+" and a nice vacation. You gambled and won."},
 $S:0}
 A.acp.prototype={
 $2(a,b){var s=A.bG(a,0.06,12e3)
-a.cy.push(new A.as("Recovering from spinal surgery",3,0,!0))
+a.dx.push(new A.as("Recovering from spinal surgery",3,0,!0))
 return"A real fix for "+("$"+B.b.j(s,0))+" \u2014 but three months flat on your back recovering."},
 $S:0}
 A.acq.prototype={
-$2(a,b){var s,r=a.cy
+$2(a,b){var s,r=a.dx
 r.push(new A.as("Injections & physical therapy",6,300+b.E()*300,!1))
 if(b.E()<0.5)return"Slow and steady wins \u2014 the disc settles without the knife."
 s=A.bG(a,0.06,12e3)
@@ -94596,7 +94597,7 @@ if(b.E()<0.4)return"The repair holds for a month, then the drum seizes \u2014 "+
 return"New pump and a hose clamp, "+("$"+B.b.j(s,0))+". It spins like new."},
 $S:0}
 A.acI.prototype={
-$2(a,b){a.cy.push(new A.as("Extended warranty",36,95,!1))
+$2(a,b){a.dx.push(new A.as("Extended warranty",36,95,!1))
 return"You sign up at $95/mo for three years. If the car holds together, you funded their boat."},
 $S:0}
 A.acJ.prototype={
@@ -94670,7 +94671,7 @@ return"A low-mileage salvage transmission, installed for "+("$"+B.b.j(s,0))+". R
 $S:0}
 A.ad2.prototype={
 $2(a,b){var s=A.aC(a,b,300,1200),r=6000+b.E()*6000
-a.RG+=r
+a.ry+=r
 return"You dump it for "+("$"+B.b.j(s,0))+" and finance a replacement \u2014 new payments, but no more limping to work."},
 $S:0}
 A.ad5.prototype={
@@ -94691,7 +94692,7 @@ A.ad6.prototype={
 $2(a,b){return"A full rooftop array, "+("$"+B.b.j(A.bG(a,0.06,14e3),0))+" up front. Your power bill all but vanishes \u2014 it pays for itself in a decade."},
 $S:0}
 A.ad7.prototype={
-$2(a,b){a.cy.push(new A.as("Solar loan",120,160,!1))
+$2(a,b){a.dx.push(new A.as("Solar loan",120,160,!1))
 return"Zero down, $160/mo for ten years. The panels save you roughly that \u2014 a wash you're betting will tilt your way."},
 $S:0}
 A.ad8.prototype={
@@ -94789,12 +94790,12 @@ $2(a,b){if(b.E()<0.75)return"They refuse, then vanish. You dodged a scam and kep
 return"They were real after all \u2014 you send a small "+("$"+B.b.j(A.E(a,b,50,150),0))+" gift card to make up for the suspicion."},
 $S:0}
 A.afj.prototype={
-$2(a,b){a.cy.push(new A.as("jury duty",1,0,!0))
+$2(a,b){a.dx.push(new A.as("jury duty",1,0,!0))
 return"A month off the job, "+("$"+B.b.j(A.aC(a,b,150,400),0))+" in juror pay, and a front-row seat to justice."},
 $S:0}
 A.afk.prototype={
 $2(a,b){if(b.E()<0.4)return"The judge buys your hardship excuse \u2014 you're dismissed, no lost pay."
-a.cy.push(new A.as("jury duty",1,0,!0))
+a.dx.push(new A.as("jury duty",1,0,!0))
 return"The judge sees through it AND fines you "+("$"+B.b.j(A.E(a,b,100,300),0))+" for wasting the court's time \u2014 you serve anyway."},
 $S:0}
 A.afl.prototype={
@@ -94831,7 +94832,7 @@ $2(a,b){return"You change the subject and keep your wallet \u2014 and the friend
 $S:0}
 A.aeK.prototype={
 $2(a,b){var s=A.E(a,b,500,3000)
-a.cy.push(new A.as("fraud monitoring",12,20,!1))
+a.dx.push(new A.as("fraud monitoring",12,20,!1))
 return"It was a phishing site. "+("$"+B.b.j(s,0))+" drained before you froze the card, plus a year of monitoring."},
 $S:0}
 A.aeL.prototype={
@@ -94875,18 +94876,18 @@ return"You lose: "+("$"+B.b.j(r,0))+" in costs plus "+("$"+B.b.j(s,0))+" in dama
 $S:0}
 A.aeX.prototype={
 $2(a,b){var s=A.E(a,b,400,1200)
-a.cy.push(new A.as("credit monitoring",18,25,!1))
+a.dx.push(new A.as("credit monitoring",18,25,!1))
 return"A restoration service handles it for "+("$"+B.b.j(s,0))+" plus 18 months of monitoring. Painful but thorough."},
 $S:0}
 A.aeY.prototype={
-$2(a,b){a.cy.push(new A.as("untangling identity theft",1,0,!0))
+$2(a,b){a.dx.push(new A.as("untangling identity theft",1,0,!0))
 if(b.E()<0.55)return"Weeks of phone calls, but you clear it for free. Your time, not your money."
 return"You miss a fraudulent account and it metastasizes: "+("$"+B.b.j(A.E(a,b,1000,4000),0))+" in damage before you catch it."},
 $S:0}
 A.aeZ.prototype={
 $2(a,b){var s,r=A.aC(a,b,3000,9000)
 if(b.E()<0.4){s=A.E(a,b,5000,15e3)
-a.cy.push(new A.as("fired and under investigation",2,0,!0))
+a.dx.push(new A.as("fired and under investigation",2,0,!0))
 return"Compliance flags the deal. You pocketed "+("$"+B.b.j(r,0))+" but lose "+("$"+B.b.j(s,0))+" and your job over it."}return"No one notices. "+("$"+B.b.j(r,0))+" richer and quietly compromised."},
 $S:0}
 A.af0.prototype={
@@ -94958,7 +94959,7 @@ $S:0}
 A.afh.prototype={
 $2(a,b){var s,r=A.aC(a,b,2e4,6e4)
 if(b.E()<0.4){s=A.bG(a,0.08,4e4)
-a.cy.push(new A.as("tax-fraud investigation",2,0,!0))
+a.dx.push(new A.as("tax-fraud investigation",2,0,!0))
 return"You saved "+("$"+B.b.j(r,0))+" \u2014 until the scheme is flagged as illegal. "+("$"+B.b.j(s,0))+" in penalties and a frozen career."}return"It holds up as legal-ish. "+("$"+B.b.j(r,0))+" saved, and a knot in your stomach every April."},
 $S:0}
 A.afi.prototype={
@@ -94994,7 +94995,7 @@ A.agd.prototype={
 $2(a,b){return"You soak in the vibe for "+("$"+B.b.j(A.E(a,b,40,120),0))+" and grab tacos after."},
 $S:0}
 A.age.prototype={
-$2(a,b){a.cy.push(new A.as("Gym membership",12,40+b.E()*50,!1))
+$2(a,b){a.dx.push(new A.as("Gym membership",12,40+b.E()*50,!1))
 if(b.E()<0.5)return"You actually go three times a week. Money well spent."
 return"You go twice in March and pay all year anyway."},
 $S:0}
@@ -95002,7 +95003,7 @@ A.agf.prototype={
 $2(a,b){return"You bookmark a free workout playlist and call it gains."},
 $S:0}
 A.afu.prototype={
-$2(a,b){a.cy.push(new A.as("Subscription box",9,20+b.E()*30,!1))
+$2(a,b){a.dx.push(new A.as("Subscription box",9,20+b.E()*30,!1))
 return"A little parcel of joy every month \u2014 for as long as you notice."},
 $S:0}
 A.afv.prototype={
@@ -95026,7 +95027,7 @@ $2(a,b){return"You keep gaming a hobby, not a hustle."},
 $S:0}
 A.afA.prototype={
 $2(a,b){var s=A.aC(a,b,1500,5000)
-a.cy.push(new A.as("Sponsored-post quota",6,100+b.E()*200,!1))
+a.dx.push(new A.as("Sponsored-post quota",6,100+b.E()*200,!1))
 return"You bank "+("$"+B.b.j(s,0))+" upfront \u2014 and owe sponsored posts for half a year."},
 $S:0}
 A.afB.prototype={
@@ -95091,7 +95092,7 @@ A.afT.prototype={
 $2(a,b){return"You decide your network is worth the premium."},
 $S:0}
 A.afU.prototype={
-$2(a,b){a.cy.push(new A.as("Club dues",8,200+b.E()*300,!1))
+$2(a,b){a.dx.push(new A.as("Club dues",8,200+b.E()*300,!1))
 if(b.E()<0.5)return"A back-nine handshake turns into "+("$"+B.b.j(A.aC(a,b,2000,6000),0))+" of business."
 return"Great cheese plates, no leads. The dues keep coming."},
 $S:0}
@@ -95100,7 +95101,7 @@ $2(a,b){return"You keep your weekends and your dues."},
 $S:0}
 A.afW.prototype={
 $2(a,b){var s=A.E(a,b,1000,3000)
-a.cy.push(new A.as("Timeshare maintenance fees",12,80+b.E()*120,!1))
+a.dx.push(new A.as("Timeshare maintenance fees",12,80+b.E()*120,!1))
 return"You're locked in: "+("$"+B.b.j(s,0))+" down and forever maintenance fees."},
 $S:0}
 A.afX.prototype={
@@ -95109,7 +95110,7 @@ return"You smile, say no eleven times, and enjoy the free weekend."},
 $S:0}
 A.afY.prototype={
 $2(a,b){var s=A.aC(a,b,3000,8000)
-a.cy.push(new A.as("Content deliverables",6,150+b.E()*250,!1))
+a.dx.push(new A.as("Content deliverables",6,150+b.E()*250,!1))
 return"A "+("$"+B.b.j(s,0))+" signing check \u2014 and a content quota hanging over you."},
 $S:0}
 A.afZ.prototype={
@@ -95168,7 +95169,7 @@ A.aqP.prototype={
 $2(a,b){return"You axe a few zombie subs \u2014 "+("$"+B.b.j(A.E(a,b,8,25),0))+" in last charges, then peace. The wins are in what you DON'T pay next month."},
 $S:0}
 A.ar_.prototype={
-$2(a,b){a.cy.push(new A.as("forgotten subscriptions",12,18+b.E()*20,!1))
+$2(a,b){a.dx.push(new A.as("forgotten subscriptions",12,18+b.E()*20,!1))
 return"You close the tab. The streaming services you never watch thank you for a full year."},
 $S:0}
 A.ara.prototype={
@@ -95229,7 +95230,7 @@ A.aqN.prototype={
 $2(a,b){return"You chip in "+("$"+B.b.j(A.E(a,b,15,45),0))+" for the warm fuzzy feeling and a sticker. Low stakes, low regret."},
 $S:0}
 A.aqO.prototype={
-$2(a,b){a.cy.push(new A.as("cloud storage",24,3+b.E()*9,!1))
+$2(a,b){a.dx.push(new A.as("cloud storage",24,3+b.E()*9,!1))
 return"Two more years of cloud bills, but you never think about space again. Convenience, monthly."},
 $S:0}
 A.aqQ.prototype={
@@ -95251,7 +95252,7 @@ A.aqU.prototype={
 $2(a,b){return"You stick with the manual grind. No cost, no learning, same chore next week."},
 $S:0}
 A.aqV.prototype={
-$2(a,b){a.cy.push(new A.as("VPN + security suite",12,5+b.E()*9,!1))
+$2(a,b){a.dx.push(new A.as("VPN + security suite",12,5+b.E()*9,!1))
 return"A year of antivirus and VPN. Mostly peace of mind, partly a tax on your anxiety."},
 $S:0}
 A.aqW.prototype={
@@ -95259,7 +95260,7 @@ $2(a,b){if(b.E()<0.18)return"A phishing link gets you anyway \u2014 "+("$"+B.b.j
 return"Strong passwords and a free VPN do the job. Zero dollars, zero incidents."},
 $S:0}
 A.aqX.prototype={
-$2(a,b){a.cy.push(new A.as("AI pro subscription",12,20+b.E()*40,!1))
+$2(a,b){a.dx.push(new A.as("AI pro subscription",12,20+b.E()*40,!1))
 return"You ship twice as fast \u2014 "+("$"+B.b.j(A.aC(a,b,1500,6000),0))+" in extra side work this year easily beats the monthly fee."},
 $S:0}
 A.aqY.prototype={
@@ -95315,11 +95316,11 @@ $2(a,b){return"You give them your time and your network, not your cash. Your bal
 $S:0}
 A.arc.prototype={
 $2(a,b){var s=A.bG(a,0.03,4000)
-a.cy.push(new A.as("home lab power & cooling",12,20+b.E()*40,!1))
+a.dx.push(new A.as("home lab power & cooling",12,20+b.E()*40,!1))
 return"A blinking "+("$"+B.b.j(s,0))+" cathedral of hardware, plus a year of power bills. Your hobby has a heartbeat now."},
 $S:0}
 A.ard.prototype={
-$2(a,b){a.cy.push(new A.as("cloud server",12,10+b.E()*20,!1))
+$2(a,b){a.dx.push(new A.as("cloud server",12,10+b.E()*20,!1))
 return"You spin up a tiny cloud server for pocket change a month. Less cool, far less cash up front."},
 $S:0}
 A.are.prototype={
@@ -95341,7 +95342,7 @@ $S:0}
 A.ari.prototype={
 $2(a,b){var s=A.bG(a,0.08,6e4)
 if(b.E()<0.45)return"The subscribers stick \u2014 "+("$"+B.b.j(A.aC(a,b,4e4,15e4),0))+" flows in over the year against "+("$"+B.b.j(s,0))+" paid. You own a money machine."
-a.cy.push(new A.as("SaaS hosting & support",12,800+b.E()*1700,!1))
+a.dx.push(new A.as("SaaS hosting & support",12,800+b.E()*1700,!1))
 return"Churn spikes the moment you take over. "+("$"+B.b.j(s,0))+" spent and now you're paying to keep the lights on."},
 $S:0}
 A.arj.prototype={
@@ -95395,15 +95396,15 @@ A.yY.prototype={}
 A.as.prototype={}
 A.mH.prototype={
 amy(a){var s,r,q=this
-if(q.db)return"You've already been out this month \u2014 try again next month."
+if(q.dy)return"You've already been out this month \u2014 try again next month."
 s=a.e
 r=q.c
 if(s>r+0.001)return"Not enough cash."
 q.c=r-s
 r=A.a([A.aZu(q.a,q.b,a.f,a.r)],t.AT)
-B.d.N(r,q.fr)
-q.fr=r
-q.db=!0
+B.d.N(r,q.fy)
+q.fy=r
+q.dy=!0
 q.eK("Went to "+a.b+" (\u2212$"+B.f.j(s,0)+") and picked up a tip.")
 q.a7()
 return null},
@@ -95414,13 +95415,13 @@ else o=!0
 if(o)return!0}for(s=this.y,r=s.length,o=this.c,q=0;q<r;++q){p=s[q]
 n=p.c-p.d
 if(n>=0||o+n>=0)return!0}return!1},
-gBc(){var s=this.k3
+gBc(){var s=this.ok
 if(s>0.004)return"Hot"
 if(s>0.0015)return"Warm"
 if(s<-0.004)return"Crashing"
 if(s<-0.0015)return"Cooling"
 return"Steady"},
-Ay(a){return B.b.cK(this.k2+(a.c-0.065),0.01,0.2)},
+Ay(a){return B.b.cK(this.k4+(a.c-0.065),0.01,0.2)},
 a5H(a,b){var s,r,q,p,o,n,m,l,k,j=this
 for(s=j.e,r=j.f,q=j.r,p=t.n,o=0;o<40;++o){n=B.cm[o]
 m=n.e
@@ -95433,10 +95434,10 @@ s.u(0,k.a,k.d)}s=j.a
 r=A.aP2(s,j.at)
 j.Q=r
 j.at=j.at+r.length
-j.dx.push(j.ghi())
-j.fr=A.aNX(s,j.b)
+j.fr.push(j.ghi())
+j.fy=A.aNX(s,j.b)
 j.eK("You turn 18 and land a job as a "+j.d.b+". Time to build wealth.")},
-aoN(a){var s=this.fr,r=A.a1(s).i("az<1>")
+aoN(a){var s=this.fy,r=A.a1(s).i("az<1>")
 s=A.a5(new A.az(s,new A.aba(a),r),r.i("F.E"))
 return s},
 ix(a){var s=this.e.h(0,a)
@@ -95453,7 +95454,7 @@ gvI(){var s,r,q,p
 for(s=this.w,r=s.length,q=0,p=0;p<s.length;s.length===r||(0,A.w)(s),++p)q+=this.fa(s[p])
 return q},
 ghi(){var s=this
-return s.c+s.gvI()+s.gauQ()+s.gauD()-s.R8-s.RG},
+return s.c+s.gvI()+s.gauQ()+s.gauD()-s.rx-s.ry},
 gauD(){var s,r,q,p
 for(s=this.as,r=s.length,q=0,p=0;p<r;++p)q+=s[p].d
 return q},
@@ -95595,7 +95596,7 @@ r=s>0
 if(r){q=l.KN(a)
 if(b>q+0.001){r=a.b
 return q<=0.001?r+": $"+B.f.j(s,0)+"/year limit already reached.":"Only $"+B.b.j(q,0)+" of "+r+" left to buy this year."}}l.c-=b
-if(r){s=l.k4
+if(r){s=l.p1
 r=a.a
 p=s.h(0,r)
 s.u(0,r,(p==null?0:p)+b)}s=a.e
@@ -95603,15 +95604,15 @@ r=s===B.bJ
 if(r||s===B.aM||s===B.be){p=a.a
 if(r){o=l.Yb(p)
 if(o!=null){o.e+=b
-o.f+=b}else{++l.ok
-l.w.push(new A.ft(p,s,0,b,b,0,!1,!1,0))}}else{++l.ok
+o.f+=b}else{++l.p2
+l.w.push(new A.ft(p,s,0,b,b,0,!1,!1,0))}}else{++l.p2
 r=l.b
 n=s===B.aM||a.dx===B.fJ
 l.w.push(new A.ft(p,s,0,b,b,r+a.y,n,!1,0))}}else{r=a.a
 m=b/l.ix(r)
 o=l.Yb(r)
 if(o!=null){o.d+=m
-o.f+=b}else{++l.ok
+o.f+=b}else{++l.p2
 l.w.push(new A.ft(r,s,m,0,b,0,!1,!1,0))}}l.eK("Bought $"+B.b.j(b,0)+" of "+a.b+".")
 l.a7()
 return null},
@@ -95643,7 +95644,7 @@ if(b<=0)return"Enter an amount greater than $0."
 if(b>q.c+0.001)return"Not enough cash for margin."
 s=a.a
 r=q.ix(s)
-q.c-=b;++q.ok
+q.c-=b;++q.p2
 q.w.push(new A.ft(s,p,b/r,0,b,0,!1,!0,r))
 q.eK("Opened a $"+B.b.j(b,0)+" short on "+a.b+".")
 q.a7()
@@ -95655,27 +95656,27 @@ B.d.H(s.w,a)
 s.eK("Covered short on "+$.e1().h(0,a.b).b+".")
 s.a7()
 return null},
-gX6(){var s,r,q=this.p3
+gX6(){var s,r,q=this.R8
 if(q==null)return null
 for(s=0;s<3;++s){r=B.qF[s]
 if(r.a===q)return r}return null},
 ghI(){var s,r
-if(B.d.ep(this.cy,new A.abb()))return 0
-s=this.p3
+if(B.d.ep(this.dx,new A.abb()))return 0
+s=this.R8
 r=this.d.c
 return s!=null?r*0.6:r},
 apx(a){var s,r,q=this
-if(q.p3!=null)return"You're already enrolled in a program."
-if(q.p2>=a.c)return"You already hold this credential."
+if(q.R8!=null)return"You're already enrolled in a program."
+if(q.p4>=a.c)return"You already hold this credential."
 s=a.e
-q.R8=q.R8+s
-q.p3=a.a
+q.rx=q.rx+s
+q.R8=a.a
 r=a.d
-q.p4=r*12
+q.RG=r*12
 q.eK("Enrolled in "+a.b+" \u2014 borrowed "+("$"+B.f.j(s,0))+". You go part-time (half pay) for "+r+" years.")
 q.a7()
 return null},
-auz(a,b){var s,r,q,p=this,o=p.RG
+auz(a,b){var s,r,q,p=this,o=p.ry
 if(o<=0)return"You have no debt to pay."
 s=b?o:a
 if(s<=0)return"Enter an amount greater than $0."
@@ -95684,12 +95685,12 @@ if(s>r+0.001)return"Not enough cash."
 q=s>o?o:s
 p.c=r-q
 r=o-q
-p.RG=r
-if(r<0.01)p.RG=0
+p.ry=r
+if(r<0.01)p.ry=0
 p.eK("Paid "+("$"+B.b.j(q,0))+" toward your debt.")
 p.a7()
 return null},
-auB(a,b){var s,r,q,p=this,o=p.R8
+auB(a,b){var s,r,q,p=this,o=p.rx
 if(o<=0)return"No student loan to pay."
 s=b?o:a
 if(s<=0)return"Enter an amount greater than $0."
@@ -95698,14 +95699,14 @@ if(s>r+0.001)return"Not enough cash."
 q=s>o?o:s
 p.c=r-q
 r=o-q
-p.R8=r
-if(r<0.01)p.R8=0
+p.rx=r
+if(r<0.01)p.rx=0
 p.eK("Paid "+("$"+B.b.j(q,0))+" toward your student loan.")
 p.a7()
 return null},
 avX(a){var s=this
 if(a.a===s.d.a)return
-if(s.p2<a.e)return
+if(s.p4<a.e)return
 s.d=a
 s.eK("New job: "+a.b+" \u2014 $"+B.f.j(a.c,0)+"/month.")
 s.a7()},
@@ -95717,27 +95718,27 @@ s=A.a5(new A.az(s,new A.abd(this),r),r.i("F.E"))
 return s},
 KN(a){var s,r,q=a.CW
 if(q<=0)return 1/0
-s=this.k4.h(0,a.a)
+s=this.p1.h(0,a.a)
 r=q-(s==null?0:s)
 return r<0?0:r},
 Vd(){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,b0,b1,b2,b3,b4,b5,b6,b7,b8,b9,c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,d0,d1,d2,d3,d4,d5,d6,d7,d8=this,d9=d8.ghi(),e0=d8.c
-d8.db=!1
+d8.dy=!1
 s=t.s
 r=A.a([],s)
 q=d8.ghI()
 p=A.yo(18+B.f.cr(d8.b,12),d8.ghI())
 d8.c=(d8.c+=q)-p
-if(d8.p3!=null)if(--d8.p4<=0){o=d8.gX6()
-n=d8.p2
+if(d8.R8!=null)if(--d8.RG<=0){o=d8.gX6()
+n=d8.p4
 m=o.c
-d8.p2=n>=m?n:m
-d8.p3=null
-d8.p4=0
-r.push("\ud83c\udf93 You earned your "+o.b+"! New careers are open.")}n=d8.R8
-if(n>0)d8.R8=n*1.00625
-n=d8.RG
-if(n>0)d8.RG=n*1.0233333333333334
-for(n=d8.cy,m=n.length,l=0;l<m;++l){k=n[l]
+d8.p4=n>=m?n:m
+d8.R8=null
+d8.RG=0
+r.push("\ud83c\udf93 You earned your "+o.b+"! New careers are open.")}n=d8.rx
+if(n>0)d8.rx=n*1.00625
+n=d8.ry
+if(n>0)d8.ry=n*1.0233333333333334
+for(n=d8.dx,m=n.length,l=0;l<m;++l){k=n[l]
 j=k.c
 if(j>0)d8.c-=j;--k.b}for(m=B.d.gac(n),j=new A.rj(m,new A.ab7());j.B();)r.push("\u2714 "+m.gS().a+" is over.")
 B.d.e5(n,new A.ab8())
@@ -95755,7 +95756,7 @@ if(j===B.aM||j===B.be){j=h.w
 j=j>0&&!h.x&&d8.b+1>=j}else j=!1
 if(j){h.x=!0
 r.push(g.b+" reached maturity \u2014 $"+B.b.j(f,0)+" now free to withdraw.")}}c=A.z(t.N,t.i)
-for(m=d8.fr,j=m.length,f=d8.a,b=0,l=0;l<m.length;m.length===j||(0,A.w)(m),++l){a=m[l]
+for(m=d8.fy,j=m.length,f=d8.a,b=0,l=0;l<m.length;m.length===j||(0,A.w)(m),++l){a=m[l]
 a0=f.E()<a.d
 a.w=a0
 if(a0){e=a.a
@@ -95764,15 +95765,15 @@ if(a1==null)a1=0
 c.u(0,e,a1+a.b*a.c);++b}else{a2=f.n6()?-a.b*a.c*0.7:0
 e=a.a
 a1=c.h(0,e)
-c.u(0,e,(a1==null?0:a1)+a2)}}a3=d8.id
-m=d8.id=A.aWm(a3,f)
+c.u(0,e,(a1==null?0:a1)+a2)}}a3=d8.k2
+m=d8.k2=A.aWm(a3,f)
 if(m!==a3)r.push(A.aNC(m)+" "+A.aND(m)+": "+A.aNB(m))
-m=d8.k1
+m=d8.k3
 if(m!=null&&m.e<=0){a4=m.a
 if(a4==="Digital")a4="Crypto"
 m=m.b>0?"rally":"slump"
 r.push("The "+a4+" "+m+" fades.")
-m=d8.k1=null}if(m==null&&f.E()<0.1){a5=B.O4[f.hj(7)]
+m=d8.k3=null}if(m==null&&f.E()<0.1){a5=B.O4[f.hj(7)]
 a6=f.n6()?1:-1
 m=f.E()
 j=f.hj(3)
@@ -95781,7 +95782,7 @@ a7=A.a([a4+" stocks are on a tear","Money is pouring into "+a4,a4+" is the marke
 a8=A.a([a4+" is selling off hard","Trouble brewing across "+a4,"Investors are fleeing "+a4],s)
 a9=a6>0?a7:a8
 s=a9[f.hj(3)]
-d8.k1=new A.anr(a5,a6,0.02+m*0.03,s,1+j)
+d8.k3=new A.anr(a5,a6,0.02+m*0.03,s,1+j)
 r.push("\ud83d\uddde\ufe0f "+s+".")}s=d8.f
 s.a8(0)
 m=d8.e
@@ -95792,13 +95793,13 @@ if(!(j===B.b3||j===B.au||j===B.br||j===B.by||j===B.bz))continue
 j=b0.a
 b1=c.h(0,j)
 if(b1==null)b1=0
-e=d8.id
+e=d8.k2
 a1=e===B.d5
 b2=a1?A.aNE(e):A.aNE(e)*4.333333333333333
 if(b0.fy){if(a1)b1+=0.05
 else if(e===B.d4)b1+=0.06499999999999999
 else if(e===B.dO)b1-=0.026}else b1+=b2*A.aWl(b0)
-e=d8.k1
+e=d8.k3
 if(e!=null&&b0.Q===e.a)b1+=e.b*e.c
 e=m.h(0,j)
 e.toString
@@ -95811,7 +95812,7 @@ b5.push(b3)
 if(b5.length>520)B.d.lT(b5,0)}for(l=0;l<40;++l){b0=B.cm[l]
 s=b0.e
 if(!(s===B.b3||s===B.au||s===B.br||s===B.by||s===B.bz)||b0.fx<=0)continue
-s=d8.id
+s=d8.k2
 if(s===B.d5)b6=6
 else if(s===B.d4)b6=3
 else{s=s===B.dO?0.5:1
@@ -95824,16 +95825,16 @@ m=h.c
 if(!(m===B.bJ||m===B.aM||m===B.be))continue
 b7=$.e1().h(0,h.b).fr
 if(b7<=0)continue
-m=d8.id
+m=d8.k2
 if(m===B.d5)h.e=h.e*(1-b7)
-else if(m===B.d4)h.e=h.e*(1-b7*0.12)}s=d8.k1
+else if(m===B.d4)h.e=h.e*(1-b7*0.12)}s=d8.k3
 if(s!=null)--s.e
-for(s=d8.fr,m=s.length,l=0;l<s.length;s.length===m||(0,A.w)(s),++l){a=s[l]
-a.x=d8.qS(a.a)}s=d8.fx=d8.fr
-for(m=A.a1(s).i("cq<1>"),s=new A.cq(s,m),s=new A.bN(s,s.gL(0),m.i("bN<aH.E>")),j=d8.fy,m=m.i("aH.E");s.B();){e=s.d
+for(s=d8.fy,m=s.length,l=0;l<s.length;s.length===m||(0,A.w)(s),++l){a=s[l]
+a.x=d8.qS(a.a)}s=d8.go=d8.fy
+for(m=A.a1(s).i("cq<1>"),s=new A.cq(s,m),s=new A.bN(s,s.gL(0),m.i("bN<aH.E>")),j=d8.id,m=m.i("aH.E");s.B();){e=s.d
 B.d.jQ(j,0,e==null?m.a(e):e)}s=j.length
 if(s>80)B.d.wm(j,80,s)
-s=d8.fr.length
+s=d8.fy.length
 if(s!==0)r.push("\ud83d\udcf0 Rumor mill: "+b+" of "+s+" tips proved true.")
 B.d.e5(n,new A.ab9(d8,r))
 for(s=n.length,b8=0,l=0;l<n.length;n.length===s||(0,A.w)(n),++l){h=n[l]
@@ -95847,24 +95848,24 @@ j=d8.fa(h)
 b9=j*(m?g.x:g.ax)/12
 d8.c+=b9
 b8+=b9}c0=d8.gBc()
-s=d8.k2+(A.Mo(f)*0.0018+(0.065-d8.k2)*0.04)
-d8.k2=s
+s=d8.k4+(A.Mo(f)*0.0018+(0.065-d8.k4)*0.04)
+d8.k4=s
 s=B.b.cK(s,0.03,0.105)
-d8.k2=s
-s=d8.k3=d8.k3+(A.Mo(f)*0.0012+(0.065-s)*0.03-d8.k3*0.05)
-if((s>0.008?d8.k3=0.008:s)<-0.008)d8.k3=-0.008
+d8.k4=s
+s=d8.ok=d8.ok+(A.Mo(f)*0.0012+(0.065-s)*0.03-d8.ok*0.05)
+if((s>0.008?d8.ok=0.008:s)<-0.008)d8.ok=-0.008
 c1=d8.gBc()
-if(c1!==c0)r.push("\ud83c\udfd8\ufe0f Housing market: "+c1+" \xb7 30-yr rate "+B.b.j(d8.k2*100,1)+"%.")
+if(c1!==c0)r.push("\ud83c\udfd8\ufe0f Housing market: "+c1+" \xb7 30-yr rate "+B.b.j(d8.k4*100,1)+"%.")
 for(s=d8.x,l=0;l<6;++l){c2=B.fH[l]
 n=c2.a
 m=s.h(0,n)
 m.toString
-c3=m*(1+c2.e+d8.k3+c2.f*A.Mo(f))
+c3=m*(1+c2.e+d8.ok+c2.f*A.Mo(f))
 m=c2.d*0.2
 s.u(0,n,c3<m?m:c3)}for(s=d8.y,n=s.length,c4=0,c5=0,c6=0,c7=0,l=0;l<s.length;s.length===n||(0,A.w)(s),++l){h=s[l]
 c2=$.fm().h(0,h.b)
 m=c2.e
-j=d8.k3
+j=d8.ok
 e=c2.f
 a1=A.Mo(f)
 a1=h.c*(1+(m+j+e*a1))
@@ -95918,18 +95919,18 @@ d2=!1}d4=d8.ahh()
 s=d8.b+1
 d8.b=s
 if(s%12===0){r.push("\ud83c\udf82 Happy birthday \u2014 you are now "+(18+B.f.cr(s,12))+".")
-d8.k4.a8(0)}d5=d8.ch==null&&d8.b>6?f.E():1
+d8.p1.a8(0)}d5=d8.ch==null&&d8.b>6?f.E():1
 if(d5<0.13){s=d8.ch=A.aWA(d8,f)
 d6=s!=null
 if(d6){n=d8.CW
 n.push(s.a)
 s=n.length
 if(s>8)B.d.wm(n,0,s-8)}}else d6=!1
-d8.fr=A.aNX(f,d8.b)
-d8.dx.push(d8.ghi())
+d8.fy=A.aNX(f,d8.b)
+d8.fr.push(d8.ghi())
 d7=d8.ghi()
 s=d8.c
-for(n=r.length,m=d8.dy,l=0;l<r.length;r.length===n||(0,A.w)(r),++l){B.d.jQ(m,0,r[l])
+for(n=r.length,m=d8.fx,l=0;l<r.length;r.length===n||(0,A.w)(r),++l){B.d.jQ(m,0,r[l])
 if(m.length>40)m.pop()}n=d8.b
 m=B.b.j(d7,0)
 j=d7-d9
@@ -95980,7 +95981,7 @@ r=d.c
 s=s<r*0.5&&r>1000}else s=!1
 if(s)c.push("\ud83d\udca4 $"+B.b.j(r,0)+" is sitting in cash earning little \u2014 put more of it to work in Sherwood.")
 return c},
-eK(a){var s=this.dy
+eK(a){var s=this.fx
 B.d.jQ(s,0,a)
 if(s.length>40)s.pop()}}
 A.aba.prototype={
@@ -95993,10 +95994,10 @@ A.abb.prototype={
 $1(a){return a.d},
 $S:127}
 A.abe.prototype={
-$1(a){return a.f<=this.a.p1},
+$1(a){return a.f<=this.a.p3},
 $S:549}
 A.abd.prototype={
-$1(a){return a.go<=this.a.p1},
+$1(a){return a.go<=this.a.p3},
 $S:65}
 A.ab7.prototype={
 $1(a){return a.b<=0},
@@ -96258,9 +96259,9 @@ $1(a){var s=this.a
 return new A.ml(s.c,s.d,null)},
 $S:128}
 A.tS.prototype={
-G(a){var s,r,q,p=null,o=A.D(a),n=this.c,m=n.ghI()+n.gWv()-A.yo(18+B.f.cr(n.b,12),n.ghI()),l=o.ok,k=l.w,j=t.p,i=A.cM(new A.at(B.c2,A.bs(A.a([A.G("Net worth over time",p,p,p,p,k,p,p),B.ba,A.aLU(140,n.dx)],j),B.O,B.m,B.n),p),p),h=n.ghI(),g=$.bO()
+G(a){var s,r,q,p=null,o=A.D(a),n=this.c,m=n.ghI()+n.gWv()-A.yo(18+B.f.cr(n.b,12),n.ghI()),l=o.ok,k=l.w,j=t.p,i=A.cM(new A.at(B.c2,A.bs(A.a([A.G("Net worth over time",p,p,p,p,k,p,p),B.ba,A.aLU(140,n.fr)],j),B.O,B.m,B.n),p),p),h=n.ghI(),g=$.bO()
 h=g.aC(h)
-s=n.p3
+s=n.R8
 r=n.d.b
 h=A.bv(A.a([A.cP(new A.rM("Monthly salary",h,s!=null?r+" (part-time)":r,B.J,p),1),B.hm,A.cP(new A.rM("Living expenses","-"+g.aC(A.yo(18+B.f.cr(n.b,12),n.ghI())),"per month",B.D,p),1)],j),B.v,B.m,B.n,0)
 r=A.cP(new A.rM("Passive income",g.aC(n.gWv()),"interest + dividends",B.J,p),1)
@@ -96269,7 +96270,7 @@ q=s?"+":""
 g=g.aC(m)
 s=s?B.J:B.D
 j=A.a([i,B.ba,new A.QT(n,p),B.ba,h,B.ba,A.bv(A.a([r,B.hm,A.cP(new A.rM("Net monthly flow",q+g,"into cash",s,p),1)],j),B.v,B.m,B.n,0),B.c9,A.G("Recent activity",p,p,p,p,k,p,p),B.af],j)
-n=n.dy
+n=n.fx
 if(n.length===0)j.push(A.G("Press Next Month to begin.",p,p,p,p,l.z,p,p))
 else{n=A.ii(n,0,A.m9(12,"count",t.S),A.a1(n).c)
 B.d.N(j,new A.a4(n,new A.a5k(o),n.$ti.i("a4<aH.E,f>")))}return A.hu(j,B.l9)}}
@@ -96283,22 +96284,22 @@ if(p.gKy()>0)i.push(s.FV(q,"Property",p.gKy()))
 i.push(B.px)
 i.push(s.aeG(q,"Total assets",o+n+m,!0))
 if(l>0)B.d.N(i,A.a([B.bm,s.FW(q,"Mortgages owed",-l,B.D)],j))
-o=p.R8
+o=p.rx
 if(o>0)B.d.N(i,A.a([B.bm,s.FW(q,"Student loan",-o,B.D)],j))
-if(p.RG>0)B.d.N(i,A.a([B.bm,s.FW(q,"Debt ("+(B.b.j(28.000000000000004,1)+"%")+"/yr)",-p.RG,B.D)],j))
+if(p.ry>0)B.d.N(i,A.a([B.bm,s.FW(q,"Debt ("+(B.b.j(28.000000000000004,1)+"%")+"/yr)",-p.ry,B.D)],j))
 i.push(B.px)
 o=k==null
 n=A.G("Net worth",r,r,r,r,o?r:k.dB(B.G),r,r)
 m=p.ghi()
 m=$.he().aC(m)
 i.push(A.bv(A.a([n,A.G(m,r,r,r,r,o?r:k.dS(q.ax.b,B.G),r,r)],j),B.v,B.aW,B.n,0))
-if(p.RG>0)B.d.N(i,A.a([B.af,new A.eA(B.o9,r,r,A.pg(B.afe,new A.atX(s,a),r),r)],j))
+if(p.ry>0)B.d.N(i,A.a([B.af,new A.eA(B.o9,r,r,A.pg(B.afe,new A.atX(s,a),r),r)],j))
 return A.cM(new A.at(B.c2,A.bs(i,B.O,B.m,B.n),r),r)},
 yx(a){return this.agH(a)},
 agH(a){var s=0,r=A.Z(t.H),q,p=this,o,n,m,l,k,j
 var $async$yx=A.a_(function(b,c){if(b===1)return A.W(c,r)
 for(;;)switch(s){case 0:l=p.c
-k=l.RG
+k=l.ry
 j=l.c
 if(k<j)j=k
 o=$.bO()
@@ -96306,7 +96307,7 @@ s=3
 return A.a0(A.rY(a,"Pay","Debt "+o.aC(k)+" \xb7 cash "+o.aC(l.c)+". It compounds at "+(B.b.j(28.000000000000004,1)+"%")+"/yr \u2014 clear it fast.",j,"Pay down debt"),$async$yx)
 case 3:n=c
 if(n==null||a.e==null){s=1
-break}m=l.auz(n,n>=l.RG-0.01)
+break}m=l.auz(n,n>=l.ry-0.01)
 l=a.aa(t.Pu).f
 l.kF()
 l.l7(A.lx(null,null,null,null,null,B.S,null,A.G(m==null?"Paid "+o.aC(n)+" toward your debt.":m,null,null,null,null,null,null,null),null,B.cA,null,null,null,null,null,null,null,null,null,null))
@@ -96411,7 +96412,7 @@ s=j.ax.b.aG(0.08)
 q=A.dR(12)
 return A.hu(A.a([p,B.af,i,B.ba,A.ej(k,A.G("Right now your "+l.r+" tier follows your income automatically. Choosing your own (and trading cost for lifestyle) is coming soon.",k,k,k,k,r,k,k),B.z,k,k,new A.cC(s,k,k,q,k,k,B.ap),k,k,k,B.fy,k,k,k)],m),B.d_)}}
 A.SF.prototype={
-G(a){var s=null,r=A.D(a),q=this.c.db,p=r.ax,o=p.b.aG(0.1),n=A.dR(12),m=r.ok.Q
+G(a){var s=null,r=A.D(a),q=this.c.dy,p=r.ax,o=p.b.aG(0.1),n=A.dR(12),m=r.ok.Q
 n=A.a([A.ej(s,A.G("Get out and meet people. Each event costs cash and lands you one market tip in The Daily Ledger \u2014 pricier rooms mean better intel. One outing per month.",s,s,s,s,m,s,s),B.z,s,s,new A.cC(o,s,s,n,s,s,B.ap),s,s,B.i8,B.dz,s,s,s)],t.p)
 if(q){if(m==null)p=s
 else{o=p.rx
@@ -96435,12 +96436,12 @@ return s},
 $S:1}
 A.uo.prototype={
 G(a){var s,r,q=this,p=null,o="Education",n=A.D(a),m=n.ok,l=m.w,k=A.G("You",p,p,p,p,l,p,p),j=q.c,i=q.yd(n,"Age",""+(18+B.f.cr(j.b,12))),h=q.yd(n,"Current job",j.d.b)
-if(j.p3!=null){s=j.ghI()
+if(j.R8!=null){s=j.ghI()
 s=$.bO().aC(s)+" (part-time)"}else{s=j.d
 s=$.bO().aC(s.c)}r=t.p
-r=A.a([A.cM(new A.at(B.c2,A.bs(A.a([k,B.af,i,h,q.yd(n,"Monthly pay",s),q.yd(n,o,A.aKi(j.p2))],r),B.O,B.m,B.n),p),p)],r)
-if(j.p3!=null)r.push(new A.Xi(j,p))
-if(j.R8>0)r.push(new A.TS(j,p))
+r=A.a([A.cM(new A.at(B.c2,A.bs(A.a([k,B.af,i,h,q.yd(n,"Monthly pay",s),q.yd(n,o,A.aKi(j.p4))],r),B.O,B.m,B.n),p),p)],r)
+if(j.R8!=null)r.push(new A.Xi(j,p))
+if(j.rx>0)r.push(new A.TS(j,p))
 r.push(B.c9)
 r.push(A.G(o,p,p,p,p,l,p,p))
 r.push(B.eN)
@@ -96476,17 +96477,17 @@ A.afq.prototype={
 $1(a){return new A.wz(this.a.c,a,null)},
 $S:562}
 A.Xi.prototype={
-G(a){var s,r,q=null,p=A.D(a),o=this.c,n=o.gX6(),m=n.d*12,l=B.b.cK((m-o.p4)/m,0,1)
+G(a){var s,r,q=null,p=A.D(a),o=this.c,n=o.gX6(),m=n.d*12,l=B.b.cK((m-o.RG)/m,0,1)
 m=p.ax.b.aG(0.1)
 s=p.ok
 r=t.p
-return A.cM(new A.at(B.c2,A.bs(A.a([A.bv(A.a([B.L4,B.cs,A.G("Studying: "+n.b,q,q,q,q,s.x,q,q)],r),B.v,B.m,B.n,0),B.af,A.aHW(A.dR(4),A.aNv(q,8,l)),B.bY,A.G(""+o.p4+" months left \xb7 on part-time pay until you graduate.",q,q,q,q,s.Q,q,q)],r),B.O,B.m,B.n),q),m)}}
+return A.cM(new A.at(B.c2,A.bs(A.a([A.bv(A.a([B.L4,B.cs,A.G("Studying: "+n.b,q,q,q,q,s.x,q,q)],r),B.v,B.m,B.n,0),B.af,A.aHW(A.dR(4),A.aNv(q,8,l)),B.bY,A.G(""+o.RG+" months left \xb7 on part-time pay until you graduate.",q,q,q,q,s.Q,q,q)],r),B.O,B.m,B.n),q),m)}}
 A.TS.prototype={
 yw(a){return this.agG(a)},
 agG(a){var s=0,r=A.Z(t.H),q,p=this,o,n,m,l,k,j
 var $async$yw=A.a_(function(b,c){if(b===1)return A.W(c,r)
 for(;;)switch(s){case 0:l=p.c
-k=l.R8
+k=l.rx
 j=l.c
 if(k<j)j=k
 o=$.bO()
@@ -96494,13 +96495,13 @@ s=3
 return A.a0(A.rY(a,"Pay","Balance "+o.aC(k)+" \xb7 cash "+o.aC(l.c)+". It compounds at "+(B.b.j(7.5,1)+"%")+"/yr until cleared.",j,"Pay student loan"),$async$yw)
 case 3:n=c
 if(n==null||a.e==null){s=1
-break}m=l.auB(n,n>=l.R8-0.01)
+break}m=l.auB(n,n>=l.rx-0.01)
 l=a.aa(t.Pu).f
 l.kF()
 l.l7(A.lx(null,null,null,null,null,B.S,null,A.G(m==null?"Paid "+o.aC(n)+" toward your loan.":m,null,null,null,null,null,null,null),null,B.cA,null,null,null,null,null,null,null,null,null,null))
 case 1:return A.X(q,r)}})
 return A.Y($async$yw,r)},
-G(a){var s,r,q=null,p=A.D(a).ok,o=A.G("Student loan",q,q,q,q,p.x,q,q),n=this.c.R8
+G(a){var s,r,q=null,p=A.D(a).ok,o=A.G("Student loan",q,q,q,q,p.x,q,q),n=this.c.rx
 n=$.bO().aC(n)
 s=B.b.j(7.5,1)
 p=p.Q
@@ -96522,11 +96523,11 @@ if(o!=null){n=a.aa(t.Pu).f
 n.kF()
 n.l7(A.lx(null,null,null,null,null,B.S,null,A.G(o,null,null,null,null,null,null,null),null,B.cA,null,null,null,null,null,null,null,null,null,null))}case 1:return A.X(q,r)}})
 return A.Y($async$xL,r)},
-G(a){var s,r=null,q=A.D(a),p=this.c,o=this.d,n=p.p2>=o.c,m=p.p3,l=m===o.a
+G(a){var s,r=null,q=A.D(a),p=this.c,o=this.d,n=p.p4>=o.c,m=p.R8,l=m===o.a
 if(n)s=A.aHQ(B.L2,A.aa(51,B.J.p()>>>16&255,B.J.p()>>>8&255,B.J.p()&255),B.aeY,r)
 else if(l)s=B.Hu
 else s=m!=null?A.G("Finish current\nprogram first",r,r,r,r,q.ok.ax,B.eS,r):A.pg(B.E6,new A.aw5(this,a),r)
-p=n||l||p.p3==null?1:0.6
+p=n||l||p.R8==null?1:0.6
 m=A.G(o.b,r,r,r,r,r,r,r)
 return A.cM(A.B9(A.pR(r,r,!0,B.L3,r,A.G(""+o.d+" yr \xb7 borrow "+$.bO().aC(o.e)+"\n"+o.f,r,r,r,r,q.ok.Q,r,r),m,s),p),r)}}
 A.aw4.prototype={
@@ -96547,7 +96548,7 @@ A.aw5.prototype={
 $0(){return this.a.xL(this.b)},
 $S:1}
 A.wz.prototype={
-G(a){var s,r,q=null,p=A.D(a),o=this.d,n=this.c,m=n.d,l=o.e,k=n.p2>=l
+G(a){var s,r,q=null,p=A.D(a),o=this.d,n=this.c,m=n.d,l=o.e,k=n.p4>=l
 if(o.a===m.a)s=A.aHQ(q,p.ax.b.aG(0.25),B.aeX,q)
 else if(k)s=A.pg(B.aeV,new A.ay0(this),q)
 else{n=A.aKi(l)
@@ -96629,7 +96630,7 @@ h=h==null?j:h.dS(B.J,B.G)
 B.d.N(o,A.a([B.jE,A.ej(j,A.G(l+"% "+k,j,j,j,j,h,j,j),B.z,j,j,new A.cC(n,j,j,m,j,j,B.ap),j,j,j,B.la,j,j,j)],s))}return A.bv(o,B.v,B.m,B.n,0)}}
 A.uL.prototype={
 G(a7){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2,a3,a4=null,a5=A.D(a7),a6=A.z(t.A3,t.W3)
-for(s=this.c,r=s.fr,q=r.length,p=0;p<r.length;r.length===q||(0,A.w)(r),++p){o=r[p]
+for(s=this.c,r=s.fy,q=r.length,p=0;p<r.length;r.length===q||(0,A.w)(r),++p){o=r[p]
 J.e5(a6.bL($.e1().h(0,o.a).e,new A.ajM()),o)}r=a5.ok
 q=r.f
 q=A.G("THE DAILY LEDGER",a4,a4,a4,a4,q==null?a4:q.aom(B.lT,1.5),B.eR,a4)
@@ -96641,7 +96642,7 @@ else{k=a5.ax
 j=k.rx
 l=l.aB(j==null?k.k3:j)}k=t.p
 l=A.eT(A.bs(A.a([q,A.G("Month "+n+"  \u2022  Age "+(18+m),a4,a4,a4,a4,l,a4,a4)],k),B.v,B.m,B.n),a4,a4)
-i=s.id
+i=s.k2
 h=i===B.d4||i===B.d5
 g=i===B.dO||i===B.mL
 if(h)f=B.D
@@ -96649,7 +96650,7 @@ else if(g)f=B.J
 else{q=a5.ax
 n=q.rx
 q=n==null?q.k3:n
-f=q}e=s.k1
+f=q}e=s.k3
 q=A.aa(31,f.p()>>>16&255,f.p()>>>8&255,f.p()&255)
 n=A.dR(12)
 m=A.Ju(A.aa(B.b.aA(127.5),f.p()>>>16&255,f.p()>>>8&255,f.p()&255),1)
@@ -96665,7 +96666,7 @@ a=e.d
 if(b==null)j=a4
 else{b=b.aB(j?B.J:B.D)
 j=b}B.d.N(c,A.a([B.bY,A.G(d+" "+a,a4,a4,a4,a4,j,a4,a4)],k))}q=A.a([l,B.Jg,A.ej(a4,A.bs(c,B.O,B.m,B.n),B.z,a4,a4,new A.cC(q,a4,m,n,a4,a4,B.ap),a4,a4,B.i8,B.dz,a4,a4,1/0)],k)
-if(s.fr.length===0)q.push(A.G("Quiet month on the markets \u2014 no rumors circulating.",a4,a4,a4,a4,r.z,a4,a4))
+if(s.fy.length===0)q.push(A.G("Quiet month on the markets \u2014 no rumors circulating.",a4,a4,a4,a4,r.z,a4,a4))
 else for(p=0;p<4;++p){a0=B.Oe[p]
 if(a6.h(0,a0)!=null){n=A.aZv(a0)
 m=A.a([],k)
@@ -96680,8 +96681,8 @@ if(a1===0)a3="No games on the board right now."
 else{if(a2>0){n=a2===1?"":"s"
 n=" \xb7 you have "+a2+" open bet"+n}else n=""
 a3=""+a1+" games on the board this month"+n+". Place a wager in DraftDay."}q.push(new A.rJ("\ud83c\udfc8  Sports",A.a([new A.at(B.fx,A.G(a3,a4,a4,a4,a4,r.z,a4,a4),a4)],k),a4))
-if(s.fx.length!==0){r=A.a([],k)
-for(s=s.fx,n=s.length,p=0;p<s.length;s.length===n||(0,A.w)(s),++p)r.push(new A.Wc(s[p],a4))
+if(s.go.length!==0){r=A.a([],k)
+for(s=s.go,n=s.length,p=0;p<s.length;s.length===n||(0,A.w)(s),++p)r.push(new A.Wc(s[p],a4))
 q.push(new A.rJ("\ud83d\uddde\ufe0f  Last Month, Settled",r,a4))}return A.hu(q,B.d_)},
 aht(a){var s,r,q,p,o,n=null,m=this.c
 switch(m.gBc()){case"Hot":s="Bidding wars everywhere \u2014 homes fly off the market and prices are surging."
@@ -96694,7 +96695,7 @@ case"Crashing":s="A real downturn \u2014 prices are sliding and deals are scarce
 break
 default:s="Housing is steady this month \u2014 slow, dependable appreciation."}r=a.ok
 q=A.G(s,n,n,n,n,r.z,n,n)
-m=B.b.j(m.k2*100,1)
+m=B.b.j(m.k4*100,1)
 r=r.Q
 if(r==null)r=n
 else{p=a.ax
@@ -96831,7 +96832,7 @@ s=p.ok.ax
 if(s==null)p=q
 else{p=p.ax
 r=p.rx
-p=s.aB(r==null?p.k3:r)}o.push(A.G("v0.31.0 \xb7 build 55",q,q,q,q,p,q,q))
+p=s.aB(r==null?p.k3:r)}o.push(A.G("v0.31.0 \xb7 build 56",q,q,q,q,p,q,q))
 o.push(B.af)
 return A.bs(o,B.v,B.m,B.n)},
 $S:566}
@@ -96923,7 +96924,7 @@ g=f.aC(g)
 e=s.c
 r=t.p
 f=A.a([p,B.bY,j,A.G(g,l,l,l,l,e==null?l:e.dB(B.G),l,l),B.bm,A.G("Cash "+f.aC(h.c),l,l,l,l,s.z,l,l)],r)
-j=h.cy
+j=h.dx
 if(j.length!==0){h=A.a([],r)
 for(g=j.length,s=s.ax,o=0;o<j.length;j.length===g||(0,A.w)(j),++o){n=j[o]
 e=A.aa(38,B.D.p()>>>16&255,B.D.p()>>>8&255,B.D.p()&255)
@@ -97138,7 +97139,7 @@ d=A.iw(b,"Net rent \u2212 mortgage",e+"/mo",d)
 s=s.aC(n)
 return A.cM(new A.at(B.c2,A.bs(A.a([k,B.af,j,f,d,A.iw(b,"Equity you could refi out",s,n>0?B.J:c)],t.p),B.O,B.m,B.n),c),c)}}
 A.U_.prototype={
-G(a){var s,r,q,p,o,n=null,m=A.D(a),l=this.c,k=l.k3
+G(a){var s,r,q,p,o,n=null,m=A.D(a),l=this.c,k=l.ok
 if(k>0.0015)s=B.J
 else if(k<-0.0015)s=B.D
 else{r=m.ax
@@ -97149,7 +97150,7 @@ q=m.ok
 p=q.x
 p=p==null?n:p.dS(s,B.G)
 p=A.G("Housing market: "+r,n,n,n,n,p,n,n)
-l=B.b.j(l.k2*100,1)
+l=B.b.j(l.k4*100,1)
 q=q.Q
 if(q==null)r=n
 else{r=m.ax
@@ -97363,7 +97364,7 @@ m=B.b.j(n*100,0)
 p=A.G("Mortgage",a3,a3,a3,a3,p,a3,a3)
 l=A.a([],g)
 for(f=0;f<3;++f){e=B.iA[f]
-l.push(A.aLX(A.G(e.b+" \xb7 "+(B.b.j(B.b.cK(a6.k2+(e.c-0.065),0.01,0.2)*100,1)+"%"),a3,a3,a3,a3,a3,a3,a3),new A.auN(a2,e),a2.e.a===e.a))}l=A.Qg(B.dg,l,0,8)
+l.push(A.aLX(A.G(e.b+" \xb7 "+(B.b.j(B.b.cK(a6.k4+(e.c-0.065),0.01,0.2)*100,1)+"%"),a3,a3,a3,a3,a3,a3,a3),new A.auN(a2,e),a2.e.a===e.a))}l=A.Qg(B.dg,l,0,8)
 d=a2.e
 if(j)c=a3
 else{c=a4.ax
