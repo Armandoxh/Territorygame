@@ -20,6 +20,8 @@ class PropertyTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [
+        _MarketHeader(game: game),
+        const SizedBox(height: 12),
         if (game.properties.isNotEmpty) ...[
           Text('Your properties', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -35,6 +37,47 @@ class PropertyTab extends StatelessWidget {
         const SizedBox(height: 8),
         ...Properties.ladder.map((d) => _ListingCard(game: game, def: d)),
       ],
+    );
+  }
+}
+
+/// A glance at the housing cycle and today's mortgage rate — the weather that
+/// makes refinancing and buying a timing decision.
+class _MarketHeader extends StatelessWidget {
+  const _MarketHeader({required this.game});
+
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final trend = game.housingTrend;
+    final color = trend > 0.0015
+        ? kGain
+        : (trend < -0.0015 ? kLoss : theme.colorScheme.onSurfaceVariant);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            const Text('🏘️', style: TextStyle(fontSize: 22)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Housing market: ${game.housingMarketLabel}',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold, color: color)),
+                  Text('30-year mortgage rate ${pct(game.mortgageRate)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -106,15 +149,24 @@ class _OwnedCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 4,
               children: [
+                TextButton(
+                  onPressed: () => _renovate(context),
+                  child: const Text('Renovate'),
+                ),
+                if (game.refinanceCashOut(holding) > 0)
+                  TextButton(
+                    onPressed: () => _refinance(context),
+                    child: const Text('Refinance'),
+                  ),
                 if (!holding.isPaidOff)
                   TextButton(
                     onPressed: () => _payDown(context),
-                    child: const Text('Pay down loan'),
+                    child: const Text('Pay down'),
                   ),
-                const SizedBox(width: 4),
                 OutlinedButton(
                   onPressed: () {
                     final err = game.sellProperty(holding);
@@ -152,6 +204,57 @@ class _OwnedCard extends StatelessWidget {
             (payoff
                 ? 'Paid off ${def.name} — it\'s all yours. 🎉'
                 : 'Paid ${money(amount)} toward your ${def.name} loan.'));
+  }
+
+  Future<void> _refinance(BuildContext context) async {
+    final def = Properties.byId(holding.defId);
+    final cashOut = game.refinanceCashOut(holding);
+    if (cashOut <= 0) {
+      _toast(context, 'No equity to pull — you owe too much on it.');
+      return;
+    }
+    final rate = game.effectiveMortgageRate(Properties.mortgages.first);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Refinance ${def.name}?'),
+        content: Text(
+          'Pull about ${money(cashOut)} in cash now by writing a fresh 30-year '
+          'loan at today\'s ${pct(rate)} rate — up to '
+          '${(GameController.refiMaxLtv * 100).toStringAsFixed(0)}% of value, '
+          'after ~2% closing costs. Your monthly payment resets higher. This is '
+          'how you keep your money working without selling.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Refinance')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final err = game.refinance(holding);
+    _toast(context,
+        err ?? 'Refinanced ${def.name} — pulled ${money(cashOut)} in cash.');
+  }
+
+  Future<void> _renovate(BuildContext context) async {
+    final def = Properties.byId(holding.defId);
+    final amount = await showAmountSheet(
+      context,
+      title: 'Renovate ${def.name}',
+      actionLabel: 'Renovate',
+      max: game.cash,
+      helper: 'Spend cash to force appreciation. A fresh home hands back ~1.6× '
+          'the budget in value; returns fade the more you pour in. Current '
+          'value ${money(holding.currentValue)}.',
+    );
+    if (amount == null || !context.mounted) return;
+    final err = game.renovate(holding, amount);
+    _toast(context, err ?? 'Renovated ${def.name} for ${money(amount)}.');
   }
 }
 
@@ -212,8 +315,8 @@ class _BuySheetState extends State<_BuySheet> {
     final price = g.propertyPriceOf(widget.def.id);
     final down = price * _downPct;
     final loan = price - down;
-    final payment =
-        mortgageMonthlyPayment(loan, _mortgage.annualRate, _mortgage.termMonths);
+    final rate = g.effectiveMortgageRate(_mortgage);
+    final payment = mortgageMonthlyPayment(loan, rate, _mortgage.termMonths);
     final dti = g.job.pay <= 0 ? 1.0 : payment / g.job.pay;
     final tooExpensive = loan > 0 && dti > 0.45;
     final notEnoughCash = down > g.cash + 0.01;
@@ -260,7 +363,7 @@ class _BuySheetState extends State<_BuySheet> {
               children: [
                 for (final m in Properties.mortgages)
                   ChoiceChip(
-                    label: Text('${m.name} · ${pct(m.annualRate)}'),
+                    label: Text('${m.name} · ${pct(g.effectiveMortgageRate(m))}'),
                     selected: _mortgage.id == m.id,
                     onSelected: (_) => setState(() => _mortgage = m),
                   ),

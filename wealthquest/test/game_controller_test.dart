@@ -213,6 +213,52 @@ void main() {
       // A 30-year loan should be fully (or nearly) paid off after 30 years.
       expect(g.properties.first.loanBalance, lessThan(1000));
     });
+
+    test('cash-out refinance pulls equity without selling', () {
+      final g = GameController(seed: 1)..cash = 200000;
+      g.buyProperty(Properties.byId('shack'), Properties.mortgages.first, 0.50);
+      final h = g.properties.first;
+      final cashBefore = g.cash;
+      final loanBefore = h.loanBalance;
+      expect(g.refinance(h), isNull);
+      expect(h.loanBalance, greaterThan(loanBefore)); // levered back up
+      expect(h.loanBalance,
+          closeTo(h.currentValue * GameController.refiMaxLtv, 1));
+      expect(g.cash, greaterThan(cashBefore)); // cash pulled out
+      expect(g.properties, hasLength(1)); // and you still own it
+    });
+
+    test('renovation forces appreciation for a cash cost', () {
+      final g = GameController(seed: 1)..cash = 200000;
+      g.buyProperty(Properties.byId('shack'), Properties.mortgages.first, 0.50);
+      final h = g.properties.first;
+      final valueBefore = h.currentValue;
+      final cashBefore = g.cash;
+      expect(g.renovate(h, 5000), isNull);
+      expect(g.cash, closeTo(cashBefore - 5000, 1e-6));
+      expect(h.currentValue, greaterThan(valueBefore)); // value-add
+      expect(h.renovationInvested, 5000);
+    });
+
+    test('renovations hit diminishing returns (no infinite money)', () {
+      final g = GameController(seed: 3)..cash = 1000000;
+      g.buyProperty(Properties.byId('shack'), Properties.mortgages.first, 0.50);
+      final h = g.properties.first;
+      final base = Properties.byId('shack').basePrice;
+      g.renovate(h, base * 0.5); // blow past the saturation point in one go
+      final before = h.currentValue;
+      g.renovate(h, 4000); // now a renovation adds back less than it costs
+      expect(h.currentValue - before, lessThan(4000));
+    });
+
+    test('the mortgage rate floats but stays bounded', () {
+      final g = GameController(seed: 5)..cash = 50000;
+      for (var i = 0; i < 600; i++) {
+        g.advanceDay();
+        expect(g.mortgageRate,
+            inInclusiveRange(Properties.minRate, Properties.maxRate));
+      }
+    });
   });
 
   group('Short positions', () {

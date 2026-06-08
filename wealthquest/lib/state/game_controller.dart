@@ -221,6 +221,50 @@ class GameController extends ChangeNotifier {
   MarketRegime regime = MarketRegime.normal;
   SectorEvent? sectorEvent;
 
+  // ---- Housing market ----
+  /// The live benchmark 30-year mortgage rate. It floats over the game; new
+  /// purchases and refinances price off it. A separate cycle from the stock
+  /// [regime] — cheap money heats housing, rate shocks cool it.
+  double mortgageRate = Properties.baseRate;
+
+  /// Slow-moving extra monthly appreciation shared by every home — the housing
+  /// cycle. Positive = boom, negative = correction. Partly driven by rates.
+  double housingTrend = 0.0;
+
+  /// A one-word read on the housing market, for the Ledger and Nestly.
+  String get housingMarketLabel {
+    if (housingTrend > 0.004) return 'Hot';
+    if (housingTrend > 0.0015) return 'Warm';
+    if (housingTrend < -0.004) return 'Crashing';
+    if (housingTrend < -0.0015) return 'Cooling';
+    return 'Steady';
+  }
+
+  /// The rate you'd actually get on [m] right now: the floating benchmark plus
+  /// the product's spread vs. the baseline (a 15-yr undercuts a 30-yr).
+  double effectiveMortgageRate(MortgageType m) =>
+      (mortgageRate + (m.annualRate - Properties.baseRate)).clamp(0.01, 0.2);
+
+  /// Advance the housing market a month: float the mortgage rate (mean-
+  /// reverting, bounded) and the appreciation cycle (cheap money heats it),
+  /// posting a Ledger headline when the weather turns.
+  void _tickHousingMarket(List<String> events) {
+    final prevLabel = housingMarketLabel;
+    mortgageRate += MarketEngine.gauss(_rng) * 0.0018 +
+        (Properties.baseRate - mortgageRate) * 0.04;
+    mortgageRate = mortgageRate.clamp(Properties.minRate, Properties.maxRate);
+    final rateEffect = (Properties.baseRate - mortgageRate) * 0.03;
+    housingTrend +=
+        MarketEngine.gauss(_rng) * 0.0012 + rateEffect - housingTrend * 0.05;
+    if (housingTrend > 0.008) housingTrend = 0.008;
+    if (housingTrend < -0.008) housingTrend = -0.008;
+    final label = housingMarketLabel;
+    if (label != prevLabel) {
+      events.add('🏘️ Housing market: $label · 30-yr rate '
+          '${(mortgageRate * 100).toStringAsFixed(1)}%.');
+    }
+  }
+
   /// Dollars bought this in-game year of capped assets (e.g. I Bonds). Reset
   /// every birthday.
   final Map<String, double> _purchasedThisYear = {};
@@ -421,7 +465,8 @@ class GameController extends ChangeNotifier {
     if (down > cash + 0.01) return 'Not enough cash for the down payment.';
 
     final loan = price - down;
-    final payment = mortgageMonthlyPayment(loan, m.annualRate, m.termMonths);
+    final rate = effectiveMortgageRate(m);
+    final payment = mortgageMonthlyPayment(loan, rate, m.termMonths);
     if (loan > 0 && payment > job.pay * 0.45) {
       return 'Income too low to qualify — the payment would exceed 45% of '
           'your monthly pay. Earn more or put more down.';
@@ -434,12 +479,13 @@ class GameController extends ChangeNotifier {
       currentValue: price,
       loanBalance: loan,
       monthlyPayment: payment,
-      annualRate: m.annualRate,
+      annualRate: rate,
       termMonths: m.termMonths,
       purchasePrice: price,
     ));
     _log('Bought ${def.name} for ${_usd(price)} '
-        '(${(downFraction * 100).toStringAsFixed(0)}% down, ${m.name}).');
+        '(${(downFraction * 100).toStringAsFixed(0)}% down, ${m.name} @ '
+        '${(rate * 100).toStringAsFixed(1)}%).');
     notifyListeners();
     return null;
   }
@@ -475,6 +521,79 @@ class GameController extends ChangeNotifier {
     _log(h.isPaidOff
         ? 'Paid off your ${pd.name} (−${_usd(applied)}). 🎉'
         : 'Paid ${_usd(applied)} toward your ${pd.name} loan.');
+    notifyListeners();
+    return null;
+  }
+
+  /// Max loan-to-value on a cash-out refinance.
+  static const double refiMaxLtv = 0.75;
+
+  /// Refinance closing costs as a fraction of the new loan.
+  static const double refiCostRate = 0.02;
+
+  /// The cash you could pull from [h] in a cash-out refinance right now (0 if
+  /// you're already levered past [refiMaxLtv] or the costs swamp the proceeds).
+  double refinanceCashOut(PropertyHolding h) {
+    final maxLoan = h.currentValue * refiMaxLtv;
+    final out = maxLoan - h.loanBalance - maxLoan * refiCostRate;
+    return out < 0 ? 0 : out;
+  }
+
+  /// Cash-out refinance: re-appraise at today's value, write a fresh 30-year
+  /// loan at up to [refiMaxLtv] of value at the current [mortgageRate], retire
+  /// the old balance, and hand you the difference (minus closing costs) as
+  /// cash. The engine behind BRRRR — pull your equity out and put it to work
+  /// without selling. Returns an error, or null on success.
+  String? refinance(PropertyHolding h) {
+    final maxLoan = h.currentValue * refiMaxLtv;
+    if (maxLoan <= h.loanBalance + 1) {
+      return 'No equity to pull — you already owe more than '
+          '${(refiMaxLtv * 100).toStringAsFixed(0)}% of its value.';
+    }
+    final m = Properties.mortgages.first; // 30-year fixed
+    final rate = effectiveMortgageRate(m);
+    final payment = mortgageMonthlyPayment(maxLoan, rate, m.termMonths);
+    if (payment > job.pay * 0.5) {
+      return 'Income too low — the new payment would exceed half your monthly '
+          'pay.';
+    }
+    final closing = maxLoan * refiCostRate;
+    final proceeds = maxLoan - h.loanBalance - closing;
+    h.loanBalance = maxLoan;
+    h.annualRate = rate;
+    h.termMonths = m.termMonths;
+    h.monthlyPayment = payment;
+    h.monthsPaid = 0;
+    cash += proceeds;
+    final pd = Properties.byId(h.defId);
+    _log('Refinanced your ${pd.name}: pulled ${_usd(proceeds)} cash at '
+        '${(rate * 100).toStringAsFixed(1)}% (after ${_usd(closing)} in costs).');
+    notifyListeners();
+    return null;
+  }
+
+  /// Renovate [h] for [budget] cash, forcing appreciation. Spending adds value
+  /// back at ~1.6× when the home is untouched, fading toward ~0.7× as your
+  /// cumulative spend approaches 40% of its base price (you can't gold-plate a
+  /// shack forever), with ±15% execution risk. Higher value also lifts rent.
+  /// Returns an error, or null on success.
+  String? renovate(PropertyHolding h, double budget) {
+    if (budget <= 0) return 'Enter a renovation budget greater than \$0.';
+    if (budget > cash + 0.01) return 'Not enough cash for that renovation.';
+    final pd = Properties.byId(h.defId);
+    final saturation =
+        (h.renovationInvested / (pd.basePrice * 0.4)).clamp(0.0, 1.0);
+    final mult = 1.6 - 0.9 * saturation; // 1.6× fresh → 0.7× maxed out
+    final luck = 0.85 + _rng.nextDouble() * 0.30; // ±15% execution risk
+    final added = budget * mult * luck;
+    cash -= budget;
+    h.currentValue += added;
+    h.renovationInvested += budget;
+    _log(added >= budget
+        ? 'Renovated your ${pd.name}: ${_usd(budget)} in, ${_usd(added)} of '
+            'value out.'
+        : 'Renovated your ${pd.name}, but it ran over — ${_usd(budget)} in, '
+            'only ${_usd(added)} of value out.');
     notifyListeners();
     return null;
   }
@@ -1036,20 +1155,26 @@ class GameController extends ChangeNotifier {
       dividends += pay;
     }
 
-    // 5b) Real estate: appreciate listings + owned homes, collect rent, then
-    //     service loans.
+    // 5b) Real estate: move the housing market, appreciate listings + owned
+    //     homes (riding the cycle), collect rent, then service loans.
+    _tickHousingMarket(events);
     var mortgagePaid = 0.0;
     var rentCollected = 0.0;
     var rentedUnits = 0, occupiedUnits = 0;
     for (final pd in Properties.ladder) {
       final cur = propertyPrices[pd.id]!;
       final np = cur *
-          (1 + pd.monthlyAppreciation + pd.monthlyVol * MarketEngine.gauss(_rng));
+          (1 +
+              pd.monthlyAppreciation +
+              housingTrend +
+              pd.monthlyVol * MarketEngine.gauss(_rng));
       propertyPrices[pd.id] = np < pd.basePrice * 0.2 ? pd.basePrice * 0.2 : np;
     }
     for (final h in properties) {
       final pd = Properties.byId(h.defId);
-      final r = pd.monthlyAppreciation + pd.monthlyVol * MarketEngine.gauss(_rng);
+      final r = pd.monthlyAppreciation +
+          housingTrend +
+          pd.monthlyVol * MarketEngine.gauss(_rng);
       h.currentValue *= (1 + r);
       if (h.currentValue < 0) h.currentValue = 0;
       // Rent: a listed home finds a tenant most (not all) months; when occupied

@@ -108,18 +108,37 @@ class NewsTab extends StatelessWidget {
   }
 
   Widget _realEstateLine(ThemeData theme) {
-    final reg = game.regime;
     final String text;
-    if (reg == MarketRegime.boom || reg == MarketRegime.recovery) {
-      text = 'Buyers are out in force — homes move fast and prices are firming.';
-    } else if (reg == MarketRegime.downturn || reg == MarketRegime.crash) {
-      text = 'The market is cooling; sellers are trimming prices to close deals.';
-    } else {
-      text = 'Housing is steady this month — slow, dependable appreciation.';
+    switch (game.housingMarketLabel) {
+      case 'Hot':
+        text = 'Bidding wars everywhere — homes fly off the market and prices '
+            'are surging.';
+        break;
+      case 'Warm':
+        text = 'Buyers are out in force and prices are firming up nicely.';
+        break;
+      case 'Cooling':
+        text = 'The market is softening; sellers are starting to trim prices.';
+        break;
+      case 'Crashing':
+        text = 'A real downturn — prices are sliding and deals are scarce. '
+            'Bargains for the brave.';
+        break;
+      default:
+        text = 'Housing is steady this month — slow, dependable appreciation.';
     }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Text(text, style: theme.textTheme.bodyMedium),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(text, style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 2),
+          Text('30-year mortgage rate: ${pct(game.mortgageRate)}',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ],
+      ),
     );
   }
 

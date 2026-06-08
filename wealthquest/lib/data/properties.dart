@@ -63,6 +63,14 @@ class Properties {
     ),
   ];
 
+  /// The long-run benchmark 30-year mortgage rate. The live rate floats around
+  /// this over a game; each [MortgageType.annualRate] is read as a spread
+  /// relative to this baseline, so the relative cost of a 15-yr or ARM holds
+  /// even as rates move.
+  static const double baseRate = 0.065;
+  static const double minRate = 0.03; // cheap-money floor
+  static const double maxRate = 0.105; // rate-shock ceiling
+
   /// Financing options. Lower rate / shorter term = less interest but a bigger
   /// monthly bite.
   static const List<MortgageType> mortgages = [

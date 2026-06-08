@@ -51,11 +51,15 @@ class PropertyHolding {
   final String defId;
   double currentValue;
   double loanBalance;
-  final double monthlyPayment;
-  final double annualRate;
-  final int termMonths;
+  double monthlyPayment;
+  double annualRate;
+  int termMonths;
   final double purchasePrice;
   int monthsPaid;
+
+  /// Cumulative cash poured into renovations. Drives diminishing returns on
+  /// further value-add — you can't gold-plate a shack forever.
+  double renovationInvested;
 
   /// Whether you're listing this home for rent (landlord mode).
   bool rentedOut;
@@ -74,6 +78,7 @@ class PropertyHolding {
     required this.termMonths,
     required this.purchasePrice,
     this.monthsPaid = 0,
+    this.renovationInvested = 0,
     this.rentedOut = false,
     this.occupied = false,
   });
