@@ -38,14 +38,23 @@ class Crises {
 
   static double _scaled(GameController g, double frac, double floor) {
     // Scale off net worth so big events still matter when you're rich, but
-    // dampen the bite ([crisisCostScale]) and never take more than
-    // [crisisMaxCashShare] of cash on hand — a popup should sting, not wipe an
-    // asset-rich, cash-light player (the age-45+ "it took half my cash" bug).
-    final scaled = g.netWorth.abs() * frac * g.crisisCostScale;
-    var amt = scaled < floor ? floor : scaled;
+    // dampen the bite ([crisisCostScale]) and bound it two ways so a popup
+    // stings without wiping an asset-rich, cash-light player (the age-45+ "it
+    // took half my cash" bug):
+    //   1) a hard ceiling at [crisisMaxNetWorthShare] of net worth (applied
+    //      ALWAYS once you're established, so even an in-overdraft player is
+    //      protected — the events used to scale up to ~18% of net worth);
+    //   2) never more than [crisisMaxCashShare] of cash you actually have.
+    final nw = g.netWorth.abs();
+    var amt = nw * frac * g.crisisCostScale;
+    if (amt < floor) amt = floor;
+    if (nw > 100000) {
+      final ceiling = nw * g.crisisMaxNetWorthShare;
+      if (amt > ceiling) amt = ceiling;
+    }
     if (g.cash > 0) {
-      final cap = g.cash * g.crisisMaxCashShare;
-      if (amt > cap) amt = cap;
+      final cashCap = g.cash * g.crisisMaxCashShare;
+      if (amt > cashCap) amt = cashCap;
     }
     return amt;
   }

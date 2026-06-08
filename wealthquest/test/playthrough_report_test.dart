@@ -99,11 +99,13 @@ _Stat _play(Agent agent, int seed, int months,
     required String choicePolicy,
     int lookahead = 4,
     double costScale = 1.0,
-    double maxCashShare = 999.0}) {
+    double maxCashShare = 999.0,
+    double maxNwShare = 999.0}) {
   final g = GameController(seed: seed)
     ..crisesEnabled = crises
     ..crisisCostScale = costScale
-    ..crisisMaxCashShare = maxCashShare;
+    ..crisisMaxCashShare = maxCashShare
+    ..crisisMaxNetWorthShare = maxNwShare;
   final pick = Random(seed * 7919 + 13);
   var peak = g.netWorth, maxDd = 0.0, crisisImpact = 0.0, worstCashShare = 0.0;
   var wentNeg = false;
@@ -151,7 +153,8 @@ _Agg _runAll(Agent agent, List<int> seeds, int months,
     String choicePolicy = 'first',
     int lookahead = 4,
     double costScale = 1.0,
-    double maxCashShare = 999.0}) {
+    double maxCashShare = 999.0,
+    double maxNwShare = 999.0}) {
   final stats = [
     for (final s in seeds)
       _play(agent, s, months,
@@ -159,7 +162,8 @@ _Agg _runAll(Agent agent, List<int> seeds, int months,
           choicePolicy: choicePolicy,
           lookahead: lookahead,
           costScale: costScale,
-          maxCashShare: maxCashShare),
+          maxCashShare: maxCashShare,
+          maxNwShare: maxNwShare),
   ];
   double med(List<double> xs) => (xs..sort())[xs.length ~/ 2];
   final finals = [for (final s in stats) s.finalNW];
@@ -235,7 +239,13 @@ void _balanced(GameController g, Random pick) {
     if (!h.rentedOut) g.toggleRental(h);
   }
   if (g.isStudying) return; // cash is tight in school
-  final investable = g.cash - g.dailyExpenses * 3;
+  // Keep a realistic emergency fund — the larger of 6 months' expenses or 5%
+  // of net worth — instead of investing down to ~$0 (which made "% of cash"
+  // meaningless and let scaled events be dodged).
+  final sixMonths = g.dailyExpenses * 6;
+  final fivePctNw = g.netWorth * 0.05;
+  final keep = sixMonths > fivePctNw ? sixMonths : fivePctNw;
+  final investable = g.cash - keep;
   if (investable < 50) return;
   // A small recreational bet roughly once a year.
   if (pick.nextInt(12) == 0 && g.sportsSlate.isNotEmpty) {
@@ -457,11 +467,11 @@ void main() {
   test('SWEEP: crisis cost params vs drag & cash-bite (rational player)', () {
     const sweepSeeds = [1, 2, 3, 5, 8, 13, 21, 42];
     const k = 3;
-    final configs = <(String, double, double)>[
-      ('CURRENT  (scale 1.0, no cap)', 1.0, 999.0),
-      ('A  scale 0.70, cap 40%', 0.70, 0.40),
-      ('B  scale 0.55, cap 30% (shipped)', 0.55, 0.30),
-      ('C  scale 0.40, cap 25%', 0.40, 0.25),
+    final configs = <(String, double, double, double)>[
+      ('CURRENT (1.0, no caps)', 1.0, 999.0, 999.0),
+      ('A  scale .70, cash 40%, nw 8%', 0.70, 0.40, 0.08),
+      ('B  scale .55, cash 30%, nw 6% (shipped)', 0.55, 0.30, 0.06),
+      ('C  scale .50, cash 25%, nw 5%', 0.50, 0.25, 0.05),
     ];
     final agents = <String, Agent>{
       'BALANCED': _balanced,
@@ -481,20 +491,22 @@ void main() {
         ..writeln('${entry.key}:')
         ..writeln('  config                              drag   worst '
             'cash-bite   median WITH events');
-      for (final (label, scale, cap) in configs) {
+      for (final (label, scale, cap, nw) in configs) {
         final on = _runAll(entry.value, sweepSeeds, months,
             crises: true,
             choicePolicy: 'rational',
             lookahead: k,
             costScale: scale,
-            maxCashShare: cap);
+            maxCashShare: cap,
+            maxNwShare: nw);
         final off = _runAll(entry.value, sweepSeeds, months,
             crises: false,
             choicePolicy: 'rational',
             lookahead: k,
             costScale: scale,
-            maxCashShare: cap);
-        out.writeln('  ${label.padRight(34)}'
+            maxCashShare: cap,
+            maxNwShare: nw);
+        out.writeln('  ${label.padRight(42)}'
             '${_pct(drag(on, off)).padLeft(6)}   '
             '${_pct(on.worstCashShare).padLeft(13)}   '
             '${_money(on.median)}');

@@ -154,6 +154,12 @@ class GameController extends ChangeNotifier {
   double crisisCostScale = 0.55;
   double crisisMaxCashShare = 0.30;
 
+  /// Hard ceiling: once you're past ~$100k net worth, a single crisis never
+  /// costs more than this share of net worth — applied even in overdraft, so a
+  /// cash-light or leveraged player can't be gouged. (Events used to scale up
+  /// to ~18% of net worth.)
+  double crisisMaxNetWorthShare = 0.06;
+
   /// Lingering consequences of past decisions (e.g. unpaid leave after a
   /// severance). Each ticks down monthly in [advanceDay].
   final List<OngoingEffect> ongoing = [];
@@ -195,6 +201,7 @@ class GameController extends ChangeNotifier {
       ..crisesEnabled = false
       ..crisisCostScale = crisisCostScale
       ..crisisMaxCashShare = crisisMaxCashShare
+      ..crisisMaxNetWorthShare = crisisMaxNetWorthShare
       ..day = day
       ..cash = cash
       ..job = job
