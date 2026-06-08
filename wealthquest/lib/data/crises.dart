@@ -398,6 +398,156 @@ class Crises {
       ],
     ),
 
+    // ============ TIER 0 — everyday windfalls (balance the surprises) ======
+    CrisisEvent(
+      id: 'tax_refund',
+      emoji: '💵',
+      title: 'A fat tax refund',
+      body: 'Turns out you over-withheld all year. The government owes you.',
+      maxNetWorth: 400000,
+      choices: [
+        CrisisChoice('Cash the check', (g, rng) {
+          final amt = _flat(rng, 600, 1800);
+          g.cash += amt;
+          return 'A ${_usd(amt)} refund lands in your account.';
+        }),
+      ],
+    ),
+    CrisisEvent(
+      id: 'sold_clutter',
+      emoji: '📦',
+      title: 'You cleaned out the closet',
+      body: 'A weekend of decluttering turned up stuff worth selling.',
+      maxNetWorth: 300000,
+      choices: [
+        CrisisChoice('List it all online', (g, rng) {
+          final amt = _flat(rng, 400, 1200);
+          g.cash += amt;
+          return 'Sold the lot for ${_usd(amt)}.';
+        }),
+        CrisisChoice('Just the big stuff', (g, rng) {
+          final amt = _flat(rng, 200, 600);
+          g.cash += amt;
+          return 'Quick flip — ${_usd(amt)}, no fuss.';
+        }),
+      ],
+    ),
+    CrisisEvent(
+      id: 'referral_bonus',
+      emoji: '🤝',
+      title: 'A referral paid out',
+      body: 'A friend you referred at work got hired — and you get a bonus.',
+      maxNetWorth: 500000,
+      choices: [
+        CrisisChoice('Nice', (g, rng) {
+          final amt = _flat(rng, 500, 1500);
+          g.cash += amt;
+          return 'A ${_usd(amt)} referral bonus hits your paycheck.';
+        }),
+      ],
+    ),
+    CrisisEvent(
+      id: 'cashback',
+      emoji: '💳',
+      title: 'A sign-up bonus posted',
+      body: 'That credit-card cashback offer finally cleared.',
+      maxNetWorth: 250000,
+      choices: [
+        CrisisChoice('Take the rewards', (g, rng) {
+          final amt = _flat(rng, 200, 700);
+          g.cash += amt;
+          return '${_usd(amt)} in cashback — free money for spending anyway.';
+        }),
+      ],
+    ),
+    CrisisEvent(
+      id: 'birthday_cash',
+      emoji: '🎂',
+      title: 'Birthday money',
+      body: 'Cards arrive, and a few of them have cash tucked inside.',
+      maxNetWorth: 250000,
+      choices: [
+        CrisisChoice('Thanks, relatives', (g, rng) {
+          final amt = _flat(rng, 150, 600);
+          g.cash += amt;
+          return 'You pocket ${_usd(amt)} in birthday cash.';
+        }),
+      ],
+    ),
+    CrisisEvent(
+      id: 'overtime',
+      emoji: '⏰',
+      title: 'Overtime is on offer',
+      body: 'Your boss needs the weekend covered — time-and-a-half.',
+      maxNetWorth: 400000,
+      choices: [
+        CrisisChoice('Pick up the shifts', (g, rng) {
+          final amt = _flat(rng, 400, 1100);
+          g.cash += amt;
+          return 'You grind the weekend and bank ${_usd(amt)}.';
+        }),
+        CrisisChoice('Enjoy your weekend', (g, rng) =>
+            'You rest up. Money isn\'t everything.'),
+      ],
+    ),
+    CrisisEvent(
+      id: 'class_action',
+      emoji: '📬',
+      title: 'A class-action check',
+      body: 'Some company wronged you years ago. The settlement just paid out.',
+      maxNetWorth: 300000,
+      choices: [
+        CrisisChoice('Deposit it', (g, rng) {
+          final amt = _flat(rng, 150, 800);
+          g.cash += amt;
+          return 'A surprise ${_usd(amt)} for a lawsuit you forgot about.';
+        }),
+      ],
+    ),
+    CrisisEvent(
+      id: 'office_raffle',
+      emoji: '🎟️',
+      title: 'You won the office raffle',
+      body: 'You never win these. This time your ticket came up.',
+      maxNetWorth: 250000,
+      choices: [
+        CrisisChoice('Collect the prize', (g, rng) {
+          final amt = _flat(rng, 300, 1200);
+          g.cash += amt;
+          return 'A ${_usd(amt)} prize — beginner\'s luck.';
+        }),
+      ],
+    ),
+    CrisisEvent(
+      id: 'freelance_gig',
+      emoji: '💼',
+      title: 'A freelance gig lands',
+      body: 'An old contact needs a quick project done on the side.',
+      maxNetWorth: 500000,
+      choices: [
+        CrisisChoice('Take the job', (g, rng) {
+          final amt = _flat(rng, 600, 2000);
+          g.cash += amt;
+          return 'A few evenings\' work for ${_usd(amt)}.';
+        }),
+        CrisisChoice('Too busy', (g, rng) => 'You let this one pass.'),
+      ],
+    ),
+    CrisisEvent(
+      id: 'utility_rebate',
+      emoji: '🧾',
+      title: 'A rebate finally cleared',
+      body: 'That energy-efficiency rebate you filed for ages ago came through.',
+      maxNetWorth: 250000,
+      choices: [
+        CrisisChoice('About time', (g, rng) {
+          final amt = _flat(rng, 150, 500);
+          g.cash += amt;
+          return '${_usd(amt)} back in your pocket.';
+        }),
+      ],
+    ),
+
     // ============ TIER 1 — mid-life expenses ($30k+) ======================
     CrisisEvent(
       id: 'transmission',
