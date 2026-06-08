@@ -528,7 +528,7 @@ void main() {
     });
 
     test('the event catalog is large and every event has options', () {
-      expect(Crises.all.length, greaterThanOrEqualTo(45));
+      expect(Crises.all.length, greaterThanOrEqualTo(250));
       for (final e in Crises.all) {
         expect(e.choices, isNotEmpty, reason: '${e.id} has no choices');
       }

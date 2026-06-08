@@ -7,6 +7,15 @@ import '../models/holding.dart';
 import '../models/property.dart';
 import '../state/game_controller.dart';
 import 'catalog.dart';
+import 'crises_career.dart';
+import 'crises_education.dart';
+import 'crises_family.dart';
+import 'crises_gambling.dart';
+import 'crises_health.dart';
+import 'crises_home.dart';
+import 'crises_legal.dart';
+import 'crises_lifestyle.dart';
+import 'crises_tech.dart';
 import 'properties.dart';
 
 /// The library of crisis / decision events, plus the picker.
@@ -1460,6 +1469,18 @@ class Crises {
         CrisisChoice('Sit tight', (g, rng) => 'You wait it out.'),
       ],
     ),
+
+    // ============ EXPANSION PACKS — themed life-event libraries ============
+    // Each is a separate file sharing the public helpers in crisis_kit.dart.
+    ...EducationCrises.all,
+    ...CareerCrises.all,
+    ...GamblingCrises.all,
+    ...HealthCrises.all,
+    ...FamilyCrises.all,
+    ...HomeCrises.all,
+    ...LegalCrises.all,
+    ...LifestyleCrises.all,
+    ...TechCrises.all,
   ];
 
   /// Pick a random event whose net-worth band and context allow it right now.
