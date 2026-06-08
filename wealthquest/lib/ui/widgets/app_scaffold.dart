@@ -21,19 +21,64 @@ Future<void> nextMonth(BuildContext context, GameController game) async {
   }
 }
 
-/// Fast-forward [n] months (each one really simulated) and show one combined
-/// recap. Stops early — and surfaces the margin call or a pending decision —
-/// if one comes up.
+/// Fast-forward [n] months. Each month is really simulated; if a decision or
+/// margin call interrupts, we pause to handle it inline and then carry on so
+/// the full [n] months actually elapse (a "6 mo" click is six months of
+/// salary, not "until the first event"). One combined recap at the end.
 Future<void> fastForward(BuildContext context, GameController game, int n) async {
-  final out = game.advanceMonths(n);
+  var remaining = n;
+  var income = 0.0,
+      expenses = 0.0,
+      interest = 0.0,
+      dividends = 0.0,
+      rent = 0.0,
+      mortgage = 0.0,
+      fee = 0.0;
+  final events = <String>[];
+  final netWorthBefore = game.netWorth;
+  final cashBefore = game.cash;
+
+  while (remaining > 0) {
+    final out = game.advanceMonths(remaining);
+    final r = out.result;
+    income += r.income;
+    expenses += r.expenses;
+    interest += r.interest;
+    dividends += r.dividends;
+    rent += r.rent;
+    mortgage += r.mortgage;
+    fee += r.overdraftFee;
+    events.addAll(r.events);
+    remaining -= out.months;
+    if (out.months == 0) break; // safety: never spin in place
+
+    // Resolve whatever halted the run, then continue the remaining months.
+    if (r.marginCall) {
+      if (!context.mounted) return;
+      await showMarginCall(context, game);
+    }
+    if (game.pendingCrisis != null) {
+      if (!context.mounted) return;
+      await showCrisis(context, game);
+    }
+  }
+
+  final agg = DayResult(
+    income: income,
+    expenses: expenses,
+    interest: interest,
+    dividends: dividends,
+    rent: rent,
+    mortgage: mortgage,
+    overdraftFee: fee,
+    netWorthBefore: netWorthBefore,
+    netWorthAfter: game.netWorth,
+    cashBefore: cashBefore,
+    cashAfter: game.cash,
+    events: events,
+  );
   if (!context.mounted) return;
-  await showDaySummary(context, game, out.result, monthsCovered: out.months);
-  if (out.result.marginCall && context.mounted) {
-    await showMarginCall(context, game);
-  }
-  if (game.pendingCrisis != null && context.mounted) {
-    await showCrisis(context, game);
-  }
+  await showDaySummary(context, game, agg, monthsCovered: n - remaining);
 }
 
 /// The bottom controls shared by the home screen and every app: advance one

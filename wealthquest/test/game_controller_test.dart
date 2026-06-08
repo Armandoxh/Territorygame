@@ -567,6 +567,26 @@ void main() {
           reason: 'a negative net worth should still draw base-tier events');
     });
 
+    test('fast-forwarding covers the full span across crisis interruptions',
+        () {
+      // Rich enough that no margin call interrupts; the only halts are crises.
+      final g = GameController(seed: 5)..cash = 500000;
+      final startDay = g.day;
+      const span = 6;
+      var remaining = span;
+      var guard = 0;
+      while (remaining > 0 && guard++ < 100) {
+        final out = g.advanceMonths(remaining);
+        expect(out.months, greaterThan(0)); // each segment makes progress
+        remaining -= out.months;
+        if (g.pendingCrisis != null) {
+          g.resolveCrisis(g.pendingCrisis!.choices.first);
+        }
+      }
+      // The whole span elapses regardless of how many decisions interrupted it.
+      expect(g.day - startDay, span);
+    });
+
     test('high-interest debt compounds and can be paid off', () {
       final g = GameController(seed: 1)..cash = 50000;
       g.debt = 10000;
