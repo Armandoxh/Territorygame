@@ -37,8 +37,17 @@ class Crises {
       lo + rng.nextDouble() * (hi - lo);
 
   static double _scaled(GameController g, double frac, double floor) {
-    final v = g.netWorth.abs() * frac;
-    return v < floor ? floor : v;
+    // Scale off net worth so big events still matter when you're rich, but
+    // dampen the bite ([crisisCostScale]) and never take more than
+    // [crisisMaxCashShare] of cash on hand — a popup should sting, not wipe an
+    // asset-rich, cash-light player (the age-45+ "it took half my cash" bug).
+    final scaled = g.netWorth.abs() * frac * g.crisisCostScale;
+    var amt = scaled < floor ? floor : scaled;
+    if (g.cash > 0) {
+      final cap = g.cash * g.crisisMaxCashShare;
+      if (amt > cap) amt = cap;
+    }
+    return amt;
   }
 
   static String _usd(double v) => '\$${v.toStringAsFixed(0)}';

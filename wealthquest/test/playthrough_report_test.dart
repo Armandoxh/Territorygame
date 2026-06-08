@@ -55,18 +55,20 @@ class _Stat {
   final double finalNW;
   final double maxDd;
   final double crisisImpact; // summed immediate net-worth delta from popups
+  final double worstCashShare; // worst single popup's bite as a share of cash
   final bool wentNeg;
   final bool bankrupt;
   final int crises;
-  _Stat(this.finalNW, this.maxDd, this.crisisImpact, this.wentNeg,
-      this.bankrupt, this.crises);
+  _Stat(this.finalNW, this.maxDd, this.crisisImpact, this.worstCashShare,
+      this.wentNeg, this.bankrupt, this.crises);
 }
 
 class _Agg {
   final double median, avg, worst, best, dd, crisesPerYear, crisisImpactMed;
-  final double negRate, bankruptRate;
+  final double negRate, bankruptRate, worstCashShare;
   _Agg(this.median, this.avg, this.worst, this.best, this.dd,
-      this.crisesPerYear, this.crisisImpactMed, this.negRate, this.bankruptRate);
+      this.crisesPerYear, this.crisisImpactMed, this.negRate, this.bankruptRate,
+      this.worstCashShare);
 }
 
 /// Pick the option a rational player would: try each on a clone that shares
@@ -93,10 +95,17 @@ int _rationalChoice(GameController g, Random pick, int lookaheadMonths) {
 }
 
 _Stat _play(Agent agent, int seed, int months,
-    {required bool crises, required String choicePolicy, int lookahead = 4}) {
-  final g = GameController(seed: seed)..crisesEnabled = crises;
+    {required bool crises,
+    required String choicePolicy,
+    int lookahead = 4,
+    double costScale = 1.0,
+    double maxCashShare = 999.0}) {
+  final g = GameController(seed: seed)
+    ..crisesEnabled = crises
+    ..crisisCostScale = costScale
+    ..crisisMaxCashShare = maxCashShare;
   final pick = Random(seed * 7919 + 13);
-  var peak = g.netWorth, maxDd = 0.0, crisisImpact = 0.0;
+  var peak = g.netWorth, maxDd = 0.0, crisisImpact = 0.0, worstCashShare = 0.0;
   var wentNeg = false;
   var nCrises = 0;
   for (var m = 0; m < months; m++) {
@@ -105,6 +114,7 @@ _Stat _play(Agent agent, int seed, int months,
     // Clear the popup the way a player must before the next month.
     if (g.pendingCrisis != null) {
       final before = g.netWorth;
+      final cashBefore = g.cash;
       final choices = g.pendingCrisis!.choices;
       final int idx;
       switch (choicePolicy) {
@@ -119,6 +129,10 @@ _Stat _play(Agent agent, int seed, int months,
       }
       g.resolveCrisis(choices[idx]);
       crisisImpact += g.netWorth - before;
+      if (cashBefore > 0) {
+        final share = (cashBefore - g.cash) / cashBefore;
+        if (share > worstCashShare) worstCashShare = share;
+      }
       nCrises++;
     }
     final nw = g.netWorth;
@@ -128,16 +142,24 @@ _Stat _play(Agent agent, int seed, int months,
     if (peak > 0) maxDd = max(maxDd, ((peak - nw) / peak).clamp(0.0, 1.0));
     if (g.cash < -1) wentNeg = true;
   }
-  return _Stat(g.netWorth, maxDd, crisisImpact, wentNeg, g.netWorth < -1000,
-      nCrises);
+  return _Stat(g.netWorth, maxDd, crisisImpact, worstCashShare, wentNeg,
+      g.netWorth < -1000, nCrises);
 }
 
 _Agg _runAll(Agent agent, List<int> seeds, int months,
-    {required bool crises, String choicePolicy = 'first', int lookahead = 4}) {
+    {required bool crises,
+    String choicePolicy = 'first',
+    int lookahead = 4,
+    double costScale = 1.0,
+    double maxCashShare = 999.0}) {
   final stats = [
     for (final s in seeds)
       _play(agent, s, months,
-          crises: crises, choicePolicy: choicePolicy, lookahead: lookahead),
+          crises: crises,
+          choicePolicy: choicePolicy,
+          lookahead: lookahead,
+          costScale: costScale,
+          maxCashShare: maxCashShare),
   ];
   double med(List<double> xs) => (xs..sort())[xs.length ~/ 2];
   final finals = [for (final s in stats) s.finalNW];
@@ -152,6 +174,7 @@ _Agg _runAll(Agent agent, List<int> seeds, int months,
     med([for (final s in stats) s.crisisImpact]),
     stats.where((s) => s.wentNeg).length / stats.length,
     stats.where((s) => s.bankrupt).length / stats.length,
+    stats.map((s) => s.worstCashShare).reduce((a, b) => a > b ? a : b),
   );
 }
 
@@ -427,4 +450,61 @@ void main() {
     // ignore: avoid_print
     print(out.toString());
   }, timeout: const Timeout(Duration(minutes: 3)));
+
+  // Tuning sweep: vary the two crisis-cost knobs and watch the life-event drag
+  // AND the worst single-popup bite (as a share of cash — the "it took half my
+  // cash at 45+" complaint). Goal: drag ~15-20%, worst bite well under ~30%.
+  test('SWEEP: crisis cost params vs drag & cash-bite (rational player)', () {
+    const sweepSeeds = [1, 2, 3, 5, 8, 13, 21, 42];
+    const k = 3;
+    final configs = <(String, double, double)>[
+      ('CURRENT  (scale 1.0, no cap)', 1.0, 999.0),
+      ('A  scale 0.70, cap 40%', 0.70, 0.40),
+      ('B  scale 0.55, cap 30% (shipped)', 0.55, 0.30),
+      ('C  scale 0.40, cap 25%', 0.40, 0.25),
+    ];
+    final agents = <String, Agent>{
+      'BALANCED': _balanced,
+      'LANDLORD': _landlord,
+    };
+
+    double drag(_Agg on, _Agg off) =>
+        off.median == 0 ? 0.0 : (off.median - on.median) / off.median.abs();
+
+    final out = StringBuffer()
+      ..writeln('\n===== CRISIS PARAM SWEEP (rational, $k-mo lookahead, '
+          '${sweepSeeds.length} seeds) =====')
+      ..writeln('Goal: drag ~15-20%, worst single popup well under ~30% of '
+          'cash.\n');
+    for (final entry in agents.entries) {
+      out
+        ..writeln('${entry.key}:')
+        ..writeln('  config                              drag   worst '
+            'cash-bite   median WITH events');
+      for (final (label, scale, cap) in configs) {
+        final on = _runAll(entry.value, sweepSeeds, months,
+            crises: true,
+            choicePolicy: 'rational',
+            lookahead: k,
+            costScale: scale,
+            maxCashShare: cap);
+        final off = _runAll(entry.value, sweepSeeds, months,
+            crises: false,
+            choicePolicy: 'rational',
+            lookahead: k,
+            costScale: scale,
+            maxCashShare: cap);
+        out.writeln('  ${label.padRight(34)}'
+            '${_pct(drag(on, off)).padLeft(6)}   '
+            '${_pct(on.worstCashShare).padLeft(13)}   '
+            '${_money(on.median)}');
+      }
+      out.writeln('');
+    }
+    out
+      ..writeln('  (worst cash-bite > 100% = the event drove cash negative.)')
+      ..writeln('==========================================================\n');
+    // ignore: avoid_print
+    print(out.toString());
+  }, timeout: const Timeout(Duration(minutes: 6)));
 }

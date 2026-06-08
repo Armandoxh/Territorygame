@@ -146,6 +146,14 @@ class GameController extends ChangeNotifier {
   /// way, keeping default behavior unchanged.
   bool crisesEnabled = true;
 
+  /// Crisis cost tuning (read by Crises._scaled). [crisisCostScale] dampens how
+  /// hard net-worth-scaled events hit (1.0 = legacy); [crisisMaxCashShare] caps
+  /// any single event at this fraction of cash on hand, so a popup can sting but
+  /// never wipe an asset-rich, cash-light player (the age-45+ "it took half my
+  /// cash" problem). The balance harness sweeps these to tune them.
+  double crisisCostScale = 0.55;
+  double crisisMaxCashShare = 0.30;
+
   /// Lingering consequences of past decisions (e.g. unpaid leave after a
   /// severance). Each ticks down monthly in [advanceDay].
   final List<OngoingEffect> ongoing = [];
@@ -185,6 +193,8 @@ class GameController extends ChangeNotifier {
   GameController cloneForLookahead(int rngSeed) {
     final c = GameController(seed: rngSeed, prestige: prestige)
       ..crisesEnabled = false
+      ..crisisCostScale = crisisCostScale
+      ..crisisMaxCashShare = crisisMaxCashShare
       ..day = day
       ..cash = cash
       ..job = job
