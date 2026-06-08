@@ -522,7 +522,7 @@ class FamilyCrises {
       minNetWorth: 150000,
       choices: [
         CrisisChoice('Fund the full expansion', (g, rng) {
-          final stake = spendScaled(g, 0.15, 25000);
+          final stake = capCost(g, scaled(g, 0.15, 25000));
           final r = wager(g, rng, stake, 0.5, 2.2);
           if (r > 0) {
             return 'You put in ${usd(stake)}; the second location thrives and '
@@ -532,7 +532,7 @@ class FamilyCrises {
               'eat it. Family dinners get a little quieter.';
         }),
         CrisisChoice('Take a small, safe stake', (g, rng) {
-          final stake = spend(g, rng, 10000, 25000);
+          final stake = capCost(g, rnd(rng, 10000, 25000));
           final r = wager(g, rng, stake, 0.55, 1.8);
           if (r > 0) {
             return 'A measured ${usd(stake)} buy-in returns ${usd(r)}. Modest, '
@@ -582,7 +582,7 @@ class FamilyCrises {
               'plaque; your name goes on a building. Legacy, locked in.';
         }),
         CrisisChoice('Stake the next generation\'s ventures', (g, rng) {
-          final stake = spendScaled(g, 0.08, 60000);
+          final stake = capCost(g, scaled(g, 0.08, 60000));
           final r = wager(g, rng, stake, 0.45, 2.5);
           if (r > 0) {
             return 'You back the cousins\' startups with ${usd(stake)}. One hits '

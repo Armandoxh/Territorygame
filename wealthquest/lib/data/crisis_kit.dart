@@ -36,12 +36,12 @@ double gain(GameController g, Random rng, num lo, num hi) {
   return a;
 }
 
-/// Clamp a raw crisis cost so a single popup can sting but never gouge: bounded
-/// at [GameController.crisisMaxNetWorthShare] of net worth (once you're past
-/// ~$100k, applied even in overdraft) and [GameController.crisisMaxCashShare] of
-/// cash on hand. This is the single chokepoint every themed-pack cost flows
-/// through, mirroring the base events' Crises._scaled.
-double _cap(GameController g, double amount) {
+/// Clamp a raw crisis cost/stake so a single popup can sting but never gouge:
+/// bounded at [GameController.crisisMaxNetWorthShare] of net worth (once you're
+/// past ~$100k, applied even in overdraft) and [GameController.crisisMaxCashShare]
+/// of cash on hand. The single chokepoint every themed-pack cost AND at-risk
+/// wager flows through, mirroring the base events' Crises._scaled.
+double capCost(GameController g, double amount) {
   var amt = amount;
   final nw = g.netWorth.abs();
   if (nw > 100000) {
@@ -58,7 +58,7 @@ double _cap(GameController g, double amount) {
 /// Spend cash (may push you into overdraft, like any real bill). Returns the
 /// amount spent. Capped so no single popup gouges a cash-light player.
 double spend(GameController g, Random rng, num lo, num hi) {
-  final a = _cap(g, rnd(rng, lo, hi));
+  final a = capCost(g, rnd(rng, lo, hi));
   g.cash -= a;
   return a;
 }
@@ -68,7 +68,7 @@ double spend(GameController g, Random rng, num lo, num hi) {
 double spendScaled(GameController g, double frac, double floor) {
   var raw = g.netWorth.abs() * frac * g.crisisCostScale;
   if (raw < floor) raw = floor;
-  final a = _cap(g, raw);
+  final a = capCost(g, raw);
   g.cash -= a;
   return a;
 }
@@ -118,7 +118,10 @@ bool shortenSchool(GameController g, int months) {
 /// always that "sure things" aren't.
 double wager(GameController g, Random rng, double stake, double winProb,
     double payoutMult) {
-  final s = stake > g.cash ? g.cash : stake;
+  // Bound the at-risk amount the same way as costs, so an event-driven bet
+  // can't wipe a cash-light player on a loss.
+  final capped = capCost(g, stake);
+  final s = capped > g.cash ? g.cash : capped;
   if (s <= 0) return 0;
   if (rng.nextDouble() < winProb) {
     final w = s * payoutMult;
