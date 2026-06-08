@@ -544,6 +544,39 @@ class GameController extends ChangeNotifier {
     return sum;
   }
 
+  /// Max portfolio debt-to-income: total monthly mortgage payments can't exceed
+  /// this multiple of (salary + a 75% haircut on the rent your tenanted homes
+  /// bring in). The old per-property 45%-of-pay check ignored existing
+  /// mortgages, so a stack of "individually affordable" homes could pile into a
+  /// portfolio a downturn would wipe out. This bounds total leverage to what
+  /// your income + rents can actually service.
+  static const double maxPortfolioDti = 1.0;
+  static const double _rentQualifyHaircut = 0.75;
+
+  /// Total monthly mortgage payments across still-financed homes.
+  double get propertyDebtService {
+    var s = 0.0;
+    for (final p in properties) {
+      if (!p.isPaidOff) s += p.monthlyPayment;
+    }
+    return s;
+  }
+
+  /// Rent a lender would count toward qualifying you — tenanted homes only,
+  /// haircut for vacancy/conservatism.
+  double get _rentQualifyingIncome {
+    var r = 0.0;
+    for (final p in properties) {
+      if (p.rentedOut) r += p.monthlyRent * _rentQualifyHaircut;
+    }
+    return r;
+  }
+
+  /// Whether [totalService] in total mortgage payments is serviceable by salary
+  /// plus haircut rents.
+  bool _serviceable(double totalService) =>
+      totalService <= (job.pay + _rentQualifyingIncome) * maxPortfolioDti;
+
   /// Buy a property with the chosen financing and down payment fraction.
   /// Returns an error string, or null on success.
   String? buyProperty(PropertyDef def, MortgageType m, double downFraction) {
@@ -558,9 +591,11 @@ class GameController extends ChangeNotifier {
     final loan = price - down;
     final rate = effectiveMortgageRate(m);
     final payment = mortgageMonthlyPayment(loan, rate, m.termMonths);
-    if (loan > 0 && payment > job.pay * 0.45) {
-      return 'Income too low to qualify — the payment would exceed 45% of '
-          'your monthly pay. Earn more or put more down.';
+    if (loan > 0 && !_serviceable(propertyDebtService + payment)) {
+      return 'Income too low to qualify — your total mortgage payments would '
+          'reach ${_usd(propertyDebtService + payment)}/mo, more than your '
+          'salary and rents can service. Earn more, put more down, or sell a '
+          'property first.';
     }
 
     cash -= down;
@@ -645,9 +680,11 @@ class GameController extends ChangeNotifier {
     final m = Properties.mortgages.first; // 30-year fixed
     final rate = effectiveMortgageRate(m);
     final payment = mortgageMonthlyPayment(maxLoan, rate, m.termMonths);
-    if (payment > job.pay * 0.5) {
-      return 'Income too low — the new payment would exceed half your monthly '
-          'pay.';
+    final serviceAfter =
+        propertyDebtService - (h.isPaidOff ? 0 : h.monthlyPayment) + payment;
+    if (!_serviceable(serviceAfter)) {
+      return 'Income too low — refinancing would push your total mortgage '
+          'payments past what your salary and rents can service.';
     }
     final closing = maxLoan * refiCostRate;
     final proceeds = maxLoan - h.loanBalance - closing;

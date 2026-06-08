@@ -199,6 +199,18 @@ PropertyDef? _bestAffordable(GameController g, double downFrac) {
 /// 1) LANDLORD-BRRRR: real estate only — buy, rent, renovate, refinance, repeat.
 void _landlord(GameController g, Random pick) {
   _bestJob(g);
+  // Deleverage under stress: if overdrawn, sell the highest-equity home to
+  // raise cash and shed a payment — what a real landlord does in a squeeze.
+  if (g.cash < 0 && g.properties.isNotEmpty) {
+    PropertyHolding? best;
+    for (final h in g.properties) {
+      if (best == null || h.equity > best.equity) best = h;
+    }
+    if (best != null && best.equity > 0) {
+      g.sellProperty(best);
+      return;
+    }
+  }
   for (final h in g.properties) {
     if (!h.rentedOut) g.toggleRental(h);
   }
