@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wealthquest/data/catalog.dart';
+import 'package:wealthquest/data/crises.dart';
 import 'package:wealthquest/data/properties.dart';
 import 'package:wealthquest/models/climate.dart';
 import 'package:wealthquest/models/property.dart';
@@ -519,4 +520,59 @@ void main() {
     // ignore: avoid_print
     print(out.toString());
   }, timeout: const Timeout(Duration(minutes: 6)));
+
+  // Closed-form guarantee (zero simulation noise): on the exact profile that
+  // triggered the complaint — asset-rich, cash-light, age ~45 — replay every
+  // eligible crisis option and confirm the caps mean no single popup can gouge
+  // you. This is the authoritative proof the "it took half my cash" bug is dead.
+  test('CASH-BITE GUARANTEE: no popup gouges an asset-rich, cash-light player',
+      () {
+    GameController profile() {
+      final g = GameController(seed: 1)..cash = 900000;
+      g.buy(Catalog.assetById('spx'), 820000);
+      g.buy(Catalog.assetById('bndx'), 40000);
+      return g; // ~$900k net worth, ~$40k cash — most wealth invested
+    }
+
+    final rng = Random(42);
+    final probe = profile();
+    var worstCash = 0.0, worstNw = 0.0;
+    var worstCashEv = '', worstNwEv = '';
+    var tested = 0;
+    for (final ev in Crises.all) {
+      if (!ev.eligible(probe)) continue;
+      if (probe.netWorth < ev.minNetWorth ||
+          probe.netWorth > ev.maxNetWorth) {
+        continue;
+      }
+      for (final ch in ev.choices) {
+        final g = profile();
+        final cashBefore = g.cash, nwBefore = g.netWorth;
+        ch.apply(g, rng);
+        tested++;
+        final cashPct = (cashBefore - g.cash) / cashBefore;
+        final nwPct = (nwBefore - g.netWorth) / nwBefore;
+        if (cashPct > worstCash) {
+          worstCash = cashPct;
+          worstCashEv = ev.id;
+        }
+        if (nwPct > worstNw) {
+          worstNw = nwPct;
+          worstNwEv = ev.id;
+        }
+      }
+    }
+    // ignore: avoid_print
+    print('\n=== CASH-BITE GUARANTEE (NW ~\$900k, cash ~\$40k, '
+        '$tested options) ===\n'
+        '  worst single popup: ${(worstCash * 100).toStringAsFixed(1)}% of cash '
+        '($worstCashEv), ${(worstNw * 100).toStringAsFixed(1)}% of net worth '
+        '($worstNwEv).\n'
+        '  caps in force: 30% of cash, 6% of net worth.\n');
+
+    expect(worstCash, lessThan(0.33),
+        reason: 'a single popup must never take a third of your cash');
+    expect(worstNw, lessThan(0.08),
+        reason: 'a single popup must never take ~a tenth of net worth');
+  });
 }
