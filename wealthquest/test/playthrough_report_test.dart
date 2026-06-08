@@ -69,8 +69,31 @@ class _Agg {
       this.crisesPerYear, this.crisisImpactMed, this.negRate, this.bankruptRate);
 }
 
+/// Pick the option a rational player would: try each on a clone that shares
+/// one market path, advance [lookaheadMonths], and keep whichever leaves you
+/// richest (so deferred costs like a few months of suspended income count).
+int _rationalChoice(GameController g, Random pick, int lookaheadMonths) {
+  final ev = g.pendingCrisis!;
+  if (ev.choices.length == 1) return 0;
+  final evalSeed = pick.nextInt(1 << 30); // shared market path for this decision
+  var bestIdx = 0;
+  var bestNW = -double.infinity;
+  for (var i = 0; i < ev.choices.length; i++) {
+    final c = g.cloneForLookahead(evalSeed)..pendingCrisis = ev;
+    c.resolveCrisis(ev.choices[i]);
+    for (var k = 0; k < lookaheadMonths; k++) {
+      c.advanceDay();
+    }
+    if (c.netWorth > bestNW) {
+      bestNW = c.netWorth;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
 _Stat _play(Agent agent, int seed, int months,
-    {required bool crises, required bool randomChoices}) {
+    {required bool crises, required String choicePolicy, int lookahead = 4}) {
   final g = GameController(seed: seed)..crisesEnabled = crises;
   final pick = Random(seed * 7919 + 13);
   var peak = g.netWorth, maxDd = 0.0, crisisImpact = 0.0;
@@ -83,10 +106,18 @@ _Stat _play(Agent agent, int seed, int months,
     if (g.pendingCrisis != null) {
       final before = g.netWorth;
       final choices = g.pendingCrisis!.choices;
-      final c = randomChoices
-          ? choices[pick.nextInt(choices.length)]
-          : choices.first;
-      g.resolveCrisis(c);
+      final int idx;
+      switch (choicePolicy) {
+        case 'random':
+          idx = pick.nextInt(choices.length);
+          break;
+        case 'rational':
+          idx = _rationalChoice(g, pick, lookahead);
+          break;
+        default: // 'first' — the naive baseline
+          idx = 0;
+      }
+      g.resolveCrisis(choices[idx]);
       crisisImpact += g.netWorth - before;
       nCrises++;
     }
@@ -102,10 +133,11 @@ _Stat _play(Agent agent, int seed, int months,
 }
 
 _Agg _runAll(Agent agent, List<int> seeds, int months,
-    {required bool crises, bool randomChoices = false}) {
+    {required bool crises, String choicePolicy = 'first', int lookahead = 4}) {
   final stats = [
     for (final s in seeds)
-      _play(agent, s, months, crises: crises, randomChoices: randomChoices),
+      _play(agent, s, months,
+          crises: crises, choicePolicy: choicePolicy, lookahead: lookahead),
   ];
   double med(List<double> xs) => (xs..sort())[xs.length ~/ 2];
   final finals = [for (final s in stats) s.finalNW];
@@ -290,9 +322,10 @@ void main() {
     final offResults = <String, _Agg>{};
     agents.forEach((name, spec) {
       final (agent, rnd) = spec;
-      final on = _runAll(agent, seeds, months, crises: true, randomChoices: rnd);
+      final policy = rnd ? 'random' : 'first';
+      final on = _runAll(agent, seeds, months, crises: true, choicePolicy: policy);
       final off =
-          _runAll(agent, seeds, months, crises: false, randomChoices: rnd);
+          _runAll(agent, seeds, months, crises: false, choicePolicy: policy);
       onResults[name] = on;
       offResults[name] = off;
       out.writeln('  ${name.padRight(38)}'
@@ -344,4 +377,54 @@ void main() {
     expect(degen.median, lessThan(balanced.median),
         reason: 'gambling into the vig should trail a balanced strategy');
   });
+
+  // A real player avoids the bad popup option. The naive report picks the FIRST
+  // option (which the catalog orders as the *premium / most expensive* one), so
+  // it overstates the drag. Here a lookahead picks the option a rational player
+  // would, and we compare the two drag numbers head to head.
+  test('RATIONAL vs NAIVE life-event drag (lookahead choices)', () {
+    const ratSeeds = [1, 2, 3, 5, 8, 13, 21, 42, 99, 123];
+    const k = 4;
+    final agents = <String, Agent>{
+      'LANDLORD-BRRRR': _landlord,
+      'DEGENERATE': _degenerate,
+      'BALANCED': _balanced,
+      'CHAOS': _chaos,
+    };
+
+    double drag(_Agg on, _Agg off) =>
+        off.median == 0 ? 0.0 : (off.median - on.median) / off.median.abs();
+
+    final out = StringBuffer()
+      ..writeln('\n========= RATIONAL vs NAIVE life-event drag =========')
+      ..writeln('Every popup resolved by a $k-month lookahead (try each option '
+          'on a clone\nsharing one market path, keep the richest). '
+          '${ratSeeds.length} seeds.\n')
+      ..writeln('AGENT             naive drag   RATIONAL drag   '
+          'final WITH → WITHOUT (rational)');
+
+    for (final entry in agents.entries) {
+      final agent = entry.value;
+      final ratOn = _runAll(agent, ratSeeds, months,
+          crises: true, choicePolicy: 'rational', lookahead: k);
+      final ratOff = _runAll(agent, ratSeeds, months,
+          crises: false, choicePolicy: 'rational', lookahead: k);
+      final naiOn =
+          _runAll(agent, ratSeeds, months, crises: true, choicePolicy: 'first');
+      final naiOff = _runAll(agent, ratSeeds, months,
+          crises: false, choicePolicy: 'first');
+      out.writeln('  ${entry.key.padRight(16)}'
+          '${_pct(drag(naiOn, naiOff)).padLeft(10)}   '
+          '${_pct(drag(ratOn, ratOff)).padLeft(11)}   '
+          '${_money(ratOn.median)} → ${_money(ratOff.median)}');
+    }
+    out
+      ..writeln('\n  drag = how much lower the median ends WITH popups vs '
+          'WITHOUT.')
+      ..writeln('  The gap naive→rational = the cost of playing the popups '
+          'badly.')
+      ..writeln('=====================================================\n');
+    // ignore: avoid_print
+    print(out.toString());
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }

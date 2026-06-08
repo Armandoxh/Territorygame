@@ -98,6 +98,23 @@ class PropertyHolding {
   double get equity => currentValue - loanBalance;
 
   bool get isPaidOff => loanBalance <= 0.01;
+
+  /// A deep copy, for what-if lookahead in the balance harness.
+  PropertyHolding clone() => PropertyHolding(
+        id: id,
+        defId: defId,
+        currentValue: currentValue,
+        loanBalance: loanBalance,
+        monthlyPayment: monthlyPayment,
+        annualRate: annualRate,
+        termMonths: termMonths,
+        purchasePrice: purchasePrice,
+        address: address,
+        monthsPaid: monthsPaid,
+        renovationInvested: renovationInvested,
+        rentedOut: rentedOut,
+        occupied: occupied,
+      );
 }
 
 /// Standard fixed-rate amortization: the level monthly payment that pays a

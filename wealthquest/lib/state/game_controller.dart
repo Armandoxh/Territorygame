@@ -175,6 +175,74 @@ class GameController extends ChangeNotifier {
     return result;
   }
 
+  /// A deep clone of the economic state, for what-if lookahead in the balance
+  /// harness — try a decision (resolve a crisis, advance a few months) on the
+  /// copy without touching the live game. The clone gets a fresh RNG seeded by
+  /// [rngSeed], so sibling clones that share a seed evolve down the SAME market
+  /// path; the only difference between them is the choice under test. Crises
+  /// are disabled on the clone so the lookahead can't spawn its own popups.
+  /// Not used in normal play.
+  GameController cloneForLookahead(int rngSeed) {
+    final c = GameController(seed: rngSeed, prestige: prestige)
+      ..crisesEnabled = false
+      ..day = day
+      ..cash = cash
+      ..job = job
+      ..monthsCashNegative = monthsCashNegative
+      ..regime = regime
+      ..sectorEvent = sectorEvent
+      ..mortgageRate = mortgageRate
+      ..housingTrend = housingTrend
+      ..eduLevel = eduLevel
+      ..enrolledDegreeId = enrolledDegreeId
+      ..enrollMonthsLeft = enrollMonthsLeft
+      ..studentLoan = studentLoan
+      ..debt = debt
+      ..attendedEventThisMonth = attendedEventThisMonth
+      .._nextPropertyId = _nextPropertyId
+      .._nextHoldingId = _nextHoldingId
+      .._nextEventId = _nextEventId
+      .._nextBetId = _nextBetId;
+    c._prices
+      ..clear()
+      ..addAll(_prices);
+    c._prevPrices
+      ..clear()
+      ..addAll(_prevPrices);
+    c.propertyPrices
+      ..clear()
+      ..addAll(propertyPrices);
+    c.priceHistory
+      ..clear()
+      ..addAll({
+        for (final e in priceHistory.entries) e.key: List<double>.of(e.value),
+      });
+    c._purchasedThisYear
+      ..clear()
+      ..addAll(_purchasedThisYear);
+    c.holdings
+      ..clear()
+      ..addAll([for (final h in holdings) h.clone()]);
+    c.properties
+      ..clear()
+      ..addAll([for (final p in properties) p.clone()]);
+    c.ongoing
+      ..clear()
+      ..addAll([
+        for (final e in ongoing)
+          OngoingEffect(
+            label: e.label,
+            monthsLeft: e.monthsLeft,
+            monthlyCost: e.monthlyCost,
+            suspendsIncome: e.suspendsIncome,
+          ),
+      ]);
+    c.bets
+      ..clear()
+      ..addAll(bets); // PendingBet is read-only once placed
+    return c;
+  }
+
   // ---- Life / events ----
   /// You can attend one life event per month for a market tip. Reset each month.
   bool attendedEventThisMonth = false;

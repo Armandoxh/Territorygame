@@ -51,4 +51,20 @@ class Holding {
 
   /// A hard-locked position that hasn't matured can't be redeemed yet.
   bool get isLocked => hardLock && !matured;
+
+  /// A deep copy, for what-if lookahead in the balance harness.
+  Holding clone() => Holding(
+        id: id,
+        assetId: assetId,
+        kind: kind,
+        shares: shares,
+        balance: balance,
+        costBasis: costBasis,
+        openedDay: openedDay,
+        maturityDay: maturityDay,
+        matured: matured,
+        hardLock: hardLock,
+        isShort: isShort,
+        entryPrice: entryPrice,
+      );
 }
