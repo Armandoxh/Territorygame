@@ -9,23 +9,69 @@ import 'widgets/ui_helpers.dart';
 
 /// Real estate: browse the property ladder, buy with a chosen down payment and
 /// mortgage, and manage what you own.
-class PropertyTab extends StatelessWidget {
+class PropertyTab extends StatefulWidget {
   const PropertyTab({super.key, required this.game});
 
   final GameController game;
 
   @override
+  State<PropertyTab> createState() => _PropertyTabState();
+}
+
+class _PropertyTabState extends State<PropertyTab> {
+  /// Which property type the "Your properties" tabs are showing.
+  String? _typeFilter;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final game = widget.game;
+
+    // Group owned homes by type, in ladder order, so a big portfolio reads as
+    // a few tabs ("Suburban House · 5") instead of one endless list.
+    final byType = <String, List<PropertyHolding>>{};
+    for (final h in game.properties) {
+      byType.putIfAbsent(h.defId, () => []).add(h);
+    }
+    final ownedTypes = [
+      for (final d in Properties.ladder)
+        if (byType.containsKey(d.id)) d.id,
+    ];
+    final filter = (_typeFilter != null && byType.containsKey(_typeFilter))
+        ? _typeFilter!
+        : (ownedTypes.isNotEmpty ? ownedTypes.first : null);
+    final shown = filter == null ? const <PropertyHolding>[] : byType[filter]!;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [
         _MarketHeader(game: game),
         const SizedBox(height: 12),
         if (game.properties.isNotEmpty) ...[
+          _PortfolioSummary(game: game),
+          const SizedBox(height: 12),
           Text('Your properties', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          ...game.properties.map((h) => _OwnedCard(game: game, holding: h)),
+          // Type "tabs": one chip per kind of home you own.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final id in ownedTypes)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(
+                          '${Properties.byId(id).name} · ${byType[id]!.length}'),
+                      selected: filter == id,
+                      onSelected: (_) => setState(() => _typeFilter = id),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...shown.map((h) => _OwnedCard(game: game, holding: h)),
           const SizedBox(height: 16),
         ],
         Text('On the market', style: theme.textTheme.titleMedium),
@@ -37,6 +83,51 @@ class PropertyTab extends StatelessWidget {
         const SizedBox(height: 8),
         ...Properties.ladder.map((d) => _ListingCard(game: game, def: d)),
       ],
+    );
+  }
+}
+
+/// A one-glance roll-up of the whole portfolio — essential once you own dozens
+/// of homes.
+class _PortfolioSummary extends StatelessWidget {
+  const _PortfolioSummary({required this.game});
+
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final homes = game.properties;
+    var value = 0.0, equity = 0.0, rent = 0.0, mortgage = 0.0, pull = 0.0;
+    for (final h in homes) {
+      value += h.currentValue;
+      equity += h.equity;
+      if (h.rentedOut && h.occupied) rent += h.monthlyRent;
+      if (!h.isPaidOff) mortgage += h.monthlyPayment;
+      pull += game.refinanceCashOut(h);
+    }
+    final cashFlow = rent - mortgage;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                'Portfolio · ${homes.length} '
+                'propert${homes.length == 1 ? 'y' : 'ies'}',
+                style: theme.textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _kv(theme, 'Total value', money(value)),
+            _kv(theme, 'Total equity', money(equity),
+                color: gainColor(equity)),
+            _kv(theme, 'Net rent − mortgage', '${money(cashFlow)}/mo',
+                color: cashFlow >= 0 ? kGain : kLoss),
+            _kv(theme, 'Equity you could refi out', money(pull),
+                color: pull > 0 ? kGain : null),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -101,8 +192,21 @@ class _OwnedCard extends StatelessWidget {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(def.name, style: theme.textTheme.titleSmall),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(holding.address.isEmpty ? def.name : holding.address,
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold)),
+                      Text(def.name,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
                 Text(money(holding.currentValue),
                     style: theme.textTheme.titleSmall
                         ?.copyWith(fontWeight: FontWeight.bold)),
@@ -118,6 +222,12 @@ class _OwnedCard extends StatelessWidget {
                   '${pct(holding.annualRate)} · $monthsLeft mo left'),
             ] else
               _kv(theme, 'Status', 'Paid off 🎉'),
+            Builder(builder: (_) {
+              final pull = game.refinanceCashOut(holding);
+              return _kv(theme, 'Cash you can refi out',
+                  pull > 0 ? money(pull) : 'none yet',
+                  color: pull > 0 ? kGain : null);
+            }),
             const Divider(height: 20),
             Row(
               children: [
@@ -157,8 +267,7 @@ class _OwnedCard extends StatelessWidget {
                   onPressed: () => _renovate(context),
                   child: const Text('Renovate'),
                 ),
-                if (game.refinanceCashOut(holding) > 0)
-                  TextButton(
+                TextButton(
                     onPressed: () => _refinance(context),
                     child: const Text('Refinance'),
                   ),
@@ -210,7 +319,26 @@ class _OwnedCard extends StatelessWidget {
     final def = Properties.byId(holding.defId);
     final cashOut = game.refinanceCashOut(holding);
     if (cashOut <= 0) {
-      _toast(context, 'No equity to pull — you owe too much on it.');
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Not enough equity yet'),
+          content: Text(
+            'A cash-out refinance (a HELOC, basically) lets you pull up to '
+            '${(GameController.refiMaxLtv * 100).toStringAsFixed(0)}% of a '
+            'home\'s value as cash — without selling it.\n\n'
+            'This one is worth ${money(holding.currentValue)} but you still owe '
+            '${money(holding.loanBalance)}, so there\'s nothing to pull yet. '
+            'Pay the loan down, wait for it to appreciate, or Renovate to force '
+            'its value up — then refinance.',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Got it')),
+          ],
+        ),
+      );
       return;
     }
     final rate = game.effectiveMortgageRate(Properties.mortgages.first);

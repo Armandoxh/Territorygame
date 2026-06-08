@@ -1,8 +1,30 @@
+import 'dart:math';
+
 import '../models/property.dart';
 
 /// The property ladder and the mortgage menu. Tunables live here.
 class Properties {
   Properties._();
+
+  // Made-up address parts, so every home gets a distinct street address.
+  static const List<String> _streets = [
+    'Maple', 'Oak', 'Cedar', 'Pine', 'Elm', 'Birch', 'Willow', 'Sunset',
+    'Lakeview', 'Hillcrest', 'Park', 'Washington', 'Madison', 'Lincoln',
+    'Highland', 'Riverside', 'Meadow', 'Brookside', 'Aspen', 'Magnolia',
+    'Juniper', 'Chestnut', 'Spruce', 'Forest', 'Crescent', 'Orchard',
+    'Bayview', 'Ridgeline', 'Cobblestone', 'Harbor', 'Marigold', 'Sycamore',
+  ];
+  static const List<String> _suffixes = [
+    'St', 'Ave', 'Rd', 'Ln', 'Dr', 'Ct', 'Blvd', 'Way', 'Pl', 'Ter',
+  ];
+
+  /// A fictional street address like "412 Maple Ave".
+  static String randomAddress(Random rng) {
+    final number = 100 + rng.nextInt(9800);
+    final street = _streets[rng.nextInt(_streets.length)];
+    final suffix = _suffixes[rng.nextInt(_suffixes.length)];
+    return '$number $street $suffix';
+  }
 
   /// The ladder: rung up from a shack to a luxury home. Appreciation is
   /// monthly and modest (~3–4.5%/yr); the magic is leverage + the mortgage.

@@ -482,6 +482,7 @@ class GameController extends ChangeNotifier {
       annualRate: rate,
       termMonths: m.termMonths,
       purchasePrice: price,
+      address: Properties.randomAddress(_rng),
     ));
     _log('Bought ${def.name} for ${_usd(price)} '
         '(${(downFraction * 100).toStringAsFixed(0)}% down, ${m.name} @ '

@@ -57,6 +57,10 @@ class PropertyHolding {
   final double purchasePrice;
   int monthsPaid;
 
+  /// A made-up street address, so a portfolio of identical "Suburban Houses"
+  /// reads as distinct homes ("412 Maple Ave") rather than a wall of dupes.
+  final String address;
+
   /// Cumulative cash poured into renovations. Drives diminishing returns on
   /// further value-add — you can't gold-plate a shack forever.
   double renovationInvested;
@@ -77,6 +81,7 @@ class PropertyHolding {
     required this.annualRate,
     required this.termMonths,
     required this.purchasePrice,
+    this.address = '',
     this.monthsPaid = 0,
     this.renovationInvested = 0,
     this.rentedOut = false,
