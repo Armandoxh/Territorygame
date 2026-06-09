@@ -644,6 +644,43 @@ void main() {
     });
   });
 
+  group('Retirement (401k)', () {
+    test('contributing earns the employer match into the locked account', () {
+      final g = GameController(seed: 1)..cash = 100000;
+      g.setRetirementContribPct(0.05); // 5% → full dollar-for-dollar match
+      final pay = g.job.pay;
+      g.advanceDay();
+      // Your 5% + employer 5% ≈ 10% of pay (minus a small market move).
+      expect(g.retirementBalance, greaterThan(pay * 0.08));
+    });
+
+    test('it counts toward net worth', () {
+      final g = GameController(seed: 1);
+      final nw0 = g.netWorth;
+      g.retirementBalance = 5000;
+      expect(g.netWorth, closeTo(nw0 + 5000, 1e-6));
+    });
+
+    test('early withdrawal eats the 25% penalty', () {
+      final g = GameController(seed: 1)..cash = 0;
+      g.retirementBalance = 1000;
+      expect(g.withdrawRetirement(1000, max: true), isNull);
+      expect(g.cash, closeTo(750, 1e-6)); // under 60 → 25% gone
+      expect(g.retirementBalance, 0);
+    });
+
+    test('withdrawals are penalty-free at retirement age', () {
+      final g = GameController(seed: 1)
+        ..cash = 0
+        ..day = (GameController.retirementAge - Catalog.startAge) *
+            Catalog.stepsPerYear;
+      expect(g.ageYears, GameController.retirementAge);
+      g.retirementBalance = 1000;
+      expect(g.withdrawRetirement(1000, max: true), isNull);
+      expect(g.cash, closeTo(1000, 1e-6)); // no penalty
+    });
+  });
+
   group('Fast-forward', () {
     test('advanceMonths runs every month and aggregates the result', () {
       // Cushioned so it won't margin-call; it may still halt early on a crisis

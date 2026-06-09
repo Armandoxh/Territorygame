@@ -234,6 +234,8 @@ class GameController extends ChangeNotifier {
       ..enrolledDegreeId = enrolledDegreeId
       ..enrollMonthsLeft = enrollMonthsLeft
       ..studentLoan = studentLoan
+      ..retirementBalance = retirementBalance
+      ..retirementContribPct = retirementContribPct
       ..debt = debt
       ..attendedEventThisMonth = attendedEventThisMonth
       .._nextPropertyId = _nextPropertyId
@@ -483,9 +485,60 @@ class GameController extends ChangeNotifier {
       cash +
       holdingsValue +
       propertiesEquity +
-      pendingBetsValue -
+      pendingBetsValue +
+      retirementBalance -
       studentLoan -
       debt;
+
+  // ---- Retirement (401k-style) ----
+  /// Balance in your locked retirement account. Grows on autopilot in a
+  /// target-date fund; you can't touch it before [retirementAge] without a
+  /// brutal penalty.
+  double retirementBalance = 0;
+
+  /// Fraction of each paycheck you divert into retirement (payroll-deducted).
+  double retirementContribPct = 0;
+
+  /// Age at which withdrawals become penalty-free.
+  static const int retirementAge = 60;
+
+  /// Employer matches your contribution dollar-for-dollar up to this share of
+  /// pay — free money you only get by contributing.
+  static const double employerMatchPct = 0.05;
+
+  /// Penalty on any withdrawal before [retirementAge].
+  static const double earlyWithdrawalPenalty = 0.25;
+
+  /// Target-date fund: ~7.4%/yr baseline drift, plus market-correlated swings
+  /// (your 401k dips in a crash). No extra rng draw — rides the shared shock.
+  static const double _retireMonthlyDrift = 0.006;
+  static const double _retireMarketBeta = 0.6;
+
+  /// Set the payroll-deduction percentage (0–30%).
+  void setRetirementContribPct(double pct) {
+    retirementContribPct = pct.clamp(0.0, 0.30);
+    notifyListeners();
+  }
+
+  /// Withdraw [amount] (or everything if [max]). Before [retirementAge] you
+  /// eat a [earlyWithdrawalPenalty] haircut; after, it's penalty-free.
+  String? withdrawRetirement(double amount, {bool max = false}) {
+    if (retirementBalance <= 0) return 'Your retirement account is empty.';
+    var amt = max ? retirementBalance : amount;
+    if (amt <= 0) return 'Enter an amount greater than \$0.';
+    if (amt > retirementBalance) amt = retirementBalance;
+    final early = ageYears < retirementAge;
+    final penalty = early ? amt * earlyWithdrawalPenalty : 0.0;
+    retirementBalance -= amt;
+    if (retirementBalance < 0.01) retirementBalance = 0;
+    cash += amt - penalty;
+    _log(early
+        ? 'Raided your 401(k): pulled ${_usd(amt)} but lost ${_usd(penalty)} '
+            '(${(earlyWithdrawalPenalty * 100).toStringAsFixed(0)}% early penalty).'
+        : 'Withdrew ${_usd(amt)} from retirement — penalty-free at $ageYears.');
+    notifyListeners();
+    return null;
+  }
 
   // ---- Sports betting ----
   /// Open wagers, valued at their stake until they resolve next month.
@@ -1191,7 +1244,16 @@ class GameController extends ChangeNotifier {
     // 1) Salary in (part-time pay while studying), living expenses out.
     final income = effectivePay;
     final expenses = dailyExpenses;
-    cash += income;
+    // Retirement: payroll-deduct your contribution and add the employer match
+    // (dollar-for-dollar up to 5% of pay) into the locked account; only the
+    // take-home portion lands in cash.
+    final retireContribution = income * retirementContribPct;
+    final employerMatch = income *
+        (retirementContribPct < employerMatchPct
+            ? retirementContribPct
+            : employerMatchPct);
+    retirementBalance += retireContribution + employerMatch;
+    cash += income - retireContribution;
     cash -= expenses;
 
     // 1b) Education: advance any degree in progress, and compound the loan.
@@ -1302,6 +1364,13 @@ class GameController extends ChangeNotifier {
     // wandering independently. Drawn once, before the per-asset loop.
     final marketShock = MarketEngine.marketFactor(_rng);
     lastMarketFactor = marketShock;
+    // Retirement fund rides the same shared shock (a target-date fund): steady
+    // drift plus market-correlated swings. No extra rng draw.
+    if (retirementBalance > 0) {
+      retirementBalance *=
+          (1 + _retireMonthlyDrift + _retireMarketBeta * marketShock);
+      if (retirementBalance < 0) retirementBalance = 0;
+    }
     for (final a in Catalog.assets) {
       if (!a.kind.isPriceBased) continue;
       var mb = bias[a.id] ?? 0;
