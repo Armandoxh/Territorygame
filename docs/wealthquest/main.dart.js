@@ -95545,10 +95545,10 @@ o=p.b
 n.eK(r<=0.01?"Paid off your "+o+" (\u2212"+("$"+B.b.j(q,0))+"). \ud83c\udf89":"Paid "+("$"+B.b.j(q,0))+" toward your "+o+" loan.")
 n.a7()
 return null},
-ZQ(a){var s=a.c*0.75,r=s-a.d-s*0.02
+ZQ(a){var s=a.c*0.65,r=s-a.d-s*0.02
 return r<0?0:r},
-avi(a){var s,r,q,p,o,n,m,l=this,k=a.c*0.75
-if(k<=a.d+1)return"No equity to pull \u2014 you already owe more than "+B.f.j(75,0)+"% of its value."
+avi(a){var s,r,q,p,o,n,m,l=this,k=a.c*0.65
+if(k<=a.d+1)return"No equity to pull \u2014 you already owe more than "+B.f.j(65,0)+"% of its value."
 s=B.d.ga6(B.iA)
 r=l.Ay(s)
 q=s.d
@@ -96849,7 +96849,7 @@ s=p.ok.ax
 if(s==null)p=q
 else{p=p.ax
 r=p.rx
-p=s.aB(r==null?p.k3:r)}o.push(A.G("v0.31.0 \xb7 build 61",q,q,q,q,p,q,q))
+p=s.aB(r==null?p.k3:r)}o.push(A.G("v0.31.0 \xb7 build 62",q,q,q,q,p,q,q))
 o.push(B.af)
 return A.bs(o,B.v,B.m,B.n)},
 $S:566}
@@ -97141,7 +97141,7 @@ j=l.d
 q+=k-j
 if(l.Q&&l.as)p+=k*0.005
 if(!(j<=0.01))o+=l.e
-i=k*0.75
+i=k*0.65
 h=i-j-i*0.02
 n+=h<0?0:h}g=p-o
 k=s===1?"y":"ies"
@@ -97316,7 +97316,7 @@ s=r}else s=q
 A.a_9(this.b,s)},
 $S:1}
 A.azg.prototype={
-$1(a){var s=null,r=B.f.j(75,0),q=this.a.d,p=q.c,o=$.bO()
+$1(a){var s=null,r=B.f.j(65,0),q=this.a.d,p=q.c,o=$.bO()
 q=A.G("A cash-out refinance (a HELOC, basically) lets you pull up to "+r+"% of a home's value as cash \u2014 without selling it.\n\nThis one is worth "+o.aC(p)+" but you still owe "+o.aC(q.d)+", so there's nothing to pull yet. Pay the loan down, wait for it to appreciate, or Renovate to force its value up \u2014 then refinance.",s,s,s,s,s,s,s)
 return A.t8(A.a([A.ij(B.aeW,s,s,new A.azf(this.b),s,s)],t.p),q,s,B.af1)},
 $S:49}
@@ -97325,7 +97325,7 @@ $0(){A.cR(this.a,!1).fu(null)
 return null},
 $S:1}
 A.azh.prototype={
-$1(a){var s=this,r=null,q=A.G("Refinance "+s.a.b+"?",r,r,r,r,r,r,r),p=A.G("Pull about "+$.bO().aC(s.b)+" in cash now by writing a fresh 30-year loan at today's "+(B.b.j(s.c*100,1)+"%")+" rate \u2014 up to "+B.f.j(75,0)+"% of value, after ~2% closing costs. Your monthly payment resets higher. This is how you keep your money working without selling.",r,r,r,r,r,r,r),o=s.d
+$1(a){var s=this,r=null,q=A.G("Refinance "+s.a.b+"?",r,r,r,r,r,r,r),p=A.G("Pull about "+$.bO().aC(s.b)+" in cash now by writing a fresh 30-year loan at today's "+(B.b.j(s.c*100,1)+"%")+" rate \u2014 up to "+B.f.j(65,0)+"% of value, after ~2% closing costs. Your monthly payment resets higher. This is how you keep your money working without selling.",r,r,r,r,r,r,r),o=s.d
 return A.t8(A.a([A.ij(B.nE,r,r,new A.azd(o),r,r),A.jE(B.E7,new A.aze(o))],t.p),p,r,q)},
 $S:49}
 A.azd.prototype={
