@@ -876,10 +876,10 @@ class Catalog {
       blurb: 'Electrician, plumber, welder. A quick trade-school cert, then real '
           'money fast and your own shop at the top — without the four-year debt.',
       rungs: [
-        JobDef(id: 'trade_appr', title: 'Apprentice', pay: 3000),
-        JobDef(id: 'trade_journey', title: 'Journeyman', pay: 5200),
-        JobDef(id: 'trade_master', title: 'Master Tradesperson', pay: 8000),
-        JobDef(id: 'trade_owner', title: 'Contractor / Shop Owner', pay: 13000),
+        JobDef(id: 'trade_appr', title: 'Apprentice', pay: 3200),
+        JobDef(id: 'trade_journey', title: 'Journeyman', pay: 6000),
+        JobDef(id: 'trade_master', title: 'Master Tradesperson', pay: 10000),
+        JobDef(id: 'trade_owner', title: 'Contractor / Shop Owner', pay: 20000),
       ],
       rungMonths: [24, 36, 48, 0],
     ),
