@@ -1056,6 +1056,37 @@ class Catalog {
   /// that paying it down competes with investing — a real decision.
   static const double studentLoanRate = 0.075;
 
+  // ---- Income tax (on wages) ----
+  /// Income shielded from tax before brackets apply (a standard deduction).
+  static const double standardDeduction = 14600;
+
+  /// Progressive federal-style brackets: [upper bound, marginal rate]. Applied
+  /// to taxable wages = gross salary − pre-tax 401(k) − standard deduction.
+  static const List<List<double>> taxBrackets = [
+    [11600, 0.10],
+    [47150, 0.12],
+    [100525, 0.22],
+    [191950, 0.24],
+    [243725, 0.32],
+    [609350, 0.35],
+    [double.infinity, 0.37],
+  ];
+
+  /// Annual income tax on [annualTaxableIncome] (already net of deductions).
+  static double incomeTaxOnTaxable(double annualTaxableIncome) {
+    if (annualTaxableIncome <= 0) return 0;
+    var tax = 0.0;
+    var lower = 0.0;
+    for (final b in taxBrackets) {
+      final upper = b[0];
+      if (annualTaxableIncome <= lower) break;
+      final top = annualTaxableIncome < upper ? annualTaxableIncome : upper;
+      tax += (top - lower) * b[1];
+      lower = upper;
+    }
+    return tax;
+  }
+
   // ---- Lookups (built once) ----
   static final Map<String, AssetDef> _byId = {
     for (final a in assets) a.id: a,

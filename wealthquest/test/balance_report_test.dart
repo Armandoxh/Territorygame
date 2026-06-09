@@ -277,10 +277,11 @@ void main() {
       for (var m = 0; m < 20 * 12; m++) {
         final cashBefore = g.cash;
         final r = g.advanceDay();
-        // cash moves exactly by: salary - expenses + dividends + rent
+        // cash moves exactly by: salary - tax - expenses + dividends + rent
         //                        - mortgage - overdraft fee.
         final expected = cashBefore +
             r.income -
+            r.tax -
             r.expenses +
             r.dividends +
             r.rent -

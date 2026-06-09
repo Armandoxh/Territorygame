@@ -26,8 +26,8 @@ void main() {
       final before = g.cash;
       final r = g.advanceDay();
       expect(g.day, 1);
-      // No investments, so cash change == salary - expenses exactly.
-      expect(g.cash, closeTo(before + r.income - r.expenses, 1e-6));
+      // No investments, so cash change == salary - tax - expenses exactly.
+      expect(g.cash, closeTo(before + r.income - r.tax - r.expenses, 1e-6));
       expect(r.income, g.job.pay);
     });
 
@@ -678,6 +678,29 @@ void main() {
       g.retirementBalance = 1000;
       expect(g.withdrawRetirement(1000, max: true), isNull);
       expect(g.cash, closeTo(1000, 1e-6)); // no penalty
+    });
+  });
+
+  group('Income tax', () {
+    test('brackets are progressive', () {
+      expect(Catalog.incomeTaxOnTaxable(0), 0);
+      expect(Catalog.incomeTaxOnTaxable(10000), closeTo(1000, 1e-6)); // 10%
+      final lowRate = Catalog.incomeTaxOnTaxable(50000) / 50000;
+      final highRate = Catalog.incomeTaxOnTaxable(200000) / 200000;
+      expect(highRate, greaterThan(lowRate)); // higher income, higher avg rate
+    });
+
+    test('wages are taxed each month and pre-tax 401k shrinks the bill', () {
+      final g = GameController(seed: 1)..cash = 100000;
+      final taxBefore = g.monthlyIncomeTax;
+      final cash0 = g.cash;
+      final r = g.advanceDay();
+      expect(r.tax, greaterThanOrEqualTo(0));
+      // cash moved by salary - tax - expenses (no investments).
+      expect(g.cash, closeTo(cash0 + r.income - r.tax - r.expenses, 1e-6));
+      // Diverting pay pre-tax into the 401(k) lowers the tax owed.
+      g.setRetirementContribPct(0.20);
+      expect(g.monthlyIncomeTax, lessThanOrEqualTo(taxBefore));
     });
   });
 

@@ -29,6 +29,7 @@ class DayResult {
   final double interest;
   final double rent; // rent collected from tenanted properties
   final double mortgage; // total mortgage payments made this month
+  final double tax; // income tax withheld on wages this month
   final double netWorthBefore;
   final double netWorthAfter;
   final double cashBefore;
@@ -46,6 +47,7 @@ class DayResult {
     required this.interest,
     this.rent = 0,
     this.mortgage = 0,
+    this.tax = 0,
     required this.netWorthBefore,
     required this.netWorthAfter,
     required this.cashBefore,
@@ -513,6 +515,15 @@ class GameController extends ChangeNotifier {
   /// (your 401k dips in a crash). No extra rng draw — rides the shared shock.
   static const double _retireMonthlyDrift = 0.006;
   static const double _retireMarketBeta = 0.6;
+
+  /// This month's income tax on wages (after the pre-tax 401(k) contribution),
+  /// for display.
+  double get monthlyIncomeTax {
+    final annualTaxable =
+        (effectivePay - effectivePay * retirementContribPct) * 12 -
+            Catalog.standardDeduction;
+    return annualTaxable <= 0 ? 0 : Catalog.incomeTaxOnTaxable(annualTaxable) / 12;
+  }
 
   /// Set the payroll-deduction percentage (0–30%).
   void setRetirementContribPct(double pct) {
@@ -1254,6 +1265,14 @@ class GameController extends ChangeNotifier {
             : employerMatchPct);
     retirementBalance += retireContribution + employerMatch;
     cash += income - retireContribution;
+    // Income tax on wages — pre-tax 401(k) contributions are shielded, so
+    // contributing lowers this bill on top of the employer match.
+    final annualTaxable =
+        (income - retireContribution) * 12 - Catalog.standardDeduction;
+    final tax = annualTaxable <= 0
+        ? 0.0
+        : Catalog.incomeTaxOnTaxable(annualTaxable) / 12;
+    cash -= tax;
     cash -= expenses;
 
     // 1b) Education: advance any degree in progress, and compound the loan.
@@ -1633,6 +1652,7 @@ class GameController extends ChangeNotifier {
       interest: interest,
       rent: rentCollected,
       mortgage: mortgagePaid,
+      tax: tax,
       netWorthBefore: before,
       netWorthAfter: after,
       cashBefore: cashBefore,
@@ -1667,6 +1687,7 @@ class GameController extends ChangeNotifier {
         dividends = 0.0,
         rent = 0.0,
         mortgage = 0.0,
+        tax = 0.0,
         fee = 0.0;
     final events = <String>[];
     var marginCall = false;
@@ -1680,6 +1701,7 @@ class GameController extends ChangeNotifier {
       dividends += r.dividends;
       rent += r.rent;
       mortgage += r.mortgage;
+      tax += r.tax;
       fee += r.overdraftFee;
       events.addAll(r.events);
       done++;
@@ -1695,6 +1717,7 @@ class GameController extends ChangeNotifier {
       dividends: dividends,
       rent: rent,
       mortgage: mortgage,
+      tax: tax,
       overdraftFee: fee,
       marginCall: marginCall,
       crisis: crisis,

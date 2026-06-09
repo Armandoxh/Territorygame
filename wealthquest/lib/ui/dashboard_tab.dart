@@ -14,8 +14,10 @@ class DashboardTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final netCashFlow =
-        game.effectivePay + game.dailyPassiveIncome - game.dailyExpenses;
+    final netCashFlow = game.effectivePay -
+        game.monthlyIncomeTax +
+        game.dailyPassiveIncome -
+        game.dailyExpenses;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
@@ -45,9 +47,9 @@ class DashboardTab extends StatelessWidget {
               child: _StatCard(
                 label: 'Monthly salary',
                 value: money(game.effectivePay),
-                sub: game.isStudying
-                    ? '${game.job.title} (part-time)'
-                    : game.job.title,
+                sub: game.monthlyIncomeTax > 0
+                    ? '−${money(game.monthlyIncomeTax)}/mo income tax'
+                    : (game.isStudying ? 'part-time' : game.job.title),
                 color: kGain,
               ),
             ),
@@ -288,7 +290,8 @@ class _RetirementCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Employer matches you 100% up to $matchPct% of pay — free money. '
+              'Employer matches you 100% up to $matchPct% of pay — free money, '
+              'and contributions are pre-tax so they trim your income tax too. '
               '${locked ? 'Locked until age ${GameController.retirementAge}; pulling early costs $penaltyPct%.' : 'Penalty-free at your age.'}',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
