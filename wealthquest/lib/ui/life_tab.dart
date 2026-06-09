@@ -31,7 +31,10 @@ class LifeTab extends StatelessWidget {
                 Text('You', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 8),
                 _kv(theme, 'Age', '${game.ageYears}'),
-                _kv(theme, 'Current job', game.job.title),
+                if (game.currentTrack != null)
+                  _kv(theme, 'Career',
+                      '${game.currentTrack!.emoji} ${game.currentTrack!.name}'),
+                _kv(theme, 'Role', game.job.title),
                 _kv(
                     theme,
                     'Monthly pay',
@@ -44,6 +47,7 @@ class LifeTab extends StatelessWidget {
           ),
         ),
 
+        if (game.currentTrack != null) _CareerCard(game: game),
         if (game.isStudying) _StudyingCard(game: game),
         if (game.studentLoan > 0) _LoanCard(game: game),
 
@@ -61,15 +65,17 @@ class LifeTab extends StatelessWidget {
         ...Catalog.degrees.map((d) => _DegreeTile(game: game, degree: d)),
 
         const SizedBox(height: 16),
-        Text('Careers', style: theme.textTheme.titleMedium),
+        Text('Career tracks', style: theme.textTheme.titleMedium),
         const SizedBox(height: 2),
         Text(
-          'Entry jobs are open to anyone; the rest need the right degree.',
+          'Pick a line and climb it — promotions come automatically the longer '
+          'you stay. Each track trades off schooling, ramp time, and ceiling. '
+          'Switching restarts you at the bottom of the new ladder.',
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 8),
-        ...game.unlockedJobs.map((j) => _JobTile(game: game, job: j)),
+        ...Catalog.careerTracks.map((t) => _TrackTile(game: game, track: t)),
       ],
     );
   }
@@ -230,7 +236,8 @@ class _DegreeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final earned = game.eduLevel >= degree.level;
+    final earned = game.completedDegrees.contains(degree.id) ||
+        (!degree.professional && game.eduLevel >= degree.level);
     final enrolledHere = game.enrolledDegreeId == degree.id;
 
     Widget trailing;
@@ -270,19 +277,139 @@ class _DegreeTile extends StatelessWidget {
   }
 }
 
-class _JobTile extends StatelessWidget {
-  const _JobTile({required this.game, required this.job});
-
+/// Your current track + live progress toward the next promotion.
+class _CareerCard extends StatelessWidget {
+  const _CareerCard({required this.game});
   final GameController game;
-  final JobDef job;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isCurrent = job.id == game.job.id;
-    final needsAge = game.ageYears < job.minAge;
-    final needsEdu = !game.meetsEducation(job);
-    final qualified = !needsAge && !needsEdu;
+    final t = game.currentTrack;
+    if (t == null) return const SizedBox.shrink();
+    final atTop = game.rungIndex >= t.rungs.length - 1;
+    return Card(
+      color: theme.colorScheme.primary.withOpacity(0.08),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(t.emoji, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(t.name,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ),
+                Text('${money(game.job.pay)}/mo',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: kGain, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(game.job.title, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 10),
+            if (atTop)
+              Text('🏆 Top of the ladder — you\'ve hit the ceiling.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: kGain))
+            else
+              Builder(builder: (_) {
+                final need = t.rungMonths[game.rungIndex];
+                final left = (need - game.monthsInRung).clamp(0, need);
+                final progress =
+                    need == 0 ? 1.0 : (game.monthsInRung / need).clamp(0.0, 1.0);
+                final next = t.rungs[game.rungIndex + 1];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child:
+                          LinearProgressIndicator(value: progress, minHeight: 8),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      game.isStudying
+                          ? 'Career paused while you study.'
+                          : '$left mo to ${next.title} (${money(next.pay)}/mo).',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                );
+              }),
+            const SizedBox(height: 6),
+            Text('Ceiling: ${t.top.title} · ${money(t.top.pay)}/mo',
+                style: theme.textTheme.labelSmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One career track you can start or switch into.
+class _TrackTile extends StatelessWidget {
+  const _TrackTile({required this.game, required this.track});
+
+  final GameController game;
+  final CareerTrack track;
+
+  String get _reqText {
+    final id = track.requiredDegreeId;
+    if (id != null) {
+      final d = Catalog.degrees.firstWhere((x) => x.id == id);
+      return 'requires ${d.name}';
+    }
+    if (track.minEduLevel > 0) {
+      return 'requires ${educationLabel(track.minEduLevel)}';
+    }
+    return 'no degree needed';
+  }
+
+  Future<void> _join(BuildContext context) async {
+    final isSwitch =
+        game.currentTrackId != null && game.currentTrackId != track.id;
+    if (isSwitch) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text('Switch to ${track.name}?'),
+          content: Text(
+            'You\'ll start over at the bottom — ${track.entry.title}, '
+            '${money(track.entry.pay)}/mo — and lose your current rank. You '
+            'climb back up from there.',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Switch')),
+          ],
+        ),
+      );
+      if (ok != true || !context.mounted) return;
+    }
+    final err = game.joinTrack(track);
+    if (err != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(err)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isCurrent = game.currentTrackId == track.id;
+    final prestigeLocked = track.unlockLevel > game.prestige;
+    final qualifies = game.qualifiesForTrack(track);
+    final years = (track.monthsToTop / 12).round();
 
     Widget trailing;
     if (isCurrent) {
@@ -290,36 +417,33 @@ class _JobTile extends StatelessWidget {
         label: const Text('Current'),
         backgroundColor: theme.colorScheme.primary.withOpacity(0.25),
       );
-    } else if (qualified) {
+    } else if (prestigeLocked) {
+      trailing = Text('Prestige ${track.unlockLevel}',
+          textAlign: TextAlign.end,
+          style: theme.textTheme.labelSmall?.copyWith(color: kLoss));
+    } else if (qualifies) {
       trailing = FilledButton.tonal(
-        onPressed: () => game.takeJob(job),
-        child: const Text('Take'),
+        onPressed: () => _join(context),
+        child: Text(game.currentTrackId == null ? 'Start' : 'Switch'),
       );
     } else {
-      trailing = Text(
-          needsEdu
-              ? 'Needs\n${educationLabel(job.requiredEdu)}'
-              : 'Opens at\nage ${job.minAge}',
+      trailing = Text(_reqText,
           textAlign: TextAlign.end,
           style: theme.textTheme.labelSmall?.copyWith(color: kLoss));
     }
 
-    final String req;
-    if (job.requiredEdu > 0) {
-      req = 'needs ${educationLabel(job.requiredEdu)}';
-    } else if (job.minAge > Catalog.startAge) {
-      req = 'opens at age ${job.minAge}';
-    } else {
-      req = 'no degree needed';
-    }
-
     return Card(
       child: Opacity(
-        opacity: qualified ? 1 : 0.55,
+        opacity: (isCurrent || qualifies) && !prestigeLocked ? 1 : 0.6,
         child: ListTile(
-          leading: Icon(qualified ? Icons.work_outline : Icons.lock_outline),
-          title: Text(job.title),
-          subtitle: Text('${money(job.pay)} / month · $req'),
+          isThreeLine: true,
+          leading: Text(track.emoji, style: const TextStyle(fontSize: 22)),
+          title: Text(track.name),
+          subtitle: Text(
+            '${money(track.entry.pay)} → ${money(track.top.pay)}/mo · ~$years yr '
+            'to top · $_reqText\n${track.blurb}',
+            style: theme.textTheme.bodySmall,
+          ),
           trailing: trailing,
         ),
       ),

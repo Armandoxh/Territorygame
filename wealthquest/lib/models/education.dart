@@ -6,6 +6,12 @@ class DegreeDef {
   final int level; // 1 = associate, 2 = bachelor, 3 = master
   final int years; // study duration in years
   final double tuition; // borrowed up front as a student loan
+
+  /// A SPECIFIC professional degree (MD, JD) rather than a general ladder rung.
+  /// You can stack one on top of a general degree, and a higher general level
+  /// doesn't substitute for it.
+  final bool professional;
+
   final String blurb;
 
   const DegreeDef({
@@ -14,6 +20,7 @@ class DegreeDef {
     required this.level,
     required this.years,
     required this.tuition,
+    this.professional = false,
     this.blurb = '',
   });
 

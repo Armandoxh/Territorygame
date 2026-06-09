@@ -844,41 +844,166 @@ class Catalog {
     ),
   ];
 
-  /// The career ladder. Entry jobs need nothing; better rungs require a degree
-  /// (see [degrees]) — a real time + money investment. Pay is per month.
-  static const List<JobDef> jobs = [
-    JobDef(id: 'barista', title: 'Barista', pay: 1300),
-    JobDef(id: 'retail', title: 'Retail Associate', pay: 1650, minAge: 21),
-    JobDef(
-        id: 'junior_dev',
-        title: 'Junior Developer',
-        pay: 3700,
-        requiredEdu: 1),
-    JobDef(id: 'accountant', title: 'Accountant', pay: 5000, requiredEdu: 2),
-    JobDef(
-        id: 'engineer',
-        title: 'Software Engineer',
-        pay: 7400,
-        requiredEdu: 2),
-    JobDef(
-        id: 'banker',
-        title: 'Investment Banker',
-        pay: 12000,
-        requiredEdu: 3),
-    // Prestige-gated elite careers — unlocked by retiring and starting over.
-    JobDef(
-        id: 'hedgie',
-        title: 'Hedge Fund Manager',
-        pay: 22000,
-        requiredEdu: 3,
-        unlockLevel: 1),
-    JobDef(
-        id: 'ceo',
-        title: 'Tech CEO',
-        pay: 40000,
-        requiredEdu: 3,
-        unlockLevel: 2),
+  /// The starting career track everyone begins in.
+  static const String startingTrackId = 'service';
+
+  /// Career tracks: pick a line and climb it by TENURE (auto-promotion). Each
+  /// trades off ramp time, ceiling, and the schooling/debt it demands. Rung pay
+  /// is per month; rungMonths[i] is how long you spend on rung i before the next.
+  static const List<CareerTrack> careerTracks = [
+    // ☕ No degree, start at 18, low ceiling — but zero debt and instant income.
+    CareerTrack(
+      id: 'service',
+      name: 'Service & Hospitality',
+      emoji: '☕',
+      blurb: 'Start earning today, no degree. Climb to managing a region — but '
+          'the ceiling is modest.',
+      rungs: [
+        JobDef(id: 'svc_crew', title: 'Barista / Crew', pay: 1300),
+        JobDef(id: 'svc_lead', title: 'Shift Lead', pay: 2000),
+        JobDef(id: 'svc_mgr', title: 'Store Manager', pay: 3400),
+        JobDef(id: 'svc_regional', title: 'Regional Manager', pay: 6000),
+      ],
+      rungMonths: [18, 30, 48, 0],
+    ),
+    // 🔧 No degree, earn well from day one, solid ceiling. The anti-debt path.
+    CareerTrack(
+      id: 'trades',
+      name: 'Skilled Trades',
+      emoji: '🔧',
+      blurb: 'Electrician, plumber, welder. No loans, real money fast, and your '
+          'own shop at the top.',
+      rungs: [
+        JobDef(id: 'trade_appr', title: 'Apprentice', pay: 3000),
+        JobDef(id: 'trade_journey', title: 'Journeyman', pay: 5200),
+        JobDef(id: 'trade_master', title: 'Master Tradesperson', pay: 8000),
+        JobDef(id: 'trade_owner', title: 'Contractor / Shop Owner', pay: 13000),
+      ],
+      rungMonths: [24, 36, 48, 0],
+    ),
+    // 💻 Cheap, fast education; high ceiling. The best ROI on a degree.
+    CareerTrack(
+      id: 'tech',
+      name: 'Software & Tech',
+      emoji: '💻',
+      blurb: 'An associate degree is enough to start. Fast ramp, high ceiling — '
+          'the best return on tuition.',
+      minEduLevel: 1,
+      rungs: [
+        JobDef(id: 'tech_junior', title: 'Junior Developer', pay: 5000, requiredEdu: 1),
+        JobDef(id: 'tech_swe', title: 'Software Engineer', pay: 8500, requiredEdu: 1),
+        JobDef(id: 'tech_senior', title: 'Senior Engineer', pay: 13000, requiredEdu: 1),
+        JobDef(id: 'tech_staff', title: 'Staff Engineer', pay: 19000, requiredEdu: 1),
+        JobDef(id: 'tech_director', title: 'Engineering Director', pay: 28000, requiredEdu: 1),
+      ],
+      rungMonths: [24, 30, 36, 36, 0],
+    ),
+    // 💼 Bachelor's; brutal grind, very high ceiling. Analyst → MD.
+    CareerTrack(
+      id: 'finance',
+      name: 'Finance & Banking',
+      emoji: '💼',
+      blurb: 'Bachelor\'s to start. Long hours and a hard climb — but Managing '
+          'Director money is enormous.',
+      minEduLevel: 2,
+      rungs: [
+        JobDef(id: 'fin_analyst', title: 'Analyst', pay: 8000, requiredEdu: 2),
+        JobDef(id: 'fin_assoc', title: 'Associate', pay: 13000, requiredEdu: 2),
+        JobDef(id: 'fin_vp', title: 'Vice President', pay: 20000, requiredEdu: 2),
+        JobDef(id: 'fin_director', title: 'Director', pay: 30000, requiredEdu: 2),
+        JobDef(id: 'fin_md', title: 'Managing Director', pay: 52000, requiredEdu: 2),
+      ],
+      rungMonths: [30, 36, 36, 36, 0],
+    ),
+    // 📊 Master's required, steady and respectable — but a lower ceiling.
+    CareerTrack(
+      id: 'accounting',
+      name: 'Accounting',
+      emoji: '📊',
+      blurb: 'A master\'s gets you a solid, stable corporate ladder to CFO — '
+          'comfortable, dependable, but it caps out lower.',
+      minEduLevel: 3,
+      rungs: [
+        JobDef(id: 'acct_staff', title: 'Staff Accountant', pay: 5000, requiredEdu: 3),
+        JobDef(id: 'acct_senior', title: 'Senior Accountant', pay: 7000, requiredEdu: 3),
+        JobDef(id: 'acct_mgr', title: 'Accounting Manager', pay: 10000, requiredEdu: 3),
+        JobDef(id: 'acct_controller', title: 'Controller', pay: 15000, requiredEdu: 3),
+        JobDef(id: 'acct_cfo', title: 'CFO', pay: 24000, requiredEdu: 3),
+      ],
+      rungMonths: [24, 30, 36, 42, 0],
+    ),
+    // 🩺 Huge loan, 8 years of school, years of low-paid residency — then the
+    // highest ceiling in the game. The long game.
+    CareerTrack(
+      id: 'medicine',
+      name: 'Medicine',
+      emoji: '🩺',
+      blurb: 'Medical school is a fortune and 8 years; then years of low-paid '
+          'residency. Survive it and you out-earn everyone.',
+      minEduLevel: 3,
+      requiredDegreeId: 'med',
+      rungs: [
+        JobDef(id: 'med_resident', title: 'Resident', pay: 5000, requiredEdu: 3),
+        JobDef(id: 'med_fellow', title: 'Fellow', pay: 7500, requiredEdu: 3),
+        JobDef(id: 'med_attending', title: 'Attending Physician', pay: 26000, requiredEdu: 3),
+        JobDef(id: 'med_specialist', title: 'Specialist', pay: 40000, requiredEdu: 3),
+        JobDef(id: 'med_chief', title: 'Chief of Medicine', pay: 60000, requiredEdu: 3),
+      ],
+      rungMonths: [48, 24, 60, 60, 0],
+    ),
+    // ⚖️ Law school loan, long climb, partner-track upside.
+    CareerTrack(
+      id: 'law',
+      name: 'Law',
+      emoji: '⚖️',
+      blurb: 'Law school debt and a punishing associate grind, but making '
+          'Partner pays like few other careers.',
+      minEduLevel: 3,
+      requiredDegreeId: 'law',
+      rungs: [
+        JobDef(id: 'law_assoc', title: 'Associate Attorney', pay: 9000, requiredEdu: 3),
+        JobDef(id: 'law_senior', title: 'Senior Associate', pay: 14000, requiredEdu: 3),
+        JobDef(id: 'law_jr_partner', title: 'Junior Partner', pay: 24000, requiredEdu: 3),
+        JobDef(id: 'law_partner', title: 'Partner', pay: 40000, requiredEdu: 3),
+      ],
+      rungMonths: [48, 42, 48, 0],
+    ),
+    // 🚀 Prestige reward: no degree, slow burn, life-changing exit. Unlocked by
+    // retiring and starting over.
+    CareerTrack(
+      id: 'founder',
+      name: 'Startup Founder',
+      emoji: '🚀',
+      blurb: 'Ramen-noodle years, then funding, then scale — and an exit that '
+          'dwarfs any salary. Unlocked at Prestige 1.',
+      unlockLevel: 1,
+      rungs: [
+        JobDef(id: 'founder_garage', title: 'Bootstrapper', pay: 2000, unlockLevel: 1),
+        JobDef(id: 'founder_seed', title: 'Funded Founder', pay: 6000, unlockLevel: 1),
+        JobDef(id: 'founder_scale', title: 'Scale-up CEO', pay: 18000, unlockLevel: 1),
+        JobDef(id: 'founder_exit', title: 'Exited Founder', pay: 50000, unlockLevel: 1),
+      ],
+      rungMonths: [30, 36, 48, 0],
+    ),
   ];
+
+  /// All rungs across every track, flattened (for lookups + the balance report).
+  static final List<JobDef> jobs = [
+    for (final t in careerTracks) ...t.rungs,
+  ];
+
+  static final Map<String, CareerTrack> _trackById = {
+    for (final t in careerTracks) t.id: t,
+  };
+  static final Map<String, CareerTrack> _trackByEntry = {
+    for (final t in careerTracks) t.entry.id: t,
+  };
+
+  static CareerTrack? trackById(String? id) => id == null ? null : _trackById[id];
+
+  /// The track whose ENTRY rung is [jobId] (used to map a "take job" to joining
+  /// a track at the bottom).
+  static CareerTrack? trackForEntryJob(String jobId) => _trackByEntry[jobId];
 
   /// Degree programs. Each is a study period (part-time pay while enrolled) and
   /// tuition borrowed as a student loan that compounds until repaid.
@@ -905,7 +1030,25 @@ class Catalog {
       level: 3,
       years: 6,
       tuition: 200000,
-      blurb: 'Six years. Unlocks the highest-paying roles — and a big loan.',
+      blurb: 'Six years. Unlocks the highest-paying corporate roles — and a big loan.',
+    ),
+    DegreeDef(
+      id: 'med',
+      name: 'Medical School (MD)',
+      level: 3,
+      years: 8,
+      tuition: 340000,
+      professional: true,
+      blurb: 'Eight years and a fortune in loans — the only door into Medicine.',
+    ),
+    DegreeDef(
+      id: 'law',
+      name: 'Law School (JD)',
+      level: 3,
+      years: 7,
+      tuition: 230000,
+      professional: true,
+      blurb: 'Seven years and heavy debt — required to practice Law.',
     ),
   ];
 

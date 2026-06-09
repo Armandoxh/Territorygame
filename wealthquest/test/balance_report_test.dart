@@ -76,9 +76,17 @@ void main() {
     out.writeln('\nDEGREES  (tuition borrowed; part-time = half pay while enrolled)');
     out.writeln('  degree         pay bump   loan+int    payback   cash/mo in school');
     double bestPayAt(int level) {
+      // The immediate pay a degree unlocks = the best ENTRY rung among
+      // non-professional, non-prestige tracks at or below this education level.
+      // (Tracks then ramp up over years from there.)
       var best = 0.0;
-      for (final j in Catalog.jobs) {
-        if (j.requiredEdu <= level && j.pay > best) best = j.pay;
+      for (final t in Catalog.careerTracks) {
+        if (t.unlockLevel == 0 &&
+            t.requiredDegreeId == null &&
+            t.minEduLevel <= level &&
+            t.entry.pay > best) {
+          best = t.entry.pay;
+        }
       }
       return best;
     }
@@ -105,7 +113,7 @@ void main() {
 
     // ---- Job ladder: monthly surplus / savings rate ------------------------
     out.writeln('\nJOB LADDER  (surplus = pay - living expenses)');
-    for (final j in Catalog.jobs) {
+    for (final j in Catalog.jobs.where((j) => j.unlockLevel == 0)) {
       final exp = Catalog.monthlyExpenses(25, j.pay);
       final surplus = j.pay - exp;
       out.writeln('  ${j.title.padRight(20)} ${_money(j.pay).padLeft(7)}/mo  '

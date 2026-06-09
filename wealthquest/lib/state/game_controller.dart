@@ -228,6 +228,9 @@ class GameController extends ChangeNotifier {
       ..mortgageRate = mortgageRate
       ..housingTrend = housingTrend
       ..eduLevel = eduLevel
+      ..currentTrackId = currentTrackId
+      ..rungIndex = rungIndex
+      ..monthsInRung = monthsInRung
       ..enrolledDegreeId = enrolledDegreeId
       ..enrollMonthsLeft = enrollMonthsLeft
       ..studentLoan = studentLoan
@@ -281,6 +284,9 @@ class GameController extends ChangeNotifier {
     c.betHistory
       ..clear()
       ..addAll(betHistory);
+    c.completedDegrees
+      ..clear()
+      ..addAll(completedDegrees);
     return c;
   }
 
@@ -406,6 +412,7 @@ class GameController extends ChangeNotifier {
             Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x5DEECE66),
         cash = Catalog.startingCash,
         job = Catalog.startingJob {
+    currentTrackId = Catalog.startingTrackId; // begin in the service track
     for (final a in Catalog.assets) {
       if (a.kind.isPriceBased) {
         _prices[a.id] = a.basePrice;
@@ -999,6 +1006,18 @@ class GameController extends ChangeNotifier {
   /// Highest credential earned: 0 none, 1 associate, 2 bachelor, 3 master.
   int eduLevel = 0;
 
+  /// Degrees actually completed (by id) — distinct from [eduLevel] so a specific
+  /// professional degree (MD/JD) can be required, and stacked on a general one.
+  final Set<String> completedDegrees = {};
+
+  /// Active career track and progress within it. You climb rungs by tenure;
+  /// [monthsInRung] counts months worked on the current rung.
+  String? currentTrackId;
+  int rungIndex = 0;
+  int monthsInRung = 0;
+
+  CareerTrack? get currentTrack => Catalog.trackById(currentTrackId);
+
   /// The degree currently being studied (null = not enrolled).
   String? enrolledDegreeId;
 
@@ -1035,7 +1054,14 @@ class GameController extends ChangeNotifier {
   /// clock. You keep working part-time. Returns an error, or null on success.
   String? enroll(DegreeDef d) {
     if (isStudying) return "You're already enrolled in a program.";
-    if (eduLevel >= d.level) return 'You already hold this credential.';
+    if (completedDegrees.contains(d.id)) {
+      return 'You already hold this credential.';
+    }
+    // A higher general degree subsumes a lower one; professional degrees (MD/JD)
+    // stack on top and must be earned specifically.
+    if (!d.professional && eduLevel >= d.level) {
+      return 'You already hold a degree at this level or higher.';
+    }
     studentLoan += d.tuition;
     enrolledDegreeId = d.id;
     enrollMonthsLeft = d.months;
@@ -1083,29 +1109,57 @@ class GameController extends ChangeNotifier {
     return null;
   }
 
-  /// Switch to a different job from the ladder. Requires the credential.
-  void takeJob(JobDef j) {
-    if (j.id == job.id) return;
-    // Guard full eligibility — age, education, prestige (the UI prevents these,
-    // but never trust the UI).
-    if (ageYears < j.minAge || !meetsEducation(j) || j.unlockLevel > prestige) {
-      return;
+  /// Whether you meet every requirement to ENTER [t] (education + specific
+  /// degree + age + prestige).
+  bool qualifiesForTrack(CareerTrack t) =>
+      eduLevel >= t.minEduLevel &&
+      (t.requiredDegreeId == null ||
+          completedDegrees.contains(t.requiredDegreeId)) &&
+      ageYears >= t.minAge &&
+      prestige >= t.unlockLevel;
+
+  /// Tracks you can enter right now, cheapest-entry first.
+  List<CareerTrack> get availableTracks => Catalog.careerTracks
+      .where(qualifiesForTrack)
+      .toList()
+    ..sort((a, b) => a.entry.pay.compareTo(b.entry.pay));
+
+  /// Start (or switch to) a career track at its entry rung. Switching resets
+  /// your progress — you start over at the bottom of the new ladder.
+  String? joinTrack(CareerTrack t) {
+    if (!qualifiesForTrack(t)) {
+      return 'You don\'t meet the requirements for ${t.name} yet.';
     }
-    job = j;
-    _log('New job: ${j.title} — \$${j.pay.toStringAsFixed(0)}/month.');
+    // Already in this track? Do nothing — you don't restart your own career
+    // (this also stops a re-"take" of the entry rung from demoting you).
+    if (currentTrackId == t.id) return null;
+    currentTrackId = t.id;
+    rungIndex = 0;
+    monthsInRung = 0;
+    job = t.entry;
+    _log('Started a career in ${t.name} — ${job.title} at ${_usd(job.pay)}/mo.');
     notifyListeners();
+    return null;
   }
 
-  List<JobDef> get availableJobs => Catalog.jobs
-      .where((j) =>
-          ageYears >= j.minAge &&
-          meetsEducation(j) &&
-          j.unlockLevel <= prestige)
-      .toList();
+  /// Compatibility shim: "taking a job" means joining the track whose entry rung
+  /// this is. Mid-career roles can't be taken directly — you climb to them.
+  void takeJob(JobDef j) {
+    if (j.id == job.id) return;
+    final track = Catalog.trackForEntryJob(j.id);
+    if (track == null) return; // not an entry rung
+    joinTrack(track);
+  }
 
-  /// All jobs visible at the current prestige (some may still need a degree).
-  List<JobDef> get unlockedJobs =>
-      Catalog.jobs.where((j) => j.unlockLevel <= prestige).toList();
+  /// Entry rungs of every track you currently qualify for (cheapest first).
+  List<JobDef> get availableJobs =>
+      [for (final t in availableTracks) t.entry];
+
+  /// Entry rungs of every track visible at the current prestige.
+  List<JobDef> get unlockedJobs => [
+        for (final t in Catalog.careerTracks)
+          if (t.unlockLevel <= prestige) t.entry
+      ];
 
   /// Assets in [categoryId] that are unlocked at the current prestige level.
   List<AssetDef> unlockedAssets(String categoryId) => Catalog.assetsInCategory(categoryId)
@@ -1146,9 +1200,26 @@ class GameController extends ChangeNotifier {
       if (enrollMonthsLeft <= 0) {
         final d = enrolledDegree!;
         eduLevel = eduLevel >= d.level ? eduLevel : d.level;
+        completedDegrees.add(d.id);
         enrolledDegreeId = null;
         enrollMonthsLeft = 0;
         events.add('🎓 You earned your ${d.name}! New careers are open.');
+      }
+    } else {
+      // 1b2) Career progression: tenure on a rung earns an automatic promotion
+      //      (only while actually working — paused in school or when an event
+      //      has suspended your income).
+      final track = currentTrack;
+      if (track != null &&
+          rungIndex < track.rungs.length - 1 &&
+          !ongoing.any((e) => e.suspendsIncome)) {
+        monthsInRung += 1;
+        if (monthsInRung >= track.rungMonths[rungIndex]) {
+          rungIndex += 1;
+          monthsInRung = 0;
+          job = track.rungs[rungIndex];
+          events.add('🎉 Promoted to ${job.title} — now ${_usd(job.pay)}/mo.');
+        }
       }
     }
     if (studentLoan > 0) {

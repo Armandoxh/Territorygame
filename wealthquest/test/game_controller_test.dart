@@ -109,11 +109,12 @@ void main() {
       expect(moved, isTrue);
     });
 
-    test('only age-appropriate jobs are available', () {
+    test('only qualified career tracks are enterable', () {
       final g = GameController(seed: 1);
-      // At 18, the age-24 engineer job should not be available yet.
-      expect(g.availableJobs.any((j) => j.id == 'engineer'), isFalse);
-      expect(g.availableJobs.any((j) => j.id == 'barista'), isTrue);
+      // At start (no degree) you can begin a no-degree track but not one that
+      // requires schooling — availableJobs lists each track's entry rung.
+      expect(g.availableJobs.any((j) => j.id == 'tech_junior'), isFalse);
+      expect(g.availableJobs.any((j) => j.id == 'svc_crew'), isTrue);
     });
   });
 
@@ -606,6 +607,40 @@ void main() {
       g.cash = 200000;
       expect(g.payStudentLoan(0, max: true), isNull);
       expect(g.studentLoan, 0);
+    });
+
+    test('a career track promotes you by tenure', () {
+      final g = GameController(seed: 1)..cash = 50000;
+      expect(g.currentTrackId, 'service'); // everyone starts here
+      final entryPay = g.job.pay;
+      for (var i = 0; i < 100; i++) {
+        g.advanceDay();
+      }
+      expect(g.rungIndex, greaterThanOrEqualTo(2)); // climbed the ladder
+      expect(g.job.pay, greaterThan(entryPay));
+    });
+
+    test('switching tracks restarts at the new entry rung', () {
+      final g = GameController(seed: 1)..cash = 50000;
+      for (var i = 0; i < 60; i++) {
+        g.advanceDay();
+      }
+      expect(g.rungIndex, greaterThan(0)); // made progress in service
+      final trades = Catalog.trackById('trades')!;
+      expect(g.joinTrack(trades), isNull);
+      expect(g.currentTrackId, 'trades');
+      expect(g.rungIndex, 0);
+      expect(g.job.id, trades.entry.id);
+    });
+
+    test('Medicine needs the MD specifically — a master\'s will not do', () {
+      final g = GameController(seed: 1);
+      final med = Catalog.trackById('medicine')!;
+      expect(g.qualifiesForTrack(med), isFalse);
+      g.eduLevel = 3; // even a master's
+      expect(g.qualifiesForTrack(med), isFalse);
+      g.completedDegrees.add('med');
+      expect(g.qualifiesForTrack(med), isTrue);
     });
   });
 
