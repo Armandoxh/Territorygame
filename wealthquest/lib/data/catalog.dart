@@ -911,9 +911,9 @@ class Catalog {
       rungs: [
         JobDef(id: 'fin_analyst', title: 'Analyst', pay: 8000, requiredEdu: 2),
         JobDef(id: 'fin_assoc', title: 'Associate', pay: 13000, requiredEdu: 2),
-        JobDef(id: 'fin_vp', title: 'Vice President', pay: 20000, requiredEdu: 2),
-        JobDef(id: 'fin_director', title: 'Director', pay: 30000, requiredEdu: 2),
-        JobDef(id: 'fin_md', title: 'Managing Director', pay: 52000, requiredEdu: 2),
+        JobDef(id: 'fin_vp', title: 'Vice President', pay: 21000, requiredEdu: 2),
+        JobDef(id: 'fin_director', title: 'Director', pay: 35000, requiredEdu: 2),
+        JobDef(id: 'fin_md', title: 'Managing Director', pay: 58000, requiredEdu: 2),
       ],
       rungMonths: [30, 36, 36, 36, 0],
     ),
@@ -926,13 +926,16 @@ class Catalog {
           'comfortable, dependable, but it caps out lower.',
       minEduLevel: 3,
       rungs: [
-        JobDef(id: 'acct_staff', title: 'Staff Accountant', pay: 5000, requiredEdu: 3),
-        JobDef(id: 'acct_senior', title: 'Senior Accountant', pay: 7000, requiredEdu: 3),
-        JobDef(id: 'acct_mgr', title: 'Accounting Manager', pay: 10000, requiredEdu: 3),
-        JobDef(id: 'acct_controller', title: 'Controller', pay: 15000, requiredEdu: 3),
-        JobDef(id: 'acct_cfo', title: 'CFO', pay: 24000, requiredEdu: 3),
+        JobDef(id: 'acct_staff', title: 'Staff Accountant', pay: 6500, requiredEdu: 3),
+        JobDef(id: 'acct_senior', title: 'Senior Accountant', pay: 10000, requiredEdu: 3),
+        JobDef(id: 'acct_mgr', title: 'Accounting Manager', pay: 17000, requiredEdu: 3),
+        JobDef(id: 'acct_controller', title: 'Controller', pay: 30000, requiredEdu: 3),
+        JobDef(id: 'acct_cfo', title: 'CFO', pay: 52000, requiredEdu: 3),
       ],
-      rungMonths: [24, 30, 36, 42, 0],
+      // Fast ramp + high floor: the master's pays off by getting you comfortable
+      // and senior quickly (it out-earns Finance for ~a decade before Finance's
+      // higher ceiling pulls ahead).
+      rungMonths: [18, 24, 30, 36, 0],
     ),
     // 🩺 Huge loan, 8 years of school, years of low-paid residency — then the
     // highest ceiling in the game. The long game.
@@ -946,10 +949,10 @@ class Catalog {
       requiredDegreeId: 'med',
       rungs: [
         JobDef(id: 'med_resident', title: 'Resident', pay: 5000, requiredEdu: 3),
-        JobDef(id: 'med_fellow', title: 'Fellow', pay: 7500, requiredEdu: 3),
-        JobDef(id: 'med_attending', title: 'Attending Physician', pay: 26000, requiredEdu: 3),
-        JobDef(id: 'med_specialist', title: 'Specialist', pay: 40000, requiredEdu: 3),
-        JobDef(id: 'med_chief', title: 'Chief of Medicine', pay: 60000, requiredEdu: 3),
+        JobDef(id: 'med_fellow', title: 'Fellow', pay: 8000, requiredEdu: 3),
+        JobDef(id: 'med_attending', title: 'Attending Physician', pay: 30000, requiredEdu: 3),
+        JobDef(id: 'med_specialist', title: 'Specialist', pay: 48000, requiredEdu: 3),
+        JobDef(id: 'med_chief', title: 'Chief of Medicine', pay: 72000, requiredEdu: 3),
       ],
       rungMonths: [48, 24, 60, 60, 0],
     ),
@@ -964,9 +967,9 @@ class Catalog {
       requiredDegreeId: 'law',
       rungs: [
         JobDef(id: 'law_assoc', title: 'Associate Attorney', pay: 9000, requiredEdu: 3),
-        JobDef(id: 'law_senior', title: 'Senior Associate', pay: 14000, requiredEdu: 3),
-        JobDef(id: 'law_jr_partner', title: 'Junior Partner', pay: 24000, requiredEdu: 3),
-        JobDef(id: 'law_partner', title: 'Partner', pay: 40000, requiredEdu: 3),
+        JobDef(id: 'law_senior', title: 'Senior Associate', pay: 16000, requiredEdu: 3),
+        JobDef(id: 'law_jr_partner', title: 'Junior Partner', pay: 28000, requiredEdu: 3),
+        JobDef(id: 'law_partner', title: 'Partner', pay: 52000, requiredEdu: 3),
       ],
       rungMonths: [48, 42, 48, 0],
     ),
@@ -983,7 +986,7 @@ class Catalog {
         JobDef(id: 'founder_garage', title: 'Bootstrapper', pay: 2000, unlockLevel: 1),
         JobDef(id: 'founder_seed', title: 'Funded Founder', pay: 6000, unlockLevel: 1),
         JobDef(id: 'founder_scale', title: 'Scale-up CEO', pay: 18000, unlockLevel: 1),
-        JobDef(id: 'founder_exit', title: 'Exited Founder', pay: 50000, unlockLevel: 1),
+        JobDef(id: 'founder_exit', title: 'Exited Founder', pay: 58000, unlockLevel: 1),
       ],
       rungMonths: [30, 36, 48, 0],
     ),
