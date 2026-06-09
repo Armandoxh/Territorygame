@@ -92,7 +92,7 @@ void main() {
     }
 
     for (final deg in Catalog.degrees) {
-      final priorPay = bestPayAt(deg.level - 1);
+      final priorPay = bestPayAt(deg.level > 0 ? deg.level - 1 : 0);
       final newPay = bestPayAt(deg.level);
       final bump = newPay - priorPay;
       final loanAfter = deg.tuition * pow(1 + Catalog.studentLoanRate, deg.years);

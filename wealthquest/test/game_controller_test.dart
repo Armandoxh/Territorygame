@@ -627,6 +627,7 @@ void main() {
       }
       expect(g.rungIndex, greaterThan(0)); // made progress in service
       final trades = Catalog.trackById('trades')!;
+      g.completedDegrees.add('trade'); // trade school is now required to enter
       expect(g.joinTrack(trades), isNull);
       expect(g.currentTrackId, 'trades');
       expect(g.rungIndex, 0);
@@ -641,6 +642,14 @@ void main() {
       expect(g.qualifiesForTrack(med), isFalse);
       g.completedDegrees.add('med');
       expect(g.qualifiesForTrack(med), isTrue);
+    });
+
+    test('Skilled Trades requires trade school (not a free upgrade)', () {
+      final g = GameController(seed: 1);
+      final trades = Catalog.trackById('trades')!;
+      expect(g.qualifiesForTrack(trades), isFalse);
+      g.completedDegrees.add('trade');
+      expect(g.qualifiesForTrack(trades), isTrue);
     });
   });
 

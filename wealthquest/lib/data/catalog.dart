@@ -866,13 +866,15 @@ class Catalog {
       ],
       rungMonths: [18, 30, 48, 0],
     ),
-    // 🔧 No degree, earn well from day one, solid ceiling. The anti-debt path.
+    // 🔧 A cheap, short trade school — then earn well fast with a solid ceiling
+    // and no big-college debt. The anti-debt path (but not free).
     CareerTrack(
       id: 'trades',
       name: 'Skilled Trades',
       emoji: '🔧',
-      blurb: 'Electrician, plumber, welder. No loans, real money fast, and your '
-          'own shop at the top.',
+      requiredDegreeId: 'trade',
+      blurb: 'Electrician, plumber, welder. A quick trade-school cert, then real '
+          'money fast and your own shop at the top — without the four-year debt.',
       rungs: [
         JobDef(id: 'trade_appr', title: 'Apprentice', pay: 3000),
         JobDef(id: 'trade_journey', title: 'Journeyman', pay: 5200),
@@ -1008,6 +1010,15 @@ class Catalog {
   /// Degree programs. Each is a study period (part-time pay while enrolled) and
   /// tuition borrowed as a student loan that compounds until repaid.
   static const List<DegreeDef> degrees = [
+    DegreeDef(
+      id: 'trade',
+      name: 'Trade School',
+      level: 0, // a vocational cert, not a general-education level
+      years: 3,
+      tuition: 20000,
+      professional: true, // specific credential — only unlocks Skilled Trades
+      blurb: 'Three cheap years of hands-on training — the key to the Trades.',
+    ),
     DegreeDef(
       id: 'associate',
       name: "Associate's Degree",
