@@ -358,7 +358,7 @@ aQh(a){var s,r,q=a.graphemeLayoutBounds,p=B.d.fR(q,t.i)
 q=p.a
 s=J.bH(q)
 r=p.$ti.y[1]
-return new A.n2(new A.v(r.a(s.h(q,0)),r.a(s.h(q,1)),r.a(s.h(q,2)),r.a(s.h(q,3))),new A.bC(J.aR(a.graphemeClusterTextRange.start),J.aR(a.graphemeClusterTextRange.end)),B.mj[J.aR(a.dir.value)])},
+return new A.n2(new A.v(r.a(s.h(q,0)),r.a(s.h(q,1)),r.a(s.h(q,2)),r.a(s.h(q,3))),new A.bC(J.aR(a.graphemeClusterTextRange.start),J.aR(a.graphemeClusterTextRange.end)),B.mk[J.aR(a.dir.value)])},
 b7f(a){var s,r="chromium/canvaskit.js"
 switch(a.a){case 0:s=A.a([],t.s)
 if(A.aTj())s.push(r)
@@ -17085,7 +17085,7 @@ _.dx=$},
 Gt:function Gt(){},
 Wb:function Wb(){},
 aPW(a,b){var s,r,q,p,o,n,m,l,k,j,i,h,g,f
-if(a==null)a=B.mk
+if(a==null)a=B.ml
 s=J.bH(a)
 r=s.gK(a)-1
 q=A.bS(0,null,!1,t.LQ)
@@ -17277,7 +17277,7 @@ r.gKB()
 q.sKB(r.gKB())
 r.gKA()
 q.sKA(r.gKA())
-s.lZ(B.mk,q)
+s.lZ(B.ml,q)
 s.sbv(b.gbv())
 s.sci(b.gci())
 s.fx=b.gay3()
@@ -19994,7 +19994,7 @@ r.toString
 A.eT(r)
 q=a.h(0,"swipeEdge")
 q.toString
-return new A.nH(s,r,B.Pi[A.dw(q)])},
+return new A.nH(s,r,B.Pg[A.dw(q)])},
 Dr:function Dr(a,b){this.a=a
 this.b=b},
 nH:function nH(a,b,c){this.a=a
@@ -27113,7 +27113,7 @@ a1i:function a1i(a){this.a=a},
 yQ(a,b){return 600+0.35*b+(a-18)*9},
 aNk(a){var s,r,q,p,o,n
 if(a<=0)return 0
-for(s=0,r=0,q=0;q<7;++q,r=o){p=B.Pf[q]
+for(s=0,r=0,q=0;q<7;++q,r=o){p=B.Pe[q]
 o=p[0]
 if(a<=r)break
 n=a<o?a:o
@@ -27852,7 +27852,7 @@ akm:function akm(a){this.a=a},
 akn:function akn(){},
 aQt(a,b){var s,r,q,p,o,n,m,l,k,j,i=A.a([],t.Vp)
 for(s=t.N,r=b,q=0;q<6;++q){p=B.r0[q]
-o=A.a4(B.Po,s)
+o=A.a4(B.Pm,s)
 B.d.xf(o,a)
 for(n=0;n<2;++n){m=a.E()
 l=n*2
@@ -27869,10 +27869,10 @@ q=B.a5k.h(0,g)
 if(q==null)q=45.5
 q=B.b.aA(q*(0.92+e.E()*0.16)*2)
 p=0.46+e.E()*0.08
-o=A.a4(B.PH,t.N)
+o=A.a4(B.PG,t.N)
 B.d.xf(o,e)
 n=B.a5i.h(0,g)
-if(n==null)n=B.NL
+if(n==null)n=B.NM
 m=A.a([],t.jz)
 l=n.length
 k=0
@@ -30428,11 +30428,11 @@ MC(a){var s,r,q,p,o,n,m,l=A.a([],t.Lx)
 for(s=a.a,r=J.bH(s),q=a.$ti.y[1],p=0;p<r.gK(s);++p){o=q.a(r.h(s,p))
 n=o.rect
 m=J.aR(o.dir.value)
-l.push(new A.ej(n[0],n[1],n[2],n[3],B.mj[m]))}return l},
+l.push(new A.ej(n[0],n[1],n[2],n[3],B.mk[m]))}return l},
 d9(a){var s,r,q=this.a
 q===$&&A.b()
 s=q.a.getGlyphPositionAtCoordinate(a.a,a.b)
-r=B.Pp[J.aR(s.affinity.value)]
+r=B.Pn[J.aR(s.affinity.value)]
 return new A.aq(J.aR(s.pos),r)},
 LH(a){var s=this.a
 s===$&&A.b()
@@ -30920,7 +30920,7 @@ A.pb.prototype={
 M(){return"CanvasKitVariant."+this.b}}
 A.aa6.prototype={
 gmE(){var s=this.b,r=s==null?null:s.canvasKitVariant
-return A.aZl(B.Pz,r==null?"auto":r)},
+return A.aZl(B.Py,r==null?"auto":r)},
 gIi(){var s,r=this.b
 if(r==null)s=null
 else{r=r.canvasKitMaximumSurfaces
@@ -36930,7 +36930,7 @@ o=A.dw(s.h(0,"textAlignIndex"))
 n=A.dw(s.h(0,"textDirectionIndex"))
 m=A.hm(s.h(0,"fontWeightIndex"))
 l=m!=null?A.aLL(m):"normal"
-p=new A.asq(new A.a7I(A.aeF(s,"fontSize"),l,A.cX(s.h(0,"fontFamily")),B.OD[o],B.mj[n],A.aeF(s,"letterSpacing"),A.aeF(s,"wordSpacing"),A.aeF(s,"lineHeight")))
+p=new A.asq(new A.a7I(A.aeF(s,"fontSize"),l,A.cX(s.h(0,"fontFamily")),B.OE[o],B.mk[n],A.aeF(s,"letterSpacing"),A.aeF(s,"wordSpacing"),A.aeF(s,"lineHeight")))
 break
 case"TextInput.clearClient":p=B.HI
 break
@@ -45303,7 +45303,7 @@ r=A.nt(B.a7v,B.h,r==null?1:r)
 r.toString
 q=p.ah(q.gt())
 if(q==null)q=1
-return A.aQX(A.aPR(null,B.x,new A.uP(q,B.Pa,new A.cV(B.Gh,this.e)),s,1,B.ac0),r)}}
+return A.aQX(A.aPR(null,B.x,new A.uP(q,B.P9,new A.cV(B.Gh,this.e)),s,1,B.ac0),r)}}
 A.Im.prototype={
 m(){var s=this,r=s.bS$
 if(r!=null)r.L(s.ghF())
@@ -48912,7 +48912,7 @@ A.wC.prototype={
 M(){return"_CornerId."+this.b}}
 A.m5.prototype={}
 A.uS.prototype={
-lb(){var s,r,q,p=this,o=A.b5J(B.PF,new A.ajk(p,p.b.gb0().a7(0,p.a.gb0()))),n=p.a
+lb(){var s,r,q,p=this,o=A.b5J(B.PE,new A.ajk(p,p.b.gb0().a7(0,p.a.gb0()))),n=p.a
 n.toString
 s=o.a
 r=p.q4(n,s)
@@ -54264,7 +54264,7 @@ return s.b}}
 A.jn.prototype={
 M(){return"_ListTileSlot."+this.b}}
 A.Uc.prototype={
-gDE(){return B.Pw},
+gDE(){return B.Pu},
 Im(a){var s,r=this
 switch(a.a){case 0:s=r.d
 break
@@ -55053,7 +55053,7 @@ $3(a,b,c){return new A.oK(b,this.a,!1,c,null)},
 $S:159}
 A.Nn.prototype={
 a6O(a){var s=t.Tr
-s=A.a4(new A.a3(B.PD,new A.akQ(a),s),s.j("aF.E"))
+s=A.a4(new A.a3(B.PC,new A.akQ(a),s),s.j("aF.E"))
 return s},
 k(a,b){if(b==null)return!1
 if(this===b)return!0
@@ -71637,7 +71637,7 @@ q.I=b.b2
 q.cy=b.c
 q.T=b.cf
 q.Y=b.bP
-q.aig(a==null?B.mk:a)
+q.aig(a==null?B.ml:a)
 if(s!==r)q.Uw()},
 Lq(a){return this.lZ(null,a)},
 a0C(){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,b0,b1,b2,b3,b4,b5,b6=this,b7={}
@@ -76467,7 +76467,7 @@ q.bh()
 q.c6$.G(0,s.gag_())
 s.e=q}return q},
 gRk(){var s=this.f
-return s===$?this.f=new A.ax4(1,B.OC,B.c4):s},
+return s===$?this.f=new A.ax4(1,B.OD,B.c4):s},
 gfL(){var s=this.z
 s=s==null?null:$.ce().d===s
 return s===!0},
@@ -87935,7 +87935,7 @@ guY(){return A.b8a()},
 adg(){if(this.x)return
 this.zo()},
 a0B(){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c=this,b=null,a=c.c
-if(a===-1||c.d===-1||c.b.length===0)return new A.nT(b,b,B.df,B.ml,c.b.length!==0)
+if(a===-1||c.d===-1||c.b.length===0)return new A.nT(b,b,B.df,B.mm,c.b.length!==0)
 if(!c.as){a=c.NQ(c.d,a)
 c.d=a
 c.c=c.NQ(c.c,a)}s=c.b[c.d].gt()
@@ -95957,7 +95957,7 @@ anr(a){var s=this,r=a.e,q=s.d
 if(r>q+0.01)return"Not enough cash to start "+a.b+"."
 s.d=q-r;++s.at
 q=a.b
-s.as.push(new A.kL(a.a,a.f,r,B.PA[s.ax.h4(16)]+" "+q))
+s.as.push(new A.kL(a.a,a.f,r,B.Pz[s.ax.h4(16)]+" "+q))
 s.dU("Opened "+q+" for "+("$"+B.f.i(r,0))+".")
 s.a5()
 return null},
@@ -96039,7 +96039,7 @@ o=A.a_H(r,q,p)
 if(r>0&&o>(m.e.c+m.gGN())*0.45)return"Income too low to qualify \u2014 the payment would exceed "+B.f.i(45,0)+"% of your salary plus rental income. Earn more, rent out a home, or put more down."
 m.d-=s;++m.Q
 n=m.a
-m.z.push(new A.j2(l,k,r,o,q,p,""+(100+n.h4(9800))+" "+B.OS[n.h4(32)]+" "+B.Ow[n.h4(10)],a.w,a.Q,a.y,a.x))
+m.z.push(new A.j2(l,k,r,o,q,p,""+(100+n.h4(9800))+" "+B.OS[n.h4(32)]+" "+B.Ox[n.h4(10)],a.w,a.Q,a.y,a.x))
 m.dU("Bought "+a.b+" for "+("$"+B.b.i(k,0))+" ("+B.b.i(c*100,0)+"% down, "+b.b+" @ "+B.b.i(q*100,1)+"%).")
 m.a5()
 return null},
@@ -96879,7 +96879,7 @@ n=A.a([A.dL(q,A.l("Own a business and it pays you profit every month \u2014 and 
 if(this.c.as.length!==0)B.d.N(n,this.agN(p))
 n.push(A.l("Start a business",q,q,q,q,m.w,q,q))
 n.push(B.b0)
-for(s=0;s<5;++s){r=B.Pk[s]
+for(s=0;s<5;++s){r=B.Pi[s]
 o=A.a([new A.Rw(r,q)],l)
 m=A.aXy(r)
 B.d.N(o,new A.a3(m,new A.a1h(this),A.a0(m).j("a3<1,f>")))
@@ -97370,7 +97370,7 @@ F(a){var s=null,r=A.B(a),q=this.c.p1,p=r.ax,o=p.b.aE(0.1),n=A.d6(12),m=r.ok.Q
 n=A.a([A.dL(s,A.l("Get out and meet people. Each event costs cash and lands you one market tip in The Daily Ledger \u2014 pricier rooms mean better intel. One outing per month.",s,s,s,s,m,s,s),B.x,s,s,new A.ct(o,s,s,n,s,s,B.ag),s,s,B.fH,B.d7,s,s,s)],t.p)
 if(q){if(m==null)p=s
 else{o=p.rx
-p=m.am(o==null?p.k3:o)}n.push(new A.ag(B.lt,A.l("You've already been out this month.",s,s,s,s,p,s,s),s))}B.d.N(n,new A.a3(B.Py,new A.axm(this,q,r,a),t.Ch))
+p=m.am(o==null?p.k3:o)}n.push(new A.ag(B.lt,A.l("You've already been out this month.",s,s,s,s,p,s,s),s))}B.d.N(n,new A.a3(B.Px,new A.axm(this,q,r,a),t.Ch))
 return A.ha(n,B.cG)}}
 A.axm.prototype={
 $1(a){var s,r=this,q=null,p=r.a,o=a.e,n=p.c.d>=o,m=!r.b&&n,l=r.c.ok,k=l.x,j=A.l(a.c+"  "+a.b,q,q,q,q,k,q,q)
@@ -97423,7 +97423,7 @@ else{m=o.ax
 l=m.rx
 n=n.am(l==null?m.k3:l)}k.push(A.l("Pick a line and climb it \u2014 promotions come automatically the longer you stay. Each track trades off schooling, ramp time, and ceiling. Switching restarts you at the bottom of the new ladder.",q,q,q,q,n,q,q))
 k.push(B.a4)
-B.d.N(k,new A.a3(B.mn,new A.ag0(r),t.tf))
+B.d.N(k,new A.a3(B.mj,new A.ag0(r),t.tf))
 return A.ha(k,B.lx)},
 ug(a,b,c){var s,r,q=null,p=a.ok.z,o=p==null
 if(o)s=q
@@ -97878,7 +97878,7 @@ s=p.ok.ax
 if(s==null)p=q
 else{p=p.ax
 r=p.rx
-p=s.am(r==null?p.k3:r)}o.push(A.l("v0.41.0 \xb7 build 80",q,q,q,q,p,q,q))
+p=s.am(r==null?p.k3:r)}o.push(A.l("v0.41.0 \xb7 build 81",q,q,q,q,p,q,q))
 o.push(B.a4)
 return A.aV(o,B.p,B.k,B.l)},
 $S:578}
@@ -102943,13 +102943,13 @@ B.NC=new A.q8(1,"titleHeight")
 B.qU=new A.q8(2,"top")
 B.qV=new A.q8(3,"center")
 B.ND=new A.q8(4,"bottom")
-B.PI=s([1373.2198709594231,-1100.4251190754821,-7.278681089101213],t.n)
-B.P9=s([-271.815969077903,559.6580465940733,-32.46047482791194],t.n)
+B.PH=s([1373.2198709594231,-1100.4251190754821,-7.278681089101213],t.n)
+B.P8=s([-271.815969077903,559.6580465940733,-32.46047482791194],t.n)
 B.QI=s([1.9622899599665666,-57.173814538844006,308.7233197812385],t.n)
-B.NJ=s([B.PI,B.P9,B.QI],t.zg)
+B.NJ=s([B.PH,B.P8,B.QI],t.zg)
 B.qW=s(["text","multiline","number","phone","datetime","emailAddress","url","visiblePassword","name","address","none","webSearch","twitter"],t.s)
 B.Qn=s(["points","18.5"],t.s)
-B.NL=s([B.Qn],t.rj)
+B.NM=s([B.Qn],t.rj)
 B.eO=new A.ly(0,"house")
 B.dZ=new A.ly(1,"apartment")
 B.hj=new A.ly(2,"business")
@@ -102961,10 +102961,10 @@ B.Oe=s([50,100,500],t.n)
 B.om=new A.GR(0,"named")
 B.F3=new A.GR(1,"anonymous")
 B.Oo=s([B.om,B.F3],A.at("C<GR>"))
-B.Pd=s([0.41233895,0.35762064,0.18051042],t.n)
+B.Pc=s([0.41233895,0.35762064,0.18051042],t.n)
 B.OM=s([0.2126,0.7152,0.0722],t.n)
 B.Qz=s([0.01932141,0.11916382,0.95034478],t.n)
-B.dK=s([B.Pd,B.OM,B.Qz],t.zg)
+B.dK=s([B.Pc,B.OM,B.Qz],t.zg)
 B.Lk=new A.i8("Housing & rent",0.38,"\ud83c\udfe0")
 B.Lh=new A.i8("Food & groceries",0.18,"\ud83d\uded2")
 B.Lj=new A.i8("Transportation",0.15,"\ud83d\ude97")
@@ -102979,7 +102979,7 @@ B.Fh=new A.mD("equities","Stocks","Own a slice of a company. Higher risk, higher
 B.Fg=new A.mD("funds","Funds","Diversified baskets. Smoother ride than single stocks.")
 B.Fe=new A.mD("crypto","Crypto","Wildly volatile digital assets. Buckle up.")
 B.qY=s([B.Fd,B.Ff,B.Fh,B.Fg,B.Fe],A.at("C<mD>"))
-B.Ow=s(["St","Ave","Rd","Ln","Dr","Ct","Blvd","Way","Pl","Ter"],t.s)
+B.Ox=s(["St","Ave","Rd","Ln","Dr","Ct","Blvd","Way","Pl","Ter"],t.s)
 B.ak5=new A.hi(0,1)
 B.aka=new A.hi(0.5,1)
 B.akd=new A.hi(0.5375,0.75)
@@ -102991,26 +102991,26 @@ B.ake=new A.hi(0.8875,0.25)
 B.akc=new A.hi(0.925,0.5)
 B.ak6=new A.hi(0.9625,0.75)
 B.ak7=new A.hi(1,1)
-B.OC=s([B.ak5,B.aka,B.akd,B.akf,B.akb,B.ak9,B.ak8,B.ake,B.akc,B.ak6,B.ak7],A.at("C<hi>"))
+B.OD=s([B.ak5,B.aka,B.akd,B.akf,B.akb,B.ak9,B.ak8,B.ake,B.akc,B.ak6,B.ak7],A.at("C<hi>"))
 B.di=new A.lQ(0,"left")
 B.f0=new A.lQ(1,"right")
 B.dj=new A.lQ(2,"center")
 B.hA=new A.lQ(3,"justify")
 B.aM=new A.lQ(4,"start")
 B.e1=new A.lQ(5,"end")
-B.OD=s([B.di,B.f0,B.dj,B.hA,B.aM,B.e1],A.at("C<lQ>"))
+B.OE=s([B.di,B.f0,B.dj,B.hA,B.aM,B.e1],A.at("C<lQ>"))
 B.OW=s([2,1.13276676],t.n)
 B.NS=s([2.18349805,1.20311921],t.n)
 B.Qa=s([2.33888662,1.28698796],t.n)
 B.Qe=s([2.48660575,1.36351941],t.n)
 B.OH=s([2.62226596,1.44717976],t.n)
 B.OO=s([2.7514899,1.53385819],t.n)
-B.Px=s([3.36298265,1.98288283],t.n)
+B.Pw=s([3.36298265,1.98288283],t.n)
 B.P0=s([4.08649929,2.23811846],t.n)
-B.Pn=s([4.85481134,2.47563463],t.n)
+B.Pl=s([4.85481134,2.47563463],t.n)
 B.OL=s([5.62945551,2.72948597],t.n)
 B.OY=s([6.43023796,2.98020421],t.n)
-B.qZ=s([B.OW,B.NS,B.Qa,B.Qe,B.OH,B.OO,B.Px,B.P0,B.Pn,B.OL,B.OY],t.zg)
+B.qZ=s([B.OW,B.NS,B.Qa,B.Qe,B.OH,B.OO,B.Pw,B.P0,B.Pl,B.OL,B.OY],t.zg)
 B.OG=s([B.kN,B.kO],A.at("C<yx>"))
 B.OK=s([18,15,10,12,15,18,15,12,12],t.n)
 B.ON=s([B.aB,B.bu,B.bC],t.fJ)
@@ -103035,10 +103035,10 @@ B.r_=s([B.GG,B.GN,B.GL,B.GD,B.GF,B.GJ,B.GO,B.GH,B.GM,B.GK,B.GE,B.GI],A.at("C<dX>
 B.QB=s(["Football","\ud83c\udfc8"],t.s)
 B.Qv=s(["Basketball","\ud83c\udfc0"],t.s)
 B.PN=s(["Baseball","\u26be"],t.s)
-B.Pj=s(["Soccer","\u26bd"],t.s)
-B.P8=s(["Hockey","\ud83c\udfd2"],t.s)
-B.PB=s(["Tennis","\ud83c\udfbe"],t.s)
-B.r0=s([B.QB,B.Qv,B.PN,B.Pj,B.P8,B.PB],t.rj)
+B.Ph=s(["Soccer","\u26bd"],t.s)
+B.P7=s(["Hockey","\ud83c\udfd2"],t.s)
+B.PA=s(["Tennis","\ud83c\udfbe"],t.s)
+B.r0=s([B.QB,B.Qv,B.PN,B.Ph,B.P7,B.PA],t.rj)
 B.bL=new A.kl(0,"label")
 B.br=new A.kl(1,"avatar")
 B.cA=new A.kl(2,"deleteIcon")
@@ -103149,47 +103149,108 @@ B.ajY=new A.m6(6,0.11)
 B.ajW=new A.m6(8,0.12)
 B.ajV=new A.m6(12,0.14)
 B.r3=s([B.ajU,B.ajZ,B.ajX,B.ajY,B.ajW,B.ajV],A.at("C<m6>"))
+B.Ne=new A.c7("Barista / Crew",1300,0)
+B.Nd=new A.c7("Shift Lead",2000,0)
+B.MM=new A.c7("Store Manager",3400,0)
+B.N7=new A.c7("Regional Manager",6000,0)
+B.NP=s([B.Ne,B.Nd,B.MM,B.N7],t.pC)
+B.NI=s([18,30,48,0],t.t)
+B.I9=new A.fs("service","Service & Hospitality","\u2615","Start earning today, no degree. Climb to managing a region \u2014 but the ceiling is modest.",0,null,0,B.NP,B.NI)
+B.MP=new A.c7("Apprentice",3200,0)
+B.MY=new A.c7("Journeyman",6000,0)
+B.N6=new A.c7("Master Tradesperson",1e4,0)
+B.MI=new A.c7("Contractor / Shop Owner",2e4,0)
+B.QG=s([B.MP,B.MY,B.N6,B.MI],t.pC)
+B.NL=s([24,36,48,0],t.t)
+B.Ia=new A.fs("trades","Skilled Trades","\ud83d\udd27","Electrician, plumber, welder. A quick trade-school cert, then real money fast and your own shop at the top \u2014 without the four-year debt.",0,"trade",0,B.QG,B.NL)
+B.MN=new A.c7("Junior Developer",5000,0)
+B.N_=new A.c7("Software Engineer",8500,0)
+B.Nc=new A.c7("Senior Engineer",13e3,0)
+B.MZ=new A.c7("Staff Engineer",19e3,0)
+B.MK=new A.c7("Engineering Director",28e3,0)
+B.NH=s([B.MN,B.N_,B.Nc,B.MZ,B.MK],t.pC)
+B.Pb=s([24,30,36,36,0],t.t)
+B.I8=new A.fs("tech","Software & Tech","\ud83d\udcbb","An associate degree is enough to start. Fast ramp, high ceiling \u2014 the best return on tuition.",1,null,0,B.NH,B.Pb)
+B.MO=new A.c7("Analyst",8000,0)
+B.MQ=new A.c7("Associate",13e3,0)
+B.Nb=new A.c7("Vice President",21e3,0)
+B.MV=new A.c7("Director",35e3,0)
+B.ML=new A.c7("Managing Director",58e3,0)
+B.NK=s([B.MO,B.MQ,B.Nb,B.MV,B.ML],t.pC)
+B.Qi=s([30,36,36,36,0],t.t)
+B.Ib=new A.fs("finance","Finance & Banking","\ud83d\udcbc","Bachelor's to start. Long hours and a hard climb \u2014 but Managing Director money is enormous.",2,null,0,B.NK,B.Qi)
+B.N5=new A.c7("Staff Accountant",6500,0)
+B.MH=new A.c7("Senior Accountant",1e4,0)
+B.N2=new A.c7("Accounting Manager",17e3,0)
+B.MU=new A.c7("Controller",3e4,0)
+B.MT=new A.c7("CFO",52e3,0)
+B.PQ=s([B.N5,B.MH,B.N2,B.MU,B.MT],t.pC)
+B.Os=s([18,24,30,36,0],t.t)
+B.Id=new A.fs("accounting","Accounting","\ud83d\udcca","A master's gets you a solid, stable corporate ladder to CFO \u2014 comfortable, dependable, but it caps out lower.",3,null,0,B.PQ,B.Os)
+B.N3=new A.c7("Resident",5000,0)
+B.MW=new A.c7("Fellow",8000,0)
+B.N1=new A.c7("Attending Physician",3e4,0)
+B.N4=new A.c7("Specialist",48e3,0)
+B.N8=new A.c7("Chief of Medicine",72e3,0)
+B.PI=s([B.N3,B.MW,B.N1,B.N4,B.N8],t.pC)
+B.Qw=s([48,24,60,60,0],t.t)
+B.Ic=new A.fs("medicine","Medicine","\ud83e\ude7a","Medical school is a fortune and 8 years; then years of low-paid residency. Survive it and you out-earn everyone.",3,"med",0,B.PI,B.Qw)
+B.N9=new A.c7("Associate Attorney",9000,0)
+B.MJ=new A.c7("Senior Associate",16e3,0)
+B.MX=new A.c7("Junior Partner",28e3,0)
+B.N0=new A.c7("Partner",52e3,0)
+B.OU=s([B.N9,B.MJ,B.MX,B.N0],t.pC)
+B.Oa=s([48,42,48,0],t.t)
+B.I7=new A.fs("law","Law","\u2696\ufe0f","Law school debt and a punishing associate grind, but making Partner pays like few other careers.",3,"law",0,B.OU,B.Oa)
+B.MS=new A.c7("Bootstrapper",2000,1)
+B.Nf=new A.c7("Funded Founder",6000,1)
+B.Na=new A.c7("Scale-up CEO",18e3,1)
+B.MR=new A.c7("Exited Founder",58e3,1)
+B.Pv=s([B.MS,B.Nf,B.Na,B.MR],t.pC)
+B.NQ=s([30,36,48,0],t.t)
+B.Ie=new A.fs("founder","Startup Founder","\ud83d\ude80","Ramen-noodle years, then funding, then scale \u2014 and an exit that dwarfs any salary. Unlocked at Prestige 1.",0,null,1,B.Pv,B.NQ)
+B.mj=s([B.I9,B.Ia,B.I8,B.Ib,B.Id,B.Ic,B.I7,B.Ie],A.at("C<fs>"))
 B.r4=s([0,21,51,121,151,191,271,321,360],t.n)
 B.Ge=new A.JS(2,"outer")
 B.pe=new A.L(0.09803921568627451,0,0,0,B.j)
 B.h=new A.i(0,0)
 B.Gz=new A.dW(0.2,B.Ge,B.pe,B.h,11)
-B.Pa=s([B.Gz],t.sq)
+B.P9=s([B.Gz],t.sq)
 B.Qb=s([11600,0.1],t.n)
 B.QD=s([47150,0.12],t.n)
-B.Pl=s([100525,0.22],t.n)
-B.Pu=s([191950,0.24],t.n)
-B.Pm=s([243725,0.32],t.n)
-B.PC=s([609350,0.35],t.n)
+B.Pj=s([100525,0.22],t.n)
+B.Ps=s([191950,0.24],t.n)
+B.Pk=s([243725,0.32],t.n)
+B.PB=s([609350,0.35],t.n)
 B.NR=s([1/0,0.37],t.n)
-B.Pf=s([B.Qb,B.QD,B.Pl,B.Pu,B.Pm,B.PC,B.NR],t.zg)
+B.Pe=s([B.Qb,B.QD,B.Pj,B.Ps,B.Pk,B.PB,B.NR],t.zg)
 B.E2=new A.Dr(0,"left")
 B.E3=new A.Dr(1,"right")
-B.Pi=s([B.E2,B.E3],A.at("C<Dr>"))
-B.Pk=s([B.ef,B.fh,B.hS,B.hT,B.kS],A.at("C<kK>"))
-B.Po=s(["Lions","Bears","Sharks","Eagles","Titans","Cobras","Wolves","Hawks","Bulls","Rams","Kings","Jets","Storm","Flames","Pythons","Raptors","Comets","Bandits"],t.s)
+B.Pg=s([B.E2,B.E3],A.at("C<Dr>"))
+B.Pi=s([B.ef,B.fh,B.hS,B.hT,B.kS],A.at("C<kK>"))
+B.Pm=s(["Lions","Bears","Sharks","Eagles","Titans","Cobras","Wolves","Hawks","Bulls","Rams","Kings","Jets","Storm","Flames","Pythons","Raptors","Comets","Bandits"],t.s)
 B.as=new A.DE(0,"upstream")
-B.Pp=s([B.as,B.m],A.at("C<DE>"))
+B.Pn=s([B.as,B.m],A.at("C<DE>"))
 B.an=new A.rl(0,"rtl")
 B.W=new A.rl(1,"ltr")
-B.mj=s([B.an,B.W],A.at("C<rl>"))
+B.mk=s([B.an,B.W],A.at("C<rl>"))
 B.dq=new A.jn(0,"leading")
 B.c6=new A.jn(1,"title")
 B.dr=new A.jn(2,"subtitle")
 B.fc=new A.jn(3,"trailing")
-B.Pw=s([B.dq,B.c6,B.dr,B.fc],A.at("C<jn>"))
+B.Pu=s([B.dq,B.c6,B.dr,B.fc],A.at("C<jn>"))
 B.Nq=new A.jU("Crypto meetup","\ud83e\ude99","Basement of a coffee shop. Strong opinions on coins.",100,B.bC,0.58)
 B.No=new A.jU("Networking mixer","\ud83c\udf78","Rub elbows with mid-level managers. Someone always talks.",175,B.aB,0.62)
 B.Np=new A.jU("Industry conference","\ud83c\udfa4","Keynotes, name tags, and hallway gossip about whole sectors.",400,B.bu,0.66)
 B.Nn=new A.jU("Charity gala","\ud83e\udd42","Old money, black tie, and famously loose lips after the wine.",750,B.aB,0.72)
-B.Py=s([B.Nq,B.No,B.Np,B.Nn],A.at("C<jU>"))
+B.Px=s([B.Nq,B.No,B.Np,B.Nn],A.at("C<jU>"))
 B.I3=new A.pb(0,"auto")
 B.I4=new A.pb(1,"full")
 B.I5=new A.pb(2,"chromium")
-B.Pz=s([B.I3,B.I4,B.I5,B.d6],A.at("C<pb>"))
-B.PA=s(["Maple St","Oak Ave","Downtown","Riverside","Sunset","Lakeview","Midtown","Highland","Harbor","Bayside","5th Ave","Park Row","Old Town","Westgate","Uptown","Eastside"],t.s)
+B.Py=s([B.I3,B.I4,B.I5,B.d6],A.at("C<pb>"))
+B.Pz=s(["Maple St","Oak Ave","Downtown","Riverside","Sunset","Lakeview","Midtown","Highland","Harbor","Bayside","5th Ave","Park Row","Old Town","Westgate","Uptown","Eastside"],t.s)
 B.bq=new A.fl(1,"fuchsia")
-B.PD=s([B.al,B.bq,B.S,B.bf,B.aO,B.bg],A.at("C<fl>"))
+B.PC=s([B.al,B.bq,B.S,B.bf,B.aO,B.bg],A.at("C<fl>"))
 B.EM=new A.wC(0,"topLeft")
 B.EP=new A.wC(3,"bottomRight")
 B.ajP=new A.m5(B.EM,B.EP)
@@ -103198,8 +103259,8 @@ B.EN=new A.wC(1,"topRight")
 B.EO=new A.wC(2,"bottomLeft")
 B.ajQ=new A.m5(B.EN,B.EO)
 B.ajR=new A.m5(B.EO,B.EN)
-B.PF=s([B.ajP,B.ajS,B.ajQ,B.ajR],A.at("C<m5>"))
-B.PH=s(["J. Carter","M. Reyes","D. Okafor","T. Volkov","A. Nakamura","R. Mbeki","L. Fontaine","S. Park","K. Andersson","C. Rossi","B. Hassan","N. Castillo"],t.s)
+B.PE=s([B.ajP,B.ajS,B.ajQ,B.ajR],A.at("C<m5>"))
+B.PG=s(["J. Carter","M. Reyes","D. Okafor","T. Volkov","A. Nakamura","R. Mbeki","L. Fontaine","S. Park","K. Andersson","C. Rossi","B. Hassan","N. Castillo"],t.s)
 B.PJ=s([35,30,20,25,30,35,30,25,25],t.n)
 B.PM=s(["click","scroll"],t.s)
 B.GU=new A.tn()
@@ -103219,9 +103280,9 @@ B.iR=s([],t.jl)
 B.r9=s([],t.wi)
 B.Q_=s([],A.at("C<k_<@>>"))
 B.PY=s([],t.OP)
-B.ml=s([],t.AO)
+B.mm=s([],t.AO)
 B.Q2=s([],t.D1)
-B.mk=s([],t.QF)
+B.ml=s([],t.QF)
 B.Q1=s([],t.Lx)
 B.PW=s([],t.AS)
 B.r5=s([],t.p)
@@ -103235,10 +103296,10 @@ B.Gy=new A.dW(0.75,B.eb,B.pe,B.a7t,1.5)
 B.Qf=s([B.Gy],t.sq)
 B.Ql=s([B.aB,B.bu,B.bC,B.b6],t.fJ)
 B.fT=s([B.dt,B.d4,B.hO,B.hP,B.kM],t.QP)
-B.Ox=s([0.001200833568784504,0.002389694492170889,0.0002795742885861124],t.n)
+B.Oy=s([0.001200833568784504,0.002389694492170889,0.0002795742885861124],t.n)
 B.PP=s([0.0005891086651375999,0.0029785502573438758,0.0003270666104008398],t.n)
 B.OJ=s([0.00010146692491640572,0.0005364214359186694,0.0032979401770712076],t.n)
-B.Qr=s([B.Ox,B.PP,B.OJ],t.zg)
+B.Qr=s([B.Oy,B.PP,B.OJ],t.zg)
 B.Qs=s([45,95,45,20,45,90,45,45,45],t.n)
 B.Qt=s([120,120,20,45,20,15,20,120,120],t.n)
 B.eC=new A.hI(0,"controlModifier")
@@ -103255,68 +103316,7 @@ B.a70=new A.uZ("fixed30","30-Year Fixed",0.065,360,"Lowest payment, most interes
 B.a72=new A.uZ("fixed15","15-Year Fixed",0.058,180,"Higher payment, far less total interest, paid off fast.")
 B.a71=new A.uZ("arm51","5/1 ARM",0.055,360,"Lowest rate to start (treated as fixed for now).")
 B.iS=s([B.a70,B.a72,B.a71],A.at("C<uZ>"))
-B.mm=s([!0,!1],t.HZ)
-B.Nd=new A.c7("Barista / Crew",1300,0)
-B.Na=new A.c7("Shift Lead",2000,0)
-B.MK=new A.c7("Store Manager",3400,0)
-B.N5=new A.c7("Regional Manager",6000,0)
-B.NP=s([B.Nd,B.Na,B.MK,B.N5],t.pC)
-B.NI=s([18,30,48,0],t.t)
-B.Id=new A.fs("service","Service & Hospitality","\u2615","Start earning today, no degree. Climb to managing a region \u2014 but the ceiling is modest.",0,null,0,B.NP,B.NI)
-B.MO=new A.c7("Apprentice",3200,0)
-B.MW=new A.c7("Journeyman",6000,0)
-B.N4=new A.c7("Master Tradesperson",1e4,0)
-B.MH=new A.c7("Contractor / Shop Owner",2e4,0)
-B.QG=s([B.MO,B.MW,B.N4,B.MH],t.pC)
-B.NK=s([24,36,48,0],t.t)
-B.Ie=new A.fs("trades","Skilled Trades","\ud83d\udd27","Electrician, plumber, welder. A quick trade-school cert, then real money fast and your own shop at the top \u2014 without the four-year debt.",0,"trade",0,B.QG,B.NK)
-B.MM=new A.c7("Junior Developer",5000,0)
-B.N_=new A.c7("Software Engineer",8500,0)
-B.N9=new A.c7("Senior Engineer",13e3,0)
-B.MY=new A.c7("Staff Engineer",19e3,0)
-B.MI=new A.c7("Engineering Director",28e3,0)
-B.NH=s([B.MM,B.N_,B.N9,B.MY,B.MI],t.pC)
-B.Pc=s([24,30,36,36,0],t.t)
-B.I7=new A.fs("tech","Software & Tech","\ud83d\udcbb","An associate degree is enough to start. Fast ramp, high ceiling \u2014 the best return on tuition.",1,null,0,B.NH,B.Pc)
-B.MN=new A.c7("Analyst",8000,0)
-B.MP=new A.c7("Associate",13e3,0)
-B.MZ=new A.c7("Vice President",2e4,0)
-B.MU=new A.c7("Director",3e4,0)
-B.MT=new A.c7("Managing Director",52e3,0)
-B.PQ=s([B.MN,B.MP,B.MZ,B.MU,B.MT],t.pC)
-B.Qi=s([30,36,36,36,0],t.t)
-B.Ib=new A.fs("finance","Finance & Banking","\ud83d\udcbc","Bachelor's to start. Long hours and a hard climb \u2014 but Managing Director money is enormous.",2,null,0,B.PQ,B.Qi)
-B.MJ=new A.c7("Staff Accountant",5000,0)
-B.Nf=new A.c7("Senior Accountant",7000,0)
-B.N0=new A.c7("Accounting Manager",1e4,0)
-B.MS=new A.c7("Controller",15e3,0)
-B.MR=new A.c7("CFO",24e3,0)
-B.OE=s([B.MJ,B.Nf,B.N0,B.MS,B.MR],t.pC)
-B.P1=s([24,30,36,42,0],t.t)
-B.I9=new A.fs("accounting","Accounting","\ud83d\udcca","A master's gets you a solid, stable corporate ladder to CFO \u2014 comfortable, dependable, but it caps out lower.",3,null,0,B.OE,B.P1)
-B.N2=new A.c7("Resident",5000,0)
-B.MV=new A.c7("Fellow",7500,0)
-B.ML=new A.c7("Attending Physician",26e3,0)
-B.N3=new A.c7("Specialist",4e4,0)
-B.Nb=new A.c7("Chief of Medicine",6e4,0)
-B.OV=s([B.N2,B.MV,B.ML,B.N3,B.Nb],t.pC)
-B.Qw=s([48,24,60,60,0],t.t)
-B.I8=new A.fs("medicine","Medicine","\ud83e\ude7a","Medical school is a fortune and 8 years; then years of low-paid residency. Survive it and you out-earn everyone.",3,"med",0,B.OV,B.Qw)
-B.N6=new A.c7("Associate Attorney",9000,0)
-B.N7=new A.c7("Senior Associate",14e3,0)
-B.Nc=new A.c7("Junior Partner",24e3,0)
-B.N1=new A.c7("Partner",4e4,0)
-B.NN=s([B.N6,B.N7,B.Nc,B.N1],t.pC)
-B.Oa=s([48,42,48,0],t.t)
-B.Ic=new A.fs("law","Law","\u2696\ufe0f","Law school debt and a punishing associate grind, but making Partner pays like few other careers.",3,"law",0,B.NN,B.Oa)
-B.MQ=new A.c7("Bootstrapper",2000,1)
-B.Ne=new A.c7("Funded Founder",6000,1)
-B.N8=new A.c7("Scale-up CEO",18e3,1)
-B.MX=new A.c7("Exited Founder",5e4,1)
-B.Pg=s([B.MQ,B.Ne,B.N8,B.MX],t.pC)
-B.NQ=s([30,36,48,0],t.t)
-B.Ia=new A.fs("founder","Startup Founder","\ud83d\ude80","Ramen-noodle years, then funding, then scale \u2014 and an exit that dwarfs any salary. Unlocked at Prestige 1.",0,null,1,B.Pg,B.NQ)
-B.mn=s([B.Id,B.Ie,B.I7,B.Ib,B.I9,B.I8,B.Ic,B.Ia],A.at("C<fs>"))
+B.mn=s([!0,!1],t.HZ)
 B.Iy=new A.L(0.14901960784313725,0,0,0,B.j)
 B.z4=new A.i(0,3)
 B.GA=new A.dW(0,B.eb,B.Iy,B.z4,8)
@@ -104852,57 +104852,57 @@ B.Oj=s([54,null,null,8589935158],t.Z)
 B.Ok=s([55,null,null,8589935159],t.Z)
 B.Ol=s([56,null,null,8589935160],t.Z)
 B.On=s([57,null,null,8589935161],t.Z)
-B.Pq=s([8589934852,8589934852,8589934853,null],t.Z)
+B.Po=s([8589934852,8589934852,8589934853,null],t.Z)
 B.NV=s([4294967555,null,4294967555,null],t.Z)
 B.NW=s([4294968065,null,null,8589935154],t.Z)
 B.NX=s([4294968066,null,null,8589935156],t.Z)
 B.NY=s([4294968067,null,null,8589935158],t.Z)
 B.NZ=s([4294968068,null,null,8589935160],t.Z)
 B.O3=s([4294968321,null,null,8589935157],t.Z)
-B.Pr=s([8589934848,8589934848,8589934849,null],t.Z)
+B.Pp=s([8589934848,8589934848,8589934849,null],t.Z)
 B.NU=s([4294967423,null,null,8589935150],t.Z)
 B.O_=s([4294968069,null,null,8589935153],t.Z)
 B.NT=s([4294967309,null,null,8589935117],t.Z)
 B.O0=s([4294968070,null,null,8589935159],t.Z)
 B.O4=s([4294968327,null,null,8589935152],t.Z)
-B.Ps=s([8589934854,8589934854,8589934855,null],t.Z)
+B.Pq=s([8589934854,8589934854,8589934855,null],t.Z)
 B.O1=s([4294968071,null,null,8589935155],t.Z)
 B.O2=s([4294968072,null,null,8589935161],t.Z)
-B.Pt=s([8589934850,8589934850,8589934851,null],t.Z)
-B.xG=new A.y(["*",B.O5,"+",B.O6,"-",B.O7,".",B.O8,"/",B.O9,"0",B.Ob,"1",B.Oc,"2",B.Of,"3",B.Og,"4",B.Oh,"5",B.Oi,"6",B.Oj,"7",B.Ok,"8",B.Ol,"9",B.On,"Alt",B.Pq,"AltGraph",B.NV,"ArrowDown",B.NW,"ArrowLeft",B.NX,"ArrowRight",B.NY,"ArrowUp",B.NZ,"Clear",B.O3,"Control",B.Pr,"Delete",B.NU,"End",B.O_,"Enter",B.NT,"Home",B.O0,"Insert",B.O4,"Meta",B.Ps,"PageDown",B.O1,"PageUp",B.O2,"Shift",B.Pt],A.at("y<D,a2<I?>>"))
+B.Pr=s([8589934850,8589934850,8589934851,null],t.Z)
+B.xG=new A.y(["*",B.O5,"+",B.O6,"-",B.O7,".",B.O8,"/",B.O9,"0",B.Ob,"1",B.Oc,"2",B.Of,"3",B.Og,"4",B.Oh,"5",B.Oi,"6",B.Oj,"7",B.Ok,"8",B.Ol,"9",B.On,"Alt",B.Po,"AltGraph",B.NV,"ArrowDown",B.NW,"ArrowLeft",B.NX,"ArrowRight",B.NY,"ArrowUp",B.NZ,"Clear",B.O3,"Control",B.Pp,"Delete",B.NU,"End",B.O_,"Enter",B.NT,"Home",B.O0,"Insert",B.O4,"Meta",B.Pq,"PageDown",B.O1,"PageUp",B.O2,"Shift",B.Pr],A.at("y<D,a2<I?>>"))
 B.Om=s([B.rk,null,null,B.x0],t.L)
 B.Q7=s([B.wN,null,null,B.x1],t.L)
 B.OT=s([B.wO,null,null,B.x2],t.L)
-B.Pv=s([B.wP,null,null,B.dO],t.L)
+B.Pt=s([B.wP,null,null,B.dO],t.L)
 B.NE=s([B.wQ,null,null,B.x3],t.L)
 B.Qp=s([B.wR,null,null,B.my],t.L)
 B.Qk=s([B.wS,null,null,B.h3],t.L)
-B.Ou=s([B.wT,null,null,B.dP],t.L)
+B.Ov=s([B.wT,null,null,B.dP],t.L)
 B.Qx=s([B.wU,null,null,B.h4],t.L)
 B.Qj=s([B.wV,null,null,B.dQ],t.L)
-B.Os=s([B.wW,null,null,B.mz],t.L)
-B.NM=s([B.wX,null,null,B.dR],t.L)
+B.Ot=s([B.wW,null,null,B.mz],t.L)
+B.NN=s([B.wX,null,null,B.dR],t.L)
 B.OF=s([B.wY,null,null,B.h5],t.L)
 B.Q9=s([B.wZ,null,null,B.dS],t.L)
 B.Qc=s([B.x_,null,null,B.h6],t.L)
-B.Oy=s([B.h1,B.h1,B.j_,null],t.L)
+B.Oz=s([B.h1,B.h1,B.j_,null],t.L)
 B.Qq=s([B.iW,null,B.iW,null],t.L)
-B.P2=s([B.ct,null,null,B.dP],t.L)
-B.P3=s([B.ca,null,null,B.dQ],t.L)
-B.P4=s([B.cb,null,null,B.dR],t.L)
+B.P1=s([B.ct,null,null,B.dP],t.L)
+B.P2=s([B.ca,null,null,B.dQ],t.L)
+B.P3=s([B.cb,null,null,B.dR],t.L)
 B.Qu=s([B.cu,null,null,B.dS],t.L)
 B.Qg=s([B.ms,null,null,B.mz],t.L)
-B.Oz=s([B.h0,B.h0,B.iZ,null],t.L)
+B.OA=s([B.h0,B.h0,B.iZ,null],t.L)
 B.PK=s([B.bm,null,null,B.dO],t.L)
-B.P5=s([B.dL,null,null,B.h3],t.L)
+B.P4=s([B.dL,null,null,B.h3],t.L)
 B.Or=s([B.iV,null,null,B.mx],t.L)
-B.P6=s([B.dM,null,null,B.h5],t.L)
+B.P5=s([B.dM,null,null,B.h5],t.L)
 B.Qh=s([B.h_,null,null,B.my],t.L)
-B.OA=s([B.h2,B.h2,B.j0,null],t.L)
-B.P7=s([B.fY,null,null,B.h4],t.L)
+B.OB=s([B.h2,B.h2,B.j0,null],t.L)
+B.P6=s([B.fY,null,null,B.h4],t.L)
 B.PS=s([B.fZ,null,null,B.h6],t.L)
-B.OB=s([B.d9,B.d9,B.dN,null],t.L)
-B.VQ=new A.y(["*",B.Om,"+",B.Q7,"-",B.OT,".",B.Pv,"/",B.NE,"0",B.Qp,"1",B.Qk,"2",B.Ou,"3",B.Qx,"4",B.Qj,"5",B.Os,"6",B.NM,"7",B.OF,"8",B.Q9,"9",B.Qc,"Alt",B.Oy,"AltGraph",B.Qq,"ArrowDown",B.P2,"ArrowLeft",B.P3,"ArrowRight",B.P4,"ArrowUp",B.Qu,"Clear",B.Qg,"Control",B.Oz,"Delete",B.PK,"End",B.P5,"Enter",B.Or,"Home",B.P6,"Insert",B.Qh,"Meta",B.OA,"PageDown",B.P7,"PageUp",B.PS,"Shift",B.OB],A.at("y<D,a2<j?>>"))
+B.OC=s([B.d9,B.d9,B.dN,null],t.L)
+B.VQ=new A.y(["*",B.Om,"+",B.Q7,"-",B.OT,".",B.Pt,"/",B.NE,"0",B.Qp,"1",B.Qk,"2",B.Ov,"3",B.Qx,"4",B.Qj,"5",B.Ot,"6",B.NN,"7",B.OF,"8",B.Q9,"9",B.Qc,"Alt",B.Oz,"AltGraph",B.Qq,"ArrowDown",B.P1,"ArrowLeft",B.P2,"ArrowRight",B.P3,"ArrowUp",B.Qu,"Clear",B.Qg,"Control",B.OA,"Delete",B.PK,"End",B.P4,"Enter",B.Or,"Home",B.P5,"Insert",B.Qh,"Meta",B.OB,"PageDown",B.P6,"PageUp",B.PS,"Shift",B.OC],A.at("y<D,a2<j?>>"))
 B.a56=new A.c(B.hc,["0K","0K","0 mil","0 mil","0K","0 mil"],t.w)
 B.a54=new A.c(B.hc,["00K","00K","00 mil","00 mil","00K","00K"],t.w)
 B.a_m=new A.c(B.c,["0 miliwn"],t.w)
@@ -105011,24 +105011,24 @@ B.Z1=new A.c(B.c,["\xa4\xa000\xa0\u0442\u044d\u0440\u0431\u0443\u043c"],t.w)
 B.Xa=new A.c(B.c,["\xa4\xa00\xa0\u0438\u0445\xa0\u043d\u0430\u044f\u0434"],t.w)
 B.a5h=new A.y([3,B.a0I,5,B.a_q,6,B.a3o,9,B.Zm,10,B.Z1,12,B.Xa],t.D)
 B.nc={Football:0,Basketball:1,Baseball:2,Soccer:3,Hockey:4,Tennis:5}
-B.Pb=s(["passing yds","268.5"],t.s)
-B.PG=s(["rushing yds","74.5"],t.s)
-B.Op=s([B.Pb,B.PG],t.rj)
-B.OU=s(["points","24.5"],t.s)
+B.Pa=s(["passing yds","268.5"],t.s)
+B.PF=s(["rushing yds","74.5"],t.s)
+B.Op=s([B.Pa,B.PF],t.rj)
+B.OV=s(["points","24.5"],t.s)
 B.QC=s(["rebounds","9.5"],t.s)
-B.Ot=s([B.OU,B.QC],t.rj)
+B.Ou=s([B.OV,B.QC],t.rj)
 B.OP=s(["total bases","1.5"],t.s)
 B.Qd=s(["strikeouts","6.5"],t.s)
-B.Pe=s([B.OP,B.Qd],t.rj)
+B.Pd=s([B.OP,B.Qd],t.rj)
 B.ra=s(["shots","3.5"],t.s)
-B.Ov=s(["passes","58.5"],t.s)
-B.Qm=s([B.ra,B.Ov],t.rj)
+B.Ow=s(["passes","58.5"],t.s)
+B.Qm=s([B.ra,B.Ow],t.rj)
 B.P_=s(["points","1.5"],t.s)
 B.OI=s([B.ra,B.P_],t.rj)
 B.Qo=s(["aces","8.5"],t.s)
 B.QA=s(["games won","12.5"],t.s)
-B.PE=s([B.Qo,B.QA],t.rj)
-B.a5i=new A.c(B.nc,[B.Op,B.Ot,B.Pe,B.Qm,B.OI,B.PE],A.at("c<D,a2<a2<D>>>"))
+B.PD=s([B.Qo,B.QA],t.rj)
+B.a5i=new A.c(B.nc,[B.Op,B.Ou,B.Pd,B.Qm,B.OI,B.PD],A.at("c<D,a2<a2<D>>>"))
 B.a5j=new A.c(B.nc,["pts","pts","runs","goals","goals","games"],t.w)
 B.a5k=new A.c(B.nc,[44.5,221.5,8.5,2.5,5.5,22.5],A.at("c<D,N>"))
 B.a7m={KeyA:0,KeyB:1,KeyC:2,KeyD:3,KeyE:4,KeyF:5,KeyG:6,KeyH:7,KeyI:8,KeyJ:9,KeyK:10,KeyL:11,KeyM:12,KeyN:13,KeyO:14,KeyP:15,KeyQ:16,KeyR:17,KeyS:18,KeyT:19,KeyU:20,KeyV:21,KeyW:22,KeyX:23,KeyY:24,KeyZ:25,Digit1:26,Digit2:27,Digit3:28,Digit4:29,Digit5:30,Digit6:31,Digit7:32,Digit8:33,Digit9:34,Digit0:35,Minus:36,Equal:37,BracketLeft:38,BracketRight:39,Backslash:40,Semicolon:41,Quote:42,Backquote:43,Comma:44,Period:45,Slash:46}
@@ -105644,8 +105644,8 @@ B.nr=new A.vC(1,"nextLine")
 B.jI=new A.vC(2,"forward")
 B.jJ=new A.vC(3,"backward")
 B.df=new A.CT(2,"none")
-B.D7=new A.nT(null,null,B.df,B.ml,!0)
-B.D8=new A.nT(null,null,B.df,B.ml,!1)
+B.D7=new A.nT(null,null,B.df,B.mm,!0)
+B.D8=new A.nT(null,null,B.df,B.mm,!1)
 B.R=new A.nU(0,"next")
 B.V=new A.nU(1,"previous")
 B.X=new A.nU(2,"end")
@@ -105912,8 +105912,8 @@ B.Ea=new A.ar7(1,"label")
 B.acJ=new A.vZ(null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.Eb=new A.je("Portfolio",null)
 B.acS=new A.je("Market",null)
-B.Ph=s([B.Eb,B.acS],t.p)
-B.acK=new A.o1(B.Ph,!1,null,null,null)
+B.Pf=s([B.Eb,B.acS],t.p)
+B.acK=new A.o1(B.Pf,!1,null,null,null)
 B.acT=new A.je("Real estate",null)
 B.PR=s([B.Eb,B.acT],t.p)
 B.acL=new A.o1(B.PR,!1,null,null,null)
@@ -106953,7 +106953,7 @@ return q})
 r($,"bb4","aVx",()=>{var q=A.at("~(bd<b3>)")
 return A.aI([B.aio,A.aO_(!0),B.aib,A.aO_(!1),B.aiL,new A.Or(A.Bx(q)),B.aiC,new A.N3(A.Bx(q)),B.aiG,new A.NG(A.Bx(q)),B.EC,new A.zx(!1,A.Bx(q)),B.o2,A.b1f(),B.aiH,new A.NK(A.Bx(q)),B.aj_,new A.Qr(A.Bx(q))],t.u,t.od)})
 s($,"b8R","aIG",()=>{var q,p,o,n=t.G,m=A.A(t.Vz,n)
-for(q=A.at("am"),p=0;p<2;++p){o=B.mm[p]
+for(q=A.at("am"),p=0;p<2;++p){o=B.mn[p]
 m.N(0,A.aI([A.eL(B.bl,!1,!1,!1,o),B.lj,A.eL(B.bl,!1,!0,!1,o),B.lm,A.eL(B.bl,!0,!1,!1,o),B.lk,A.eL(B.bm,!1,!0,!1,o),B.fD,A.eL(B.bm,!0,!1,!1,o),B.ll],q,n))}m.u(0,B.Dz,B.fC)
 m.u(0,B.eW,B.eo)
 m.u(0,B.eX,B.ep)
@@ -107009,7 +107009,7 @@ q.u(0,B.nC,B.iz)
 q.u(0,B.nD,B.iA)
 return q})
 s($,"b8X","aMc",()=>{var q,p,o,n=t.G,m=A.A(t.Vz,n)
-for(q=A.at("am"),p=0;p<2;++p){o=B.mm[p]
+for(q=A.at("am"),p=0;p<2;++p){o=B.mn[p]
 m.N(0,A.aI([A.eL(B.bl,!1,!1,!1,o),B.lj,A.eL(B.bl,!0,!1,!1,o),B.lm,A.eL(B.bl,!1,!1,!0,o),B.lk,A.eL(B.bm,!1,!1,!1,o),B.fC,A.eL(B.bm,!0,!1,!1,o),B.fD,A.eL(B.bm,!1,!1,!0,o),B.ll],q,n))}m.u(0,B.eW,B.eo)
 m.u(0,B.eX,B.ep)
 m.u(0,B.hx,B.es)
@@ -107073,7 +107073,7 @@ q.u(0,B.nC,B.iz)
 q.u(0,B.nD,B.iA)
 return q})
 s($,"b8Y","aMd",()=>{var q,p,o,n=t.G,m=A.A(t.Vz,n)
-for(q=A.at("am"),p=0;p<2;++p){o=B.mm[p]
+for(q=A.at("am"),p=0;p<2;++p){o=B.mn[p]
 m.N(0,A.aI([A.eL(B.bl,!1,!1,!1,o),B.A,A.eL(B.bm,!1,!1,!1,o),B.A,A.eL(B.bl,!0,!1,!1,o),B.A,A.eL(B.bm,!0,!1,!1,o),B.A,A.eL(B.bl,!1,!0,!1,o),B.A,A.eL(B.bm,!1,!0,!1,o),B.A,A.eL(B.bl,!1,!1,!0,o),B.A,A.eL(B.bm,!1,!1,!0,o),B.A],q,n))}m.N(0,B.x8)
 for(n=$.a_N().gc2().gae(0);n.B();)m.u(0,n.gS(),B.A)
 m.u(0,B.Dv,B.A)
@@ -107217,10 +107217,10 @@ s($,"b8C","y6",()=>{var q,p,o=A.A(t.N,A.at("dX"))
 for(q=0;q<12;++q){p=B.r_[q]
 o.u(0,p.a,p)}return o})
 s($,"b8G","aM9",()=>{var q,p=A.a([],t.pC)
-for(q=0;q<8;++q)B.d.N(p,B.mn[q].x)
+for(q=0;q<8;++q)B.d.N(p,B.mj[q].x)
 return p})
 s($,"b8F","aIE",()=>{var q,p,o=A.A(t.N,A.at("fs"))
-for(q=0;q<8;++q){p=B.mn[q]
+for(q=0;q<8;++q){p=B.mj[q]
 o.u(0,p.a,p)}return o})
 s($,"b8E","e7",()=>{var q,p,o=A.A(t.N,A.at("bb"))
 for(q=0;q<50;++q){p=B.cs[q]
