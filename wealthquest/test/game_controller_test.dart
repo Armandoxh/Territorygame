@@ -652,6 +652,26 @@ void main() {
       g.completedDegrees.add('trade');
       expect(g.qualifiesForTrack(trades), isTrue);
     });
+
+    test('a student loan amortizes automatically after graduation', () {
+      final g = GameController(seed: 1)..cash = 500000;
+      final assoc = Catalog.degrees.firstWhere((d) => d.id == 'associate');
+      g.enroll(assoc);
+      final inSchool = g.studentLoan;
+      g.advanceDay(); // still enrolled: deferred, the balance grows
+      expect(g.studentLoan, greaterThan(inSchool));
+      expect(g.studentLoanPayment, 0);
+      while (g.isStudying) {
+        g.advanceDay();
+      }
+      expect(g.studentLoanPayment, greaterThan(0)); // repayment kicks in
+      // It pays itself down to zero over the term — you can't ignore it.
+      for (var i = 0; i < 130; i++) {
+        g.advanceDay();
+      }
+      expect(g.studentLoan, 0);
+      expect(g.studentLoanPayment, 0);
+    });
   });
 
   group('Retirement (401k)', () {

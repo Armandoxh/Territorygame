@@ -1067,6 +1067,10 @@ class Catalog {
   /// that paying it down competes with investing — a real decision.
   static const double studentLoanRate = 0.075;
 
+  /// Standard repayment term once you graduate — the loan amortizes over this
+  /// like a mortgage (a required monthly payment, not an ignorable balance).
+  static const int studentLoanRepaymentMonths = 120; // 10 years
+
   // ---- Income tax (on wages) ----
   /// Income shielded from tax before brackets apply (a standard deduction).
   static const double standardDeduction = 14600;

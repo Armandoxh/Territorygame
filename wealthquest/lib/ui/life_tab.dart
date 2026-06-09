@@ -180,9 +180,9 @@ class _LoanCard extends StatelessWidget {
                 children: [
                   Text('Student loan', style: theme.textTheme.titleSmall),
                   Text(
-                    '${money(game.studentLoan)} · ${pct(Catalog.studentLoanRate)}/yr',
-                    style:
-                        theme.textTheme.bodySmall?.copyWith(color: kLoss),
+                    '${money(game.studentLoan)} · ${pct(Catalog.studentLoanRate)}/yr'
+                    '${game.studentLoanPayment > 0 ? ' · ${money(game.studentLoanPayment)}/mo due' : game.isStudying ? ' · deferred in school' : ''}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: kLoss),
                   ),
                 ],
               ),

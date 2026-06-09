@@ -256,6 +256,7 @@ class GameController extends ChangeNotifier {
       ..enrolledDegreeId = enrolledDegreeId
       ..enrollMonthsLeft = enrollMonthsLeft
       ..studentLoan = studentLoan
+      ..studentLoanPayment = studentLoanPayment
       ..retirementBalance = retirementBalance
       ..retirementContribPct = retirementContribPct
       ..debt = debt
@@ -1224,6 +1225,11 @@ class GameController extends ChangeNotifier {
   /// Outstanding student-loan balance (compounds monthly until repaid).
   double studentLoan = 0;
 
+  /// Required fixed monthly payment once you've graduated — set to amortize the
+  /// balance over the standard term, so the loan can't be ignored forever. 0
+  /// while you're still in school (payments are deferred) or debt-free.
+  double studentLoanPayment = 0;
+
   bool get isStudying => enrolledDegreeId != null;
 
   DegreeDef? get enrolledDegree {
@@ -1300,7 +1306,10 @@ class GameController extends ChangeNotifier {
     final applied = amt > studentLoan ? studentLoan : amt;
     cash -= applied;
     studentLoan -= applied;
-    if (studentLoan < 0.01) studentLoan = 0;
+    if (studentLoan < 0.01) {
+      studentLoan = 0;
+      studentLoanPayment = 0;
+    }
     _log('Paid ${_usd(applied)} toward your student loan.');
     notifyListeners();
     return null;
@@ -1418,7 +1427,15 @@ class GameController extends ChangeNotifier {
         completedDegrees.add(d.id);
         enrolledDegreeId = null;
         enrollMonthsLeft = 0;
-        events.add('🎓 You earned your ${d.name}! New careers are open.');
+        // Repayment begins: lock in a fixed monthly payment that amortizes the
+        // whole balance over the standard term (recomputed on the full balance
+        // if you stacked another degree).
+        if (studentLoan > 0) {
+          studentLoanPayment = mortgageMonthlyPayment(studentLoan,
+              Catalog.studentLoanRate, Catalog.studentLoanRepaymentMonths);
+        }
+        events.add('🎓 You earned your ${d.name}! New careers are open. '
+            'Loan repayment of ${_usd(studentLoanPayment)}/mo begins.');
       }
     } else {
       // 1b2) Career progression: tenure on a rung earns an automatic promotion
@@ -1439,6 +1456,21 @@ class GameController extends ChangeNotifier {
     }
     if (studentLoan > 0) {
       studentLoan *= (1 + Catalog.studentLoanRate / Catalog.stepsPerYear);
+      // Payments are deferred while you're in school; once you've graduated the
+      // loan amortizes — a required monthly bite out of cash you can't dodge.
+      if (!isStudying) {
+        if (studentLoanPayment <= 0) {
+          studentLoanPayment = mortgageMonthlyPayment(studentLoan,
+              Catalog.studentLoanRate, Catalog.studentLoanRepaymentMonths);
+        }
+        final due = studentLoanPayment > studentLoan ? studentLoan : studentLoanPayment;
+        cash -= due;
+        studentLoan -= due;
+        if (studentLoan < 0.01) {
+          studentLoan = 0;
+          studentLoanPayment = 0;
+        }
+      }
     }
     if (debt > 0) {
       debt *= (1 + debtRate / Catalog.stepsPerYear);
