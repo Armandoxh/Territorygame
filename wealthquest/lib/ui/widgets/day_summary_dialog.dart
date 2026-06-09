@@ -4,9 +4,9 @@ import '../../state/game_controller.dart';
 import '../../util/format.dart';
 import 'ui_helpers.dart';
 
-/// The end-of-month recap, laid out like a clean profit-and-loss statement:
-/// money in and money out grouped into labeled sections with subtotals, a bold
-/// net line, then the running net-worth and cash balances.
+/// The end-of-month recap, laid out like a real income statement: an INCOME
+/// section and an EXPENSES section of right-aligned, column-aligned figures with
+/// ruled subtotals and a double-ruled net, then the running balances.
 Future<void> showDaySummary(
   BuildContext context,
   GameController game,
@@ -21,7 +21,6 @@ Future<void> showDaySummary(
           ? 'Month ${game.day}  ·  Age ${game.ageYears}'
           : '$monthsCovered months  ·  now Age ${game.ageYears}';
 
-      // Inflows (earnings) and outflows (costs) as line items.
       final income = <_Line>[
         _Line('Salary', r.income),
         if (r.interest > 0.005) _Line('Interest', r.interest),
@@ -32,8 +31,7 @@ Future<void> showDaySummary(
       final expenses = <_Line>[
         _Line('Living expenses', r.expenses),
         if (r.tax > 0.005) _Line('Income tax', r.tax),
-        if (r.businessIncome < -0.005)
-          _Line('Business loss', -r.businessIncome),
+        if (r.businessIncome < -0.005) _Line('Business loss', -r.businessIncome),
         if (r.mortgage > 0.005) _Line('Mortgage', r.mortgage),
         if (r.overdraftFee > 0.005) _Line('Overdraft fee', r.overdraftFee),
       ];
@@ -53,34 +51,46 @@ Future<void> showDaySummary(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Center(
+                child: Text('MONTHLY STATEMENT',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800, letterSpacing: 1.4)),
+              ),
+              const SizedBox(height: 2),
+              Center(
                 child: Text(header,
-                    style: theme.textTheme.labelMedium
+                    style: theme.textTheme.labelSmall
                         ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              Container(height: 1.4, color: theme.colorScheme.outline),
+              const SizedBox(height: 8),
 
-              _sectionHeader(theme, 'Money in', kGain),
-              for (final l in income)
-                _lineRow(theme, l.label, l.amount, kGain, positive: true),
-              _subtotal(theme, 'Total in', totalIn, kGain, positive: true),
+              _sectionHeader(theme, 'Income'),
+              for (final l in income) _stmtRow(theme, l.label, l.amount),
+              _amtRule(theme),
+              _stmtRow(theme, 'Total income', totalIn, bold: true, indent: 0),
 
               const SizedBox(height: 14),
+              _sectionHeader(theme, 'Expenses'),
+              for (final l in expenses) _stmtRow(theme, l.label, l.amount),
+              _amtRule(theme),
+              _stmtRow(theme, 'Total expenses', totalOut, bold: true, indent: 0),
 
-              _sectionHeader(theme, 'Money out', kLoss),
-              for (final l in expenses)
-                _lineRow(theme, l.label, l.amount, kLoss, positive: false),
-              _subtotal(theme, 'Total out', totalOut, kLoss, positive: false),
-
-              const SizedBox(height: 10),
-              Container(height: 2, color: theme.colorScheme.outlineVariant),
               const SizedBox(height: 8),
-              _netRow(theme, net,
-                  label: monthsCovered > 1 ? 'Net change' : 'Net this month'),
+              _amtRule(theme, doubled: true),
+              _stmtRow(theme, monthsCovered > 1 ? 'NET CHANGE' : 'NET INCOME',
+                  net.abs(),
+                  bold: true,
+                  indent: 0,
+                  color: gainColor(net),
+                  parenIfNeg: net < 0),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
+              Container(height: 1, color: theme.colorScheme.outlineVariant),
+              const SizedBox(height: 10),
               _balanceRow(theme, 'Net worth', r.netWorthAfter, r.netWorthDelta),
-              const SizedBox(height: 6),
-              _balanceRow(theme, 'Cash', r.cashAfter, r.cashDelta,
+              const SizedBox(height: 8),
+              _balanceRow(theme, 'Cash on hand', r.cashAfter, r.cashDelta,
                   negative: r.cashAfter < 0),
 
               if (r.cashAfter < 0) ...[
@@ -128,97 +138,111 @@ class _Line {
   _Line(this.label, this.amount);
 }
 
-/// A small colored section heading, e.g. "MONEY IN".
-Widget _sectionHeader(ThemeData theme, String title, Color color) {
+/// Fixed width for the right-hand figures column, so every amount lines up.
+const double _amtW = 116;
+
+/// A statement section heading (small caps, bold), e.g. "INCOME".
+Widget _sectionHeader(ThemeData theme, String title) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 4),
+    padding: const EdgeInsets.only(bottom: 2),
     child: Text(
       title.toUpperCase(),
-      style: theme.textTheme.labelSmall?.copyWith(
-        color: color,
+      style: theme.textTheme.labelMedium?.copyWith(
         fontWeight: FontWeight.w800,
-        letterSpacing: 1.1,
+        letterSpacing: 0.8,
       ),
     ),
   );
 }
 
-/// An indented line item: label on the left, signed amount on the right.
-Widget _lineRow(ThemeData theme, String label, double amount, Color color,
-    {required bool positive}) {
+/// One statement line: label on the left, a right-aligned figure (tabular so
+/// digits stack) in the fixed amount column. Negatives can show in parentheses.
+Widget _stmtRow(ThemeData theme, String label, double amount,
+    {double indent = 14,
+    bool bold = false,
+    Color? color,
+    bool parenIfNeg = false}) {
+  final text =
+      parenIfNeg ? '(${moneyWhole(amount)})' : moneyWhole(amount);
+  final style = theme.textTheme.bodyMedium?.copyWith(
+    fontWeight: bold ? FontWeight.w700 : null,
+    color: color,
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
   return Padding(
-    padding: const EdgeInsets.only(left: 4, top: 3, bottom: 3),
+    padding: EdgeInsets.only(left: indent, top: 3, bottom: 3),
     child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
-        Text('${positive ? '+' : '−'}${moneyWhole(amount)}',
-            style: theme.textTheme.bodyMedium?.copyWith(color: color)),
+        Expanded(
+          child: Text(label,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: bold ? FontWeight.w700 : null)),
+        ),
+        SizedBox(
+          width: _amtW,
+          child: Text(text, textAlign: TextAlign.right, style: style),
+        ),
       ],
     ),
   );
 }
 
-/// A bold subtotal with a thin rule above it.
-Widget _subtotal(ThemeData theme, String label, double amount, Color color,
-    {required bool positive}) {
-  return Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Divider(height: 1, color: theme.colorScheme.outlineVariant),
-      ),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w700)),
-          Text('${positive ? '+' : '−'}${moneyWhole(amount)}',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: color, fontWeight: FontWeight.w700)),
-        ],
-      ),
-    ],
+/// A rule under just the figures column (single, or a double underline for the
+/// grand total — the classic accounting look).
+Widget _amtRule(ThemeData theme, {bool doubled = false}) {
+  final line = Container(height: 1, color: theme.colorScheme.outline);
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        const Spacer(),
+        SizedBox(
+          width: _amtW,
+          child: doubled
+              ? Column(children: [
+                  Container(height: 1.4, color: theme.colorScheme.onSurface),
+                  const SizedBox(height: 2.5),
+                  Container(height: 1.4, color: theme.colorScheme.onSurface),
+                ])
+              : line,
+        ),
+      ],
+    ),
   );
 }
 
-/// The headline result for the period.
-Widget _netRow(ThemeData theme, double net, {required String label}) {
-  final color = gainColor(net);
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-      Text(label,
-          style:
-              theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-      Text('${net >= 0 ? '+' : '−'}${moneyWhole(net.abs())}',
-          style: theme.textTheme.titleMedium
-              ?.copyWith(color: color, fontWeight: FontWeight.bold)),
-    ],
-  );
-}
-
-/// A running balance (net worth / cash) with its month-over-month move.
+/// A running balance (net worth / cash) with its month-over-month move,
+/// right-aligned to the same figures column.
 Widget _balanceRow(ThemeData theme, String label, double value, double delta,
     {bool negative = false}) {
   return Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text(label,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-      Row(
+      Expanded(
+        child: Text(label,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(moneyWhole(value),
-              style: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.bold, color: negative ? kLoss : null)),
-          const SizedBox(width: 8),
-          Icon(delta >= 0 ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-              size: 18, color: gainColor(delta)),
-          Text(money(delta.abs()),
-              style: theme.textTheme.labelMedium?.copyWith(
-                  color: gainColor(delta), fontWeight: FontWeight.w600)),
+              style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: negative ? kLoss : null,
+                  fontFeatures: const [FontFeature.tabularFigures()])),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(delta >= 0 ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                  size: 16, color: gainColor(delta)),
+              Text(money(delta.abs()),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                      color: gainColor(delta),
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+            ],
+          ),
         ],
       ),
     ],
