@@ -652,8 +652,10 @@ class GameController extends ChangeNotifier {
     return null;
   }
 
-  /// Max loan-to-value on a cash-out refinance.
-  static const double refiMaxLtv = 0.75;
+  /// Max loan-to-value on a cash-out refinance. Held at a conservative 65% (not
+  /// the aggressive 75%) so you keep a real equity cushion — a cash-out leaves
+  /// you far less likely to go underwater when housing turns down.
+  static const double refiMaxLtv = 0.65;
 
   /// Refinance closing costs as a fraction of the new loan.
   static const double refiCostRate = 0.02;
