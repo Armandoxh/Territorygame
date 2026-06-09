@@ -42,12 +42,20 @@ class _PropertyTabState extends State<PropertyTab> {
         : (ownedTypes.isNotEmpty ? ownedTypes.first : null);
     final shown = filter == null ? const <PropertyHolding>[] : byType[filter]!;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _MarketHeader(game: game),
-        const SizedBox(height: 12),
-        if (game.properties.isNotEmpty) ...[
+        // Pinned: the housing-market + rate header stays visible while the list
+        // below scrolls.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: _MarketHeader(game: game),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+            children: [
+              if (game.properties.isNotEmpty) ...[
           _PortfolioSummary(game: game),
           const SizedBox(height: 12),
           Text('Your properties', style: theme.textTheme.titleMedium),
@@ -82,6 +90,9 @@ class _PropertyTabState extends State<PropertyTab> {
         ),
         const SizedBox(height: 8),
         ...Properties.ladder.map((d) => _ListingCard(game: game, def: d)),
+            ],
+          ),
+        ),
       ],
     );
   }
