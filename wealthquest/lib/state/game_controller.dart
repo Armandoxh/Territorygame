@@ -544,6 +544,21 @@ class GameController extends ChangeNotifier {
     return n <= activeBusinessLimit ? 1.0 : activeBusinessLimit / n;
   }
 
+  /// Expected run-rate business profit per month (after manager cuts and the
+  /// attention penalty, before tax and cycle noise) — for the dashboard P&L.
+  double get expectedMonthlyBusinessIncome {
+    if (businesses.isEmpty) return 0;
+    final attn = _attentionFactor;
+    var sum = 0.0;
+    for (final b in businesses) {
+      final def = Businesses.byId(b.defId);
+      sum += b.managed
+          ? b.monthlyProfit * (1 - def.managerCut)
+          : b.monthlyProfit * attn;
+    }
+    return sum;
+  }
+
   /// Efficiency on unmanaged businesses right now (1.0 = full), for the UI.
   double get businessAttention => _attentionFactor;
 

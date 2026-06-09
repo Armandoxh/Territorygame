@@ -27,9 +27,13 @@ Future<void> showDaySummary(
         if (r.interest > 0.005) _Line('Interest', r.interest),
         if (r.dividends > 0.005) _Line('Dividends & coupons', r.dividends),
         if (r.rent > 0.005) _Line('Rental income', r.rent),
+        if (r.businessIncome > 0.005) _Line('Business profit', r.businessIncome),
       ];
       final expenses = <_Line>[
         _Line('Living expenses', r.expenses),
+        if (r.tax > 0.005) _Line('Income tax', r.tax),
+        if (r.businessIncome < -0.005)
+          _Line('Business loss', -r.businessIncome),
         if (r.mortgage > 0.005) _Line('Mortgage', r.mortgage),
         if (r.overdraftFee > 0.005) _Line('Overdraft fee', r.overdraftFee),
       ];

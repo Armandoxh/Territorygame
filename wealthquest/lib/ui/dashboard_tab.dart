@@ -14,9 +14,13 @@ class DashboardTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Business profit is taxed ~22% as ordinary income; show it after-tax.
+    final bizAfterTax = game.expectedMonthlyBusinessIncome *
+        (1 - GameController.businessTaxRate);
     final netCashFlow = game.effectivePay -
         game.monthlyIncomeTax +
-        game.dailyPassiveIncome -
+        game.dailyPassiveIncome +
+        bizAfterTax -
         game.dailyExpenses;
 
     return ListView(
@@ -69,9 +73,14 @@ class DashboardTab extends StatelessWidget {
           children: [
             Expanded(
               child: _StatCard(
-                label: 'Passive income',
-                value: money(game.dailyPassiveIncome),
-                sub: 'interest + dividends',
+                label: game.businesses.isEmpty
+                    ? 'Passive income'
+                    : 'Passive + business',
+                value: money(
+                    game.dailyPassiveIncome + game.expectedMonthlyBusinessIncome),
+                sub: game.businesses.isEmpty
+                    ? 'interest + dividends'
+                    : 'interest, dividends, profit',
                 color: kGain,
               ),
             ),
