@@ -20,12 +20,16 @@ class SportsBody extends StatefulWidget {
 
 class _SlipLeg {
   final int eventId;
-  final bool home;
+  final String key; // which selection within the game (one per game)
   final String label;
   final double decimalOdds;
   final double winProb;
-  _SlipLeg(this.eventId, this.home, this.label, this.decimalOdds, this.winProb);
+  _SlipLeg(this.eventId, this.key, this.label, this.decimalOdds, this.winProb);
 }
+
+/// "47.5" / "3" — drop a trailing ".0".
+String _line(double v) =>
+    v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 
 /// What a $100 bet pays back in total at these odds, e.g. "$100 → $260".
 String _payBack(double dec) => '\$100 → \$${(dec * 100).round()}';
@@ -60,29 +64,24 @@ class _SportsBodyState extends State<SportsBody> {
   TextEditingController _ctrlFor(int eventId) =>
       _singleCtrls.putIfAbsent(eventId, () => TextEditingController());
 
-  void _toggle(SportsEvent e, bool home) {
+  void _pick(BetOption o) {
     setState(() {
-      final i = _slip.indexWhere((l) => l.eventId == e.id);
-      final leg = _SlipLeg(
-        e.id,
-        home,
-        '${home ? e.home : e.away} (vs ${home ? e.away : e.home})',
-        home ? e.homeDecimal : e.awayDecimal,
-        home ? e.homeProb : 1 - e.homeProb,
-      );
+      final i = _slip.indexWhere((l) => l.eventId == o.eventId);
+      final leg = _SlipLeg(o.eventId, o.selectionKey,
+          '${o.pickLabel} · ${o.groupLabel}', o.decimalOdds, o.winProb);
       if (i == -1) {
         _slip.add(leg);
-      } else if (_slip[i].home == home) {
-        _slip.removeAt(i); // tapping the same side again removes it
-        _singleCtrls.remove(e.id)?.dispose();
+      } else if (_slip[i].key == o.selectionKey) {
+        _slip.removeAt(i); // tapping the same pick again removes it
+        _singleCtrls.remove(o.eventId)?.dispose();
       } else {
-        _slip[i] = leg; // swap to the other side
+        _slip[i] = leg; // switch selection within the same game
       }
     });
   }
 
-  bool _selected(int eventId, bool home) =>
-      _slip.any((l) => l.eventId == eventId && l.home == home);
+  bool _selected(int eventId, String key) =>
+      _slip.any((l) => l.eventId == eventId && l.key == key);
 
   void _removeLeg(int eventId) {
     setState(() {
@@ -181,13 +180,15 @@ class _SportsBodyState extends State<SportsBody> {
             border: Border.all(color: kLoss.withOpacity(0.4)),
           ),
           child: Text(
-            'How to bet: tap a team to pick it. "\$100 → \$260" means a \$100 '
-            'bet pays back \$260 if they win. Pick 2+ teams and switch your '
-            'slip to Parlay to combine them into one bigger-payout bet (all '
-            'must win). The house keeps an edge, so bet for fun.',
+            'How to bet: tap any line — moneyline (who wins), spread (margin), '
+            'total (over/under), or a player prop. Odds like "-110" / "+150" are '
+            'American: +150 pays \$150 profit on \$100. One pick per game; combine '
+            'picks across games into a parlay (all must win) for a bigger payout. '
+            'The house keeps an edge, so bet for fun.',
             style: theme.textTheme.bodySmall,
           ),
         ),
+        if (game.betsSettled > 0) _buildRecord(theme),
         if (_slip.isNotEmpty) _buildSlip(theme),
         if (game.bets.isNotEmpty) ...[
           Text('Your open bets', style: theme.textTheme.titleMedium),
@@ -438,12 +439,84 @@ class _SportsBodyState extends State<SportsBody> {
       ...games.map((e) => _EventCard(
             event: e,
             locked: game.hasBetOn(e.id),
-            homeSelected: _selected(e.id, true),
-            awaySelected: _selected(e.id, false),
-            onPick: (home) => _toggle(e, home),
+            isSelected: (key) => _selected(e.id, key),
+            onPick: _pick,
           )),
     ];
   }
+
+  Widget _buildRecord(ThemeData theme) {
+    final net = game.betNetProfit;
+    final netColor = net >= 0 ? kGain : kLoss;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.insights, size: 18),
+                const SizedBox(width: 6),
+                Text('Your betting record', style: theme.textTheme.titleSmall),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _stat(theme, 'Settled', '${game.betsSettled}'),
+                _stat(theme, 'Hit rate',
+                    '${(game.betWinRate * 100).toStringAsFixed(0)}%'),
+                _stat(theme, 'Net P&L', money(net), color: netColor),
+              ],
+            ),
+            if (game.betHistory.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Recent', style: theme.textTheme.labelSmall),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final r in game.betHistory.take(8))
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (r.won ? kGain : kLoss).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        r.won
+                            ? '+${money(r.profit)}'
+                            : '−${money(r.stake)}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                            color: r.won ? kGain : kLoss,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stat(ThemeData theme, String label, String value, {Color? color}) =>
+      Column(
+        children: [
+          Text(value,
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold, color: color)),
+          Text(label,
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ],
+      );
 
   /// The DraftKings-style strip of pre-built, boosted parlays at the top.
   List<Widget> _buildFeatured(ThemeData theme) {
@@ -704,30 +777,34 @@ class _EventCard extends StatelessWidget {
   const _EventCard({
     required this.event,
     required this.locked,
-    required this.homeSelected,
-    required this.awaySelected,
+    required this.isSelected,
     required this.onPick,
   });
 
   final SportsEvent event;
   final bool locked;
-  final bool homeSelected;
-  final bool awaySelected;
-  final void Function(bool home) onPick;
+  final bool Function(String key) isSelected;
+  final void Function(BetOption o) onPick;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    Widget pick(bool home, String team, double dec, bool sel) {
-      // A game you've already bet is locked — only one wager per game.
-      final fav = dec < 2.0; // shorter price = favorite
-      return Expanded(
+    final byKey = {for (final o in event.options()) o.selectionKey: o};
+
+    // One tappable odds cell. [main] is the headline (line or odds); [sub] the
+    // American price underneath (omitted for the moneyline column).
+    Widget cell(String key, String main, {String? sub}) {
+      final o = byKey[key];
+      if (o == null) return const SizedBox.shrink();
+      final sel = isSelected(key);
+      return Padding(
+        padding: const EdgeInsets.all(3),
         child: InkWell(
-          onTap: locked ? null : () => onPick(home),
-          borderRadius: BorderRadius.circular(12),
+          onTap: locked ? null : () => onPick(o),
+          borderRadius: BorderRadius.circular(10),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             decoration: BoxDecoration(
               color: sel
                   ? theme.colorScheme.primary.withOpacity(0.18)
@@ -738,33 +815,22 @@ class _EventCard extends StatelessWidget {
                     : theme.colorScheme.outlineVariant,
                 width: sel ? 2 : 1,
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (sel) ...[
-                      Icon(Icons.check_circle,
-                          size: 16, color: theme.colorScheme.primary),
-                      const SizedBox(width: 4),
-                    ],
-                    Flexible(
-                      child: Text(team,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(_payBack(dec),
-                    style: theme.textTheme.labelMedium
-                        ?.copyWith(color: kGain, fontWeight: FontWeight.w700)),
-                Text(fav ? 'Favorite' : 'Underdog',
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                Text(main,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: sub == null ? kGain : null)),
+                if (sub != null)
+                  Text(sub,
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: kGain, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
@@ -772,13 +838,48 @@ class _EventCard extends StatelessWidget {
       );
     }
 
+    String amer(String key) => SportsEngine.american(byKey[key]!.decimalOdds);
+
+    final favHome = event.spreadPoints >= 0;
+    final spLine = _line(event.spreadPoints.abs());
+    final tot = _line(event.totalPoints);
+
+    // A grid row: team name + spread / total / moneyline cells.
+    Widget gridRow(String name, String spKey, String spMain, String totKey,
+            String totMain, String mlKey) =>
+        Row(
+          children: [
+            Expanded(
+              flex: 5,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            Expanded(flex: 4, child: cell(spKey, spMain, sub: amer(spKey))),
+            Expanded(flex: 4, child: cell(totKey, totMain, sub: amer(totKey))),
+            Expanded(flex: 3, child: cell(mlKey, amer(mlKey))),
+          ],
+        );
+
+    Widget colHead(String t, int flex) => Expanded(
+        flex: flex,
+        child: Text(t,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)));
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${event.home}  vs  ${event.away}',
+            Text('${event.sport}  ${event.away}  @  ${event.home}',
                 style: theme.textTheme.bodyMedium),
             const SizedBox(height: 8),
             if (locked)
@@ -792,14 +893,69 @@ class _EventCard extends StatelessWidget {
                           ?.copyWith(color: theme.colorScheme.outline)),
                 ],
               )
-            else
+            else ...[
               Row(
                 children: [
-                  pick(true, event.home, event.homeDecimal, homeSelected),
-                  const SizedBox(width: 10),
-                  pick(false, event.away, event.awayDecimal, awaySelected),
+                  const Expanded(flex: 5, child: SizedBox()),
+                  colHead('Spread', 4),
+                  colHead('Total', 4),
+                  colHead('Money', 3),
                 ],
               ),
+              gridRow(event.away, 'sp_a', favHome ? '+$spLine' : '-$spLine',
+                  'tot_o', 'O $tot', 'ml_a'),
+              gridRow(event.home, 'sp_h', favHome ? '-$spLine' : '+$spLine',
+                  'tot_u', 'U $tot', 'ml_h'),
+              if (event.props.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text('Player props', style: theme.textTheme.labelSmall),
+                const SizedBox(height: 2),
+                for (var i = 0; i < event.props.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 5,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(event.props[i].player,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        fontWeight: FontWeight.bold)),
+                                Text(event.props[i].stat,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 4,
+                          child: cell('p${i}_o',
+                              'O ${_line(event.props[i].line)}',
+                              sub: SportsEngine.american(
+                                  event.props[i].overDecimal)),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: cell('p${i}_u',
+                              'U ${_line(event.props[i].line)}',
+                              sub: SportsEngine.american(
+                                  event.props[i].underDecimal)),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ],
           ],
         ),
       ),

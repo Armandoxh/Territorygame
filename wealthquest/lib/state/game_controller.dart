@@ -106,6 +106,15 @@ class GameController extends ChangeNotifier {
   /// Pre-built featured/boosted parlays shown at the top of the book.
   List<FeaturedParlay> featuredParlays = [];
   final List<PendingBet> bets = [];
+
+  // ---- Betting record (hit-rate feed) ----
+  int betsSettled = 0;
+  int betsWon = 0;
+  double betStaked = 0;
+  double betReturned = 0;
+
+  /// Most-recent settled wagers first (capped).
+  final List<BetResult> betHistory = [];
   int _nextEventId = 1;
   int _nextBetId = 1;
 
@@ -222,7 +231,11 @@ class GameController extends ChangeNotifier {
       .._nextPropertyId = _nextPropertyId
       .._nextHoldingId = _nextHoldingId
       .._nextEventId = _nextEventId
-      .._nextBetId = _nextBetId;
+      .._nextBetId = _nextBetId
+      ..betsSettled = betsSettled
+      ..betsWon = betsWon
+      ..betStaked = betStaked
+      ..betReturned = betReturned;
     c._prices
       ..clear()
       ..addAll(_prices);
@@ -260,6 +273,9 @@ class GameController extends ChangeNotifier {
     c.bets
       ..clear()
       ..addAll(bets); // PendingBet is read-only once placed
+    c.betHistory
+      ..clear()
+      ..addAll(betHistory);
     return c;
   }
 
@@ -461,6 +477,10 @@ class GameController extends ChangeNotifier {
     }
     return sum;
   }
+
+  /// Share of settled wagers that hit, and lifetime net profit on betting.
+  double get betWinRate => betsSettled == 0 ? 0 : betsWon / betsSettled;
+  double get betNetProfit => betReturned - betStaked;
 
   /// Place [stake] on the home (or away) side of one event (a straight bet).
   String? placeBet(SportsEvent e, bool home, double stake) => placeParlay([
@@ -1348,15 +1368,29 @@ class GameController extends ChangeNotifier {
 
     // 5c) Resolve sports bets, then post a fresh slate.
     for (final b in bets) {
-      if (_rng.nextDouble() < b.winProb) {
-        final payout = b.stake * b.decimalOdds;
+      final won = _rng.nextDouble() < b.winProb;
+      final payout = won ? b.stake * b.decimalOdds : 0.0;
+      betsSettled++;
+      betStaked += b.stake;
+      if (won) {
         cash += payout;
+        betsWon++;
+        betReturned += payout;
         events.add(
             '🎉 Bet won: +\$${(payout - b.stake).toStringAsFixed(0)} on ${b.title}.');
       } else {
         events.add('❌ Bet lost: −\$${b.stake.toStringAsFixed(0)} on ${b.title}.');
       }
+      betHistory.insert(
+          0,
+          BetResult(
+              title: b.title,
+              stake: b.stake,
+              payout: payout,
+              won: won,
+              isParlay: b.isParlay));
     }
+    if (betHistory.length > 24) betHistory.removeRange(24, betHistory.length);
     bets.clear();
     sportsSlate = SportsEngine.generateSlate(_rng, _nextEventId);
     _nextEventId += sportsSlate.length;

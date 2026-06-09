@@ -1,4 +1,51 @@
-/// One matchup on the betting slate, with odds offered on each side.
+/// The betting markets a game offers — moneyline (who wins), spread (margin),
+/// total (combined score over/under), and player props.
+enum BetMarket { moneyline, spread, total, prop }
+
+/// A single player-prop line on a game, e.g. "J. Carter Over 268.5 pass yds".
+class PropLine {
+  final String player;
+  final String stat; // "passing yards"
+  final double line; // 268.5
+  final double overProb;
+  final double overDecimal;
+  final double underDecimal;
+  const PropLine({
+    required this.player,
+    required this.stat,
+    required this.line,
+    required this.overProb,
+    required this.overDecimal,
+    required this.underDecimal,
+  });
+}
+
+/// One tappable selection on a game — the atom the bet slip is built from.
+class BetOption {
+  final int eventId;
+  final BetMarket market;
+
+  /// Unique within a single event, e.g. 'ml_h', 'sp_a', 'tot_o', 'p0_u'.
+  final String selectionKey;
+  final String groupLabel; // "Moneyline", "Spread", "Total", "J. Carter · pass yds"
+  final String pickLabel; // "Lions", "Lions -3.5", "Over 47.5"
+  final double decimalOdds;
+  final double winProb;
+  const BetOption({
+    required this.eventId,
+    required this.market,
+    required this.selectionKey,
+    required this.groupLabel,
+    required this.pickLabel,
+    required this.decimalOdds,
+    required this.winProb,
+  });
+}
+
+String _pts(double v) =>
+    v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+/// One matchup on the betting slate, carrying every market it offers.
 class SportsEvent {
   final int id;
   final String sportName; // "Football"
@@ -6,12 +53,29 @@ class SportsEvent {
   final String home;
   final String away;
 
-  /// "True" probability the home side wins.
+  /// "True" probability the home side wins (moneyline).
   final double homeProb;
 
   /// Decimal payout multipliers offered (already shaved by the house vig).
   final double homeDecimal;
   final double awayDecimal;
+
+  /// Point spread: home favored by [spreadPoints] when positive (away when
+  /// negative). Each side priced near a coin flip.
+  final double spreadPoints;
+  final double spreadHomeProb;
+  final double spreadHomeDecimal;
+  final double spreadAwayDecimal;
+
+  /// Over/under on the combined score.
+  final double totalPoints;
+  final String totalUnit; // "pts", "goals", "runs"
+  final double overProb;
+  final double overDecimal;
+  final double underDecimal;
+
+  /// Player props.
+  final List<PropLine> props;
 
   SportsEvent({
     required this.id,
@@ -22,7 +86,95 @@ class SportsEvent {
     required this.homeProb,
     required this.homeDecimal,
     required this.awayDecimal,
+    required this.spreadPoints,
+    required this.spreadHomeProb,
+    required this.spreadHomeDecimal,
+    required this.spreadAwayDecimal,
+    required this.totalPoints,
+    required this.totalUnit,
+    required this.overProb,
+    required this.overDecimal,
+    required this.underDecimal,
+    required this.props,
   });
+
+  /// Every bettable option across all markets, in display order.
+  List<BetOption> options() {
+    final favHome = spreadPoints >= 0;
+    final spLine = _pts(spreadPoints.abs());
+    final tot = _pts(totalPoints);
+    final out = <BetOption>[
+      BetOption(
+          eventId: id,
+          market: BetMarket.moneyline,
+          selectionKey: 'ml_h',
+          groupLabel: 'Moneyline',
+          pickLabel: home,
+          decimalOdds: homeDecimal,
+          winProb: homeProb),
+      BetOption(
+          eventId: id,
+          market: BetMarket.moneyline,
+          selectionKey: 'ml_a',
+          groupLabel: 'Moneyline',
+          pickLabel: away,
+          decimalOdds: awayDecimal,
+          winProb: 1 - homeProb),
+      BetOption(
+          eventId: id,
+          market: BetMarket.spread,
+          selectionKey: 'sp_h',
+          groupLabel: 'Spread',
+          pickLabel: '$home ${favHome ? '-' : '+'}$spLine',
+          decimalOdds: spreadHomeDecimal,
+          winProb: spreadHomeProb),
+      BetOption(
+          eventId: id,
+          market: BetMarket.spread,
+          selectionKey: 'sp_a',
+          groupLabel: 'Spread',
+          pickLabel: '$away ${favHome ? '+' : '-'}$spLine',
+          decimalOdds: spreadAwayDecimal,
+          winProb: 1 - spreadHomeProb),
+      BetOption(
+          eventId: id,
+          market: BetMarket.total,
+          selectionKey: 'tot_o',
+          groupLabel: 'Total',
+          pickLabel: 'Over $tot $totalUnit',
+          decimalOdds: overDecimal,
+          winProb: overProb),
+      BetOption(
+          eventId: id,
+          market: BetMarket.total,
+          selectionKey: 'tot_u',
+          groupLabel: 'Total',
+          pickLabel: 'Under $tot $totalUnit',
+          decimalOdds: underDecimal,
+          winProb: 1 - overProb),
+    ];
+    for (var i = 0; i < props.length; i++) {
+      final p = props[i];
+      final g = '${p.player} · ${p.stat}';
+      out.add(BetOption(
+          eventId: id,
+          market: BetMarket.prop,
+          selectionKey: 'p${i}_o',
+          groupLabel: g,
+          pickLabel: 'Over ${_pts(p.line)}',
+          decimalOdds: p.overDecimal,
+          winProb: p.overProb));
+      out.add(BetOption(
+          eventId: id,
+          market: BetMarket.prop,
+          selectionKey: 'p${i}_u',
+          groupLabel: g,
+          pickLabel: 'Under ${_pts(p.line)}',
+          decimalOdds: p.underDecimal,
+          winProb: 1 - p.overProb));
+    }
+    return out;
+  }
 }
 
 /// One pick in a bet (a single bet is just a 1-leg parlay).
@@ -63,6 +215,24 @@ class PendingBet {
   bool get isParlay => legs.length > 1;
   String get title => isParlay ? '${legs.length}-leg parlay' : legs.first;
   double get potentialPayout => stake * decimalOdds;
+}
+
+/// A settled wager, kept for the betting record / hit-rate feed.
+class BetResult {
+  final String title;
+  final double stake;
+  final double payout; // total returned (0 if lost)
+  final bool won;
+  final bool isParlay;
+  const BetResult({
+    required this.title,
+    required this.stake,
+    required this.payout,
+    required this.won,
+    required this.isParlay,
+  });
+
+  double get profit => payout - stake;
 }
 
 /// A pre-built "house" parlay shown as a one-tap card at the top of the book —

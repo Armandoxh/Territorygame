@@ -458,6 +458,51 @@ void main() {
       expect(g.bets.first.decimalOdds, closeTo(p.boostedDecimal, 1e-6));
       expect(g.bets.first.eventIds, hasLength(p.legs.length));
     });
+
+    test('every game offers multiple markets, all negative-EV', () {
+      final g = GameController(seed: 2);
+      for (final e in g.sportsSlate) {
+        final opts = e.options();
+        // moneyline + spread + total (6) plus at least one prop pair.
+        expect(opts.length, greaterThanOrEqualTo(6));
+        expect(opts.any((o) => o.market == BetMarket.spread), isTrue);
+        expect(opts.any((o) => o.market == BetMarket.total), isTrue);
+        expect(opts.any((o) => o.market == BetMarket.prop), isTrue);
+        for (final o in opts) {
+          expect(o.decimalOdds, greaterThan(1.0));
+          expect(o.winProb, inInclusiveRange(0.0, 1.0));
+          expect(o.winProb * o.decimalOdds, lessThan(1.0)); // house keeps an edge
+        }
+      }
+    });
+
+    test('a spread/total selection can be bet like a moneyline', () {
+      final g = GameController(seed: 2)..cash = 1000;
+      final e = g.sportsSlate.first;
+      final spread =
+          e.options().firstWhere((o) => o.market == BetMarket.spread);
+      expect(
+          g.placeParlay([
+            ParlayLeg(
+                eventId: spread.eventId,
+                label: spread.pickLabel,
+                decimalOdds: spread.decimalOdds,
+                winProb: spread.winProb)
+          ], 50),
+          isNull);
+      expect(g.bets, hasLength(1));
+      expect(g.hasBetOn(e.id), isTrue); // still one bet per game
+    });
+
+    test('settling wagers updates the betting record', () {
+      final g = GameController(seed: 2)..cash = 2000;
+      g.placeBet(g.sportsSlate.first, true, 100);
+      expect(g.betsSettled, 0);
+      g.advanceMonths(1); // resolves the slate
+      expect(g.betsSettled, 1);
+      expect(g.betHistory, hasLength(1));
+      expect(g.betWinRate, inInclusiveRange(0.0, 1.0));
+    });
   });
 
   group('Cash discipline', () {
