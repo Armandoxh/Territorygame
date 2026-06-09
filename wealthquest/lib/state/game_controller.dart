@@ -690,17 +690,18 @@ class GameController extends ChangeNotifier {
   }
 
   /// Renovate [h] for [budget] cash, forcing appreciation. Spending adds value
-  /// back at ~1.6× when the home is untouched, fading toward ~0.7× as your
+  /// back at ~2.2× when the home is untouched, fading toward ~0.7× as your
   /// cumulative spend approaches 40% of its base price (you can't gold-plate a
-  /// shack forever), with ±15% execution risk. Higher value also lifts rent.
-  /// Returns an error, or null on success.
+  /// shack forever), with ±15% execution risk. Both the added value AND the
+  /// renovation rent premium (see PropertyHolding.monthlyRent) lift rent, so a
+  /// fixed-up home cash-flows. Returns an error, or null on success.
   String? renovate(PropertyHolding h, double budget) {
     if (budget <= 0) return 'Enter a renovation budget greater than \$0.';
     if (budget > cash + 0.01) return 'Not enough cash for that renovation.';
     final pd = Properties.byId(h.defId);
     final saturation =
         (h.renovationInvested / (pd.basePrice * 0.4)).clamp(0.0, 1.0);
-    final mult = 1.6 - 0.9 * saturation; // 1.6× fresh → 0.7× maxed out
+    final mult = 2.2 - 1.5 * saturation; // 2.2× fresh → 0.7× maxed out
     final luck = 0.85 + _rng.nextDouble() * 0.30; // ±15% execution risk
     final added = budget * mult * luck;
     cash -= budget;

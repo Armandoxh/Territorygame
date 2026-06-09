@@ -194,112 +194,213 @@ class _OwnedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final def = Properties.byId(holding.defId);
-    final monthsLeft = (holding.termMonths - holding.monthsPaid).clamp(0, 100000);
+    final title = holding.address.isEmpty ? def.name : holding.address;
+
+    final String rentLabel;
+    final Color rentColor;
+    if (holding.rentedOut && holding.occupied) {
+      rentLabel = 'Rented · +${money(holding.monthlyRent)}/mo';
+      rentColor = kGain;
+    } else if (holding.rentedOut) {
+      rentLabel = 'Listed · no tenant yet';
+      rentColor = theme.colorScheme.onSurfaceVariant;
+    } else {
+      rentLabel = 'Not rented';
+      rentColor = theme.colorScheme.onSurfaceVariant;
+    }
+
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(holding.address.isEmpty ? def.name : holding.address,
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold)),
-                      Text(def.name,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant)),
-                    ],
-                  ),
+      child: InkWell(
+        onTap: () => _openDetail(context),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Text(
+                      holding.isPaidOff
+                          ? '${def.name} · paid off'
+                          : '${def.name} · ${pct(holding.annualRate)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(rentLabel,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: rentColor)),
+                  ],
                 ),
-                Text(money(holding.currentValue),
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _kv(theme, 'Equity', money(holding.equity),
-                color: gainColor(holding.equity)),
-            if (!holding.isPaidOff) ...[
-              _kv(theme, 'Loan balance', money(holding.loanBalance)),
-              _kv(theme, 'Monthly payment', money(holding.monthlyPayment)),
-              _kv(theme, 'Rate / term',
-                  '${pct(holding.annualRate)} · $monthsLeft mo left'),
-            ] else
-              _kv(theme, 'Status', 'Paid off 🎉'),
-            Builder(builder: (_) {
-              final pull = game.refinanceCashOut(holding);
-              return _kv(theme, 'Cash you can refi out',
-                  pull > 0 ? money(pull) : 'none yet',
-                  color: pull > 0 ? kGain : null);
-            }),
-            const Divider(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Rent it out', style: theme.textTheme.titleSmall),
-                      const SizedBox(height: 2),
-                      Text(
-                        holding.rentedOut
-                            ? (holding.occupied
-                                ? 'Occupied · +${money(holding.monthlyRent)}/mo coming in'
-                                : 'Listed · no tenant at the moment')
-                            : 'Earn ~${money(holding.monthlyRent)}/mo when occupied '
-                                '(tenants ~75% of months).',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: holding.occupied
-                                ? kGain
-                                : theme.colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: holding.rentedOut,
-                  onChanged: (_) => game.toggleRental(holding),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: 4,
-              children: [
-                TextButton(
-                  onPressed: () => _renovate(context),
-                  child: const Text('Renovate'),
-                ),
-                TextButton(
-                    onPressed: () => _refinance(context),
-                    child: const Text('Refinance'),
-                  ),
-                if (!holding.isPaidOff)
-                  TextButton(
-                    onPressed: () => _payDown(context),
-                    child: const Text('Pay down'),
-                  ),
-                OutlinedButton(
-                  onPressed: () {
-                    final err = game.sellProperty(holding);
-                    _toast(context,
-                        err ?? 'Sold ${def.name} for ${money(holding.equity)}.');
-                  },
-                  child: const Text('Sell'),
-                ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(width: 12),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(money(holding.currentValue),
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text('${money(holding.equity)} equity',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: gainColor(holding.equity))),
+                ],
+              ),
+              Icon(Icons.chevron_right,
+                  color: theme.colorScheme.onSurfaceVariant),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  void _openDetail(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _PropertyDetailSheet(game: game, holding: holding),
+    );
+  }
+}
+
+/// Full P&L + actions for one owned home, opened by tapping its summary card —
+/// so the list itself stays a clean scan of cards instead of a wall of numbers.
+class _PropertyDetailSheet extends StatelessWidget {
+  const _PropertyDetailSheet({required this.game, required this.holding});
+
+  final GameController game;
+  final PropertyHolding holding;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: game,
+      builder: (context, _) {
+        // If the home was sold from in here, close the sheet.
+        if (!game.properties.contains(holding)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final nav = Navigator.of(context);
+            if (nav.canPop()) nav.pop();
+          });
+          return const SizedBox.shrink();
+        }
+        final theme = Theme.of(context);
+        final def = Properties.byId(holding.defId);
+        final monthsLeft =
+            (holding.termMonths - holding.monthsPaid).clamp(0, 100000);
+        final title = holding.address.isEmpty ? def.name : holding.address;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title, style: theme.textTheme.titleLarge),
+                Text(def.name,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                const SizedBox(height: 12),
+                _kv(theme, 'Value', money(holding.currentValue)),
+                _kv(theme, 'Equity', money(holding.equity),
+                    color: gainColor(holding.equity)),
+                if (!holding.isPaidOff) ...[
+                  _kv(theme, 'Loan balance', money(holding.loanBalance)),
+                  _kv(theme, 'Monthly payment', money(holding.monthlyPayment)),
+                  _kv(theme, 'Rate / term',
+                      '${pct(holding.annualRate)} · $monthsLeft mo left'),
+                ] else
+                  _kv(theme, 'Status', 'Paid off 🎉'),
+                Builder(builder: (_) {
+                  final pull = game.refinanceCashOut(holding);
+                  return _kv(theme, 'Cash you can refi out',
+                      pull > 0 ? money(pull) : 'none yet',
+                      color: pull > 0 ? kGain : null);
+                }),
+                const Divider(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Rent it out',
+                              style: theme.textTheme.titleSmall),
+                          const SizedBox(height: 2),
+                          Text(
+                            holding.rentedOut
+                                ? (holding.occupied
+                                    ? 'Occupied · +${money(holding.monthlyRent)}/mo coming in'
+                                    : 'Listed · no tenant at the moment')
+                                : 'Earn ~${money(holding.monthlyRent)}/mo when occupied '
+                                    '(tenants ~75% of months).',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: holding.occupied
+                                    ? kGain
+                                    : theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: holding.rentedOut,
+                      onChanged: (_) => game.toggleRental(holding),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: () => _renovate(context),
+                      child: const Text('Renovate'),
+                    ),
+                    TextButton(
+                      onPressed: () => _refinance(context),
+                      child: const Text('Refinance'),
+                    ),
+                    if (!holding.isPaidOff)
+                      TextButton(
+                        onPressed: () => _payDown(context),
+                        child: const Text('Pay down'),
+                      ),
+                    OutlinedButton(
+                      onPressed: () {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final value = holding.equity;
+                        final err = game.sellProperty(holding);
+                        messenger
+                          ..hideCurrentSnackBar()
+                          ..showSnackBar(SnackBar(
+                              content: Text(err ??
+                                  'Sold ${def.name} for ${money(value)}.')));
+                        // On success game notifies → the guard above pops us.
+                      },
+                      child: const Text('Sell'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -387,9 +488,9 @@ class _OwnedCard extends StatelessWidget {
       title: 'Renovate ${def.name}',
       actionLabel: 'Renovate',
       max: game.cash,
-      helper: 'Spend cash to force appreciation. A fresh home hands back ~1.6× '
-          'the budget in value; returns fade the more you pour in. Current '
-          'value ${money(holding.currentValue)}.',
+      helper: 'Spend cash to force appreciation. A fresh home hands back ~2.2× '
+          'the budget in value AND rents for noticeably more; returns fade the '
+          'more you pour in. Current value ${money(holding.currentValue)}.',
     );
     if (amount == null || !context.mounted) return;
     final err = game.renovate(holding, amount);

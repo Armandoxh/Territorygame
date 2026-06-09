@@ -88,10 +88,11 @@ class PropertyHolding {
     this.occupied = false,
   });
 
-  /// Gross monthly rent if occupied: a fixed fraction of current value. Tuned
-  /// so occupied rent ≈ the mortgage payment (vacancy makes a rental a modest
-  /// drain), leaving the real return to leverage + appreciation (~8–13%/yr).
-  double get monthlyRent => currentValue * 0.005;
+  /// Gross monthly rent if occupied: a base fraction of current value PLUS a
+  /// premium for renovation — a fixed-up home commands above-market rent. Tuned
+  /// so a plain occupied rental ≈ its mortgage payment (vacancy makes it a
+  /// modest drain), while a renovated one turns clearly cash-flow positive.
+  double get monthlyRent => currentValue * 0.005 + renovationInvested * 0.003;
 
   /// What you'd walk away with (before selling costs): value minus what you
   /// still owe. Can go negative if the home is "underwater".
