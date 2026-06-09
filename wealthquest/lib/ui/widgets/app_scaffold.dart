@@ -33,6 +33,8 @@ Future<void> fastForward(BuildContext context, GameController game, int n) async
       dividends = 0.0,
       rent = 0.0,
       mortgage = 0.0,
+      tax = 0.0,
+      businessIncome = 0.0,
       fee = 0.0;
   final events = <String>[];
   final netWorthBefore = game.netWorth;
@@ -47,6 +49,8 @@ Future<void> fastForward(BuildContext context, GameController game, int n) async
     dividends += r.dividends;
     rent += r.rent;
     mortgage += r.mortgage;
+    tax += r.tax;
+    businessIncome += r.businessIncome;
     fee += r.overdraftFee;
     events.addAll(r.events);
     remaining -= out.months;
@@ -70,6 +74,8 @@ Future<void> fastForward(BuildContext context, GameController game, int n) async
     dividends: dividends,
     rent: rent,
     mortgage: mortgage,
+    tax: tax,
+    businessIncome: businessIncome,
     overdraftFee: fee,
     netWorthBefore: netWorthBefore,
     netWorthAfter: game.netWorth,

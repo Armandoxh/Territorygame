@@ -103,6 +103,10 @@ Future<void> showDaySummary(
               const SizedBox(height: 8),
               _balanceRow('Cash on hand', r.cashAfter, r.cashDelta,
                   negative: r.cashAfter < 0),
+              // Liabilities pull net worth below cash — show why.
+              if (game.studentLoan > 0)
+                _liabRow('Student loan owed', game.studentLoan),
+              if (game.debt > 0) _liabRow('High-interest debt', game.debt),
 
               if (r.cashAfter < 0) ...[
                 const SizedBox(height: 12),
@@ -262,6 +266,28 @@ Widget _balanceRow(String label, double value, double delta,
         ],
       ),
     ],
+  );
+}
+
+/// A liability line (student loan / debt) shown in accounting parentheses, so
+/// it's clear why net worth can sit below cash on hand.
+Widget _liabRow(String label, double amount) {
+  return Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(label,
+              style: const TextStyle(color: _inkMuted, fontSize: 13)),
+        ),
+        Text('(${moneyWhole(amount)})',
+            style: const TextStyle(
+                color: _neg,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                fontFeatures: [FontFeature.tabularFigures()])),
+      ],
+    ),
   );
 }
 
