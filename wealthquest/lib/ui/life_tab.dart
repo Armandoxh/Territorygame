@@ -280,7 +280,9 @@ class _JobTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isCurrent = job.id == game.job.id;
-    final qualified = game.meetsEducation(job);
+    final needsAge = game.ageYears < job.minAge;
+    final needsEdu = !game.meetsEducation(job);
+    final qualified = !needsAge && !needsEdu;
 
     Widget trailing;
     if (isCurrent) {
@@ -294,9 +296,21 @@ class _JobTile extends StatelessWidget {
         child: const Text('Take'),
       );
     } else {
-      trailing = Text('Needs\n${educationLabel(job.requiredEdu)}',
+      trailing = Text(
+          needsEdu
+              ? 'Needs\n${educationLabel(job.requiredEdu)}'
+              : 'Opens at\nage ${job.minAge}',
           textAlign: TextAlign.end,
           style: theme.textTheme.labelSmall?.copyWith(color: kLoss));
+    }
+
+    final String req;
+    if (job.requiredEdu > 0) {
+      req = 'needs ${educationLabel(job.requiredEdu)}';
+    } else if (job.minAge > Catalog.startAge) {
+      req = 'opens at age ${job.minAge}';
+    } else {
+      req = 'no degree needed';
     }
 
     return Card(
@@ -305,9 +319,7 @@ class _JobTile extends StatelessWidget {
         child: ListTile(
           leading: Icon(qualified ? Icons.work_outline : Icons.lock_outline),
           title: Text(job.title),
-          subtitle: Text(job.requiredEdu == 0
-              ? '${money(job.pay)} / month · no degree needed'
-              : '${money(job.pay)} / month · needs ${educationLabel(job.requiredEdu)}'),
+          subtitle: Text('${money(job.pay)} / month · $req'),
           trailing: trailing,
         ),
       ),

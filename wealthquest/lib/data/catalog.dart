@@ -672,7 +672,7 @@ class Catalog {
   /// (see [degrees]) — a real time + money investment. Pay is per month.
   static const List<JobDef> jobs = [
     JobDef(id: 'barista', title: 'Barista', pay: 1300),
-    JobDef(id: 'retail', title: 'Retail Associate', pay: 1650),
+    JobDef(id: 'retail', title: 'Retail Associate', pay: 1650, minAge: 21),
     JobDef(
         id: 'junior_dev',
         title: 'Junior Developer',

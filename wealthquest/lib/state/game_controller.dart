@@ -1047,7 +1047,11 @@ class GameController extends ChangeNotifier {
   /// Switch to a different job from the ladder. Requires the credential.
   void takeJob(JobDef j) {
     if (j.id == job.id) return;
-    if (!meetsEducation(j)) return; // UI prevents this, but guard anyway
+    // Guard full eligibility — age, education, prestige (the UI prevents these,
+    // but never trust the UI).
+    if (ageYears < j.minAge || !meetsEducation(j) || j.unlockLevel > prestige) {
+      return;
+    }
     job = j;
     _log('New job: ${j.title} — \$${j.pay.toStringAsFixed(0)}/month.');
     notifyListeners();
