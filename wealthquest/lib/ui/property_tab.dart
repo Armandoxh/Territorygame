@@ -84,12 +84,17 @@ class _PropertyTabState extends State<PropertyTab> {
         ],
         Text('On the market', style: theme.textTheme.titleMedium),
         Text(
-          'Put as little as ${(GameController.minDownFraction * 100).toStringAsFixed(0)}% down and let leverage + appreciation work — but you owe the mortgage every month.',
+          'Put as little as ${(GameController.minDownFraction * 100).toStringAsFixed(0)}% down and let leverage + appreciation work — but you owe the mortgage every month. Each category plays differently.',
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 8),
-        ...Properties.ladder.map((d) => _ListingCard(game: game, def: d)),
+        for (final cat in Properties.categoriesInOrder) ...[
+          _CategoryHeader(category: cat),
+          ...Properties.inCategory(cat)
+              .map((d) => _ListingCard(game: game, def: d)),
+          const SizedBox(height: 12),
+        ],
             ],
           ),
         ),
@@ -332,45 +337,54 @@ class _PropertyDetailSheet extends StatelessWidget {
                       color: pull > 0 ? kGain : null);
                 }),
                 const Divider(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Rent it out',
-                              style: theme.textTheme.titleSmall),
-                          const SizedBox(height: 2),
-                          Text(
-                            holding.rentedOut
-                                ? (holding.occupied
-                                    ? 'Occupied · +${money(holding.monthlyRent)}/mo coming in'
-                                    : 'Listed · no tenant at the moment')
-                                : 'Earn ~${money(holding.monthlyRent)}/mo when occupied '
-                                    '(tenants ~75% of months).',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                                color: holding.occupied
-                                    ? kGain
-                                    : theme.colorScheme.onSurfaceVariant),
-                          ),
-                        ],
+                if (holding.rentable)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Rent it out',
+                                style: theme.textTheme.titleSmall),
+                            const SizedBox(height: 2),
+                            Text(
+                              holding.rentedOut
+                                  ? (holding.occupied
+                                      ? 'Occupied · +${money(holding.monthlyRent)}/mo coming in'
+                                      : 'Listed · no tenant at the moment')
+                                  : 'Earn ~${money(holding.monthlyRent)}/mo when occupied '
+                                      '(tenants ~${(holding.occupancy * 100).toStringAsFixed(0)}% of months).',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: holding.occupied
+                                      ? kGain
+                                      : theme.colorScheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Switch(
-                      value: holding.rentedOut,
-                      onChanged: (_) => game.toggleRental(holding),
-                    ),
-                  ],
-                ),
+                      Switch(
+                        value: holding.rentedOut,
+                        onChanged: (_) => game.toggleRental(holding),
+                      ),
+                    ],
+                  )
+                else
+                  Text(
+                    'Raw land earns no rent — you hold it purely for '
+                    'appreciation, paying the mortgage until you sell.',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
                 const SizedBox(height: 8),
                 Wrap(
                   alignment: WrapAlignment.end,
                   spacing: 8,
                   children: [
-                    TextButton(
-                      onPressed: () => _renovate(context),
-                      child: const Text('Renovate'),
-                    ),
+                    if (def.renovatable)
+                      TextButton(
+                        onPressed: () => _renovate(context),
+                        child: const Text('Renovate'),
+                      ),
                     TextButton(
                       onPressed: () => _refinance(context),
                       child: const Text('Refinance'),
@@ -508,19 +522,77 @@ class _ListingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final price = game.propertyPriceOf(def.id);
+    final muted = theme.textTheme.labelSmall
+        ?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final incomeLine = def.rentable
+        ? 'rent ${(def.rentYield * 100).toStringAsFixed(2)}%/mo · '
+            '${(def.occupancy * 100).toStringAsFixed(0)}% occupancy'
+        : 'no rent — pure appreciation play';
     return Card(
       child: ListTile(
+        isThreeLine: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        leading: const Icon(Icons.home_outlined),
+        leading: Icon(_categoryIcon(def.category)),
         title: Text(def.name),
-        subtitle: Text(
-          '${def.tierLabel} • ${pct(def.monthlyAppreciation * 12)}/yr appreciation',
-          style: theme.textTheme.bodySmall,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                '${def.tierLabel} • ${pct(def.monthlyAppreciation * 12)}/yr growth',
+                style: theme.textTheme.bodySmall),
+            Text(incomeLine, style: muted),
+            Text(def.blurb,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: muted?.copyWith(fontStyle: FontStyle.italic)),
+          ],
         ),
         trailing: Text(moneyCompact(price),
             style: theme.textTheme.titleSmall
                 ?.copyWith(fontWeight: FontWeight.bold)),
         onTap: () => _showBuySheet(context, game, def),
+      ),
+    );
+  }
+}
+
+/// Per-category icon for listings and owned cards.
+IconData _categoryIcon(PropertyCategory c) {
+  switch (c) {
+    case PropertyCategory.house:
+      return Icons.home_outlined;
+    case PropertyCategory.apartment:
+      return Icons.apartment;
+    case PropertyCategory.business:
+      return Icons.storefront_outlined;
+    case PropertyCategory.land:
+      return Icons.terrain_outlined;
+    case PropertyCategory.other:
+      return Icons.category_outlined;
+  }
+}
+
+/// A category section header in the market list: emoji, name, one-line pitch.
+class _CategoryHeader extends StatelessWidget {
+  const _CategoryHeader({required this.category});
+  final PropertyCategory category;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final info = Properties.categoryInfo[category]!;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${info.emoji}  ${info.label}',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+          Text(info.pitch,
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ],
       ),
     );
   }

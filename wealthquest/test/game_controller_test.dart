@@ -251,6 +251,33 @@ void main() {
       expect(h.currentValue - before, lessThan(4000));
     });
 
+    test('every property category is populated', () {
+      for (final c in Properties.categoriesInOrder) {
+        expect(Properties.inCategory(c), isNotEmpty, reason: 'category $c empty');
+      }
+    });
+
+    test('land earns no rent and rejects renting/renovating', () {
+      final g = GameController(seed: 1)..cash = 500000;
+      expect(
+          g.buyProperty(
+              Properties.byId('lot'), Properties.mortgages.first, 0.5),
+          isNull);
+      final h = g.properties.first;
+      expect(h.rentable, isFalse);
+      expect(h.monthlyRent, 0);
+      g.toggleRental(h);
+      expect(h.rentedOut, isFalse); // can't list raw land
+      expect(g.renovate(h, 1000), isNotNull); // renovation rejected
+    });
+
+    test('commercial out-yields a house on rent, lags on appreciation', () {
+      final office = Properties.byId('office_suite');
+      final house = Properties.byId('house');
+      expect(office.rentYield, greaterThan(house.rentYield));
+      expect(office.monthlyAppreciation, lessThan(house.monthlyAppreciation));
+    });
+
     test('the mortgage rate floats but stays bounded', () {
       final g = GameController(seed: 5)..cash = 50000;
       for (var i = 0; i < 600; i++) {
@@ -581,7 +608,9 @@ void main() {
 
   group('Fast-forward', () {
     test('advanceMonths runs every month and aggregates the result', () {
-      final g = GameController(seed: 3);
+      // Cash cushion so a do-nothing player survives all 12 months regardless
+      // of the crisis draw — this asserts the aggregation mechanic, not luck.
+      final g = GameController(seed: 3)..cash = 100000;
       final day0 = g.day;
       final out = g.advanceMonths(12);
       expect(out.months, 12);

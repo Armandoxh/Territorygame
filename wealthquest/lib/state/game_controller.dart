@@ -86,6 +86,11 @@ class OngoingEffect {
 class GameController extends ChangeNotifier {
   final Random _rng;
 
+  /// A dedicated stream for housing-price volatility, kept SEPARATE from [_rng]
+  /// so adding property types (more per-def price draws each month) never
+  /// perturbs the market / crisis / bet sequence. Deterministic per seed.
+  final Random _housingRng;
+
   int day = 0;
   double cash;
   JobDef job;
@@ -392,6 +397,8 @@ class GameController extends ChangeNotifier {
 
   GameController({int? seed, this.prestige = 0})
       : _rng = Random(seed ?? DateTime.now().millisecondsSinceEpoch),
+        _housingRng =
+            Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x5DEECE66),
         cash = Catalog.startingCash,
         job = Catalog.startingJob {
     for (final a in Catalog.assets) {
@@ -631,6 +638,10 @@ class GameController extends ChangeNotifier {
       termMonths: m.termMonths,
       purchasePrice: price,
       address: Properties.randomAddress(_rng),
+      rentYield: def.rentYield,
+      renoYield: def.renoYield,
+      rentable: def.rentable,
+      occupancy: def.occupancy,
     ));
     _log('Bought ${def.name} for ${_usd(price)} '
         '(${(downFraction * 100).toStringAsFixed(0)}% down, ${m.name} @ '
@@ -730,9 +741,10 @@ class GameController extends ChangeNotifier {
   /// renovation rent premium (see PropertyHolding.monthlyRent) lift rent, so a
   /// fixed-up home cash-flows. Returns an error, or null on success.
   String? renovate(PropertyHolding h, double budget) {
+    final pd = Properties.byId(h.defId);
+    if (!pd.renovatable) return 'You can\'t renovate ${pd.name.toLowerCase()}.';
     if (budget <= 0) return 'Enter a renovation budget greater than \$0.';
     if (budget > cash + 0.01) return 'Not enough cash for that renovation.';
-    final pd = Properties.byId(h.defId);
     final saturation =
         (h.renovationInvested / (pd.basePrice * 0.4)).clamp(0.0, 1.0);
     final mult = 2.2 - 1.5 * saturation; // 2.2× fresh → 0.7× maxed out
@@ -757,6 +769,7 @@ class GameController extends ChangeNotifier {
   /// month rolls for a tenant; when occupied, rent lands in cash and offsets a
   /// chunk of the mortgage. Taking it off the market clears any tenant.
   void toggleRental(PropertyHolding h) {
+    if (!h.rentable) return; // raw land has no tenants
     h.rentedOut = !h.rentedOut;
     if (!h.rentedOut) h.occupied = false;
     final pd = Properties.byId(h.defId);
@@ -1319,11 +1332,13 @@ class GameController extends ChangeNotifier {
     var rentedUnits = 0, occupiedUnits = 0;
     for (final pd in Properties.ladder) {
       final cur = propertyPrices[pd.id]!;
+      // Listing-price wiggle uses the housing side-stream so the number of
+      // property types never shifts the main rng sequence.
       final np = cur *
           (1 +
               pd.monthlyAppreciation +
               housingTrend +
-              pd.monthlyVol * MarketEngine.gauss(_rng));
+              pd.monthlyVol * MarketEngine.gauss(_housingRng));
       propertyPrices[pd.id] = np < pd.basePrice * 0.2 ? pd.basePrice * 0.2 : np;
     }
     for (final h in properties) {
@@ -1337,7 +1352,7 @@ class GameController extends ChangeNotifier {
       // the rent lands in cash and helps cover the mortgage.
       if (h.rentedOut) {
         rentedUnits += 1;
-        h.occupied = _rng.nextDouble() < occupancyChance;
+        h.occupied = _rng.nextDouble() < h.occupancy;
         if (h.occupied) {
           cash += h.monthlyRent;
           rentCollected += h.monthlyRent;

@@ -46,7 +46,7 @@ void main() {
     out.writeln('\n================= WealthQuest BALANCE REPORT =================');
 
     // ---- Rentals: return on equity for a leveraged, rented property --------
-    out.writeln('\nRENTALS  (20% down, 30-yr fixed, rented at ${_pct(GameController.occupancyChance)} occupancy)');
+    out.writeln('\nRENTALS  (20% down, 30-yr fixed, at each type\'s own occupancy)');
     out.writeln('  tier                 rent/pmt   net cash/mo   ROE/yr');
     final m30 = Properties.mortgages.firstWhere((m) => m.id == 'fixed30');
     for (final d in Properties.ladder) {
@@ -54,28 +54,23 @@ void main() {
       final loan = value * 0.80;
       final equity = value * 0.20;
       final payment = mortgageMonthlyPayment(loan, m30.annualRate, m30.termMonths);
-      final grossRent = PropertyHolding(
-        id: 0, defId: d.id, currentValue: value, loanBalance: loan,
-        monthlyPayment: payment, annualRate: m30.annualRate,
-        termMonths: m30.termMonths, purchasePrice: value,
-      ).monthlyRent;
-      final expRent = grossRent * GameController.occupancyChance;
+      // Per-type economics: land earns no rent (pure appreciation play).
+      final grossRent = d.rentable ? value * d.rentYield : 0.0;
+      final expRent = grossRent * d.occupancy;
       final apprMo = d.monthlyAppreciation * value;
       final netCash = expRent - payment; // cash flow before appreciation
       final roe = (netCash + apprMo) * 12 / equity; // cash + appreciation on equity
+      final ratio = grossRent / payment;
       out.writeln('  ${d.name.padRight(20)} '
-          '${(grossRent / payment).toStringAsFixed(2).padLeft(5)}    '
+          '${ratio.toStringAsFixed(2).padLeft(5)}    '
           '${_money(netCash).padLeft(8)}/mo   ${_pct(roe).padLeft(6)}');
-      if (roe > 0.35) {
+      // Only flag rentable types: a rental shouldn't risk-free dominate equities.
+      if (d.rentable && roe > 0.35) {
         flags.add(_Flag('CRIT', '${d.name}: rental ROE ${_pct(roe)} is a near risk-free dominator (>35%).'));
-      } else if (roe > 0.15) {
-        flags.add(_Flag('WARN', '${d.name}: rental ROE ${_pct(roe)} beats equities at lower risk (>15%).'));
-      }
-      if (grossRent / payment > 1.05) {
-        flags.add(_Flag('WARN', '${d.name}: occupied rent is ${(grossRent / payment).toStringAsFixed(2)}x the mortgage — rent over-covers the loan.'));
       }
     }
-    out.writeln('  target: rent < mortgage payment; ROE roughly in line with equities (~7-12%/yr).');
+    out.writeln('  target: ROE roughly in line with equities (~7-15%/yr); '
+        'commercial/niche run hotter as a yield-vs-risk tradeoff.');
 
     // ---- Degrees: payback speed + survivability during school --------------
     out.writeln('\nDEGREES  (tuition borrowed; part-time = half pay while enrolled)');
