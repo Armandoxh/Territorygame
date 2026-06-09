@@ -445,8 +445,12 @@ class _BuySheetState extends State<_BuySheet> {
     final loan = price - down;
     final rate = g.effectiveMortgageRate(_mortgage);
     final payment = mortgageMonthlyPayment(loan, rate, _mortgage.termMonths);
-    final dti = g.job.pay <= 0 ? 1.0 : payment / g.job.pay;
-    final tooExpensive = loan > 0 && dti > 0.45;
+    // The payment is judged against salary + the rent your tenants pay (a 75%
+    // haircut), not salary alone — so good rental income lets you keep scaling.
+    final income = g.qualifyingIncome;
+    final dti = income <= 0 ? 1.0 : payment / income;
+    final tooExpensive =
+        loan > 0 && payment > income * GameController.maxPaymentShare;
     final notEnoughCash = down > g.cash + 0.01;
 
     return Padding(
@@ -506,13 +510,14 @@ class _BuySheetState extends State<_BuySheet> {
             _row(theme, 'Loan amount', money(loan)),
             _row(theme, 'Monthly payment', money(payment),
                 color: tooExpensive ? kLoss : null),
-            _row(theme, '% of monthly pay', pct(dti),
+            _row(theme, '% of pay + rents', pct(dti),
                 color: tooExpensive ? kLoss : null),
             if (tooExpensive)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  'Payment exceeds 45% of your income — earn more or put more down.',
+                  'Payment exceeds 45% of your salary plus rental income. Earn '
+                  'more, rent out a home, or put more down.',
                   style: theme.textTheme.bodySmall?.copyWith(color: kLoss),
                 ),
               ),
