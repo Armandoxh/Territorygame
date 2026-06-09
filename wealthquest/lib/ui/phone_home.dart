@@ -4,6 +4,7 @@ import '../data/catalog.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
 import '../version.dart';
+import 'business_app.dart';
 import 'commodities_app.dart';
 import 'dashboard_tab.dart';
 import 'invest_app.dart';
@@ -203,6 +204,17 @@ class _PhoneHomeState extends State<PhoneHome> {
                           game: game,
                           title: 'Comex',
                           body: (_) => CommoditiesBody(game: game),
+                        )),
+                      ),
+                      _AppIcon(
+                        label: 'Main St',
+                        sub: 'Businesses',
+                        icon: Icons.storefront,
+                        color: const Color(0xFF8E24AA),
+                        onTap: () => _open(AppScaffold(
+                          game: game,
+                          title: 'Main Street',
+                          body: (_) => BusinessBody(game: game),
                         )),
                       ),
                     ],

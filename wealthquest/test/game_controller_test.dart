@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wealthquest/data/businesses.dart';
 import 'package:wealthquest/data/catalog.dart';
 import 'package:wealthquest/engine/market_engine.dart';
 import 'package:wealthquest/data/crises.dart';
@@ -733,6 +734,57 @@ void main() {
       // The month's tax tab includes at least the dividend tax slice.
       expect(r.tax,
           greaterThanOrEqualTo(r.dividends * Catalog.dividendTaxRate - 1e-6));
+    });
+  });
+
+  group('Operating businesses', () {
+    test('buying costs cash and is valued at its earnings multiple', () {
+      final g = GameController(seed: 1)..cash = 300000;
+      final laundromat = Businesses.byId('laundromat'); // \$180k, 4x multiple
+      expect(g.buyBusiness(laundromat), isNull);
+      expect(g.cash, closeTo(300000 - 180000, 1e-6));
+      expect(g.businesses, hasLength(1));
+      final b = g.businesses.first;
+      // value = profit*12*multiple = 3750*12*4 = 180000 ≈ price.
+      expect(g.businessValue(b), closeTo(180000, 1.0));
+      expect(g.netWorth, closeTo(g.cash + g.businessValue(b), 1.0));
+    });
+
+    test('a business pays taxed monthly profit into cash', () {
+      final g = GameController(seed: 1)..cash = 300000;
+      g.buyBusiness(Businesses.byId('laundromat'));
+      final cash0 = g.cash;
+      final r = g.advanceDay();
+      expect(r.businessIncome, greaterThan(0));
+      expect(
+          g.cash,
+          closeTo(
+              cash0 + r.income - r.tax - r.expenses + r.businessIncome, 1.0));
+      // The month's tax includes the business-profit tax slice.
+      expect(r.tax,
+          greaterThanOrEqualTo(r.businessIncome * GameController.businessTaxRate));
+    });
+
+    test('expanding raises run-rate profit', () {
+      final g = GameController(seed: 1)..cash = 400000;
+      g.buyBusiness(Businesses.byId('laundromat'));
+      final b = g.businesses.first;
+      final p0 = b.monthlyProfit;
+      expect(g.expandBusiness(b, 40000), isNull);
+      expect(b.monthlyProfit, greaterThan(p0));
+      expect(b.investedCapital, closeTo(40000, 1e-6));
+    });
+
+    test('selling returns value minus the broker fee and removes it', () {
+      final g = GameController(seed: 1)..cash = 300000;
+      g.buyBusiness(Businesses.byId('laundromat'));
+      final b = g.businesses.first;
+      final value = g.businessValue(b);
+      final cash0 = g.cash;
+      expect(g.sellBusiness(b), isNull);
+      expect(g.businesses, isEmpty);
+      expect(g.cash, greaterThan(cash0)); // got paid
+      expect(g.cash, lessThan(cash0 + value)); // ...minus the fee
     });
   });
 

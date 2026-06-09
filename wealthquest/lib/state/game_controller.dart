@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../data/businesses.dart';
 import '../data/catalog.dart';
 import '../data/crises.dart';
 import '../data/life.dart';
@@ -12,6 +13,7 @@ import '../engine/news_engine.dart';
 import '../engine/sports_engine.dart';
 import '../models/asset.dart';
 import '../models/bet.dart';
+import '../models/business.dart';
 import '../models/climate.dart';
 import '../models/crisis.dart';
 import '../models/education.dart';
@@ -30,6 +32,7 @@ class DayResult {
   final double rent; // rent collected from tenanted properties
   final double mortgage; // total mortgage payments made this month
   final double tax; // income tax withheld on wages this month
+  final double businessIncome; // net profit from operating businesses
   final double netWorthBefore;
   final double netWorthAfter;
   final double cashBefore;
@@ -48,6 +51,7 @@ class DayResult {
     this.rent = 0,
     this.mortgage = 0,
     this.tax = 0,
+    this.businessIncome = 0,
     required this.netWorthBefore,
     required this.netWorthAfter,
     required this.cashBefore,
@@ -106,6 +110,22 @@ class GameController extends ChangeNotifier {
   final Map<String, double> propertyPrices = {}; // live listing price per def
   final List<PropertyHolding> properties = [];
   int _nextPropertyId = 1;
+
+  // ---- Operating businesses ----
+  final List<BusinessHolding> businesses = [];
+  int _nextBizId = 1;
+
+  /// A dedicated RNG for business profit noise + failure rolls, kept SEPARATE
+  /// from [_rng] so owning businesses never perturbs the market/crisis stream.
+  final Random _bizRng;
+
+  /// How many businesses you can personally run well; beyond this, UNMANAGED
+  /// businesses run at reduced efficiency (you're spread thin). Hire managers
+  /// to scale past it.
+  static const int activeBusinessLimit = 2;
+
+  /// Flat ordinary-income tax rate on business profit.
+  static const double businessTaxRate = 0.22;
 
   // ---- Sports betting ----
   List<SportsEvent> sportsSlate = [];
@@ -271,6 +291,10 @@ class GameController extends ChangeNotifier {
     c.properties
       ..clear()
       ..addAll([for (final p in properties) p.clone()]);
+    c.businesses
+      ..clear()
+      ..addAll([for (final b in businesses) b.clone()]);
+    c._nextBizId = _nextBizId;
     c.ongoing
       ..clear()
       ..addAll([
@@ -414,6 +438,8 @@ class GameController extends ChangeNotifier {
       : _rng = Random(seed ?? DateTime.now().millisecondsSinceEpoch),
         _housingRng =
             Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x5DEECE66),
+        _bizRng =
+            Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x1F123BB5),
         cash = Catalog.startingCash,
         job = Catalog.startingJob {
     currentTrackId = Catalog.startingTrackId; // begin in the service track
@@ -488,9 +514,105 @@ class GameController extends ChangeNotifier {
       holdingsValue +
       propertiesEquity +
       pendingBetsValue +
-      retirementBalance -
+      retirementBalance +
+      businessesValue -
       studentLoan -
       debt;
+
+  // ---- Operating businesses ----
+  /// Enterprise value of one business: annual run-rate profit × its multiple.
+  double businessValue(BusinessHolding h) =>
+      h.monthlyProfit * 12 * Businesses.byId(h.defId).saleMultiple;
+
+  /// Total enterprise value across all owned businesses.
+  double get businessesValue {
+    var sum = 0.0;
+    for (final b in businesses) {
+      sum += businessValue(b);
+    }
+    return sum;
+  }
+
+  /// Businesses you're running yourself (no manager).
+  int get _unmanagedCount => businesses.where((b) => !b.managed).length;
+
+  /// Efficiency multiplier on unmanaged businesses — drops below 1 when you run
+  /// more than [activeBusinessLimit] yourself (spread too thin).
+  double get _attentionFactor {
+    final n = _unmanagedCount;
+    return n <= activeBusinessLimit ? 1.0 : activeBusinessLimit / n;
+  }
+
+  /// Efficiency on unmanaged businesses right now (1.0 = full), for the UI.
+  double get businessAttention => _attentionFactor;
+
+  /// Whether you're running more businesses yourself than you can handle well.
+  bool get businessesOverextended => _unmanagedCount > activeBusinessLimit;
+
+  /// Buy/start a business for cash.
+  String? buyBusiness(BusinessDef def) {
+    if (def.price > cash + 0.01) return 'Not enough cash to start ${def.name}.';
+    cash -= def.price;
+    businesses.add(BusinessHolding(
+      id: _nextBizId++,
+      defId: def.id,
+      monthlyProfit: def.baseMonthlyProfit,
+      purchasePrice: def.price,
+      name: Businesses.randomName(_bizRng, def),
+    ));
+    _log('Opened ${def.name} for ${_usd(def.price)}.');
+    notifyListeners();
+    return null;
+  }
+
+  /// Expand a business: spend cash to permanently raise its run-rate profit,
+  /// roughly at the buy multiple (so value ≈ holds), with diminishing returns
+  /// and execution luck. Returns an error, or null.
+  String? expandBusiness(BusinessHolding h, double budget) {
+    if (budget <= 0) return 'Enter an amount greater than \$0.';
+    if (budget > cash + 0.01) return 'Not enough cash for that expansion.';
+    final def = Businesses.byId(h.defId);
+    // You can roughly double a business via expansion before it saturates.
+    final saturation =
+        (h.investedCapital / h.purchasePrice).clamp(0.0, 1.0).toDouble();
+    final luck = 0.7 + _bizRng.nextDouble() * 0.5; // 0.7–1.2× execution
+    final addedProfit =
+        budget / (def.saleMultiple * 12) * (1 - 0.6 * saturation) * luck;
+    cash -= budget;
+    h.monthlyProfit += addedProfit;
+    h.investedCapital += budget;
+    _log('Expanded ${h.name}: ${_usd(budget)} in, +${_usd(addedProfit)}/mo '
+        'profit.');
+    notifyListeners();
+    return null;
+  }
+
+  /// Hire or fire a manager. A manager makes the business passive (no attention
+  /// penalty) but skims [BusinessDef.managerCut] of its profit.
+  void toggleManager(BusinessHolding h) {
+    h.managed = !h.managed;
+    _log(h.managed
+        ? 'Hired a manager for ${h.name} — it runs itself now (they take a cut).'
+        : 'Took ${h.name} back under your own management.');
+    notifyListeners();
+  }
+
+  /// Sell a business at its enterprise value, minus a 4% broker fee and capital-
+  /// gains tax on the profit over your cost basis.
+  String? sellBusiness(BusinessHolding h) {
+    final value = businessValue(h);
+    const brokerFee = 0.04;
+    final proceeds = value * (1 - brokerFee);
+    final gain = proceeds - h.costBasis;
+    final capGainsTax = gain > 0 ? gain * Catalog.capitalGainsRate : 0.0;
+    cash += proceeds - capGainsTax;
+    businesses.remove(h);
+    _log('Sold ${h.name} for ${_usd(value)} '
+        '(−${_usd(value * brokerFee)} broker fee'
+        '${capGainsTax > 0 ? ', −${_usd(capGainsTax)} capital-gains tax' : ''}).');
+    notifyListeners();
+    return null;
+  }
 
   // ---- Retirement (401k-style) ----
   /// Balance in your locked retirement account. Grows on autopilot in a
@@ -1569,6 +1691,64 @@ class GameController extends ChangeNotifier {
           : '🔑 No rent this month — your rental${rentedUnits == 1 ? ' sat' : 's sat'} vacant.');
     }
 
+    // 5b2) Operating businesses: collect profit (swinging with the cycle +
+    //      noise), pay the manager's cut, apply an attention penalty if you're
+    //      running too many yourself, tax the profit, and roll for failures.
+    var businessIncome = 0.0;
+    if (businesses.isNotEmpty) {
+      final cycleSwing = regime.isCrash
+          ? -0.55
+          : regime == MarketRegime.downturn
+              ? -0.35
+              : regime == MarketRegime.boom
+                  ? 0.25
+                  : regime == MarketRegime.recovery
+                      ? 0.05
+                      : 0.0;
+      final failMult = regime.isCrash
+          ? 4.0
+          : regime == MarketRegime.downturn
+              ? 2.0
+              : regime == MarketRegime.boom
+                  ? 0.5
+                  : 1.0;
+      final attention = _attentionFactor;
+      for (final b in List.of(businesses)) {
+        final def = Businesses.byId(b.defId);
+        b.monthsOwned += 1;
+        final regimeFactor = 1 + def.cyclicality * cycleSwing;
+        final noiseFactor = 1 + def.profitVol * MarketEngine.gauss(_bizRng);
+        var profit = b.monthlyProfit * regimeFactor * noiseFactor;
+        if (b.managed) {
+          profit *= (1 - def.managerCut);
+        } else {
+          profit *= attention;
+        }
+        cash += profit;
+        businessIncome += profit;
+        // Hard failure — closes the business; you salvage ~20% of what you paid.
+        if (def.failureRisk > 0 &&
+            _bizRng.nextDouble() < def.failureRisk * failMult) {
+          final salvage = b.purchasePrice * 0.20;
+          cash += salvage;
+          businesses.remove(b);
+          events.add('🚨 ${b.name} failed and closed — salvaged '
+              '${_usd(salvage)} from the assets.');
+        }
+      }
+      // Business profit is ordinary taxable income (losses go untaxed).
+      if (businessIncome > 0) {
+        final bizTax = businessIncome * businessTaxRate;
+        cash -= bizTax;
+        taxPaid += bizTax;
+      }
+      if (businessIncome.abs() > 0.5) {
+        events.add(businessIncome >= 0
+            ? '🏪 Business profit: +${_usd(businessIncome)} this month.'
+            : '🏪 Businesses ran at a loss: −${_usd(-businessIncome)} this month.');
+      }
+    }
+
     // 5c) Resolve sports bets, then post a fresh slate.
     for (final b in bets) {
       final won = _rng.nextDouble() < b.winProb;
@@ -1671,6 +1851,7 @@ class GameController extends ChangeNotifier {
       rent: rentCollected,
       mortgage: mortgagePaid,
       tax: taxPaid,
+      businessIncome: businessIncome,
       netWorthBefore: before,
       netWorthAfter: after,
       cashBefore: cashBefore,
@@ -1706,6 +1887,7 @@ class GameController extends ChangeNotifier {
         rent = 0.0,
         mortgage = 0.0,
         tax = 0.0,
+        businessIncome = 0.0,
         fee = 0.0;
     final events = <String>[];
     var marginCall = false;
@@ -1720,6 +1902,7 @@ class GameController extends ChangeNotifier {
       rent += r.rent;
       mortgage += r.mortgage;
       tax += r.tax;
+      businessIncome += r.businessIncome;
       fee += r.overdraftFee;
       events.addAll(r.events);
       done++;
@@ -1736,6 +1919,7 @@ class GameController extends ChangeNotifier {
       rent: rent,
       mortgage: mortgage,
       tax: tax,
+      businessIncome: businessIncome,
       overdraftFee: fee,
       marginCall: marginCall,
       crisis: crisis,
