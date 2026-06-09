@@ -158,6 +158,15 @@ class AssetDef {
   /// lags when it's greedy — moves COUNTER to the macro cycle.
   final bool safeHaven;
 
+  /// Sensitivity to the shared weekly market shock — the factor that makes risk
+  /// assets co-move week to week (stocks up ⇒ oil/copper up; gold ~flat or
+  /// down). NaN = "use the per-kind default" (see MarketEngine). 0 = isolated;
+  /// 1 ≈ a typical stock; >1 amplifies (crypto); <0 inversely tracks (gold).
+  final double marketBeta;
+
+  /// Quote unit for commodities, e.g. "/oz", "/bbl", "/bushel". Empty otherwise.
+  final String unit;
+
   /// Prestige level at which this asset unlocks (0 = always available). Earned
   /// by retiring and starting over.
   final int unlockLevel;
@@ -191,6 +200,8 @@ class AssetDef {
     this.crashLoss = 0,
     this.defaultRisk = 0,
     this.safeHaven = false,
+    this.marketBeta = double.nan,
+    this.unit = '',
     this.unlockLevel = 0,
     this.blurb = '',
   });

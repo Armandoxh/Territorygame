@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wealthquest/data/catalog.dart';
+import 'package:wealthquest/engine/market_engine.dart';
 import 'package:wealthquest/data/crises.dart';
 import 'package:wealthquest/data/properties.dart';
 import 'package:wealthquest/models/asset.dart';
@@ -647,6 +650,38 @@ void main() {
       final h = g.holdings.firstWhere((x) => x.assetId == 'gold');
       expect(g.valueOf(h), closeTo(5000, 1));
       expect(g.sell(h, 0, max: true), isNull);
+    });
+
+    test('the desk spans several real sectors', () {
+      final sectors = {
+        for (final a in Catalog.assetsInCategory('commodities')) a.sector
+      };
+      // Energy, metals, industrial, grains, softs, livestock all represented.
+      expect(sectors.length, greaterThanOrEqualTo(5));
+      expect(sectors, containsAll(['Energy', 'Metals', 'Softs', 'Livestock']));
+    });
+
+    test('market betas: equities ride the shock, gold hedges, bonds isolated',
+        () {
+      final stock = Catalog.assets.firstWhere((a) => a.kind == AssetKind.stock);
+      expect(MarketEngine.effectiveBeta(stock), 1.0);
+      expect(MarketEngine.effectiveBeta(Catalog.assetById('copper')),
+          greaterThan(0.5));
+      expect(MarketEngine.effectiveBeta(Catalog.assetById('oil')),
+          greaterThan(0.3));
+      expect(MarketEngine.effectiveBeta(Catalog.assetById('gold')), lessThan(0));
+      expect(MarketEngine.effectiveBeta(Catalog.assetById('bndx')), 0.0);
+    });
+
+    test('a risk-on shock lifts a growth commodity above a safe haven', () {
+      // Same rng for both → identical idiosyncratic draw, so the market factor
+      // is what separates them. Copper (β +) must beat gold (β −) on an up week.
+      final copper = Catalog.assetById('copper');
+      final gold = Catalog.assetById('gold');
+      const shock = 0.5; // a big risk-on week — market term dominates noise
+      final cu = MarketEngine.stepPrice(100, copper, Random(1), market: shock);
+      final au = MarketEngine.stepPrice(100, gold, Random(1), market: shock);
+      expect(cu, greaterThan(au));
     });
   });
 

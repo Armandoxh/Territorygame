@@ -336,6 +336,11 @@ class GameController extends ChangeNotifier {
   MarketRegime regime = MarketRegime.normal;
   SectorEvent? sectorEvent;
 
+  /// This week's shared market shock (the common factor every risk asset rides,
+  /// scaled by its beta). Positive = a risk-on week, negative = risk-off. The
+  /// Comex UI reads it to show market sentiment. Cosmetic snapshot.
+  double lastMarketFactor = 0.0;
+
   // ---- Housing market ----
   /// The live benchmark 30-year mortgage rate. It floats over the game; new
   /// purchases and refinances price off it. A separate cycle from the stock
@@ -1221,6 +1226,11 @@ class GameController extends ChangeNotifier {
     _prevPrices
       ..clear()
       ..addAll(_prices);
+    // The shared market shock for the week: one common factor every risk asset
+    // rides (scaled by its beta), so stocks and commodities co-move instead of
+    // wandering independently. Drawn once, before the per-asset loop.
+    final marketShock = MarketEngine.marketFactor(_rng);
+    lastMarketFactor = marketShock;
     for (final a in Catalog.assets) {
       if (!a.kind.isPriceBased) continue;
       var mb = bias[a.id] ?? 0;
@@ -1245,7 +1255,8 @@ class GameController extends ChangeNotifier {
       if (sectorEvent != null && a.sector == sectorEvent!.sector) {
         mb += sectorEvent!.dir * sectorEvent!.magnitude;
       }
-      final next = MarketEngine.stepPrice(_prices[a.id]!, a, _rng, bias: mb);
+      final next = MarketEngine.stepPrice(_prices[a.id]!, a, _rng,
+          bias: mb, market: marketShock);
       _prices[a.id] = next;
       final hist = priceHistory[a.id]!;
       hist.add(next);
