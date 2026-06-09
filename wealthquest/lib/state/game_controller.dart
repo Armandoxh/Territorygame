@@ -390,7 +390,11 @@ class GameController extends ChangeNotifier {
     }
     sportsSlate = SportsEngine.generateSlate(_rng, _nextEventId);
     _nextEventId += sportsSlate.length;
-    featuredParlays = SportsEngine.featuredParlays(sportsSlate, _rng);
+    // Use a SIDE rng (seeded off the slate) so building these cosmetic parlay
+    // groupings never perturbs the main _rng stream that drives markets,
+    // crises, and bet resolution — keeping the game deterministic per seed.
+    featuredParlays =
+        SportsEngine.featuredParlays(sportsSlate, Random(_nextEventId));
     netWorthHistory.add(netWorth);
     currentRumors = NewsEngine.generateEdition(_rng, day);
     _log('You turn 18 and land a job as a ${job.title}. Time to build wealth.');
@@ -1356,7 +1360,11 @@ class GameController extends ChangeNotifier {
     bets.clear();
     sportsSlate = SportsEngine.generateSlate(_rng, _nextEventId);
     _nextEventId += sportsSlate.length;
-    featuredParlays = SportsEngine.featuredParlays(sportsSlate, _rng);
+    // Use a SIDE rng (seeded off the slate) so building these cosmetic parlay
+    // groupings never perturbs the main _rng stream that drives markets,
+    // crises, and bet resolution — keeping the game deterministic per seed.
+    featuredParlays =
+        SportsEngine.featuredParlays(sportsSlate, Random(_nextEventId));
 
     // 5d) Cash discipline. Three grace months in the red each cost a 10%
     //     overdraft fee; the 4th flips a margin call that the UI turns into a

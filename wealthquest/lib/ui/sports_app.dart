@@ -461,7 +461,7 @@ class _SportsBodyState extends State<SportsBody> {
       ),
       const SizedBox(height: 8),
       SizedBox(
-        height: 204,
+        height: 240,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: game.featuredParlays.length,

@@ -5,6 +5,6 @@
 /// of the home header shows this, so you can instantly confirm the live page is
 /// the latest build (and not a stale cache).
 const String kAppVersion = '0.33.0';
-const int kBuildNumber = 67;
+const int kBuildNumber = 68;
 
 String get appVersionLabel => 'v$kAppVersion · build $kBuildNumber';
