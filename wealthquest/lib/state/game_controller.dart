@@ -502,6 +502,25 @@ class GameController extends ChangeNotifier {
   /// Profit/loss vs. what was paid in.
   double profitOf(Holding h) => valueOf(h) - h.costBasis;
 
+  /// Total unrealized gain/loss across all current holdings (vs cost basis).
+  double get portfolioUnrealizedPnl {
+    var sum = 0.0;
+    for (final h in holdings) {
+      sum += profitOf(h);
+    }
+    return sum;
+  }
+
+  /// Expected rent reaching cash per month: occupied rent across listed rentals,
+  /// haircut by each one's occupancy odds.
+  double get expectedMonthlyRent {
+    var sum = 0.0;
+    for (final p in properties) {
+      if (p.rentedOut) sum += p.monthlyRent * p.occupancy;
+    }
+    return sum;
+  }
+
   double get holdingsValue {
     var sum = 0.0;
     for (final h in holdings) {
