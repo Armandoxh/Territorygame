@@ -1014,18 +1014,29 @@ class GameController extends ChangeNotifier {
       if (gainsWithdrawn > 0) penalty = gainsWithdrawn * def.earlyPenalty;
     }
 
+    // Capital-gains tax on the realized profit of a market-traded position in a
+    // taxable brokerage (interest income is taxed monthly instead; shorts are
+    // left simple). This is the cost of selling a winner — buy-and-hold defers
+    // it, and a sheltered account avoids it entirely.
+    var capGainsTax = 0.0;
+    if (!h.isShort && h.kind.isPriceBased) {
+      final realizedGain = amt - h.costBasis * frac;
+      if (realizedGain > 0) capGainsTax = realizedGain * Catalog.capitalGainsRate;
+    }
+
     if (h.kind.isInterestBearing) {
       h.balance -= amt;
     } else {
       h.shares -= h.shares * frac;
     }
     h.costBasis -= h.costBasis * frac;
-    cash += amt - penalty;
+    cash += amt - penalty - capGainsTax;
 
     if (valueOf(h) <= 0.01) holdings.remove(h);
 
     _log('Sold \$${amt.toStringAsFixed(0)} of ${def.name}'
-        '${penalty > 0 ? ' (−\$${penalty.toStringAsFixed(0)} early-exit fee)' : ''}.');
+        '${penalty > 0 ? ' (−\$${penalty.toStringAsFixed(0)} early-exit fee)' : ''}'
+        '${capGainsTax > 0 ? ' (−\$${capGainsTax.toStringAsFixed(0)} capital-gains tax)' : ''}.');
     notifyListeners();
     return null;
   }
@@ -1269,10 +1280,11 @@ class GameController extends ChangeNotifier {
     // contributing lowers this bill on top of the employer match.
     final annualTaxable =
         (income - retireContribution) * 12 - Catalog.standardDeduction;
-    final tax = annualTaxable <= 0
+    // Running tax tab for the month: wage tax now, plus dividend tax later.
+    var taxPaid = annualTaxable <= 0
         ? 0.0
         : Catalog.incomeTaxOnTaxable(annualTaxable) / 12;
-    cash -= tax;
+    cash -= taxPaid;
     cash -= expenses;
 
     // 1b) Education: advance any degree in progress, and compound the loan.
@@ -1493,6 +1505,12 @@ class GameController extends ChangeNotifier {
       cash += pay;
       dividends += pay;
     }
+    // Dividends/coupons in a taxable brokerage are taxed (a 401k pays none).
+    if (dividends > 0) {
+      final divTax = dividends * Catalog.dividendTaxRate;
+      cash -= divTax;
+      taxPaid += divTax;
+    }
 
     // 5b) Real estate: move the housing market, appreciate listings + owned
     //     homes (riding the cycle), collect rent, then service loans.
@@ -1652,7 +1670,7 @@ class GameController extends ChangeNotifier {
       interest: interest,
       rent: rentCollected,
       mortgage: mortgagePaid,
-      tax: tax,
+      tax: taxPaid,
       netWorthBefore: before,
       netWorthAfter: after,
       cashBefore: cashBefore,

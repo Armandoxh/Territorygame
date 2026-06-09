@@ -1060,6 +1060,14 @@ class Catalog {
   /// Income shielded from tax before brackets apply (a standard deduction).
   static const double standardDeduction = 14600;
 
+  /// Preferential flat rate on investment income in a TAXABLE brokerage:
+  /// qualified dividends / bond coupons (paid monthly) and realized capital
+  /// gains on a sale. Lower than wage brackets — and avoided entirely inside a
+  /// tax-sheltered account (the 401k). This is what makes WHERE you hold money
+  /// matter: a taxable account skims your gains; the 401k compounds untaxed.
+  static const double dividendTaxRate = 0.15;
+  static const double capitalGainsRate = 0.15;
+
   /// Progressive federal-style brackets: [upper bound, marginal rate]. Applied
   /// to taxable wages = gross salary − pre-tax 401(k) − standard deduction.
   static const List<List<double>> taxBrackets = [

@@ -702,6 +702,29 @@ void main() {
       g.setRetirementContribPct(0.20);
       expect(g.monthlyIncomeTax, lessThanOrEqualTo(taxBefore));
     });
+
+    test('selling a winning brokerage position owes capital-gains tax', () {
+      final g = GameController(seed: 1)..cash = 100000;
+      g.buy(Catalog.assetById('spx'), 10000);
+      final pos = g.holdings.firstWhere((h) => h.assetId == 'spx');
+      pos.costBasis = 5000; // pretend it's doubled: $10k value on $5k basis
+      final value = g.valueOf(pos);
+      final cashBefore = g.cash;
+      g.sell(pos, 0, max: true);
+      final gain = value - 5000;
+      expect(g.cash,
+          closeTo(cashBefore + value - gain * Catalog.capitalGainsRate, 1.0));
+    });
+
+    test('dividends in a taxable account are taxed', () {
+      final g = GameController(seed: 3)..cash = 100000;
+      g.buy(Catalog.assetById('divx'), 50000); // dividend ETF
+      final r = g.advanceDay();
+      expect(r.dividends, greaterThan(0));
+      // The month's tax tab includes at least the dividend tax slice.
+      expect(r.tax,
+          greaterThanOrEqualTo(r.dividends * Catalog.dividendTaxRate - 1e-6));
+    });
   });
 
   group('Fast-forward', () {
