@@ -102,6 +102,9 @@ class GameController extends ChangeNotifier {
 
   // ---- Sports betting ----
   List<SportsEvent> sportsSlate = [];
+
+  /// Pre-built featured/boosted parlays shown at the top of the book.
+  List<FeaturedParlay> featuredParlays = [];
   final List<PendingBet> bets = [];
   int _nextEventId = 1;
   int _nextBetId = 1;
@@ -387,6 +390,7 @@ class GameController extends ChangeNotifier {
     }
     sportsSlate = SportsEngine.generateSlate(_rng, _nextEventId);
     _nextEventId += sportsSlate.length;
+    featuredParlays = SportsEngine.featuredParlays(sportsSlate, _rng);
     netWorthHistory.add(netWorth);
     currentRumors = NewsEngine.generateEdition(_rng, day);
     _log('You turn 18 and land a job as a ${job.title}. Time to build wealth.');
@@ -469,9 +473,14 @@ class GameController extends ChangeNotifier {
   bool hasBetOn(int eventId) =>
       bets.any((b) => b.eventIds.contains(eventId));
 
+  /// Place a pre-built featured parlay (with its profit [p].boost) for [stake].
+  String? placeFeatured(FeaturedParlay p, double stake) =>
+      placeParlay(p.legs, stake, boost: p.boost);
+
   /// Place a wager across [legs]: one leg is a straight bet; 2+ legs is a
   /// parlay where every leg must hit (odds and the long-shot both multiply).
-  String? placeParlay(List<ParlayLeg> legs, double stake) {
+  /// [boost] juices the profit portion of the payout (featured parlays only).
+  String? placeParlay(List<ParlayLeg> legs, double stake, {double boost = 0.0}) {
     if (legs.isEmpty) return 'Add at least one pick.';
     if (stake <= 0) return 'Enter a stake greater than \$0.';
     if (stake > cash + 0.001) return 'Not enough cash.';
@@ -492,6 +501,7 @@ class GameController extends ChangeNotifier {
       dec *= l.decimalOdds;
       prob *= l.winProb;
     }
+    if (boost > 0) dec = 1 + (dec - 1) * (1 + boost); // featured profit boost
     bets.add(PendingBet(
       id: _nextBetId++,
       legs: [for (final l in legs) l.label],
@@ -1346,6 +1356,7 @@ class GameController extends ChangeNotifier {
     bets.clear();
     sportsSlate = SportsEngine.generateSlate(_rng, _nextEventId);
     _nextEventId += sportsSlate.length;
+    featuredParlays = SportsEngine.featuredParlays(sportsSlate, _rng);
 
     // 5d) Cash discipline. Three grace months in the red each cost a 10%
     //     overdraft fee; the 4th flips a margin call that the UI turns into a

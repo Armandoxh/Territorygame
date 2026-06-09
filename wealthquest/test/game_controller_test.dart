@@ -434,6 +434,30 @@ void main() {
       expect(g.bets, isEmpty);
       expect(g.cash, closeTo(1000, 1e-6));
     });
+
+    test('featured parlays are populated from disjoint games', () {
+      final g = GameController(seed: 1);
+      expect(g.featuredParlays, isNotEmpty);
+      for (final p in g.featuredParlays) {
+        expect(p.legs.length, greaterThanOrEqualTo(2));
+        // No game repeats within a single featured parlay.
+        final ids = p.legs.map((l) => l.eventId).toSet();
+        expect(ids.length, p.legs.length);
+        // The boost lifts the payout above the raw multiplied odds.
+        expect(p.boostedDecimal, greaterThan(p.baseDecimal));
+      }
+    });
+
+    test('placing a featured parlay banks the boosted odds', () {
+      final g = GameController(seed: 1)..cash = 1000;
+      final p = g.featuredParlays.first;
+      expect(g.placeFeatured(p, 100), isNull);
+      expect(g.cash, closeTo(900, 1e-6));
+      expect(g.bets, hasLength(1));
+      // The placed bet carries the boosted payout, not the raw odds.
+      expect(g.bets.first.decimalOdds, closeTo(p.boostedDecimal, 1e-6));
+      expect(g.bets.first.eventIds, hasLength(p.legs.length));
+    });
   });
 
   group('Cash discipline', () {

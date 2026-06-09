@@ -58,4 +58,80 @@ class SportsEngine {
     if (decimal >= 2) return '+${((decimal - 1) * 100).round()}';
     return '-${(100 / (decimal - 1)).round()}';
   }
+
+  /// One matchup + a side, packaged as a parlay leg.
+  static ParlayLeg legFor(SportsEvent e, bool home) => ParlayLeg(
+        eventId: e.id,
+        label: '${home ? e.home : e.away} (vs ${home ? e.away : e.home})',
+        decimalOdds: home ? e.homeDecimal : e.awayDecimal,
+        winProb: home ? e.homeProb : 1 - e.homeProb,
+      );
+
+  /// Pre-built "featured" parlays for the top of the book, each drawn from a
+  /// DISJOINT set of games (so a player can fire several without tripping the
+  /// one-bet-per-game rule) and juiced with a profit boost to bait the bet.
+  static List<FeaturedParlay> featuredParlays(
+      List<SportsEvent> slate, Random rng) {
+    if (slate.length < 2) return const [];
+    final pool = List<SportsEvent>.of(slate)..shuffle(rng);
+    var cursor = 0;
+    List<SportsEvent> take(int n) {
+      final out = pool.skip(cursor).take(n).toList();
+      cursor += out.length;
+      return out;
+    }
+
+    // The "dog" side of a game is whichever price is longer (bigger payout,
+    // less likely); the favorite is the shorter price.
+    bool dogIsHome(SportsEvent e) => e.homeDecimal >= e.awayDecimal;
+
+    final featured = <FeaturedParlay>[];
+    var id = 0;
+
+    final dogs = take(4);
+    if (dogs.length >= 3) {
+      featured.add(FeaturedParlay(
+        id: id++,
+        name: '🐶 Underdog Lotto',
+        blurb: '${dogs.length} live dogs. Lands almost never — pays absurd.',
+        legs: [for (final e in dogs) legFor(e, dogIsHome(e))],
+        boost: 0.30,
+      ));
+    }
+
+    final degen = take(3);
+    if (degen.length >= 2) {
+      featured.add(FeaturedParlay(
+        id: id++,
+        name: '🎲 Degen Special',
+        blurb: 'A coin-flip grab bag. Pure chaos, fully juiced.',
+        legs: [for (final e in degen) legFor(e, rng.nextBool())],
+        boost: 0.25,
+      ));
+    }
+
+    final chalk = take(3);
+    if (chalk.length >= 2) {
+      featured.add(FeaturedParlay(
+        id: id++,
+        name: '🧊 Chalk Stack',
+        blurb: 'Stacked favorites. Safer-ish, still boosted.',
+        legs: [for (final e in chalk) legFor(e, !dogIsHome(e))],
+        boost: 0.15,
+      ));
+    }
+
+    final duo = take(2);
+    if (duo.length >= 2) {
+      featured.add(FeaturedParlay(
+        id: id++,
+        name: '⚡ Boosted Duo',
+        blurb: 'Two favorites with extra juice on top.',
+        legs: [for (final e in duo) legFor(e, !dogIsHome(e))],
+        boost: 0.20,
+      ));
+    }
+
+    return featured;
+  }
 }

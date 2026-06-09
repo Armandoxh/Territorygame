@@ -171,6 +171,7 @@ class _SportsBodyState extends State<SportsBody> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [
+        if (game.featuredParlays.isNotEmpty) ..._buildFeatured(theme),
         Container(
           padding: const EdgeInsets.all(12),
           margin: const EdgeInsets.only(bottom: 12),
@@ -442,6 +443,260 @@ class _SportsBodyState extends State<SportsBody> {
             onPick: (home) => _toggle(e, home),
           )),
     ];
+  }
+
+  /// The DraftKings-style strip of pre-built, boosted parlays at the top.
+  List<Widget> _buildFeatured(ThemeData theme) {
+    return [
+      Row(
+        children: [
+          Text('🔥 Featured parlays', style: theme.textTheme.titleMedium),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('one tap to load · boosted',
+                style: theme.textTheme.labelSmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      SizedBox(
+        height: 204,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: game.featuredParlays.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (_, i) {
+            final p = game.featuredParlays[i];
+            final available =
+                p.legs.every((l) => !game.hasBetOn(l.eventId));
+            return _FeaturedCard(
+              parlay: p,
+              available: available,
+              onTap: () => _openFeaturedSheet(p),
+            );
+          },
+        ),
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  /// Tap a featured card → a stake sheet (with quick chips) to fire it off.
+  void _openFeaturedSheet(FeaturedParlay p) {
+    final ctrl = TextEditingController();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetCtx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          final theme = Theme.of(ctx);
+          final stake = double.tryParse(ctrl.text) ?? 0;
+          final payout = stake * p.boostedDecimal;
+          void quick(double amt) {
+            ctrl.text = amt.toStringAsFixed(0);
+            setSheet(() {});
+          }
+
+          Widget chip(String label, double amt) => ActionChip(
+                label: Text(label),
+                onPressed: () => quick(amt),
+              );
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 0, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                          child: Text(p.name,
+                              style: theme.textTheme.titleLarge)),
+                      _boostBadge(theme, p.boost),
+                    ],
+                  ),
+                  Text(p.blurb,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 12),
+                  ...p.legs.map((l) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          children: [
+                            Expanded(
+                                child: Text(l.label,
+                                    style: theme.textTheme.bodyMedium)),
+                            Text(_mult(l.decimalOdds),
+                                style: theme.textTheme.bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      )),
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('All ${p.legs.length} must hit',
+                          style: theme.textTheme.bodyMedium),
+                      Text('pays ${_mult(p.boostedDecimal)}',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold, color: kGain)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ctrl,
+                    autofocus: true,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                    onChanged: (_) => setSheet(() {}),
+                    decoration: const InputDecoration(
+                      prefixText: '\$ ',
+                      border: OutlineInputBorder(),
+                      labelText: 'Stake',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      chip('\$25', 25),
+                      chip('\$50', 50),
+                      chip('\$100', 100),
+                      chip('Max', game.cash > 0 ? game.cash.floorToDouble() : 0.0),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('To win', style: theme.textTheme.bodyMedium),
+                      Text(stake > 0 ? money(payout) : '—',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold, color: kGain)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: stake > 0
+                        ? () {
+                            final err = game.placeFeatured(p, stake);
+                            Navigator.pop(ctx);
+                            _toast(err ??
+                                'Placed ${p.name} for ${money(stake)} — good luck.');
+                          }
+                        : null,
+                    child: Text('Place ${p.legs.length}-leg parlay'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        });
+      },
+    ).whenComplete(ctrl.dispose);
+  }
+}
+
+/// The "+30% boost" pill shown on featured parlays.
+Widget _boostBadge(ThemeData theme, double boost) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: kGain.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text('🔥 +${(boost * 100).round()}% boost',
+          style: theme.textTheme.labelSmall
+              ?.copyWith(color: kGain, fontWeight: FontWeight.bold)),
+    );
+
+/// One pre-built featured parlay, shown as a tappable card in the top strip.
+class _FeaturedCard extends StatelessWidget {
+  const _FeaturedCard({
+    required this.parlay,
+    required this.available,
+    required this.onTap,
+  });
+
+  final FeaturedParlay parlay;
+  final bool available;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // "Lions (vs Bears)" -> "Lions"
+    final teams = parlay.legs.map((l) => l.label.split(' (').first).join(' · ');
+    return Opacity(
+      opacity: available ? 1 : 0.5,
+      child: SizedBox(
+        width: 232,
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: available ? onTap : null,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _boostBadge(theme, parlay.boost),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(parlay.name,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text(parlay.blurb,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 6),
+                  Text('${parlay.legs.length} legs · $teams',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall),
+                  const Spacer(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_mult(parlay.boostedDecimal),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold, color: kGain)),
+                          Text(_payBack(parlay.boostedDecimal),
+                              style: theme.textTheme.labelSmall),
+                        ],
+                      ),
+                      available
+                          ? Icon(Icons.add_circle,
+                              color: theme.colorScheme.primary)
+                          : Text('placed',
+                              style: theme.textTheme.labelSmall
+                                  ?.copyWith(color: theme.colorScheme.outline)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
