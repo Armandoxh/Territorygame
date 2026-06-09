@@ -864,7 +864,7 @@ class Catalog {
         JobDef(id: 'svc_mgr', title: 'Store Manager', pay: 3400),
         JobDef(id: 'svc_regional', title: 'Regional Manager', pay: 6000),
       ],
-      rungMonths: [18, 30, 48, 0],
+      rungMonths: [48, 84, 108, 0], // Service: top ~20 yrs
     ),
     // 🔧 A cheap, short trade school — then earn well fast with a solid ceiling
     // and no big-college debt. The anti-debt path (but not free).
@@ -881,7 +881,7 @@ class Catalog {
         JobDef(id: 'trade_master', title: 'Master Tradesperson', pay: 10000),
         JobDef(id: 'trade_owner', title: 'Contractor / Shop Owner', pay: 20000),
       ],
-      rungMonths: [24, 36, 48, 0],
+      rungMonths: [48, 108, 144, 0], // Trades: top ~25 yrs
     ),
     // 💻 Cheap, fast education; high ceiling. The best ROI on a degree.
     CareerTrack(
@@ -898,7 +898,7 @@ class Catalog {
         JobDef(id: 'tech_staff', title: 'Staff Engineer', pay: 19000, requiredEdu: 1),
         JobDef(id: 'tech_director', title: 'Engineering Director', pay: 28000, requiredEdu: 1),
       ],
-      rungMonths: [24, 30, 36, 36, 0],
+      rungMonths: [48, 84, 96, 108, 0], // Tech: top ~28 yrs
     ),
     // 💼 Bachelor's; brutal grind, very high ceiling. Analyst → MD.
     CareerTrack(
@@ -915,7 +915,7 @@ class Catalog {
         JobDef(id: 'fin_director', title: 'Director', pay: 35000, requiredEdu: 2),
         JobDef(id: 'fin_md', title: 'Managing Director', pay: 58000, requiredEdu: 2),
       ],
-      rungMonths: [30, 36, 36, 36, 0],
+      rungMonths: [48, 96, 120, 144, 0], // Finance: top ~34 yrs (the grind)
     ),
     // 📊 Master's required, steady and respectable — but a lower ceiling.
     CareerTrack(
@@ -932,10 +932,10 @@ class Catalog {
         JobDef(id: 'acct_controller', title: 'Controller', pay: 30000, requiredEdu: 3),
         JobDef(id: 'acct_cfo', title: 'CFO', pay: 52000, requiredEdu: 3),
       ],
-      // Fast ramp + high floor: the master's pays off by getting you comfortable
-      // and senior quickly (it out-earns Finance for ~a decade before Finance's
-      // higher ceiling pulls ahead).
-      rungMonths: [18, 24, 30, 36, 0],
+      // Faster ramp than Finance + a high floor: the master's gets you senior
+      // sooner, so you out-earn the finance grind through much of mid-career
+      // before its higher ceiling pulls ahead. Top ~30 yrs.
+      rungMonths: [36, 84, 108, 132, 0],
     ),
     // 🩺 Huge loan, 8 years of school, years of low-paid residency — then the
     // highest ceiling in the game. The long game.
@@ -954,7 +954,7 @@ class Catalog {
         JobDef(id: 'med_specialist', title: 'Specialist', pay: 48000, requiredEdu: 3),
         JobDef(id: 'med_chief', title: 'Chief of Medicine', pay: 72000, requiredEdu: 3),
       ],
-      rungMonths: [48, 24, 60, 60, 0],
+      rungMonths: [60, 48, 132, 156, 0], // Medicine: top ~33 yrs (after school)
     ),
     // ⚖️ Law school loan, long climb, partner-track upside.
     CareerTrack(
@@ -971,7 +971,7 @@ class Catalog {
         JobDef(id: 'law_jr_partner', title: 'Junior Partner', pay: 28000, requiredEdu: 3),
         JobDef(id: 'law_partner', title: 'Partner', pay: 52000, requiredEdu: 3),
       ],
-      rungMonths: [48, 42, 48, 0],
+      rungMonths: [60, 120, 180, 0], // Law: Partner ~30 yrs
     ),
     // 🚀 Prestige reward: no degree, slow burn, life-changing exit. Unlocked by
     // retiring and starting over.
@@ -988,7 +988,7 @@ class Catalog {
         JobDef(id: 'founder_scale', title: 'Scale-up CEO', pay: 18000, unlockLevel: 1),
         JobDef(id: 'founder_exit', title: 'Exited Founder', pay: 58000, unlockLevel: 1),
       ],
-      rungMonths: [30, 36, 48, 0],
+      rungMonths: [60, 120, 180, 0], // Founder: exit ~30 yrs
     ),
   ];
 

@@ -614,7 +614,9 @@ void main() {
       final g = GameController(seed: 1)..cash = 50000;
       expect(g.currentTrackId, 'service'); // everyone starts here
       final entryPay = g.job.pay;
-      for (var i = 0; i < 100; i++) {
+      // Careers now ramp over decades, so advance far enough to clear a couple
+      // of the (longer) early rungs.
+      for (var i = 0; i < 240; i++) {
         g.advanceDay();
       }
       expect(g.rungIndex, greaterThanOrEqualTo(2)); // climbed the ladder
