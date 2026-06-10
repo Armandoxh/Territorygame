@@ -11,6 +11,7 @@ import 'invest_app.dart';
 import 'life_app.dart';
 import 'life_tab.dart';
 import 'news_tab.dart';
+import 'prestige_app.dart';
 import 'property_tab.dart';
 import 'sports_app.dart';
 import 'widgets/app_scaffold.dart';
@@ -220,6 +221,17 @@ class _PhoneHomeState extends State<PhoneHome> {
                           game: game,
                           title: 'Main Street',
                           body: (_) => BusinessBody(game: game),
+                        )),
+                      ),
+                      _AppIcon(
+                        label: 'Prestige',
+                        sub: 'Perks',
+                        icon: Icons.auto_awesome,
+                        color: const Color(0xFFB8860B),
+                        onTap: () => _open(AppScaffold(
+                          game: game,
+                          title: 'Prestige',
+                          body: (_) => PrestigeBody(game: game),
                         )),
                       ),
                     ],
