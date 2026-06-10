@@ -218,12 +218,21 @@ class GameController extends ChangeNotifier {
       relationship == RelationshipStage.partnered ||
       relationship == RelationshipStage.married;
 
+  /// Standing you get just from how you live: a nice home and car read as
+  /// "successful" and open doors without grinding the event circuit.
+  int get lifestyleStanding =>
+      (housing?.standingBonus ?? 0) + (transport?.standingBonus ?? 0);
+
+  /// Total social standing = connections you've earned (events, marriage,
+  /// family) + the standing your lifestyle buys you.
+  int get totalStanding => socialStanding + lifestyleStanding;
+
   /// Social-standing tier (0–3): Newcomer / Connected / Well-connected / Inner
   /// circle. Higher tiers open exclusive event rooms and sharpen every tip.
   int get standingTier {
-    if (socialStanding >= 30) return 3;
-    if (socialStanding >= 15) return 2;
-    if (socialStanding >= 5) return 1;
+    if (totalStanding >= 30) return 3;
+    if (totalStanding >= 15) return 2;
+    if (totalStanding >= 5) return 1;
     return 0;
   }
 
@@ -292,6 +301,41 @@ class GameController extends ChangeNotifier {
         '${_usd(childcareCost)}/mo.)');
     notifyListeners();
     return null;
+  }
+
+  // ---- Lifestyle: housing & transport ----
+  /// null = let it follow your income automatically (lifestyle creep, the old
+  /// behavior); a non-null id pins a fixed tier you've chosen.
+  String? housingChoiceId;
+  String? transportChoiceId;
+
+  HousingOption? get housing =>
+      housingChoiceId == null ? null : LifeData.housingById(housingChoiceId!);
+  TransportOption? get transport => transportChoiceId == null
+      ? null
+      : LifeData.transportById(transportChoiceId!);
+
+  /// The income-tracking default cost of each — what's already baked into
+  /// [dailyExpenses] via its housing/transport shares.
+  double get autoHousingCost => dailyExpenses * LifeData.housingShare;
+  double get autoTransportCost => dailyExpenses * LifeData.transportShare;
+
+  /// What you actually pay this month (a chosen tier, else the income default).
+  double get housingCost => housing?.monthlyCost ?? autoHousingCost;
+  double get transportCost => transport?.monthlyCost ?? autoTransportCost;
+
+  /// How a chosen tier shifts your monthly outflow vs. just following income.
+  double get lifestyleExpenseDelta =>
+      (housingCost - autoHousingCost) + (transportCost - autoTransportCost);
+
+  void chooseHousing(String? id) {
+    housingChoiceId = id;
+    notifyListeners();
+  }
+
+  void chooseTransport(String? id) {
+    transportChoiceId = id;
+    notifyListeners();
   }
 
   // ---- Crises / decisions ----
@@ -1569,9 +1613,10 @@ class GameController extends ChangeNotifier {
     final events = <String>[];
 
     // 1) Salary in (part-time pay while studying), living expenses out. Kids
-    //    add their monthly cost on top of your own lifestyle.
+    //    add their monthly cost, and a chosen housing/transport tier shifts the
+    //    bill up or down vs. just letting lifestyle follow your income.
     final income = effectivePay;
-    final expenses = dailyExpenses + childcareCost;
+    final expenses = dailyExpenses + childcareCost + lifestyleExpenseDelta;
     // Retirement: payroll-deduct your contribution and add the employer match
     // (dollar-for-dollar up to 5% of pay) into the locked account; only the
     // take-home portion lands in cash.
