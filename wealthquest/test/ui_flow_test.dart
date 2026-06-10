@@ -33,6 +33,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Market'));
     await tester.pumpAndSettle();
+    // The category tabs are horizontally scrollable; on a narrow phone "Stocks"
+    // (the 3rd of five) sits off the right edge, so scroll it in before tapping.
+    await tester.ensureVisible(find.text('Stocks'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Stocks'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Apt Technologies').first);
