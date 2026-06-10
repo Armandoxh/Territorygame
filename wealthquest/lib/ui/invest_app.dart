@@ -32,6 +32,10 @@ class InvestApp extends StatelessWidget {
           body: ListenableBuilder(
             listenable: game,
             builder: (context, _) => TabBarView(
+              // Don't let the tab pager eat horizontal swipes — that's what stole
+              // the swipe-back gesture and let it fall through to the browser's
+              // back/refresh. Switch tabs by tapping; swipe anywhere = go home.
+              physics: const NeverScrollableScrollPhysics(),
               children: [
                 PortfolioTab(game: game),
                 MarketTab(game: game),
