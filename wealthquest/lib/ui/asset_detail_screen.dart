@@ -5,6 +5,7 @@ import '../models/holding.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
 import 'widgets/amount_sheet.dart';
+import 'widgets/app_scaffold.dart';
 import 'widgets/candle_chart.dart';
 import 'widgets/swipe_back.dart';
 import 'widgets/ui_helpers.dart';
@@ -85,6 +86,7 @@ class AssetDetailScreen extends StatelessWidget {
           child: Scaffold(
           appBar: AppBar(
             title: Text(def.name),
+            actions: [CashBadge(game: game)],
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(20),
               child: Padding(

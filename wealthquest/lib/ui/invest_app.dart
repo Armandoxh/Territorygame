@@ -21,6 +21,7 @@ class InvestApp extends StatelessWidget {
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Sherwood'),
+            actions: [CashBadge(game: game)],
             bottom: const TabBar(
               tabs: [
                 Tab(text: 'Portfolio'),

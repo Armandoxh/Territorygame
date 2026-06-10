@@ -4,14 +4,14 @@ import 'package:flutter/services.dart';
 import '../../util/format.dart';
 
 /// A bottom sheet that collects a dollar amount. Returns the entered amount,
-/// or null if dismissed. [max] enables a "Max" shortcut and caps input.
+/// or null if dismissed. [max] is the available amount; the quick chips fill in
+/// a percentage of it (10/25/50%) or Max.
 Future<double?> showAmountSheet(
   BuildContext context, {
   required String title,
   required String actionLabel,
   required double max,
   String? helper,
-  List<double> quickAmounts = const [50, 100, 500],
 }) {
   return showModalBottomSheet<double>(
     context: context,
@@ -22,7 +22,6 @@ Future<double?> showAmountSheet(
       actionLabel: actionLabel,
       max: max,
       helper: helper,
-      quickAmounts: quickAmounts,
     ),
   );
 }
@@ -33,14 +32,12 @@ class _AmountSheet extends StatefulWidget {
     required this.actionLabel,
     required this.max,
     required this.helper,
-    required this.quickAmounts,
   });
 
   final String title;
   final String actionLabel;
   final double max;
   final String? helper;
-  final List<double> quickAmounts;
 
   @override
   State<_AmountSheet> createState() => _AmountSheetState();
@@ -110,13 +107,13 @@ class _AmountSheetState extends State<_AmountSheet> {
           Wrap(
             spacing: 8,
             children: [
-              for (final q in widget.quickAmounts)
+              for (final p in const [0.10, 0.25, 0.50])
                 ActionChip(
-                  label: Text('\$${q.toStringAsFixed(0)}'),
-                  onPressed: q <= widget.max ? () => _set(q) : null,
+                  label: Text('${(p * 100).toStringAsFixed(0)}%'),
+                  onPressed: () => _set(widget.max * p),
                 ),
               ActionChip(
-                label: const Text('Max'),
+                label: const Text('MAX'),
                 onPressed: () => _set(widget.max),
               ),
             ],

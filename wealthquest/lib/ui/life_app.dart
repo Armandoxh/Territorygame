@@ -23,6 +23,7 @@ class LifeApp extends StatelessWidget {
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Life'),
+            actions: [CashBadge(game: game)],
             bottom: const TabBar(
               isScrollable: true,
               tabs: [

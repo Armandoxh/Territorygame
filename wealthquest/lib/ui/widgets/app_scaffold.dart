@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../state/game_controller.dart';
+import '../../util/format.dart';
 import 'crisis_sheet.dart';
 import 'day_summary_dialog.dart';
 import 'margin_call_sheet.dart';
 import 'swipe_back.dart';
+import 'ui_helpers.dart';
 
 /// Advance the simulation one month and show the recap. Available from the
 /// phone home and inside every app. A sustained cash shortfall follows the
@@ -115,6 +117,53 @@ Widget advanceControls(BuildContext context, GameController game) {
   );
 }
 
+/// A compact "wallet · $cash" badge pinned to the top-right of every app bar,
+/// so the player's spendable cash is always visible. Live-updates with the game
+/// and turns red when cash goes negative.
+class CashBadge extends StatelessWidget {
+  const CashBadge({super.key, required this.game});
+
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListenableBuilder(
+      listenable: game,
+      builder: (context, _) {
+        final negative = game.cash < 0;
+        final color = negative ? kLoss : kGain;
+        return Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.16),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.account_balance_wallet, size: 14, color: color),
+                  const SizedBox(width: 5),
+                  Text(
+                    moneyWhole(game.cash),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: negative ? kLoss : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _FfButton extends StatelessWidget {
   const _FfButton({required this.label, required this.onPressed});
 
@@ -154,7 +203,11 @@ class AppScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return SwipeBack(
       child: Scaffold(
-        appBar: AppBar(title: Text(title), bottom: bottom),
+        appBar: AppBar(
+          title: Text(title),
+          bottom: bottom,
+          actions: [CashBadge(game: game)],
+        ),
         body: ListenableBuilder(
           listenable: game,
           builder: (context, _) => body(context),
