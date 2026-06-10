@@ -76,7 +76,6 @@ class LifeData {
       minTier: 3,
     ),
   ];
-}
 
   /// Where you choose to live. Monthly costs are grounded in 2024-25 US rent
   /// data (national studio ≈ $1.5k, 1-bed ≈ $1.65k, 2-bed ≈ $1.95k; a shared
