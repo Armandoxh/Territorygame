@@ -153,7 +153,7 @@ class _HoldingTile extends StatelessWidget {
 
     final String subtitle;
     if (holding.isShort) {
-      subtitle = 'SHORT • entry ${price(holding.entryPrice)}';
+      subtitle = 'SHORT position';
     } else if (holding.kind == AssetKind.cd || holding.kind == AssetKind.fund) {
       subtitle = holding.matured
           ? 'Matured • free to withdraw'
@@ -164,37 +164,114 @@ class _HoldingTile extends StatelessWidget {
       subtitle = '${def.kind.label} • ${pct(def.apy)} APY';
     } else {
       subtitle =
-          '${holding.shares.toStringAsFixed(holding.shares >= 10 ? 1 : 4)} @ ${price(game.priceOf(def.id))}';
+          '${def.kind.label}${def.sector.isNotEmpty ? ' • ${def.sector}' : ''}';
     }
 
     final plLabel = holding.kind == AssetKind.savings
         ? 'interest +${money(pl)}'
         : '${pl >= 0 ? '+' : ''}${money(pl)}';
 
+    // The cost breakdown the player asked to see: what they paid per unit, what
+    // a unit goes for now, and the totals. Per-unit only makes sense for
+    // price-based positions (stocks/ETFs/bonds/crypto/commodities); savings,
+    // CDs and funds are balances, so we show invested vs. worth instead.
+    final sharesStr =
+        holding.shares.toStringAsFixed(holding.shares >= 10 ? 1 : 4);
+    final List<List<String>> stats;
+    if (holding.isShort) {
+      stats = [
+        ['Size', '$sharesStr units'],
+        ['Now / unit', price(game.priceOf(def.id))],
+        ['Entry / unit', price(holding.entryPrice)],
+        ['Margin posted', money(holding.costBasis)],
+      ];
+    } else if (holding.kind.isPriceBased) {
+      final avgPaid =
+          holding.shares > 0 ? holding.costBasis / holding.shares : 0.0;
+      stats = [
+        ['Units', sharesStr],
+        ['Now / unit', price(game.priceOf(def.id))],
+        ['Paid / unit', price(avgPaid)],
+        ['Total paid', money(holding.costBasis)],
+      ];
+    } else {
+      stats = [
+        ['Invested', money(holding.costBasis)],
+        ['Worth now', money(value)],
+      ];
+    }
+
     return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: holding.isShort
-            ? const Icon(Icons.trending_down, color: kLoss)
-            : holding.isLocked
-                ? const Icon(Icons.lock_outline)
-                : const Icon(Icons.show_chart),
-        title: Text(def.name),
-        subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
-        trailing: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            leading: holding.isShort
+                ? const Icon(Icons.trending_down, color: kLoss)
+                : holding.isLocked
+                    ? const Icon(Icons.lock_outline)
+                    : const Icon(Icons.show_chart),
+            title: Text(def.name),
+            subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
+            trailing: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(money(value),
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                Text(plLabel,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: gainColor(pl))),
+              ],
+            ),
+            onTap: () => holding.isShort ? _cover(context) : _sell(context),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: _statGrid(theme, stats),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Lay the cost figures out two-per-row, each cell flexible so long values
+  /// never overflow on a narrow phone.
+  Widget _statGrid(ThemeData theme, List<List<String>> pairs) {
+    final rows = <Widget>[];
+    for (var i = 0; i < pairs.length; i += 2) {
+      rows.add(Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(money(value),
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.bold)),
-            Text(plLabel,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: gainColor(pl))),
+            Expanded(child: _stat(theme, pairs[i][0], pairs[i][1])),
+            const SizedBox(width: 12),
+            Expanded(
+              child: i + 1 < pairs.length
+                  ? _stat(theme, pairs[i + 1][0], pairs[i + 1][1])
+                  : const SizedBox.shrink(),
+            ),
           ],
         ),
-        onTap: () => holding.isShort ? _cover(context) : _sell(context),
-      ),
+      ));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows);
+  }
+
+  Widget _stat(ThemeData theme, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        Text(value,
+            style:
+                theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+      ],
     );
   }
 }
