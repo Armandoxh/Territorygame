@@ -7,6 +7,16 @@ import 'package:wealthquest/app.dart';
 void main() {
   testWidgets('phone home: open apps, browse market, advance a month',
       (tester) async {
+    // This is a phone UI. Render at a realistic phone size (390x844) rather
+    // than the default 800x600 landscape test surface: the app caps its width
+    // at 480 on wide screens, so a short 600px-tall window would wrap text into
+    // extra lines and overflow non-scrolling columns — something neither a real
+    // phone (taller) nor a real desktop (full window height) ever hits.
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(const WealthQuestApp());
     await tester.pumpAndSettle();
 
