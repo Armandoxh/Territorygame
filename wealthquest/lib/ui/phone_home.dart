@@ -123,6 +123,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                   child: GridView.count(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
                     crossAxisCount: 3,
+                    // Cells need to be taller than they are wide: a 64px icon
+                    // plus two text labels needs ~120px, but on a narrow phone
+                    // three columns leave each cell only ~111px wide — a 1:1
+                    // ratio would clip the labels. Give them headroom.
+                    childAspectRatio: 0.78,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
                     children: [
@@ -341,9 +346,14 @@ class _AppIcon extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelLarge
                   ?.copyWith(fontWeight: FontWeight.w600)),
           Text(sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant)),
         ],
