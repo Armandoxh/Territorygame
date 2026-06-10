@@ -77,6 +77,7 @@ class LifeData {
       cost: 100,
       tipKind: AssetKind.crypto,
       reliability: 0.58,
+      minTier: 0,
     ),
     LifeEvent(
       id: 'networking_mixer',
@@ -86,6 +87,7 @@ class LifeData {
       cost: 175,
       tipKind: AssetKind.stock,
       reliability: 0.62,
+      minTier: 0,
     ),
     LifeEvent(
       id: 'industry_conference',
@@ -95,6 +97,7 @@ class LifeData {
       cost: 400,
       tipKind: AssetKind.etf,
       reliability: 0.66,
+      minTier: 1,
     ),
     LifeEvent(
       id: 'charity_gala',
@@ -104,6 +107,17 @@ class LifeData {
       cost: 750,
       tipKind: AssetKind.stock,
       reliability: 0.72,
+      minTier: 2,
+    ),
+    LifeEvent(
+      id: 'private_club',
+      name: "Private members' club",
+      emoji: '🎩',
+      blurb: 'Invite-only. The people here move markets before the news does.',
+      cost: 1500,
+      tipKind: AssetKind.stock,
+      reliability: 0.80,
+      minTier: 3,
     ),
   ];
 }
@@ -129,6 +143,10 @@ class LifeEvent {
   final double cost;
   final AssetKind tipKind;
   final double reliability;
+
+  /// Minimum social-standing tier (0–3) needed to get in the door.
+  final int minTier;
+
   const LifeEvent({
     required this.id,
     required this.name,
@@ -137,5 +155,6 @@ class LifeEvent {
     required this.cost,
     required this.tipKind,
     required this.reliability,
+    this.minTier = 0,
   });
 }

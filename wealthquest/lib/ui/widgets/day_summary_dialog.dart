@@ -30,7 +30,7 @@ Future<void> showDaySummary(
           : '$monthsCovered months  ·  now Age ${game.ageYears}';
 
       final income = <_Line>[
-        _Line('Salary', r.income),
+        _Line('Income', r.income),
         if (r.interest > 0.005) _Line('Interest', r.interest),
         if (r.dividends > 0.005) _Line('Dividends & coupons', r.dividends),
         if (r.rent > 0.005) _Line('Rental income', r.rent),

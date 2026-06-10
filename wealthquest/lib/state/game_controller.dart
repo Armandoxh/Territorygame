@@ -89,6 +89,11 @@ class OngoingEffect {
   });
 }
 
+/// Your relationship arc: single → dating → partnered → married. A partner
+/// brings a second (take-home) income; marriage and kids are milestones that
+/// cost money but build your social standing.
+enum RelationshipStage { single, dating, partnered, married }
+
 class GameController extends ChangeNotifier {
   final Random _rng;
 
@@ -167,6 +172,126 @@ class GameController extends ChangeNotifier {
   void clearOverdraftStreak() {
     monthsCashNegative = 0;
     notifyListeners();
+  }
+
+  // ---- Family & relationships ----
+  /// Where you are in your relationship arc.
+  RelationshipStage relationship = RelationshipStage.single;
+
+  /// Dates been on while single/dating — progress toward a steady partner.
+  int datesBeen = 0;
+
+  /// How many kids you're raising. Each adds a monthly cost.
+  int children = 0;
+
+  /// Social standing ("connections") — points that gate which rooms you can get
+  /// into and how good the intel is. Built by going out, marrying, and family
+  /// milestones.
+  int socialStanding = 0;
+
+  static const double dateCost = 200;
+  static const int datesToPartner = 3;
+  static const double weddingCost = 8000;
+  static const double childUpfrontCost = 3000;
+  static const double childMonthlyCost = 650;
+  static const int maxChildren = 4;
+
+  /// Your partner's take-home contribution each month (0 if you're not with
+  /// someone). Scales mildly with your own career (assortative) but has a floor
+  /// so it matters from early on, and a cap so it never dwarfs late-game play.
+  double get partnerMonthlyIncome {
+    switch (relationship) {
+      case RelationshipStage.partnered:
+        return (0.20 * job.pay).clamp(1800, 12000).toDouble();
+      case RelationshipStage.married:
+        return (0.28 * job.pay).clamp(2800, 12000).toDouble();
+      case RelationshipStage.single:
+      case RelationshipStage.dating:
+        return 0;
+    }
+  }
+
+  /// Monthly cost of raising your kids, on top of your own living expenses.
+  double get childcareCost => children * childMonthlyCost;
+
+  bool get hasPartner =>
+      relationship == RelationshipStage.partnered ||
+      relationship == RelationshipStage.married;
+
+  /// Social-standing tier (0–3): Newcomer / Connected / Well-connected / Inner
+  /// circle. Higher tiers open exclusive event rooms and sharpen every tip.
+  int get standingTier {
+    if (socialStanding >= 30) return 3;
+    if (socialStanding >= 15) return 2;
+    if (socialStanding >= 5) return 1;
+    return 0;
+  }
+
+  String get standingLabel => const [
+        'Newcomer',
+        'Connected',
+        'Well-connected',
+        'Inner circle',
+      ][standingTier];
+
+  /// Go out and meet people. Costs cash; after a few dates you settle into a
+  /// relationship (and gain a second income).
+  String? goOnDate() {
+    if (hasPartner) return "You're already with someone.";
+    if (dateCost > cash + 0.001) return 'Not enough cash for a night out.';
+    cash -= dateCost;
+    datesBeen += 1;
+    socialStanding += 1;
+    if (relationship == RelationshipStage.single) {
+      relationship = RelationshipStage.dating;
+    }
+    if (datesBeen >= datesToPartner &&
+        relationship == RelationshipStage.dating) {
+      relationship = RelationshipStage.partnered;
+      _log('💑 You and your date are official — a second income starts coming '
+          'in.');
+    } else {
+      _log('🌹 Went on a date (−\$${dateCost.toStringAsFixed(0)}).');
+    }
+    notifyListeners();
+    return null;
+  }
+
+  /// Tie the knot. A wedding costs cash but is a big social-standing boost (and
+  /// bumps your partner's commitment — and income).
+  String? proposeMarriage() {
+    if (relationship == RelationshipStage.married) {
+      return "You're already married.";
+    }
+    if (relationship != RelationshipStage.partnered) {
+      return 'Find a steady partner first.';
+    }
+    if (weddingCost > cash + 0.001) {
+      return 'A wedding runs ${_usd(weddingCost)} — save up first.';
+    }
+    cash -= weddingCost;
+    relationship = RelationshipStage.married;
+    socialStanding += 8;
+    _log('💍 You got married (−\$${weddingCost.toStringAsFixed(0)}).');
+    notifyListeners();
+    return null;
+  }
+
+  /// Have a child. A one-time cost now, then a monthly bill until they're grown.
+  String? haveChild() {
+    if (!hasPartner) return 'You need a partner first.';
+    if (children >= maxChildren) return 'Your hands are full already.';
+    if (childUpfrontCost > cash + 0.001) {
+      return 'A new arrival costs ${_usd(childUpfrontCost)} up front.';
+    }
+    cash -= childUpfrontCost;
+    children += 1;
+    socialStanding += 1;
+    _log('👶 Welcome to the family — kid #$children. '
+        '(−\$${childUpfrontCost.toStringAsFixed(0)}, now '
+        '${_usd(childcareCost)}/mo.)');
+    notifyListeners();
+    return null;
   }
 
   // ---- Crises / decisions ----
@@ -337,11 +462,19 @@ class GameController extends ChangeNotifier {
     if (attendedEventThisMonth) {
       return "You've already been out this month — try again next month.";
     }
+    if (standingTier < e.minTier) {
+      return 'That room is invite-only — build your social standing first.';
+    }
     if (e.cost > cash + 0.001) return 'Not enough cash.';
     cash -= e.cost;
-    final tip = NewsEngine.insiderTip(_rng, day, e.tipKind, e.reliability);
+    // Better-connected players read the room better: each standing tier sharpens
+    // the intel. (Same number of RNG draws, so the rest of the sim is unaffected.)
+    final reliability =
+        (e.reliability + standingTier * 0.03).clamp(0.0, 0.92).toDouble();
+    final tip = NewsEngine.insiderTip(_rng, day, e.tipKind, reliability);
     currentRumors = [tip, ...currentRumors];
     attendedEventThisMonth = true;
+    socialStanding += 1; // every outing widens your circle
     _log('Went to ${e.name} (−\$${e.cost.toStringAsFixed(0)}) and picked up a tip.');
     notifyListeners();
     return null;
@@ -1435,9 +1568,10 @@ class GameController extends ChangeNotifier {
     attendedEventThisMonth = false; // a fresh month, a fresh night out
     final events = <String>[];
 
-    // 1) Salary in (part-time pay while studying), living expenses out.
+    // 1) Salary in (part-time pay while studying), living expenses out. Kids
+    //    add their monthly cost on top of your own lifestyle.
     final income = effectivePay;
-    final expenses = dailyExpenses;
+    final expenses = dailyExpenses + childcareCost;
     // Retirement: payroll-deduct your contribution and add the employer match
     // (dollar-for-dollar up to 5% of pay) into the locked account; only the
     // take-home portion lands in cash.
@@ -1458,6 +1592,10 @@ class GameController extends ChangeNotifier {
         : Catalog.incomeTaxOnTaxable(annualTaxable) / 12;
     cash -= taxPaid;
     cash -= expenses;
+    // A partner's take-home pay lands straight in cash. Folded into the income
+    // figure below so the recap and the cash-flow audit stay exact.
+    final partnerNet = partnerMonthlyIncome;
+    cash += partnerNet;
 
     // 1b) Education: advance any degree in progress, and compound the loan.
     if (isStudying) {
@@ -1925,7 +2063,7 @@ class GameController extends ChangeNotifier {
     final after = netWorth;
 
     final summary = DayResult(
-      income: income,
+      income: income + partnerNet,
       expenses: expenses,
       dividends: dividends,
       interest: interest,
