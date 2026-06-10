@@ -56,11 +56,16 @@ Future<void> fastForward(BuildContext context, GameController game, int n) async
     remaining -= out.months;
     if (out.months == 0) break; // safety: never spin in place
 
-    // Resolve whatever halted the run, then continue the remaining months.
+    // A margin call ends the fast-forward: handle it, then stop so we don't
+    // silently spiral back underwater and surface a second (and third) margin
+    // call from a single click. The player can press again to carry on.
     if (r.marginCall) {
       if (!context.mounted) return;
       await showMarginCall(context, game);
+      break;
     }
+    // A crisis is a lighter interrupt — resolve it inline and keep going so the
+    // full span of months still elapses.
     if (game.pendingCrisis != null) {
       if (!context.mounted) return;
       await showCrisis(context, game);

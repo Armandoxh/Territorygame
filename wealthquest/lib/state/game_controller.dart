@@ -151,7 +151,14 @@ class GameController extends ChangeNotifier {
   int monthsCashNegative = 0;
 
   /// Fee charged each grace month you're overdrawn, as a fraction of the debt.
-  static const double overdraftFeeRate = 0.10;
+  /// Deliberately modest — it should sting, not snowball. (It used to be 10%,
+  /// which compounded brutally once you fell behind.)
+  static const double overdraftFeeRate = 0.05;
+
+  /// A single month's overdraft fee is capped at this share of (positive) net
+  /// worth, so an asset-rich but cash-light player who's just rearranging funds
+  /// can't be gouged by a fee scaled off a large temporary shortfall.
+  static const double overdraftFeeMaxNwShare = 0.02;
 
   /// How many months you can run negative before the margin call hits.
   static const int overdraftGraceMonths = 3;
@@ -1862,7 +1869,15 @@ class GameController extends ChangeNotifier {
             '🚨 MARGIN CALL — $monthsCashNegative months in the red. You must '
             'liquidate assets to get back above \$0.');
       } else {
+        // A gentle, capped fee: enough to nudge you to top up, but it can't
+        // snowball on a large temporary shortfall (capped at a slice of net
+        // worth for anyone with real assets).
         overdraftFee = (-cash) * overdraftFeeRate;
+        final nw = netWorth;
+        if (nw > 0) {
+          final cap = nw * overdraftFeeMaxNwShare;
+          if (overdraftFee > cap) overdraftFee = cap;
+        }
         cash -= overdraftFee;
         events.add(
             '🏦 Overdraft fee −\$${overdraftFee.toStringAsFixed(0)} '
