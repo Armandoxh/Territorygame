@@ -66,7 +66,19 @@ class _ExpensesTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final total = game.dailyExpenses;
+    // Live breakdown: housing and transport are whatever you've chosen (or the
+    // income default); the rest are still shares of the income-scaled baseline;
+    // kids add childcare. These sum to exactly what's billed each month.
+    final base = game.dailyExpenses;
+    final housing = game.housingCost;
+    final transport = game.transportCost;
+    final childcare = game.childcareCost;
+    final food = base * 0.18;
+    final insurance = base * 0.12;
+    final utilities = base * 0.09;
+    final fun = base * 0.08;
+    final total =
+        housing + transport + food + insurance + utilities + fun + childcare;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [
@@ -84,9 +96,9 @@ class _ExpensesTab extends StatelessWidget {
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Text(
-                  'These come out of your cash every month — before anything you '
-                  'invest. They creep up as you earn more: a bigger paycheck '
-                  'buys a nicer life.',
+                  'These come out of your cash every month — before anything '
+                  'you invest. Housing and transport are your call (see those '
+                  'tabs); the rest scale with your paycheck.',
                   style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant),
                 ),
@@ -97,20 +109,48 @@ class _ExpensesTab extends StatelessWidget {
         const SizedBox(height: 12),
         Text('Where it goes', style: theme.textTheme.titleMedium),
         const SizedBox(height: 4),
-        ...LifeData.breakdown.map((s) => _SliceRow(slice: s, total: total)),
+        _ExpenseRowTile(
+            emoji: '🏠', label: game.housing?.name ?? 'Housing',
+            amount: housing, total: total),
+        _ExpenseRowTile(
+            emoji: '🚗', label: game.transport?.name ?? 'Transportation',
+            amount: transport, total: total),
+        _ExpenseRowTile(
+            emoji: '🛒', label: 'Food & groceries', amount: food, total: total),
+        _ExpenseRowTile(
+            emoji: '🩺', label: 'Insurance & health',
+            amount: insurance, total: total),
+        _ExpenseRowTile(
+            emoji: '💡', label: 'Utilities & phone',
+            amount: utilities, total: total),
+        _ExpenseRowTile(
+            emoji: '🎉', label: 'Fun & everything else',
+            amount: fun, total: total),
+        if (childcare > 0)
+          _ExpenseRowTile(
+              emoji: '👨‍👩‍👧', label: 'Childcare',
+              amount: childcare, total: total),
       ],
     );
   }
 }
 
-class _SliceRow extends StatelessWidget {
-  const _SliceRow({required this.slice, required this.total});
-  final ExpenseSlice slice;
+class _ExpenseRowTile extends StatelessWidget {
+  const _ExpenseRowTile({
+    required this.emoji,
+    required this.label,
+    required this.amount,
+    required this.total,
+  });
+  final String emoji;
+  final String label;
+  final double amount;
   final double total;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final share = total > 0 ? amount / total : 0.0;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
@@ -118,11 +158,12 @@ class _SliceRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('${slice.emoji}  ${slice.label}',
-                  style: theme.textTheme.bodyMedium),
-              const Spacer(),
-              Text('${money(total * slice.share)}  ·  '
-                  '${(slice.share * 100).round()}%',
+              Expanded(
+                child: Text('$emoji  $label',
+                    style: theme.textTheme.bodyMedium),
+              ),
+              const SizedBox(width: 8),
+              Text('${money(amount)}  ·  ${(share * 100).round()}%',
                   style: theme.textTheme.bodyMedium
                       ?.copyWith(fontWeight: FontWeight.w600)),
             ],
@@ -131,7 +172,7 @@ class _SliceRow extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: slice.share,
+              value: share,
               minHeight: 6,
               backgroundColor: theme.colorScheme.surfaceVariant,
             ),
