@@ -178,10 +178,12 @@ class NewsTab extends StatelessWidget {
             children: [
               Text(reg.emoji, style: const TextStyle(fontSize: 18)),
               const SizedBox(width: 8),
-              Text(
-                'Market climate: ${reg.label}',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(color: c, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  'Market climate: ${reg.label}',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(color: c, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),

@@ -84,15 +84,21 @@ class LifeTab extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(k,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               )),
-          Text(v,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(width: 12),
+          // Let the value take the rest of the row and wrap/right-align instead
+          // of overflowing on a narrow phone (long roles, pay strings, etc.).
+          Expanded(
+            child: Text(v,
+                textAlign: TextAlign.right,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+          ),
         ],
       ),
     );
