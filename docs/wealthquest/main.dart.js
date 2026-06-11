@@ -358,7 +358,7 @@ aZB(a){var s,r,q=a.graphemeLayoutBounds,p=B.c.eu(q,t.i)
 q=p.a
 s=J.bL(q)
 r=p.$ti.y[1]
-return new A.oD(new A.x(r.a(s.i(q,0)),r.a(s.i(q,1)),r.a(s.i(q,2)),r.a(s.i(q,3))),new A.bN(J.aC(a.graphemeClusterTextRange.start),J.aC(a.graphemeClusterTextRange.end)),B.n9[J.aC(a.dir.value)])},
+return new A.oD(new A.x(r.a(s.i(q,0)),r.a(s.i(q,1)),r.a(s.i(q,2)),r.a(s.i(q,3))),new A.bN(J.aC(a.graphemeClusterTextRange.start),J.aC(a.graphemeClusterTextRange.end)),B.na[J.aC(a.dir.value)])},
 bj0(a){var s,r="chromium/canvaskit.js"
 switch(a.a){case 0:s=A.a([],t.s)
 if(A.b1Y())s.push(r)
@@ -17707,7 +17707,7 @@ _.dx=$},
 JV:function JV(){},
 a0a:function a0a(){},
 aZe(a,b){var s,r,q,p,o,n,m,l,k,j,i,h,g,f
-if(a==null)a=B.na
+if(a==null)a=B.nb
 s=J.bL(a)
 r=s.gM(a)-1
 q=A.c2(0,null,!1,t.LQ)
@@ -17899,7 +17899,7 @@ r.gMQ()
 q.sMQ(r.gMQ())
 r.gMN()
 q.sMN(r.gMN())
-s.mL(B.na,q)
+s.mL(B.nb,q)
 s.sbL(b.gbL())
 s.scw(b.gcw())
 s.fx=b.gaE7()
@@ -30032,7 +30032,7 @@ ai8:function ai8(a){this.a=a},
 ait:function ait(){},
 aiu:function aiu(){},
 aiC:function aiC(){},
-b9A(a){return B.c.tq(B.nd,new A.al6(a))},
+b9A(a){return B.c.tq(B.n9,new A.al6(a))},
 mG:function mG(a,b,c,d,e,f,g,h){var _=this
 _.a=a
 _.b=b
@@ -34034,7 +34034,7 @@ P0(a){var s,r,q,p,o,n,m,l=A.a([],t.Lx)
 for(s=a.a,r=J.bL(s),q=a.$ti.y[1],p=0;p<r.gM(s);++p){o=q.a(r.i(s,p))
 n=o.rect
 m=J.aC(o.dir.value)
-l.push(new A.eN(n[0],n[1],n[2],n[3],B.n9[m]))}return l},
+l.push(new A.eN(n[0],n[1],n[2],n[3],B.na[m]))}return l},
 dl(a){var s,r,q=this.a
 q===$&&A.b()
 s=q.a.getGlyphPositionAtCoordinate(a.a,a.b)
@@ -34288,7 +34288,7 @@ if(b==null)return!1
 if(!(b instanceof A.ri))return!1
 return b.d===s.d&&J.e(b.a,s.a)&&b.b==s.b&&A.hC(b.c,s.c)},
 gA(a){var s=this,r=s.c
-return A.N(s.d,s.a,s.b,A.bb(r==null?B.nc:r),B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a)},
+return A.N(s.d,s.a,s.b,A.bb(r==null?B.nd:r),B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a,B.a)},
 $iit:1}
 A.Bn.prototype={
 Yg(a,b){var s=this.RC(a),r=A.bj(new A.a77(this,b,s))
@@ -40812,7 +40812,7 @@ o=A.dT(s.i(0,"textAlignIndex"))
 n=A.dT(s.i(0,"textDirectionIndex"))
 m=A.i6(s.i(0,"fontWeightIndex"))
 l=m!=null?A.aUY(m):"normal"
-p=new A.azD(new A.adv(A.alm(s,"fontSize"),l,A.d6(s.i(0,"fontFamily")),B.Tg[o],B.n9[n],A.alm(s,"letterSpacing"),A.alm(s,"wordSpacing"),A.alm(s,"lineHeight")))
+p=new A.azD(new A.adv(A.alm(s,"fontSize"),l,A.d6(s.i(0,"fontFamily")),B.Tg[o],B.na[n],A.alm(s,"letterSpacing"),A.alm(s,"wordSpacing"),A.alm(s,"lineHeight")))
 break
 case"TextInput.clearClient":p=B.K3
 break
@@ -76150,7 +76150,7 @@ q.K=b.aV
 q.cy=b.c
 q.U=b.c4
 q.a1=b.bA
-q.amI(a==null?B.na:a)
+q.amI(a==null?B.nb:a)
 if(s!==r)q.Xm()},
 NK(a){return this.mL(null,a)},
 a4i(){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,b0,b1,b2,b3,b4,b5,b6=this,b7={}
@@ -92557,7 +92557,7 @@ gwj(){return A.bkr()},
 ahu(){if(this.x)return
 this.AV()},
 a4h(){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c=this,b=null,a=c.c
-if(a===-1||c.d===-1||c.b.length===0)return new A.pz(b,b,B.dE,B.nb,c.b.length!==0)
+if(a===-1||c.d===-1||c.b.length===0)return new A.pz(b,b,B.dE,B.nc,c.b.length!==0)
 if(!c.as){a=c.Qh(c.d,a)
 c.d=a
 c.c=c.Qh(c.c,a)}s=c.b[c.d].gq()
@@ -100060,7 +100060,7 @@ case"round":return B.ahV
 default:return null}},
 als(a){var s,r,q,p,o,n,m
 if(a==null||a==="")return null
-else if(a==="none")return B.nc
+else if(a==="none")return B.nd
 s=B.e.Fi(a,A.dr("[ ,]+",!0,!1))
 r=A.a([],t.n)
 for(q=s.length,p=this.a,o=!1,n=0;n<s.length;s.length===q||(0,A.o)(s),++n){m=A.e4(s[n],null,p,!1)
@@ -104189,18 +104189,18 @@ A.aF.prototype={}
 A.xN.prototype={
 L(){return"RelationshipStage."+this.b}}
 A.oC.prototype={
-aaR(a){if(a<45)return 0.4
-if(a<60)return 1.2
-if(a<72)return 2.6
-if(a<82)return 4.6
+aaR(a){if(a<50)return 0.4
+if(a<65)return 1.1
+if(a<75)return 2.6
+if(a<83)return 4.6
 if(a<92)return 7
 return 12},
 gazv(){var s,r,q,p
 for(s=this.ok,s=A.cp(s,s.r,A.p(s).c),r=s.$ti.c,q=0;s.B();){p=s.d
 q+=A.b9A(p==null?r.a(p):p).d}return q},
 and(a){var s,r,q,p,o,n,m,l,k=this
-if(k.c<=12)return 0
-for(s=k.ay,r=k.ok,q=0,p=0;p<4;++p){o=B.nd[p]
+if(k.c<=24)return 0
+for(s=k.ay,r=k.ok,q=0,p=0;p<4;++p){o=B.n9[p]
 n=o.a
 if(r.n(0,n)){q+=o.d
 continue}if(n==="auto"){m=k.rx
@@ -104994,10 +104994,10 @@ s=g4.c+1
 g4.c=s
 if(s%12===0){r.push("\ud83c\udf82 Happy birthday \u2014 you are now "+(18+B.f.bq(s,12))+".")
 g4.a7.a4(0)
-s=g4.aaR(18+B.f.bq(g4.c,12))
-o=g4.ch.G()
-f8=g4.ok.n(0,"health")?0:0.6
-s=g4.k3=B.b.am(B.b.bh(g4.k3-(s+o*2)-f8,0,100))
+s=g4.ch.G()
+f8=g4.ok.n(0,"health")?0:0.4
+o=g4.aaR(18+B.f.bq(g4.c,12))
+s=g4.k3=B.b.am(B.b.bh(g4.k3-(o+f8+(s-0.5)),0,100))
 if(s<=0&&!g4.k4){g4.k4=!0
 r.push("\ud83e\udea6 You passed away at age "+(18+B.f.bq(g4.c,12))+", leaving "+("$"+B.b.j(g4.gcL(),0))+" and a legacy of "+A.aSZ(g4.p1)+" points.")}else if(s<=30)r.push("\ud83e\udec0 Your health is failing ("+s+"/100). Time grows short \u2014 make it count.")}f9=g4.ry==null&&g4.c>6?a2.G():1
 if(f9<0.13){s=g4.ry=A.b7A(g4,a2)
@@ -105238,7 +105238,7 @@ l=p.w
 if(l==null)r=k
 else{l=l.ag(r?B.B:B.G)
 r=l}q.push(A.aP(A.a([g,B.dF,new A.a8(B.mh,A.m(n+" "+m+" this month",k,k,k,k,r,k,k),k)],s),B.ba,B.h,B.k,0))}if(f){g=e.w.i(0,h.a)
-B.c.F(q,A.a([B.af,A.c0(new A.a8(B.dt,A.aWu(180,g==null?B.nc:g),k),k,k,k,k)],s))}if(f)q.push(i.anc(a))
+B.c.F(q,A.a([B.af,A.c0(new A.a8(B.dt,A.aWu(180,g==null?B.nd:g),k),k,k,k,k)],s))}if(f)q.push(i.anc(a))
 q.push(B.af)
 q.push(i.aoS(a))
 q.push(B.af)
@@ -105808,7 +105808,7 @@ i=l==null?i.k3:l}i=q.c1(i,B.q)}return A.c0(A.jc(k,k,k,new A.bS(g,24,s,k),k,o,p,A
 A.wP.prototype={
 H(a){var s,r=null,q=A.C(a),p=this.c,o=p.gazv(),n=q.ax.b.aE(0.1),m=A.c5(12)
 m=A.a([A.ct(r,A.m("Insurance is a bet against yourself. Premiums are a small, certain drain; going without saves that cash \u2014 until a medical, auto, or home disaster hits at full price and you can't cover it. Covered today: "+$.bc().a9(o)+"/mo.",r,r,r,r,q.ok.Q,r,r),B.r,r,r,new A.ca(n,r,r,m,r,r,B.a4),r,r,B.e_,B.eP,r,r,r)],t.p)
-for(s=0;s<4;++s)m.push(new A.a_n(p,B.nd[s],r))
+for(s=0;s<4;++s)m.push(new A.a_n(p,B.n9[s],r))
 return A.er(m,B.c9)}}
 A.a_n.prototype={
 H(a){var s,r=null,q=A.C(a),p=this.d,o=this.c.ok.n(0,p.a),n=B.b.j(p.e*100,1),m=o?A.ac(20,B.B.p()>>>16&255,B.B.p()>>>8&255,B.B.p()&255):r,l=q.ok,k=l.x,j=A.m(p.c+"  "+p.b,r,r,r,r,k,r,r),i=$.bc(),h=i.a9(p.d)
@@ -106639,7 +106639,7 @@ r=s.ok.ax
 if(r==null)s=p
 else{s=s.ax
 q=s.rx
-s=r.ag(q==null?s.k3:q)}n.push(A.m("v0.45.0 \xb7 build 113",p,p,p,p,s,p,p))
+s=r.ag(q==null?s.k3:q)}n.push(A.m("v0.45.0 \xb7 build 114",p,p,p,p,s,p,p))
 n.push(B.R)
 return A.FA(p,A.xV(!0,A.aK(n,B.n,B.h,B.k),B.ah,!0),A.aQh(a,o.e),B.fS)},
 $S:65}
@@ -112754,6 +112754,60 @@ B.IW=new A.en("saas","SaaS App","\ud83d\udcbb",B.iv,6e4,1250,0.3,0.6,0.005,4,"Su
 B.lA=new A.m5(4,"franchise")
 B.J_=new A.en("franchise","Fast-Food Franchise","\ud83c\udf54",B.lA,9e5,12500,0.08,0.3,0.0005,6,"Expensive and you owe royalties, but the brand brings the crowd \u2014 steady, low-risk, and resale-friendly.")
 B.tm=s([B.IY,B.J4,B.J2,B.IV,B.IX,B.J0,B.J5,B.IZ,B.J3,B.J1,B.IW,B.J_],A.ae("q<en>"))
+B.Q=new A.DL(0,"none")
+B.Hv=new A.bn("hysa","High-Yield Savings","HYSA","cash",B.bW,1,0,0,0.04,0,1000,"Cash",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Withdraw anytime, FDIC-insured. 4% APY. $1k to open.")
+B.Hh=new A.bn("mmf","Money Market Fund","MMF","cash",B.bW,1,0,0,0.048,0,1e4,"Cash",0,0,0,0,"",0,!1,B.Q,0,0.015,0,!1,0/0,"",0,"Higher yield than a HYSA, still liquid. $10k to open, NOT FDIC-insured (can dip slightly in a crash).")
+B.HK=new A.bn("chk","Checking Account","CHK","cash",B.bW,1,0,0,0.005,0,0,"Cash",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Instant access, almost no yield. Don't park real savings here.")
+B.jA=new A.DL(1,"penalty")
+B.HE=new A.bn("income_fund","Income Fund","INCF","cash",B.bo,1,0,0,0.065,12,2e4,"Credit",0,0,0,0,"",0,!1,B.jA,0.5,0.015,0,!1,0/0,"",0,"~6.5% yield, $20k minimum. Pull out before a year and you forfeit half your gains. Dips in bad years.")
+B.ht=new A.DL(2,"hard")
+B.H3=new A.bn("priv_credit","Private Credit Fund","PCF","cash",B.bo,1,0,0,0.085,24,1e5,"Credit",0,0,0,0,"",0,!1,B.ht,0,0.03,0,!1,0/0,"",0,"~8.5% for $100k, hard-locked 2 years. Real drawdowns when the economy turns.")
+B.Hc=new A.bn("hedge_fund","Hedge Fund","HF","cash",B.bo,1,0,0,0.11,36,4e5,"Alternatives",0,0,0,0,"",0,!1,B.ht,0,0.045,0,!1,0/0,"",0,"~11% for the $400k club, hard-locked 3 years. Big swings; ugly years happen.")
+B.HI=new A.bn("tbill","3-Month T-Bill","TBILL","cash",B.aV,1,0,0,0.042,3,100,"Government",0,0,0,0,"AAA",0,!0,B.Q,0,0,0,!1,0/0,"",0,"U.S. government-backed, ultra-safe. 4.2% for a 3-month lock \u2014 beats the HYSA if you can spare it.")
+B.Hx=new A.bn("ibond","Series I Bond","IBOND","cash",B.aV,1,0,0,0.048,12,25,"Government",0,0,0,0,"AAA",1e4,!0,B.Q,0,0,0,!1,0/0,"",0,"Inflation-protected, government-backed. 1-year lock, capped at $10k/year.")
+B.HG=new A.bn("usbf","Ultra-Short Bond Fund","USB","cash",B.bC,50,0.0002,0.003,0,0,0,"Fixed Income",5e8,0,0.05,0.0008,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Near-cash: ~5% yield, tiny price wobble, not FDIC-insured.")
+B.H1=new A.bn("cd6","6-Month CD","CD-6M","fixed",B.aV,1,0,0,0.045,6,100,"Fixed Income",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Locked 6 months. 4.5% APY, redeemable at maturity.")
+B.He=new A.bn("cd1y","1-Year CD","CD-1Y","fixed",B.aV,1,0,0,0.052,12,100,"Fixed Income",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Locked 12 months. 5.2% APY for committing longer.")
+B.H4=new A.bn("cd3y","3-Year CD","CD-3Y","fixed",B.aV,1,0,0,0.058,36,250,"Fixed Income",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Locked 36 months. 5.8% APY \u2014 best fixed rate, longest lock.")
+B.Hn=new A.bn("ust2","2-Year Treasury","UST2","fixed",B.be,100,0.0001,0.003,0.043,0,100,"Government",5e9,0,0,0,"AAA",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Short government debt. 4.3% coupon, price barely moves.")
+B.Hd=new A.bn("ust4","4-Year Treasury","UST4","fixed",B.be,100,0.00012,0.005,0.047,0,100,"Government",5e9,0,0,0,"AAA",0,!1,B.Q,0,0,0,!1,0/0,"",0,"4.7% coupon for a medium maturity. A bit more price wobble.")
+B.Hp=new A.bn("ust6","6-Year Treasury","UST6","fixed",B.be,100,0.00014,0.007,0.05,0,100,"Government",5e9,0,0,0,"AAA",0,!1,B.Q,0,0,0,!1,0/0,"",0,"5.0% coupon. Longer duration swings more when rates move.")
+B.H7=new A.bn("ust10","10-Year Treasury","UST10","fixed",B.be,100,0.00016,0.01,0.053,0,100,"Government",5e9,0,0,0,"AAA",0,!1,B.Q,0,0,0,!1,0/0,"",0,"The benchmark. 5.3% coupon but the price really moves with rates.")
+B.HJ=new A.bn("corpbond","Corporate Bond","CORP","fixed",B.be,100,0.0002,0.011,0.065,0,100,"Credit",2e9,0,0,0,"BBB",0,!1,B.Q,0,0,0.0008,!1,0/0,"",0,"Company debt. 6.5% coupon, some price risk and a small chance of default.")
+B.Hg=new A.bn("junk","High-Yield Bond","JUNK","fixed",B.be,100,0.0003,0.025,0.095,0,100,"Credit",1e9,0,0,0,"B",0,!1,B.Q,0,0,0.003,!1,0/0,"",0,"Fat 9.5% coupon from shaky issuers. They can DEFAULT \u2014 a ~45% hit to the price \u2014 and defaults spike when the economy turns.")
+B.Hk=new A.bn("apt","Apt Technologies","APT","equities",B.aB,184,0.0021,0.045,0,0,0,"Technology",3e9,6.1,0.006,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Big-cap tech. Strong growth, real swings.")
+B.HC=new A.bn("volt","Volt Motors","VOLT","equities",B.aB,92.5,0.0025,0.072,0,0,0,"Automotive",8e8,-0.4,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"EV maker. High beta \u2014 feast or famine, no profits yet.")
+B.Hl=new A.bn("sun","Sunrise Energy","SUN","equities",B.aB,47.2,0.0012,0.038,0,0,0,"Energy",12e8,2.4,0.035,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Renewables utility. Steadier, pays a solid dividend.")
+B.HB=new A.bn("mega","Mega Retail","MEGA","equities",B.aB,138,0.0009,0.03,0,0,0,"Retail",25e8,9.2,0.028,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Defensive blue chip. Low drama, slow and steady.")
+B.Ha=new A.bn("fnb","First National Bank","FNB","equities",B.aB,64,0.0013,0.04,0,0,0,"Financials",18e8,5.5,0.031,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Big bank. Cyclical, rate-sensitive, decent dividend.")
+B.Hf=new A.bn("medi","MediCorp","MEDI","equities",B.aB,156,0.0015,0.034,0,0,0,"Healthcare",15e8,7.8,0.018,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Pharma giant. Defensive, steady earnings.")
+B.Hs=new A.bn("bio","BioNova","BIO","equities",B.aB,31.8,0.0028,0.09,0,0,0,"Healthcare",4e8,-1.2,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Speculative biotech. Lottery-ticket volatility.")
+B.HH=new A.bn("preipo","Pre-IPO Unicorn","UNI","equities",B.aB,28,0.0034,0.085,0,0,0,"Technology",3e8,-0.8,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",1,"Late-stage private shares only the connected can buy. Huge upside, huge risk. (Unlocked at Prestige 1.)")
+B.Ho=new A.bn("spx","S&P 500 Index","SPX","funds",B.bC,512,0.0016,0.022,0,0,0,"Diversified",9e8,0,0.013,0.0003,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"The market itself. ~8%/yr historically, lower volatility.")
+B.Hz=new A.bn("divx","Dividend ETF","DIVX","funds",B.bC,121,0.0011,0.018,0,0,0,"Diversified",6e8,0,0.038,0.0006,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Income-focused basket. Calmer, higher payout.")
+B.Hm=new A.bn("tech","Tech Sector ETF","TECH","funds",B.bC,198,0.0022,0.033,0,0,0,"Technology",5e8,0,0.007,0.001,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Concentrated tech bet in one ticker. Punchier than SPX.")
+B.Hi=new A.bn("bndx","Bond Index ETF","BNDX","funds",B.bC,74,0.0004,0.008,0,0,0,"Fixed Income",7e8,0,0.042,0.0005,"",0,!1,B.Q,0,0,0,!1,0,"",0,"A basket of bonds. Ballast for a stock-heavy portfolio.")
+B.H9=new A.bn("btq","Bitcorn","BTQ","crypto",B.bI,43250,0.0068,0.11,0,0,0,"Digital",195e5,0,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"The original. Massive swings, massive narratives. A coin-flip with a moonshot tail \u2014 not a retirement plan.")
+B.HN=new A.bn("etq","Etherium","ETQ","crypto",B.bI,2280,0.007,0.125,0,0,0,"Digital",12e7,0,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Smart-contract platform. Even wilder than BTQ \u2014 bigger swings both ways.")
+B.Hr=new A.bn("dogz","Dogz Coin","DOGZ","crypto",B.bI,0.083,0,0.28,0,0,0,"Digital",14e10,0,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"A meme. Pure casino. You have been warned.")
+B.H6=new A.bn("gold","Gold","GLD","commodities",B.ax,2050,0.0004,0.026,0,0,0,"Metals",6e9,0,0,0,"",0,!1,B.Q,0,0,0,!0,-0.15,"/oz",0,"The classic safe haven. Climbs when markets panic, lags in booms.")
+B.H2=new A.bn("silver","Silver","SLV","commodities",B.ax,24.5,0.0005,0.045,0,0,0,"Metals",8e9,0,0,0,"",0,!1,B.Q,0,0,0,!0,-0.05,"/oz",0,"Gold's wilder cousin \u2014 a safe haven with more whip and industrial use.")
+B.HA=new A.bn("platinum","Platinum","PLT","commodities",B.ax,980,0.0006,0.04,0,0,0,"Metals",2e9,0,0,0,"",0,!1,B.Q,0,0,0,!0,0.3,"/oz",1,"A rarer safe-haven metal \u2014 both precious and industrial. (Unlocked at Prestige 1.)")
+B.Ht=new A.bn("palladium","Palladium","PALL","commodities",B.ax,1450,0.0005,0.06,0,0,0,"Metals",15e8,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.4,"/oz",0,"The catalytic-converter metal \u2014 precious, but priced off car output.")
+B.HM=new A.bn("oil","Crude Oil","OIL","commodities",B.ax,78,0.0006,0.06,0,0,0,"Energy",4e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.55,"/bbl",0,"Pro-cyclical and geopolitical \u2014 booms and busts with the economy.")
+B.HD=new A.bn("gasoline","Gasoline","RBOB","commodities",B.ax,2.45,0.0005,0.07,0,0,0,"Energy",3e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.5,"/gal",0,"Refined crude with a seasonal kick \u2014 driving season pumps it up.")
+B.HF=new A.bn("natgas","Natural Gas","GAS","commodities",B.ax,2.85,0.0003,0.11,0,0,0,"Energy",3e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.3,"/MMBtu",0,"Brutally volatile \u2014 weather and storage send it flying.")
+B.Hy=new A.bn("copper","Copper","CPR","commodities",B.ax,4.15,0.0007,0.05,0,0,0,"Industrial",5e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.85,"/lb",0,"Dr. Copper \u2014 tracks industrial demand and global growth most of all.")
+B.Hb=new A.bn("aluminum","Aluminum","ALU","commodities",B.ax,2.3,0.0005,0.045,0,0,0,"Industrial",5e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.7,"/lb",0,"Energy-hungry to smelt; rises and falls with global manufacturing.")
+B.H5=new A.bn("wheat","Wheat","WHT","commodities",B.ax,6.4,0.0003,0.055,0,0,0,"Agriculture",4e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.15,"/bushel",0,"Harvests and droughts drive it \u2014 marches to its own drum.")
+B.Hw=new A.bn("corn","Corn","CRN","commodities",B.ax,4.8,0.0003,0.05,0,0,0,"Agriculture",5e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.15,"/bushel",0,"Feed, fuel and food \u2014 weather and ethanol demand call the tune.")
+B.Hq=new A.bn("soybeans","Soybeans","SOY","commodities",B.ax,13.2,0.0004,0.05,0,0,0,"Agriculture",4e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.2,"/bushel",0,"A global export crop \u2014 swings with weather and trade policy.")
+B.H8=new A.bn("coffee","Coffee","KC","commodities",B.ax,1.85,0.0004,0.075,0,0,0,"Softs",2e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.1,"/lb",0,"A frost in Brazil can double it overnight. Pure weather lottery.")
+B.Hu=new A.bn("sugar","Sugar","SB","commodities",B.ax,0.22,0.0003,0.06,0,0,0,"Softs",3e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.1,"/lb",0,"Sweet and cyclical \u2014 harvests, ethanol, and the weather.")
+B.HL=new A.bn("cotton","Cotton","CT","commodities",B.ax,0.82,0.0003,0.055,0,0,0,"Softs",25e8,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.25,"/lb",0,"A fiber tied to consumer demand and how many acres got planted.")
+B.Hj=new A.bn("cattle","Live Cattle","LC","commodities",B.ax,1.78,0.0003,0.035,0,0,0,"Livestock",2e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.15,"/lb",0,"Slow herd cycles and feed costs \u2014 lumbering, trending moves.")
+B.H0=new A.bn("hogs","Lean Hogs","HE","commodities",B.ax,0.85,0.0003,0.06,0,0,0,"Livestock",2e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.1,"/lb",0,"Disease scares and feed prices whip it around.")
+B.cm=s([B.Hv,B.Hh,B.HK,B.HE,B.H3,B.Hc,B.HI,B.Hx,B.HG,B.H1,B.He,B.H4,B.Hn,B.Hd,B.Hp,B.H7,B.HJ,B.Hg,B.Hk,B.HC,B.Hl,B.HB,B.Ha,B.Hf,B.Hs,B.HH,B.Ho,B.Hz,B.Hm,B.Hi,B.H9,B.HN,B.Hr,B.H6,B.H2,B.HA,B.Ht,B.HM,B.HD,B.HF,B.Hy,B.Hb,B.H5,B.Hw,B.Hq,B.H8,B.Hu,B.HL,B.Hj,B.H0],t.Xo)
 B.Vp=s(["Football","\ud83c\udfc8"],t.s)
 B.Vk=s(["Basketball","\ud83c\udfc0"],t.s)
 B.Ux=s(["Baseball","\u26be"],t.s)
@@ -112811,60 +112865,6 @@ B.Vy=new A.t1("en",null,"US")
 B.tp=s([B.Vy],t.ss)
 B.TF=s([0.1,0.25,0.5],t.n)
 B.tq=s([0,41,61,101,131,181,251,301,360],t.n)
-B.Q=new A.DL(0,"none")
-B.Hu=new A.bn("hysa","High-Yield Savings","HYSA","cash",B.bW,1,0,0,0.04,0,1000,"Cash",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Withdraw anytime, FDIC-insured. 4% APY. $1k to open.")
-B.Hg=new A.bn("mmf","Money Market Fund","MMF","cash",B.bW,1,0,0,0.048,0,1e4,"Cash",0,0,0,0,"",0,!1,B.Q,0,0.015,0,!1,0/0,"",0,"Higher yield than a HYSA, still liquid. $10k to open, NOT FDIC-insured (can dip slightly in a crash).")
-B.HL=new A.bn("chk","Checking Account","CHK","cash",B.bW,1,0,0,0.005,0,0,"Cash",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Instant access, almost no yield. Don't park real savings here.")
-B.jA=new A.DL(1,"penalty")
-B.HF=new A.bn("income_fund","Income Fund","INCF","cash",B.bo,1,0,0,0.065,12,2e4,"Credit",0,0,0,0,"",0,!1,B.jA,0.5,0.015,0,!1,0/0,"",0,"~6.5% yield, $20k minimum. Pull out before a year and you forfeit half your gains. Dips in bad years.")
-B.ht=new A.DL(2,"hard")
-B.H3=new A.bn("priv_credit","Private Credit Fund","PCF","cash",B.bo,1,0,0,0.085,24,1e5,"Credit",0,0,0,0,"",0,!1,B.ht,0,0.03,0,!1,0/0,"",0,"~8.5% for $100k, hard-locked 2 years. Real drawdowns when the economy turns.")
-B.Hb=new A.bn("hedge_fund","Hedge Fund","HF","cash",B.bo,1,0,0,0.11,36,4e5,"Alternatives",0,0,0,0,"",0,!1,B.ht,0,0.045,0,!1,0/0,"",0,"~11% for the $400k club, hard-locked 3 years. Big swings; ugly years happen.")
-B.HJ=new A.bn("tbill","3-Month T-Bill","TBILL","cash",B.aV,1,0,0,0.042,3,100,"Government",0,0,0,0,"AAA",0,!0,B.Q,0,0,0,!1,0/0,"",0,"U.S. government-backed, ultra-safe. 4.2% for a 3-month lock \u2014 beats the HYSA if you can spare it.")
-B.Hw=new A.bn("ibond","Series I Bond","IBOND","cash",B.aV,1,0,0,0.048,12,25,"Government",0,0,0,0,"AAA",1e4,!0,B.Q,0,0,0,!1,0/0,"",0,"Inflation-protected, government-backed. 1-year lock, capped at $10k/year.")
-B.HH=new A.bn("usbf","Ultra-Short Bond Fund","USB","cash",B.bC,50,0.0002,0.003,0,0,0,"Fixed Income",5e8,0,0.05,0.0008,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Near-cash: ~5% yield, tiny price wobble, not FDIC-insured.")
-B.H1=new A.bn("cd6","6-Month CD","CD-6M","fixed",B.aV,1,0,0,0.045,6,100,"Fixed Income",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Locked 6 months. 4.5% APY, redeemable at maturity.")
-B.Hd=new A.bn("cd1y","1-Year CD","CD-1Y","fixed",B.aV,1,0,0,0.052,12,100,"Fixed Income",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Locked 12 months. 5.2% APY for committing longer.")
-B.H4=new A.bn("cd3y","3-Year CD","CD-3Y","fixed",B.aV,1,0,0,0.058,36,250,"Fixed Income",0,0,0,0,"",0,!0,B.Q,0,0,0,!1,0/0,"",0,"Locked 36 months. 5.8% APY \u2014 best fixed rate, longest lock.")
-B.Hm=new A.bn("ust2","2-Year Treasury","UST2","fixed",B.be,100,0.0001,0.003,0.043,0,100,"Government",5e9,0,0,0,"AAA",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Short government debt. 4.3% coupon, price barely moves.")
-B.Hc=new A.bn("ust4","4-Year Treasury","UST4","fixed",B.be,100,0.00012,0.005,0.047,0,100,"Government",5e9,0,0,0,"AAA",0,!1,B.Q,0,0,0,!1,0/0,"",0,"4.7% coupon for a medium maturity. A bit more price wobble.")
-B.Ho=new A.bn("ust6","6-Year Treasury","UST6","fixed",B.be,100,0.00014,0.007,0.05,0,100,"Government",5e9,0,0,0,"AAA",0,!1,B.Q,0,0,0,!1,0/0,"",0,"5.0% coupon. Longer duration swings more when rates move.")
-B.H7=new A.bn("ust10","10-Year Treasury","UST10","fixed",B.be,100,0.00016,0.01,0.053,0,100,"Government",5e9,0,0,0,"AAA",0,!1,B.Q,0,0,0,!1,0/0,"",0,"The benchmark. 5.3% coupon but the price really moves with rates.")
-B.HK=new A.bn("corpbond","Corporate Bond","CORP","fixed",B.be,100,0.0002,0.011,0.065,0,100,"Credit",2e9,0,0,0,"BBB",0,!1,B.Q,0,0,0.0008,!1,0/0,"",0,"Company debt. 6.5% coupon, some price risk and a small chance of default.")
-B.Hf=new A.bn("junk","High-Yield Bond","JUNK","fixed",B.be,100,0.0003,0.025,0.095,0,100,"Credit",1e9,0,0,0,"B",0,!1,B.Q,0,0,0.003,!1,0/0,"",0,"Fat 9.5% coupon from shaky issuers. They can DEFAULT \u2014 a ~45% hit to the price \u2014 and defaults spike when the economy turns.")
-B.Hj=new A.bn("apt","Apt Technologies","APT","equities",B.aB,184,0.0021,0.045,0,0,0,"Technology",3e9,6.1,0.006,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Big-cap tech. Strong growth, real swings.")
-B.HC=new A.bn("volt","Volt Motors","VOLT","equities",B.aB,92.5,0.0025,0.072,0,0,0,"Automotive",8e8,-0.4,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"EV maker. High beta \u2014 feast or famine, no profits yet.")
-B.Hk=new A.bn("sun","Sunrise Energy","SUN","equities",B.aB,47.2,0.0012,0.038,0,0,0,"Energy",12e8,2.4,0.035,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Renewables utility. Steadier, pays a solid dividend.")
-B.HB=new A.bn("mega","Mega Retail","MEGA","equities",B.aB,138,0.0009,0.03,0,0,0,"Retail",25e8,9.2,0.028,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Defensive blue chip. Low drama, slow and steady.")
-B.H9=new A.bn("fnb","First National Bank","FNB","equities",B.aB,64,0.0013,0.04,0,0,0,"Financials",18e8,5.5,0.031,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Big bank. Cyclical, rate-sensitive, decent dividend.")
-B.He=new A.bn("medi","MediCorp","MEDI","equities",B.aB,156,0.0015,0.034,0,0,0,"Healthcare",15e8,7.8,0.018,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Pharma giant. Defensive, steady earnings.")
-B.Hr=new A.bn("bio","BioNova","BIO","equities",B.aB,31.8,0.0028,0.09,0,0,0,"Healthcare",4e8,-1.2,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Speculative biotech. Lottery-ticket volatility.")
-B.HI=new A.bn("preipo","Pre-IPO Unicorn","UNI","equities",B.aB,28,0.0034,0.085,0,0,0,"Technology",3e8,-0.8,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",1,"Late-stage private shares only the connected can buy. Huge upside, huge risk. (Unlocked at Prestige 1.)")
-B.Hn=new A.bn("spx","S&P 500 Index","SPX","funds",B.bC,512,0.0016,0.022,0,0,0,"Diversified",9e8,0,0.013,0.0003,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"The market itself. ~8%/yr historically, lower volatility.")
-B.Hz=new A.bn("divx","Dividend ETF","DIVX","funds",B.bC,121,0.0011,0.018,0,0,0,"Diversified",6e8,0,0.038,0.0006,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Income-focused basket. Calmer, higher payout.")
-B.Hl=new A.bn("tech","Tech Sector ETF","TECH","funds",B.bC,198,0.0022,0.033,0,0,0,"Technology",5e8,0,0.007,0.001,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Concentrated tech bet in one ticker. Punchier than SPX.")
-B.Hh=new A.bn("bndx","Bond Index ETF","BNDX","funds",B.bC,74,0.0004,0.008,0,0,0,"Fixed Income",7e8,0,0.042,0.0005,"",0,!1,B.Q,0,0,0,!1,0,"",0,"A basket of bonds. Ballast for a stock-heavy portfolio.")
-B.Hx=new A.bn("btq","Bitcorn","BTQ","crypto",B.bI,43250,0.0045,0.105,0,0,0,"Digital",195e5,0,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"The original. Massive swings, massive narratives. A coin-flip with a moonshot tail \u2014 not a retirement plan.")
-B.HD=new A.bn("etq","Etherium","ETQ","crypto",B.bI,2280,0.0048,0.12,0,0,0,"Digital",12e7,0,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"Smart-contract platform. Even wilder than BTQ \u2014 bigger swings both ways.")
-B.Hq=new A.bn("dogz","Dogz Coin","DOGZ","crypto",B.bI,0.083,0,0.28,0,0,0,"Digital",14e10,0,0,0,"",0,!1,B.Q,0,0,0,!1,0/0,"",0,"A meme. Pure casino. You have been warned.")
-B.H6=new A.bn("gold","Gold","GLD","commodities",B.ax,2050,0.0004,0.026,0,0,0,"Metals",6e9,0,0,0,"",0,!1,B.Q,0,0,0,!0,-0.15,"/oz",0,"The classic safe haven. Climbs when markets panic, lags in booms.")
-B.H2=new A.bn("silver","Silver","SLV","commodities",B.ax,24.5,0.0005,0.045,0,0,0,"Metals",8e9,0,0,0,"",0,!1,B.Q,0,0,0,!0,-0.05,"/oz",0,"Gold's wilder cousin \u2014 a safe haven with more whip and industrial use.")
-B.HA=new A.bn("platinum","Platinum","PLT","commodities",B.ax,980,0.0006,0.04,0,0,0,"Metals",2e9,0,0,0,"",0,!1,B.Q,0,0,0,!0,0.3,"/oz",1,"A rarer safe-haven metal \u2014 both precious and industrial. (Unlocked at Prestige 1.)")
-B.Hs=new A.bn("palladium","Palladium","PALL","commodities",B.ax,1450,0.0005,0.06,0,0,0,"Metals",15e8,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.4,"/oz",0,"The catalytic-converter metal \u2014 precious, but priced off car output.")
-B.HN=new A.bn("oil","Crude Oil","OIL","commodities",B.ax,78,0.0006,0.06,0,0,0,"Energy",4e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.55,"/bbl",0,"Pro-cyclical and geopolitical \u2014 booms and busts with the economy.")
-B.HE=new A.bn("gasoline","Gasoline","RBOB","commodities",B.ax,2.45,0.0005,0.07,0,0,0,"Energy",3e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.5,"/gal",0,"Refined crude with a seasonal kick \u2014 driving season pumps it up.")
-B.HG=new A.bn("natgas","Natural Gas","GAS","commodities",B.ax,2.85,0.0003,0.11,0,0,0,"Energy",3e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.3,"/MMBtu",0,"Brutally volatile \u2014 weather and storage send it flying.")
-B.Hy=new A.bn("copper","Copper","CPR","commodities",B.ax,4.15,0.0007,0.05,0,0,0,"Industrial",5e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.85,"/lb",0,"Dr. Copper \u2014 tracks industrial demand and global growth most of all.")
-B.Ha=new A.bn("aluminum","Aluminum","ALU","commodities",B.ax,2.3,0.0005,0.045,0,0,0,"Industrial",5e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.7,"/lb",0,"Energy-hungry to smelt; rises and falls with global manufacturing.")
-B.H5=new A.bn("wheat","Wheat","WHT","commodities",B.ax,6.4,0.0003,0.055,0,0,0,"Agriculture",4e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.15,"/bushel",0,"Harvests and droughts drive it \u2014 marches to its own drum.")
-B.Hv=new A.bn("corn","Corn","CRN","commodities",B.ax,4.8,0.0003,0.05,0,0,0,"Agriculture",5e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.15,"/bushel",0,"Feed, fuel and food \u2014 weather and ethanol demand call the tune.")
-B.Hp=new A.bn("soybeans","Soybeans","SOY","commodities",B.ax,13.2,0.0004,0.05,0,0,0,"Agriculture",4e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.2,"/bushel",0,"A global export crop \u2014 swings with weather and trade policy.")
-B.H8=new A.bn("coffee","Coffee","KC","commodities",B.ax,1.85,0.0004,0.075,0,0,0,"Softs",2e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.1,"/lb",0,"A frost in Brazil can double it overnight. Pure weather lottery.")
-B.Ht=new A.bn("sugar","Sugar","SB","commodities",B.ax,0.22,0.0003,0.06,0,0,0,"Softs",3e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.1,"/lb",0,"Sweet and cyclical \u2014 harvests, ethanol, and the weather.")
-B.HM=new A.bn("cotton","Cotton","CT","commodities",B.ax,0.82,0.0003,0.055,0,0,0,"Softs",25e8,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.25,"/lb",0,"A fiber tied to consumer demand and how many acres got planted.")
-B.Hi=new A.bn("cattle","Live Cattle","LC","commodities",B.ax,1.78,0.0003,0.035,0,0,0,"Livestock",2e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.15,"/lb",0,"Slow herd cycles and feed costs \u2014 lumbering, trending moves.")
-B.H0=new A.bn("hogs","Lean Hogs","HE","commodities",B.ax,0.85,0.0003,0.06,0,0,0,"Livestock",2e9,0,0,0,"",0,!1,B.Q,0,0,0,!1,0.1,"/lb",0,"Disease scares and feed prices whip it around.")
-B.cm=s([B.Hu,B.Hg,B.HL,B.HF,B.H3,B.Hb,B.HJ,B.Hw,B.HH,B.H1,B.Hd,B.H4,B.Hm,B.Hc,B.Ho,B.H7,B.HK,B.Hf,B.Hj,B.HC,B.Hk,B.HB,B.H9,B.He,B.Hr,B.HI,B.Hn,B.Hz,B.Hl,B.Hh,B.Hx,B.HD,B.Hq,B.H6,B.H2,B.HA,B.Hs,B.HN,B.HE,B.HG,B.Hy,B.Ha,B.H5,B.Hv,B.Hp,B.H8,B.Ht,B.HM,B.Hi,B.H0],t.Xo)
 B.aq8=new A.nI(0,0)
 B.aqd=new A.nI(1,0.05)
 B.aqb=new A.nI(3,0.08)
@@ -112873,6 +112873,11 @@ B.aqa=new A.nI(8,0.12)
 B.aq9=new A.nI(12,0.14)
 B.tr=s([B.aq8,B.aqd,B.aqb,B.aqc,B.aqa,B.aq9],A.ae("q<nI>"))
 B.ts=s([0,21,51,121,151,191,271,321,360],t.n)
+B.R7=new A.mG("health","Health insurance","\ud83e\ude7a",300,0.008,2500,32e3,"Covers medical emergencies. The single most ruinous bill if you skip it.")
+B.R6=new A.mG("auto","Auto insurance","\ud83d\ude97",110,0.008,1500,12e3,"Accidents and liability. Only matters if you actually drive.")
+B.R8=new A.mG("home","Home / renters","\ud83c\udfe0",80,0.005,2500,2e4,"Fire, theft, water damage to where you live and your stuff.")
+B.R9=new A.mG("life","Life & disability","\ud83d\udedf",95,0.003,5000,38e3,"Protects your income (and your family) if you can't work.")
+B.n9=s([B.R7,B.R6,B.R8,B.R9],A.ae("q<mG>"))
 B.hP=new A.Ez(0,"nonZero")
 B.AF=new A.Ez(1,"evenOdd")
 B.TP=s([B.hP,B.AF],A.ae("q<Ez>"))
@@ -112906,7 +112911,7 @@ B.ay=new A.GP(0,"upstream")
 B.U3=s([B.ay,B.m],A.ae("q<GP>"))
 B.au=new A.ul(0,"rtl")
 B.Z=new A.ul(1,"ltr")
-B.n9=s([B.au,B.Z],A.ae("q<ul>"))
+B.na=s([B.au,B.Z],A.ae("q<ul>"))
 B.aiz=new A.pL(0,"solid")
 B.FR=new A.pL(1,"double")
 B.FS=new A.pL(2,"dotted")
@@ -112962,13 +112967,13 @@ B.UM=s([],A.ae("q<lh<@>>"))
 B.US=s([],t.Vz)
 B.UR=s([],t.H9)
 B.UK=s([],t.OP)
-B.nb=s([],t.AO)
+B.nc=s([],t.AO)
 B.UO=s([],t.D1)
-B.na=s([],t.QF)
+B.nb=s([],t.QF)
 B.UL=s([],t.Lx)
 B.UJ=s([],t.AS)
 B.tw=s([],t.p)
-B.nc=s([],t.n)
+B.nd=s([],t.n)
 B.UE=s([],t.t)
 B.E=s([],t.ee)
 B.UH=s([],t.XS)
@@ -112985,11 +112990,6 @@ B.UV=s(["Technology","Energy","Healthcare","Automotive","Retail","Financials","D
 B.acA=new A.i(0,2)
 B.IQ=new A.em(0.75,B.eA,B.qF,B.acA,1.5)
 B.V2=s([B.IQ],t.sq)
-B.R6=new A.mG("health","Health insurance","\ud83e\ude7a",320,0.011,4000,45e3,"Covers medical emergencies. The single most ruinous bill if you skip it.")
-B.R9=new A.mG("auto","Auto insurance","\ud83d\ude97",120,0.011,2000,16e3,"Accidents and liability. Only matters if you actually drive.")
-B.R7=new A.mG("home","Home / renters","\ud83c\udfe0",90,0.006,3000,28e3,"Fire, theft, water damage to where you live and your stuff.")
-B.R8=new A.mG("life","Life & disability","\ud83d\udedf",110,0.004,6000,55e3,"Protects your income (and your family) if you can't work.")
-B.nd=s([B.R6,B.R9,B.R7,B.R8],A.ae("q<mG>"))
 B.V7=s([B.aB,B.bC,B.bI,B.be],t.fJ)
 B.hr=s([B.dP,B.dm,B.io,B.ip,B.lv],t.QP)
 B.T9=s([0.001200833568784504,0.002389694492170889,0.0002795742885861124],t.n)
@@ -115556,8 +115556,8 @@ B.ok=new A.y1(1,"nextLine")
 B.kq=new A.y1(2,"forward")
 B.kr=new A.y1(3,"backward")
 B.dE=new A.FR(2,"none")
-B.EC=new A.pz(null,null,B.dE,B.nb,!0)
-B.ED=new A.pz(null,null,B.dE,B.nb,!1)
+B.EC=new A.pz(null,null,B.dE,B.nc,!0)
+B.ED=new A.pz(null,null,B.dE,B.nc,!1)
 B.U=new A.pA(0,"next")
 B.Y=new A.pA(1,"previous")
 B.a_=new A.pA(2,"end")
