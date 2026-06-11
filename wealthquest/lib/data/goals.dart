@@ -1,5 +1,6 @@
 import '../state/game_controller.dart';
 import 'catalog.dart';
+import 'rivals.dart';
 
 /// A scored objective. [done] is a pure predicate over the current game state —
 /// goals auto-complete as you play, giving the game direction and a score.
@@ -89,6 +90,14 @@ class Goals {
     // ---- Resilience ----
     Goal('phoenix', 'Phoenix', 'Survive a bankruptcy and keep going.', 30,
         'Resilience', (g) => g.bankruptcies >= 1),
+    Goal('insured', 'Buttoned up', 'Carry health insurance.', 15, 'Resilience',
+        (g) => g.insurancePolicies.contains('health')),
+
+    // ---- Rivals ----
+    Goal('beat_rivals', 'Keeping up with the Joneses',
+        'Rank #1 on the Rivals leaderboard.', 90, 'Rivals',
+        (g) => g.netWorth > 0 &&
+            Rivals.all.every((r) => g.netWorth >= r.netWorthAt(g.day))),
 
     // ---- Prestige ----
     Goal('retire_once', 'New beginning',

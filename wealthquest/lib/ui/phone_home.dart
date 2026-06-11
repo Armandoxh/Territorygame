@@ -17,6 +17,7 @@ import 'life_tab.dart';
 import 'news_tab.dart';
 import 'prestige_app.dart';
 import 'property_tab.dart';
+import 'rivals_app.dart';
 import 'sports_app.dart';
 import 'widgets/app_scaffold.dart';
 import 'widgets/ui_helpers.dart';
@@ -281,6 +282,17 @@ class _PhoneHomeState extends State<PhoneHome> {
                           game: game,
                           title: 'Credit',
                           body: (_) => CreditBody(game: game),
+                        )),
+                      ),
+                      _AppIcon(
+                        label: 'Rivals',
+                        sub: 'Leaderboard',
+                        icon: 'users',
+                        color: const Color(0xFF7B1FA2),
+                        onTap: () => _open(AppScaffold(
+                          game: game,
+                          title: 'Rivals',
+                          body: (_) => RivalsBody(game: game),
                         )),
                       ),
                     ],
