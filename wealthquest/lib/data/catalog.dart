@@ -866,7 +866,7 @@ class Catalog {
       // player begins on it), no degree. Climb to managing a region — but the
       // ceiling is modest.
       minAge: startAge,
-      blurb: 'No degree. Earn from day one, modest ceiling.',
+      blurb: 'Earn from day one, modest ceiling.',
       rungs: [
         JobDef(id: 'svc_crew', title: 'Barista / Crew', pay: 1300),
         JobDef(id: 'svc_lead', title: 'Shift Lead', pay: 2000),
@@ -882,7 +882,7 @@ class Catalog {
       name: 'Skilled Trades',
       emoji: '🔧',
       requiredDegreeId: 'trade',
-      blurb: 'Quick trade-school cert, then real money fast — no four-year debt.',
+      blurb: 'Real money fast — no four-year debt.',
       rungs: [
         JobDef(id: 'trade_appr', title: 'Apprentice', pay: 3200),
         JobDef(id: 'trade_journey', title: 'Journeyman', pay: 6000),
@@ -896,7 +896,7 @@ class Catalog {
       id: 'tech',
       name: 'Software & Tech',
       emoji: '💻',
-      blurb: 'Associate degree. Fast ramp, high ceiling — best tuition ROI.',
+      blurb: 'Fast ramp, high ceiling — best tuition ROI.',
       minEduLevel: 1,
       rungs: [
         JobDef(id: 'tech_junior', title: 'Junior Developer', pay: 5000, requiredEdu: 1),
@@ -912,7 +912,7 @@ class Catalog {
       id: 'finance',
       name: 'Finance & Banking',
       emoji: '💼',
-      blurb: 'Bachelor\'s. Brutal hours, enormous MD-level ceiling.',
+      blurb: 'Brutal hours, enormous MD-level ceiling.',
       minEduLevel: 2,
       rungs: [
         JobDef(id: 'fin_analyst', title: 'Analyst', pay: 8000, requiredEdu: 2),
@@ -928,7 +928,7 @@ class Catalog {
       id: 'accounting',
       name: 'Accounting',
       emoji: '📊',
-      blurb: 'Master\'s. Stable ladder to CFO, lower ceiling.',
+      blurb: 'Stable ladder to CFO, lower ceiling.',
       minEduLevel: 3,
       rungs: [
         JobDef(id: 'acct_staff', title: 'Staff Accountant', pay: 6500, requiredEdu: 3),
@@ -965,7 +965,7 @@ class Catalog {
       id: 'law',
       name: 'Law',
       emoji: '⚖️',
-      blurb: 'Law-school debt and a punishing grind. Partner pays big.',
+      blurb: 'A punishing grind, but Partner pays big.',
       minEduLevel: 3,
       requiredDegreeId: 'law',
       rungs: [
@@ -982,7 +982,7 @@ class Catalog {
       id: 'founder',
       name: 'Startup Founder',
       emoji: '🚀',
-      blurb: 'Ramen years, then a life-changing exit. Prestige 1.',
+      blurb: 'Ramen years, then a life-changing exit.',
       unlockLevel: 1,
       rungs: [
         JobDef(id: 'founder_garage', title: 'Bootstrapper', pay: 2000, unlockLevel: 1),

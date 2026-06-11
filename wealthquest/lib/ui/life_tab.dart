@@ -451,7 +451,7 @@ class _TrackTile extends StatelessWidget {
           title: Text(track.name),
           subtitle: Text(
             '${money(track.entry.pay)} → ${money(track.top.pay)}/mo · ~$years yr '
-            'to top · $_reqText\n${track.blurb}',
+            'to top\n${track.blurb}',
             style: theme.textTheme.bodySmall,
           ),
           trailing: trailing,
