@@ -11,7 +11,7 @@ class Rival {
   final String name;
   final String emoji;
   final String blurb;
-  final double startNetWorth; // at month 0 (age 18)
+  final double startNetWorth; // at month 0 (your start age)
   final double monthlyGrowth; // compound, per month
   final double wobble; // ± fractional swing
   final double phase;

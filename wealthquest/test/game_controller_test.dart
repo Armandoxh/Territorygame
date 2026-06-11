@@ -13,9 +13,10 @@ import 'package:wealthquest/state/game_controller.dart';
 
 void main() {
   group('GameController core loop', () {
-    test('starts at 18 with seed cash and no holdings', () {
+    test('starts at the configured start age with seed cash and no holdings',
+        () {
       final g = GameController(seed: 1);
-      expect(g.ageYears, 18);
+      expect(g.ageYears, Catalog.startAge);
       expect(g.day, 0);
       expect(g.cash, Catalog.startingCash);
       expect(g.holdings, isEmpty);

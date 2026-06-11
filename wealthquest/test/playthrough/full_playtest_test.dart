@@ -252,7 +252,7 @@ void main() {
     final b = StringBuffer()
       ..writeln('\n================== SHARP PLAYTEST ==================')
       ..writeln('${seeds.length} seeds × ${strategies.length} strategies, '
-          'each a full life (18 → death).\n')
+          'each a full life (${Catalog.startAge} → death).\n')
       ..writeln('STRATEGY                     med.networth   p90.networth  '
           '\$1M%  bankrupt  ruined  med.age  med.score  med.\$1M@  med.maxDD');
     final medians = <String, double>{};

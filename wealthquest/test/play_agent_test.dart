@@ -147,7 +147,8 @@ void main() {
     final out = StringBuffer()
       ..writeln('')
       ..writeln('============== WealthQuest agent scoreboard ==============')
-      ..writeln('Start: 18 yrs old, ${_money(Catalog.startingCash)} · '
+      ..writeln('Start: ${Catalog.startAge} yrs old, '
+          '${_money(Catalog.startingCash)} · '
           'horizon: $years years · seeds: ${seeds.length}')
       ..writeln('')
       ..writeln('TUNNEL agents (all-in on one thing):');

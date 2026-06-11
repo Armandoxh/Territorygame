@@ -15,7 +15,7 @@ import '../models/job.dart';
 class Catalog {
   Catalog._();
 
-  static const int startAge = 18;
+  static const int startAge = 15;
   static const double startingCash = 2000;
 
   /// How many advances ("Next Month") make up a year. Change this one number to
@@ -857,7 +857,7 @@ class Catalog {
   /// trades off ramp time, ceiling, and the schooling/debt it demands. Rung pay
   /// is per month; rungMonths[i] is how long you spend on rung i before the next.
   static const List<CareerTrack> careerTracks = [
-    // ☕ No degree, start at 18, low ceiling — but zero debt and instant income.
+    // ☕ No degree, the starter track, low ceiling — zero debt, instant income.
     CareerTrack(
       id: 'service',
       name: 'Service & Hospitality',

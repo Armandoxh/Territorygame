@@ -1,6 +1,6 @@
 # WealthQuest — repo notes for Claude
 
-## ▶ CURRENT BUILD: v0.46.0 · build 117
+## ▶ CURRENT BUILD: v0.47.0 · build 118
 
 This number is the source of truth. It is shown **pinned at the top of the
 in-app header** so the user can confirm the live page is the latest build (and
@@ -21,7 +21,7 @@ Never let these four drift apart.
 
 ## What this is
 
-A mobile life-sim / stock-market game in Flutter. Start at 18 with a day job;
+A mobile life-sim / stock-market game in Flutter. Start at 15 with a day job;
 press **Next Week** (one in-game week) to advance — salary in, expenses out,
 markets move, interest/dividends/coupons accrue, rumors resolve, age ticks up a
 year every 52 weeks. See `README.md` for the full feature list.

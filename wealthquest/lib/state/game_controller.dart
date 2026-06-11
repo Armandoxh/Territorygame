@@ -782,7 +782,8 @@ class GameController extends ChangeNotifier {
   /// payoff for behaving well.
   int get creditScore {
     var s = 580.0;
-    s += ((ageYears - 18) * 4).clamp(0, 60); // length of history
+    s += ((ageYears - Catalog.startAge) * 4)
+        .clamp(0, 60); // length of history (years since you started)
     if (netWorth > 0) s += (netWorth / 8000).clamp(0, 120); // assets
     s -= (monthsCashNegative * 25).clamp(0, 120); // recent missed/overdrawn
     if (debt > 0) s -= (debt / 1000).clamp(0, 80); // revolving debt
@@ -878,7 +879,8 @@ class GameController extends ChangeNotifier {
         SportsEngine.featuredParlays(sportsSlate, Random(_nextEventId));
     netWorthHistory.add(netWorth);
     currentRumors = NewsEngine.generateEdition(_rng, day);
-    _log('You turn 18 and land a job as a ${job.title}. Time to build wealth.');
+    _log("You're ${Catalog.startAge}, with a part-time gig as a ${job.title} "
+        'and a few dollars to your name. Time to build wealth.');
   }
 
   List<Rumor> currentRumorsForAsset(String assetId) =>

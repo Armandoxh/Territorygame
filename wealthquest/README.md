@@ -2,7 +2,7 @@
 
 A mobile **life-sim / stock-market game** built in Flutter.
 
-You start at **age 18** with a day job. Each **Next Day** advances one in-game
+You start at **age 15** with a day job. Each **Next Day** advances one in-game
 **week**: your salary lands, living expenses come out, and every market moves.
 Put your cash to work across a growing catalog of investments — savings, CDs,
 bonds, stocks, ETFs, and crypto — and watch your **net worth** compound (or

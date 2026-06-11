@@ -70,7 +70,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                 '${moneyWhole(game.netWorth)}. A life well played.',
                 style: theme.textTheme.bodyMedium),
             const SizedBox(height: 12),
-            Text('Begin again at 18 as ★ Prestige $newLevel.',
+            Text('Begin again at ${Catalog.startAge} as ★ Prestige $newLevel.',
                 style: theme.textTheme.titleSmall),
             if (unlocks.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -315,7 +315,8 @@ class _PhoneHomeState extends State<PhoneHome> {
 }
 
 /// Shown when the player dies — the life is over. A eulogy with the final
-/// tally, then a button to begin a fresh life at 18 (same prestige; you didn't
+/// tally, then a button to begin a fresh life at the start age (same prestige;
+/// you didn't
 /// retire rich, so no prestige reward — that's the sting of not making it).
 class _DeathScreen extends StatelessWidget {
   const _DeathScreen({
@@ -364,7 +365,7 @@ class _DeathScreen extends StatelessWidget {
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: onNewLife,
-                  child: const Text('Begin a new life at 18'),
+                  child: Text('Begin a new life at ${Catalog.startAge}'),
                 ),
               ],
             ),

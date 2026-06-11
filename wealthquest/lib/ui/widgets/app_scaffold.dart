@@ -103,7 +103,7 @@ Future<void> fastForward(BuildContext context, GameController game, int n) async
 }
 
 /// The bottom controls shared by the home screen and every app: advance one
-/// month, or fast-forward 6 / 12 months at once.
+/// month, or fast-forward 3 / 6 / 12 months at once.
 Widget advanceControls(BuildContext context, GameController game) {
   return FittedBox(
     fit: BoxFit.scaleDown,
@@ -117,6 +117,8 @@ Widget advanceControls(BuildContext context, GameController game) {
               size: 20, color: Theme.of(context).colorScheme.onPrimaryContainer),
           label: const Text('Next Month'),
         ),
+        const SizedBox(width: 8),
+        _FfButton(label: '3 mo', onPressed: () => fastForward(context, game, 3)),
         const SizedBox(width: 8),
         _FfButton(label: '6 mo', onPressed: () => fastForward(context, game, 6)),
         const SizedBox(width: 8),
