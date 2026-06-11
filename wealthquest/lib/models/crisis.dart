@@ -1,6 +1,9 @@
 import 'dart:math';
 
 import '../state/game_controller.dart';
+import 'crisis_category.dart';
+
+export 'crisis_category.dart';
 
 /// One option in a crisis/decision event. [apply] mutates the game and returns
 /// a short line describing what happened (shown back to the player).
@@ -27,6 +30,10 @@ class CrisisEvent {
   final double minNetWorth;
   final double maxNetWorth;
 
+  /// Which shield (if any) softens this event's out-of-pocket cost. Most events
+  /// are tagged at the aggregation point in `crises.dart`, not here.
+  final CrisisCategory category;
+
   final List<CrisisChoice> choices;
 
   CrisisEvent({
@@ -38,7 +45,22 @@ class CrisisEvent {
     this.eligible = _always,
     this.minNetWorth = 0,
     this.maxNetWorth = double.infinity,
+    this.category = CrisisCategory.none,
   });
+
+  /// Same event, retagged with an insurance [category]. Used to stamp a whole
+  /// themed pack (or a base event) with its coverage in one place.
+  CrisisEvent copyWith({CrisisCategory? category}) => CrisisEvent(
+        id: id,
+        emoji: emoji,
+        title: title,
+        body: body,
+        choices: choices,
+        eligible: eligible,
+        minNetWorth: minNetWorth,
+        maxNetWorth: maxNetWorth,
+        category: category ?? this.category,
+      );
 }
 
 bool _always(GameController g) => true;

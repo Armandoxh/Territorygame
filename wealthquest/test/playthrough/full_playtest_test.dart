@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wealthquest/data/businesses.dart';
 import 'package:wealthquest/data/catalog.dart';
+import 'package:wealthquest/data/insurance.dart';
 import 'package:wealthquest/data/life.dart';
 import 'package:wealthquest/data/properties.dart';
 import 'package:wealthquest/models/asset.dart';
@@ -146,8 +147,8 @@ void explorer(LifeAgent a) {
   a.advance(40);
   _bestCareer(a);
   a.act('401k', () => a.g.setRetirementContribPct(0.05));
-  for (final id in ['health', 'auto', 'home', 'life']) {
-    a.act('insure', () => a.g.toggleInsurance(id));
+  for (final p in Insurance.all) {
+    a.act('insure', () => a.g.toggleInsurance(p.id));
   }
   for (final c in Catalog.categories) {
     final list = a.g.unlockedAssets(c.id);

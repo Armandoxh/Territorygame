@@ -28,10 +28,11 @@ class InsuranceBody extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
-            'Insurance is a bet against yourself. Premiums are a small, certain '
-            'drain; going without saves that cash — until a medical, auto, or '
-            'home disaster hits at full price and you can\'t cover it. '
-            'Covered today: ${money(total)}/mo.',
+            'Each shield covers one kind of life event. When a covered event '
+            'hits, the shield pays 80% of the cost above its deductible — you '
+            'just eat the deductible and a sliver. Skip it and that event lands '
+            'at full price, which can spiral into a margin call. '
+            'Carrying ${money(total)}/mo of cover.',
             style: theme.textTheme.bodySmall,
           ),
         ),
@@ -51,7 +52,16 @@ class _PolicyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final covered = game.insurancePolicies.contains(policy.id);
-    final pctChance = (policy.incidentChance * 100).toStringAsFixed(1);
+    final isIncome = policy.id == 'income';
+    // How this shield pays out, in one line.
+    final coveredLine = isIncome
+        ? '✓ Covered — replaces 60% of your wage while a life event keeps you '
+            'off the payroll.'
+        : '✓ Covered — pays 80% above a ${money(policy.deductible)} deductible.';
+    final uninsuredLine = isIncome
+        ? 'Uninsured: lose a life event\'s worth of wages with no backstop.'
+        : 'Uninsured: a ${policy.shortName.toLowerCase()} event hits at full '
+            'price, all on you.';
     return Card(
       color: covered ? kGain.withOpacity(0.08) : null,
       child: Padding(
@@ -77,11 +87,7 @@ class _PolicyCard extends StatelessWidget {
                   Text(policy.blurb, style: theme.textTheme.bodySmall),
                   const SizedBox(height: 6),
                   Text(
-                    covered
-                        ? '✓ Covered — incidents are handled.'
-                        : 'Uninsured: ~$pctChance%/mo of a '
-                            '${money(policy.incidentMin)}–'
-                            '${money(policy.incidentMax)} bill, all on you.',
+                    covered ? coveredLine : uninsuredLine,
                     style: theme.textTheme.labelSmall?.copyWith(
                         color: covered ? kGain : kLoss,
                         fontWeight: FontWeight.w600),

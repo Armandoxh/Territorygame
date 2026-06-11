@@ -93,7 +93,7 @@ class Crises {
   static const double _t3 = 750000;
   static const double _t4 = 5000000;
 
-  static final List<CrisisEvent> all = [
+  static final List<CrisisEvent> _base = [
     // ============ TIER 0 — everyday cheap surprises (fade when rich) ======
     CrisisEvent(
       id: 'broken_phone',
@@ -1488,17 +1488,70 @@ class Crises {
       ],
     ),
 
+  ];
+
+  /// Coverage tags for the base events above (the themed packs are tagged by
+  /// pack below). Only insurable losses are listed; everything else — windfalls,
+  /// gambling, voluntary splurges, investment bets — stays [CrisisCategory.none]
+  /// and is never reimbursed.
+  static const Map<String, CrisisCategory> _baseCategory = {
+    // 🚗 vehicle
+    'car_repair': CrisisCategory.auto,
+    'tires': CrisisCategory.auto,
+    'parking': CrisisCategory.auto,
+    'transmission': CrisisCategory.auto,
+    // 🩺 health
+    'dental': CrisisCategory.health,
+    'minor_medical': CrisisCategory.health,
+    'vet': CrisisCategory.health,
+    'medical_bill': CrisisCategory.health,
+    'major_surgery': CrisisCategory.health,
+    'injury': CrisisCategory.health,
+    // 🏠 home
+    'appliance': CrisisCategory.home,
+    'furnace': CrisisCategory.home,
+    'plumbing': CrisisCategory.home,
+    'foundation': CrisisCategory.home,
+    'roof_emergency': CrisisCategory.home,
+    // ⚖️ legal
+    'speeding': CrisisCategory.legal,
+    'audit': CrisisCategory.legal,
+    'lawsuit': CrisisCategory.legal,
+    'big_lawsuit': CrisisCategory.legal,
+    'high_profile_lawsuit': CrisisCategory.legal,
+    // 👨‍👩‍👧 family
+    'eldercare': CrisisCategory.family,
+    'family_bailout': CrisisCategory.family,
+    // 🔒 cyber / devices
+    'laptop': CrisisCategory.tech,
+    'identity_theft': CrisisCategory.tech,
+    'crypto_hack': CrisisCategory.tech,
+    // 🛟 income
+    'jury_duty': CrisisCategory.income,
+    'layoff': CrisisCategory.income,
+  };
+
+  static CrisisEvent _tagBase(CrisisEvent e) {
+    final cat = _baseCategory[e.id];
+    return cat == null ? e : e.copyWith(category: cat);
+  }
+
+  /// The full library: base events (tagged by id) plus every themed pack (tagged
+  /// by pack). A pack tag only affects its *loss* events — windfalls in a pack
+  /// are reimbursed-proof because the shield only ever refunds a cash loss.
+  static final List<CrisisEvent> all = [
+    for (final e in _base) _tagBase(e),
     // ============ EXPANSION PACKS — themed life-event libraries ============
     // Each is a separate file sharing the public helpers in crisis_kit.dart.
-    ...EducationCrises.all,
-    ...CareerCrises.all,
+    for (final e in EducationCrises.all) e.copyWith(category: CrisisCategory.education),
+    for (final e in CareerCrises.all) e.copyWith(category: CrisisCategory.income),
     ...GamblingCrises.all,
-    ...HealthCrises.all,
-    ...FamilyCrises.all,
-    ...HomeCrises.all,
-    ...LegalCrises.all,
+    for (final e in HealthCrises.all) e.copyWith(category: CrisisCategory.health),
+    for (final e in FamilyCrises.all) e.copyWith(category: CrisisCategory.family),
+    for (final e in HomeCrises.all) e.copyWith(category: CrisisCategory.home),
+    for (final e in LegalCrises.all) e.copyWith(category: CrisisCategory.legal),
     ...LifestyleCrises.all,
-    ...TechCrises.all,
+    for (final e in TechCrises.all) e.copyWith(category: CrisisCategory.tech),
   ];
 
   /// Pick a random event whose net-worth band and context allow it right now.

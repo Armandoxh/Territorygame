@@ -126,10 +126,6 @@ class GameController extends ChangeNotifier {
   /// from [_rng] so owning businesses never perturbs the market/crisis stream.
   final Random _bizRng;
 
-  /// A dedicated RNG for insurance incidents — again separate from [_rng] so the
-  /// market/crisis/bet sequence stays identical regardless of coverage.
-  final Random _insuranceRng;
-
   /// A dedicated RNG for health/mortality noise.
   final Random _healthRng;
 
@@ -248,49 +244,16 @@ class GameController extends ChangeNotifier {
     return sum;
   }
 
-  static String _incidentLabel(String id) {
-    switch (id) {
-      case 'health':
-        return 'Medical emergency';
-      case 'auto':
-        return 'Car accident';
-      case 'home':
-        return 'Home damage';
-      default:
-        return 'Lost income (disability)';
-    }
-  }
-
-  /// Pay premiums on covered policies; roll for ruinous incidents on uncovered
-  /// ones. Returns the total cash hit this month (folded into expenses so the
-  /// cash-flow audit stays exact). Uses [_insuranceRng] only.
+  /// Charge this month's premiums on the shields you carry. Insurance no longer
+  /// rolls its own invisible incidents — a shield earns its keep by absorbing
+  /// the cost of the REAL life events you see (see [resolveCrisis] and the
+  /// income-protection benefit in [advanceDay]). Returns the premium drain
+  /// (folded into expenses so the cash-flow audit stays exact).
   double _runInsurance(List<String> events) {
     if (day <= 24) return 0; // a grace period (to ~age 20) while you find your feet
     var cost = 0.0;
-    for (final p in Insurance.all) {
-      if (insurancePolicies.contains(p.id)) {
-        cost += p.premium; // covered: you just pay the premium
-        continue;
-      }
-      // Uninsured. Skip car incidents if you don't drive.
-      if (p.id == 'auto' &&
-          (transportChoiceId == 'bike' || transportChoiceId == 'transit')) {
-        continue;
-      }
-      if (_insuranceRng.nextDouble() < p.incidentChance) {
-        final rolled = p.incidentMin +
-            _insuranceRng.nextDouble() * (p.incidentMax - p.incidentMin);
-        // Ability-to-pay: the broke get charity-care-sized bills (you can't
-        // bleed a stone), the wealthy eat the full hit — so insurance is most
-        // valuable exactly when you have something to lose. Capped at ~half net
-        // worth, with a floor so it always stings a little.
-        final cap = (netWorth * 0.5) > 1500 ? netWorth * 0.5 : 1500.0;
-        final hit = rolled < cap ? rolled : cap;
-        cost += hit;
-        events.add('${p.emoji} ${_incidentLabel(p.id)} — '
-            '−\$${hit.toStringAsFixed(0)}. No ${p.name.toLowerCase()}, so you '
-            'eat the bill.');
-      }
+    for (final id in insurancePolicies) {
+      cost += Insurance.byId(id).premium;
     }
     cash -= cost;
     return cost;
@@ -586,12 +549,33 @@ class GameController extends ChangeNotifier {
   /// Apply the chosen option to the pending crisis and clear it. Returns the
   /// outcome line to show the player.
   String resolveCrisis(CrisisChoice choice) {
-    final title = pendingCrisis?.title ?? 'Decision';
+    final ev = pendingCrisis;
+    final title = ev?.title ?? 'Decision';
+    final category = ev?.category ?? CrisisCategory.none;
+    final cashBefore = cash;
     final result = choice.apply(this, _rng);
     pendingCrisis = null;
-    _log('$title — $result');
+
+    // Shield: if you carry insurance for this event's category, it absorbs most
+    // of the out-of-pocket hit. You pay the deductible plus 20% coinsurance; the
+    // insurer covers the other 80% above the deductible. Small hits below the
+    // deductible are entirely on you, so a shield earns its keep on big events.
+    var line = result;
+    final loss = cashBefore - cash; // >0 only if the choice cost you cash
+    final policy = Insurance.byCategory(category);
+    if (loss > 0 && policy != null && insurancePolicies.contains(policy.id)) {
+      final covered = (loss - policy.deductible) * Insurance.coinsurance;
+      if (covered > 0) {
+        cash += covered;
+        line = '$result  🛡 ${policy.shortName} insurance covered '
+            '${_usd(covered)} (you paid the ${_usd(policy.deductible)} '
+            'deductible).';
+      }
+    }
+
+    _log('$title — $line');
     notifyListeners();
-    return result;
+    return line;
   }
 
   /// A deep clone of the economic state, for what-if lookahead in the balance
@@ -853,8 +837,6 @@ class GameController extends ChangeNotifier {
             Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x5DEECE66),
         _bizRng =
             Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x1F123BB5),
-        _insuranceRng =
-            Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x2C9277B5),
         _healthRng =
             Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x41C64E6D),
         cash = Catalog.startingCash,
@@ -1875,9 +1857,22 @@ class GameController extends ChangeNotifier {
         : Catalog.incomeTaxOnTaxable(annualTaxable) / 12;
     cash -= taxPaid;
     cash -= expenses;
-    // Insurance: premiums on covered policies, plus full-freight incidents on
-    // uncovered ones. Folded into the expenses figure for the recap + audit.
+    // Insurance: premiums on the shields you carry. Folded into the expenses
+    // figure for the recap + audit.
     final insuranceCost = _runInsurance(events);
+    // Income protection: while a life event has knocked you off the payroll
+    // (suspended income), the income shield replaces 60% of your normal wage.
+    // It's the one shield whose payout is a steady benefit, not an event refund.
+    final incomeSuspended = ongoing.any((e) => e.suspendsIncome);
+    final disabilityBenefit =
+        (incomeSuspended && insurancePolicies.contains('income'))
+            ? job.pay * Insurance.incomeReplacement
+            : 0.0;
+    cash += disabilityBenefit;
+    if (disabilityBenefit > 0) {
+      events.add('🛟 Income protection paid ${_usd(disabilityBenefit)} while '
+          'you\'re off the payroll.');
+    }
     // A partner's take-home pay lands straight in cash. Folded into the income
     // figure below so the recap and the cash-flow audit stay exact.
     final partnerNet = partnerMonthlyIncome;
@@ -2361,7 +2356,7 @@ class GameController extends ChangeNotifier {
     final after = netWorth;
 
     final summary = DayResult(
-      income: income + partnerNet,
+      income: income + partnerNet + disabilityBenefit,
       expenses: expenses + insuranceCost + garnishment,
       dividends: dividends,
       interest: interest,
