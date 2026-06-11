@@ -51,6 +51,9 @@ class LifeTab extends StatelessWidget {
         if (game.isStudying) _StudyingCard(game: game),
         if (game.studentLoan > 0) _LoanCard(game: game),
 
+        const SizedBox(height: 8),
+        _RetirementCard(game: game),
+
         const SizedBox(height: 16),
         Text('Education', style: theme.textTheme.titleMedium),
         const SizedBox(height: 2),
@@ -451,6 +454,119 @@ class _TrackTile extends StatelessWidget {
             style: theme.textTheme.bodySmall,
           ),
           trailing: trailing,
+        ),
+      ),
+    );
+  }
+}
+
+/// 401(k): contribution chips, the employer match, and an early-withdrawal
+/// escape hatch. Lives in the job app since it comes straight off your paycheck.
+class _RetirementCard extends StatelessWidget {
+  const _RetirementCard({required this.game});
+  final GameController game;
+
+  static const _pcts = [0.0, 0.03, 0.05, 0.10, 0.15, 0.20];
+
+  Future<void> _withdraw(BuildContext context) async {
+    final early = game.ageYears < GameController.retirementAge;
+    final penaltyPct =
+        (GameController.earlyWithdrawalPenalty * 100).toStringAsFixed(0);
+    final amount = await showAmountSheet(
+      context,
+      title: 'Withdraw from 401(k)',
+      actionLabel: 'Withdraw',
+      max: game.retirementBalance,
+      helper: early
+          ? 'Balance ${money(game.retirementBalance)}. You\'re ${game.ageYears} — '
+              'an early withdrawal forfeits $penaltyPct%, so \$100 out puts only '
+              '\$${(100 * (1 - GameController.earlyWithdrawalPenalty)).toStringAsFixed(0)} in your cash.'
+          : 'Balance ${money(game.retirementBalance)}. Penalty-free at your age.',
+    );
+    if (amount == null || !context.mounted) return;
+    final err = game.withdrawRetirement(amount,
+        max: amount >= game.retirementBalance - 0.01);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+          content: Text(err ?? 'Withdrew ${money(amount)} from retirement.')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final pct = game.retirementContribPct;
+    final yourMo = game.effectivePay * pct;
+    final matchMo = game.effectivePay *
+        (pct < GameController.employerMatchPct
+            ? pct
+            : GameController.employerMatchPct);
+    final locked = game.ageYears < GameController.retirementAge;
+    final matchPct =
+        (GameController.employerMatchPct * 100).toStringAsFixed(0);
+    final penaltyPct =
+        (GameController.earlyWithdrawalPenalty * 100).toStringAsFixed(0);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.savings_outlined, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: Text('Retirement 401(k)',
+                        style: theme.textTheme.titleMedium)),
+                Text(moneyWhole(game.retirementBalance),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Employer matches you 100% up to $matchPct% of pay — free money, '
+              'and contributions are pre-tax so they trim your income tax too. '
+              '${locked ? 'Locked until age ${GameController.retirementAge}; pulling early costs $penaltyPct%.' : 'Penalty-free at your age.'}',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
+            Text('Contribute from each paycheck',
+                style: theme.textTheme.labelMedium),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final p in _pcts)
+                  ChoiceChip(
+                    label: Text('${(p * 100).toStringAsFixed(0)}%'),
+                    selected: (pct - p).abs() < 1e-6,
+                    onSelected: (_) => game.setRetirementContribPct(p),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              pct > 0
+                  ? 'You ${money(yourMo)}/mo + employer ${money(matchMo)}/mo → ${money(yourMo + matchMo)}/mo invested.'
+                  : 'Not contributing — you\'re leaving the employer match on the table.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: pct > 0 ? kGain : kLoss),
+            ),
+            if (game.retirementBalance > 0) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton(
+                  onPressed: () => _withdraw(context),
+                  child: Text(locked ? 'Withdraw (−$penaltyPct%)' : 'Withdraw'),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
