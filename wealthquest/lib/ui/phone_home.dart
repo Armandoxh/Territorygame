@@ -8,6 +8,7 @@ import 'widgets/lucide.dart';
 import 'business_app.dart';
 import 'commodities_app.dart';
 import 'dashboard_tab.dart';
+import 'goals_app.dart';
 import 'invest_app.dart';
 import 'life_app.dart';
 import 'life_tab.dart';
@@ -234,6 +235,17 @@ class _PhoneHomeState extends State<PhoneHome> {
                           game: game,
                           title: 'Prestige',
                           body: (_) => PrestigeBody(game: game),
+                        )),
+                      ),
+                      _AppIcon(
+                        label: 'Goals',
+                        sub: 'Score',
+                        icon: 'target',
+                        color: const Color(0xFFD81B60),
+                        onTap: () => _open(AppScaffold(
+                          game: game,
+                          title: 'Goals',
+                          body: (_) => GoalsBody(game: game),
                         )),
                       ),
                     ],

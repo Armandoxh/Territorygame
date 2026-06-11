@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../data/businesses.dart';
 import '../data/catalog.dart';
 import '../data/crises.dart';
+import '../data/goals.dart';
 import '../data/life.dart';
 import '../data/properties.dart';
 import '../engine/climate_engine.dart';
@@ -182,6 +183,24 @@ class GameController extends ChangeNotifier {
   /// 7 years, like a real Chapter 7 staying on your credit report.
   int creditBlackMarkUntilDay = 0;
   static const int bankruptcyCreditMonths = 84;
+
+  // ---- Goals / score ----
+  /// Achievements completed this life. Your score is the sum of their points.
+  final Set<String> completedGoals = {};
+  int get score => Goals.pointsFor(completedGoals);
+
+  /// Mark any newly-met goals and return them (read-only over state, so it
+  /// never perturbs the RNG / determinism).
+  List<Goal> _checkGoals() {
+    final newly = <Goal>[];
+    for (final goal in Goals.all) {
+      if (!completedGoals.contains(goal.id) && goal.done(this)) {
+        completedGoals.add(goal.id);
+        newly.add(goal);
+      }
+    }
+    return newly;
+  }
 
   bool get hasBankruptcyMark => day < creditBlackMarkUntilDay;
   int get bankruptcyMonthsLeft =>
@@ -2146,6 +2165,11 @@ class GameController extends ChangeNotifier {
 
     // 7) Publish next week's edition of rumors.
     currentRumors = NewsEngine.generateEdition(_rng, day);
+
+    // 8) Score any newly-completed goals (end-of-month state).
+    for (final goal in _checkGoals()) {
+      events.add('🏆 Goal unlocked: ${goal.title} (+${goal.points} pts)');
+    }
 
     netWorthHistory.add(netWorth);
     final after = netWorth;
