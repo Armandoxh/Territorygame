@@ -24,7 +24,10 @@ Future<void> showMarginCall(BuildContext context, GameController game) {
             final theme = Theme.of(context);
             final settled = game.cash >= -0.01;
             final stuck = !settled && !game.hasLiquidatableAssets;
-            final bankrupt = game.faceBankruptcy; // stuck AND underwater
+            final bankrupt = game.faceBankruptcy; // stuck, underwater, unmarked
+            // Stuck + underwater but a prior bankruptcy still on record blocks
+            // re-filing — no escape hatch, you have to grind out of the hole.
+            final blocked = game.bankruptcyBlocked;
             final canContinue = settled || stuck;
             return Dialog(
               insetPadding:
@@ -52,17 +55,30 @@ Future<void> showMarginCall(BuildContext context, GameController game) {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              bankrupt
-                                  ? "You're out of cash and out of things to "
-                                      "sell, and you're underwater. There's only "
-                                      "one way out: bankruptcy. Your assets get "
-                                      "liquidated and consumer debt wiped, but "
-                                      "you lose everything you built and a "
-                                      "7-year mark bars you from financing. "
-                                      "(Your 401(k) is protected.)"
-                                  : "You've run out of cash for too long. Sell "
-                                      "off investments or real estate until your "
-                                      "cash is back above \$0.",
+                              blocked
+                                  ? "You're underwater with nothing left to "
+                                      "sell — but you filed for bankruptcy "
+                                      "within the last 7 years, so you can't "
+                                      "file again for "
+                                      "${(game.bankruptcyMonthsLeft / 12).ceil()} "
+                                      "more year(s). No reset this time: keep "
+                                      "going and grind the debt down. The "
+                                      "overdraft fee keeps biting until you do."
+                                  : bankrupt
+                                      ? "You're out of cash and out of things to "
+                                          "sell, and you're underwater. There's "
+                                          "only one way out: bankruptcy. Your "
+                                          "assets get liquidated and consumer "
+                                          "debt wiped, but you lose everything "
+                                          "you built — and a 7-year mark bars "
+                                          "you from financing, garnishes "
+                                          "${(GameController.bankruptcyGarnishRate * 100).toStringAsFixed(0)}% "
+                                          "of every paycheck, and you can't file "
+                                          "again until it clears. (Your 401(k) "
+                                          "is protected.)"
+                                      : "You've run out of cash for too long. "
+                                          "Sell off investments or real estate "
+                                          "until your cash is back above \$0.",
                               style: theme.textTheme.bodySmall,
                             ),
                             const SizedBox(height: 12),
@@ -121,9 +137,11 @@ Future<void> showMarginCall(BuildContext context, GameController game) {
                                   ? 'Declare bankruptcy'
                                   : settled
                                       ? 'Continue'
-                                      : stuck
-                                          ? 'Nothing left to sell — continue'
-                                          : 'Raise \$${(-game.cash).toStringAsFixed(0)} more',
+                                      : blocked
+                                          ? 'Ride it out — continue'
+                                          : stuck
+                                              ? 'Nothing left to sell — continue'
+                                              : 'Raise \$${(-game.cash).toStringAsFixed(0)} more',
                             ),
                           ),
                         ),

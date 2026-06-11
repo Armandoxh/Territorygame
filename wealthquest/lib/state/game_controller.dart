@@ -192,6 +192,11 @@ class GameController extends ChangeNotifier {
   int creditBlackMarkUntilDay = 0;
   static const int bankruptcyCreditMonths = 84;
 
+  /// While the bankruptcy mark is active, a court garnishes this share of every
+  /// paycheck toward debts that survived discharge. Makes bankruptcy a real,
+  /// lasting cost (you feel it every month) instead of a free debt reset.
+  static const double bankruptcyGarnishRate = 0.15;
+
   // ---- Health & mortality (the clock) ----
   /// 0–100. Declines with age (faster late in life), a bit faster if you skip
   /// health insurance. At 0 you die — a finite life is the real time limit.
@@ -314,15 +319,33 @@ class GameController extends ChangeNotifier {
       hasBankruptcyMark ? creditBlackMarkUntilDay - day : 0;
 
   /// You're at a margin call you can't dig out of: nothing left to liquidate
-  /// and underwater. The margin-call dialog offers bankruptcy here.
+  /// and underwater. The margin-call dialog offers bankruptcy here — but ONLY
+  /// if you're not already under a bankruptcy mark. You can't re-file your way
+  /// out of trouble while a prior Chapter 7 is still on your record; you have
+  /// to ride the overdraft and dig out the hard way.
   bool get faceBankruptcy =>
-      !hasLiquidatableAssets && cash < -0.01 && netWorth < 0;
+      !hasLiquidatableAssets &&
+      cash < -0.01 &&
+      netWorth < 0 &&
+      !hasBankruptcyMark;
+
+  /// True when you're underwater and stuck, but a still-active bankruptcy mark
+  /// blocks re-filing — the UI uses this to explain why there's no escape
+  /// hatch this time.
+  bool get bankruptcyBlocked =>
+      !hasLiquidatableAssets &&
+      cash < -0.01 &&
+      netWorth < 0 &&
+      hasBankruptcyMark;
 
   /// Chapter 7. Assets are liquidated/repossessed and unsecured debt is
   /// discharged — but you lose everything you built and carry a 7-year credit
   /// black mark that bars new mortgages. Your 401(k) is protected and student
   /// loans survive (as in real life), so the hole isn't magically zeroed.
   void declareBankruptcy() {
+    // Can't re-file while a prior Chapter 7 is still on your record. (Real life:
+    // ~8 years between discharges.) This closes the "go bankrupt, repeat" loop.
+    if (hasBankruptcyMark) return;
     holdings.clear();
     properties.clear();
     businesses.clear();
@@ -333,8 +356,11 @@ class GameController extends ChangeNotifier {
     creditBlackMarkUntilDay = day + bankruptcyCreditMonths;
     _log('💥 BANKRUPTCY filed. Everything you built was liquidated and your '
         'consumer debt wiped. You keep your job, your protected 401(k), and '
-        '(unfortunately) your student loans — and a 7-year mark now bars you '
-        'from financing. Rebuild from here.');
+        '(unfortunately) your student loans. For the next 7 years a mark bars '
+        'you from financing AND the court garnishes '
+        '${(bankruptcyGarnishRate * 100).toStringAsFixed(0)}% of every '
+        'paycheck — and you can\'t file again until it clears. Rebuild from '
+        'here.');
     notifyListeners();
   }
 
@@ -1854,6 +1880,12 @@ class GameController extends ChangeNotifier {
     // figure below so the recap and the cash-flow audit stay exact.
     final partnerNet = partnerMonthlyIncome;
     cash += partnerNet;
+    // Post-bankruptcy wage garnishment: while the mark is active the court
+    // skims a slice of your gross wage. A lasting, monthly bite — bankruptcy is
+    // no longer a costless reset. Folded into the expenses figure for the
+    // recap + audit.
+    final garnishment = hasBankruptcyMark ? income * bankruptcyGarnishRate : 0.0;
+    cash -= garnishment;
 
     // 1b) Education: advance any degree in progress, and compound the loan.
     if (isStudying) {
@@ -2328,7 +2360,7 @@ class GameController extends ChangeNotifier {
 
     final summary = DayResult(
       income: income + partnerNet,
-      expenses: expenses + insuranceCost,
+      expenses: expenses + insuranceCost + garnishment,
       dividends: dividends,
       interest: interest,
       rent: rentCollected,
