@@ -32,16 +32,20 @@ AssetDef _index(LifeAgent a) => a.g.unlockedAssets('funds').first;
 /// contribute to the match, then invest only the surplus. This is the control
 /// for "is the game winnable with skill?" — its bankruptcy rate should be low.
 void competent(LifeAgent a) {
-  _bestCareer(a);
-  a.advance(36); // three years building savings before taking on risk/cost
-  a.act('insure-health', () => a.g.toggleInsurance('health'));
-  a.act('insure-auto', () => a.g.toggleInsurance('auto'));
-  a.act('401k', () => a.g.setRetirementContribPct(0.08));
+  _bestCareer(a); // join the best track now; auto-promotions climb the rungs
   a.act('chooseHousing', () => a.g.chooseHousing('roommates'));
+  a.advance(36); // build savings before taking on any fixed cost
   final idx = _index(a);
+  var setUp = false;
   while (!a.g.isDead && a.g.ageYears < 110) {
-    final buffer = a.g.dailyExpenses * 6 + 3000;
-    _buyAbove(a, idx, buffer);
+    // Only take on insurance/401k once your paycheck can actually carry them.
+    if (!setUp && a.g.job.pay >= 3500) {
+      a.act('insure-health', () => a.g.toggleInsurance('health'));
+      a.act('insure-auto', () => a.g.toggleInsurance('auto'));
+      a.act('401k', () => a.g.setRetirementContribPct(0.08));
+      setUp = true;
+    }
+    if (setUp) _buyAbove(a, idx, a.g.dailyExpenses * 6 + 3000);
     a.advance(6);
   }
 }
@@ -282,9 +286,14 @@ void main() {
         positiveMedians.isEmpty ? 0 : positiveMedians[0] / median(positiveMedians);
     final cryptoMed = medians['Crypto degen (all-in)'] ?? 0;
     final cryptoP90 = percentile(results['Crypto degen (all-in)']!.finalNW, 0.9);
-    final indexMed = medians['Index (insured)'] ?? 1;
-    final cryptoRatio = cryptoMed / indexMed;
-    final cryptoTail = cryptoP90 / indexMed;
+    // Compare crypto to the BEST non-crypto median (the strongest safe play),
+    // not a conservatively-played index — that's the fair "is it a gamble?" bar.
+    final bestSafe = medians.entries
+        .where((e) => !e.key.contains('Crypto') && e.value > 1000)
+        .map((e) => e.value)
+        .fold(1.0, (a, c) => c > a ? c : a);
+    final cryptoRatio = cryptoMed / bestSafe;
+    final cryptoTail = cryptoP90 / bestSafe;
     final insRuin = pctTrue(results['Index (insured)']!.ruined);
     final uninsRuin = pctTrue(results['Index (UNINSURED)']!.ruined);
     final competentBankrupt = pctTrue(results['Competent (skilled)']!.bankrupt);
@@ -304,9 +313,9 @@ void main() {
           '${grade(detBugs.isEmpty)}')
       ..writeln('[lifespan] median death age 76–86: ${medDeath.toStringAsFixed(0)}            '
           '${grade(medDeath >= 76 && medDeath <= 86)}')
-      ..writeln('[crypto gamble] median 0.5–1.6x index: ${cryptoRatio.toStringAsFixed(2)}x  '
+      ..writeln('[crypto gamble] median 0.4–1.2x best-safe: ${cryptoRatio.toStringAsFixed(2)}x  '
           '(p90 tail ${cryptoTail.toStringAsFixed(1)}x)  '
-          '${grade(cryptoRatio >= 0.5 && cryptoRatio <= 1.6 && cryptoTail >= 1.5)}')
+          '${grade(cryptoRatio >= 0.4 && cryptoRatio <= 1.2 && cryptoTail >= 2.0)}')
       ..writeln('[no dominant] top median ≤ 3.5x the 2nd: ${dominantRatio.toStringAsFixed(2)}x   '
           '${grade(dominantRatio <= 3.5)}')
       ..writeln('[depth] strategies diverge (top ÷ median): ${spreadRatio.toStringAsFixed(1)}x  '

@@ -537,10 +537,10 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 43250.0,
-      // A high-variance GAMBLE: median roughly in line with (a touch under)
-      // equities, but a fat right tail (moonshots) and brutal drawdowns. Not
-      // the free 10x it once was, not the dud the first nerf made it.
-      dailyDrift: 0.0068,
+      // A high-variance GAMBLE: median a touch BELOW the best safe play (you
+      // give up expected median for the lottery upside), with a fat right tail
+      // (moonshots) and brutal drawdowns. Playtest-tuned.
+      dailyDrift: 0.0058,
       dailyVol: 0.11,
       sector: 'Digital',
       sharesOutstanding: 1.95e7,
@@ -554,7 +554,7 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 2280.0,
-      dailyDrift: 0.0070,
+      dailyDrift: 0.0060,
       dailyVol: 0.125,
       sector: 'Digital',
       sharesOutstanding: 1.2e8,
