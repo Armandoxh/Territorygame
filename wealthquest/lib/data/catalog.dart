@@ -539,9 +539,10 @@ class Catalog {
       basePrice: 43250.0,
       // A high-variance GAMBLE: median a touch BELOW the best safe play (you
       // give up expected median for the lottery upside), with a fat right tail
-      // (moonshots) and brutal drawdowns. Playtest-tuned.
-      dailyDrift: 0.0058,
-      dailyVol: 0.11,
+      // (moonshots) and brutal drawdowns. Drift sits just above the vol-drag so
+      // the median is modestly positive but the tail does the work. Playtest-tuned.
+      dailyDrift: 0.0064,
+      dailyVol: 0.10,
       sector: 'Digital',
       sharesOutstanding: 1.95e7,
       blurb: 'The original. Massive swings, massive narratives. A coin-flip with '
@@ -554,8 +555,8 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 2280.0,
-      dailyDrift: 0.0060,
-      dailyVol: 0.125,
+      dailyDrift: 0.0066,
+      dailyVol: 0.115,
       sector: 'Digital',
       sharesOutstanding: 1.2e8,
       blurb: 'Smart-contract platform. Even wilder than BTQ — bigger swings '

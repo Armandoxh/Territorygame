@@ -273,12 +273,18 @@ class GameController extends ChangeNotifier {
         continue;
       }
       if (_insuranceRng.nextDouble() < p.incidentChance) {
-        final hit = p.incidentMin +
+        final rolled = p.incidentMin +
             _insuranceRng.nextDouble() * (p.incidentMax - p.incidentMin);
+        // Ability-to-pay: the broke get charity-care-sized bills (you can't
+        // bleed a stone), the wealthy eat the full hit — so insurance is most
+        // valuable exactly when you have something to lose. Capped at ~half net
+        // worth, with a floor so it always stings a little.
+        final cap = (netWorth * 0.5) > 1500 ? netWorth * 0.5 : 1500.0;
+        final hit = rolled < cap ? rolled : cap;
         cost += hit;
         events.add('${p.emoji} ${_incidentLabel(p.id)} — '
             '−\$${hit.toStringAsFixed(0)}. No ${p.name.toLowerCase()}, so you '
-            'eat the whole bill.');
+            'eat the bill.');
       }
     }
     cash -= cost;
