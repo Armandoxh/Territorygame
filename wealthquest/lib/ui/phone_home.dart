@@ -7,6 +7,7 @@ import '../version.dart';
 import 'widgets/lucide.dart';
 import 'business_app.dart';
 import 'commodities_app.dart';
+import 'credit_app.dart';
 import 'dashboard_tab.dart';
 import 'goals_app.dart';
 import 'insurance_app.dart';
@@ -258,6 +259,17 @@ class _PhoneHomeState extends State<PhoneHome> {
                           game: game,
                           title: 'Shield',
                           body: (_) => InsuranceBody(game: game),
+                        )),
+                      ),
+                      _AppIcon(
+                        label: 'Credit',
+                        sub: 'Score',
+                        icon: 'credit-card',
+                        color: const Color(0xFF00838F),
+                        onTap: () => _open(AppScaffold(
+                          game: game,
+                          title: 'Credit',
+                          body: (_) => CreditBody(game: game),
                         )),
                       ),
                     ],

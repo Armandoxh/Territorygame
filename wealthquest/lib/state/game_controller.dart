@@ -702,8 +702,45 @@ class GameController extends ChangeNotifier {
 
   /// The rate you'd actually get on [m] right now: the floating benchmark plus
   /// the product's spread vs. the baseline (a 15-yr undercuts a 30-yr).
-  double effectiveMortgageRate(MortgageType m) =>
-      (mortgageRate + (m.annualRate - Properties.baseRate)).clamp(0.01, 0.2);
+  double effectiveMortgageRate(MortgageType m) => (mortgageRate +
+          (m.annualRate - Properties.baseRate) +
+          creditRateAdjustment)
+      .clamp(0.01, 0.2);
+
+  // ---- Credit score (derived from your financial behavior) ----
+  /// A FICO-style score (300–850) built from history, wealth, on-time bills,
+  /// debt, and any bankruptcy. It prices your mortgage and is the visible
+  /// payoff for behaving well.
+  int get creditScore {
+    var s = 580.0;
+    s += ((ageYears - 18) * 4).clamp(0, 60); // length of history
+    if (netWorth > 0) s += (netWorth / 8000).clamp(0, 120); // assets
+    s -= (monthsCashNegative * 25).clamp(0, 120); // recent missed/overdrawn
+    if (debt > 0) s -= (debt / 1000).clamp(0, 80); // revolving debt
+    if (studentLoan > 0) s -= 20;
+    if (hasBankruptcyMark) s -= 180; // a bankruptcy on record
+    return s.clamp(300, 850).round();
+  }
+
+  String get creditBand {
+    final s = creditScore;
+    if (s >= 800) return 'Excellent';
+    if (s >= 740) return 'Very good';
+    if (s >= 670) return 'Good';
+    if (s >= 580) return 'Fair';
+    return 'Poor';
+  }
+
+  /// Credit-based add-on to your mortgage rate: great credit shaves points off,
+  /// poor credit (or a recent bankruptcy) tacks them on.
+  double get creditRateAdjustment {
+    final s = creditScore;
+    if (s >= 800) return -0.010;
+    if (s >= 740) return -0.005;
+    if (s >= 670) return 0.0;
+    if (s >= 580) return 0.015;
+    return 0.04;
+  }
 
   /// Advance the housing market a month: float the mortgage rate (mean-
   /// reverting, bounded) and the appreciation cycle (cheap money heats it),
