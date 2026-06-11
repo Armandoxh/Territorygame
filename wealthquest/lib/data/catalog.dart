@@ -866,8 +866,7 @@ class Catalog {
       // player begins on it), no degree. Climb to managing a region — but the
       // ceiling is modest.
       minAge: startAge,
-      blurb: 'Start earning today, no degree. Climb to managing a region — but '
-          'the ceiling is modest.',
+      blurb: 'No degree. Earn from day one, modest ceiling.',
       rungs: [
         JobDef(id: 'svc_crew', title: 'Barista / Crew', pay: 1300),
         JobDef(id: 'svc_lead', title: 'Shift Lead', pay: 2000),
@@ -883,8 +882,7 @@ class Catalog {
       name: 'Skilled Trades',
       emoji: '🔧',
       requiredDegreeId: 'trade',
-      blurb: 'Electrician, plumber, welder. A quick trade-school cert, then real '
-          'money fast and your own shop at the top — without the four-year debt.',
+      blurb: 'Quick trade-school cert, then real money fast — no four-year debt.',
       rungs: [
         JobDef(id: 'trade_appr', title: 'Apprentice', pay: 3200),
         JobDef(id: 'trade_journey', title: 'Journeyman', pay: 6000),
@@ -898,8 +896,7 @@ class Catalog {
       id: 'tech',
       name: 'Software & Tech',
       emoji: '💻',
-      blurb: 'An associate degree is enough to start. Fast ramp, high ceiling — '
-          'the best return on tuition.',
+      blurb: 'Associate degree. Fast ramp, high ceiling — best tuition ROI.',
       minEduLevel: 1,
       rungs: [
         JobDef(id: 'tech_junior', title: 'Junior Developer', pay: 5000, requiredEdu: 1),
@@ -915,8 +912,7 @@ class Catalog {
       id: 'finance',
       name: 'Finance & Banking',
       emoji: '💼',
-      blurb: 'Bachelor\'s to start. Long hours and a hard climb — but Managing '
-          'Director money is enormous.',
+      blurb: 'Bachelor\'s. Brutal hours, enormous MD-level ceiling.',
       minEduLevel: 2,
       rungs: [
         JobDef(id: 'fin_analyst', title: 'Analyst', pay: 8000, requiredEdu: 2),
@@ -932,8 +928,7 @@ class Catalog {
       id: 'accounting',
       name: 'Accounting',
       emoji: '📊',
-      blurb: 'A master\'s gets you a solid, stable corporate ladder to CFO — '
-          'comfortable, dependable, but it caps out lower.',
+      blurb: 'Master\'s. Stable ladder to CFO, lower ceiling.',
       minEduLevel: 3,
       rungs: [
         JobDef(id: 'acct_staff', title: 'Staff Accountant', pay: 6500, requiredEdu: 3),
@@ -953,8 +948,7 @@ class Catalog {
       id: 'medicine',
       name: 'Medicine',
       emoji: '🩺',
-      blurb: 'Medical school is a fortune and 8 years; then years of low-paid '
-          'residency. Survive it and you out-earn everyone.',
+      blurb: 'Huge debt, 8 years + residency. Then the top ceiling in the game.',
       minEduLevel: 3,
       requiredDegreeId: 'med',
       rungs: [
@@ -971,8 +965,7 @@ class Catalog {
       id: 'law',
       name: 'Law',
       emoji: '⚖️',
-      blurb: 'Law school debt and a punishing associate grind, but making '
-          'Partner pays like few other careers.',
+      blurb: 'Law-school debt and a punishing grind. Partner pays big.',
       minEduLevel: 3,
       requiredDegreeId: 'law',
       rungs: [
@@ -989,8 +982,7 @@ class Catalog {
       id: 'founder',
       name: 'Startup Founder',
       emoji: '🚀',
-      blurb: 'Ramen-noodle years, then funding, then scale — and an exit that '
-          'dwarfs any salary. Unlocked at Prestige 1.',
+      blurb: 'Ramen years, then a life-changing exit. Prestige 1.',
       unlockLevel: 1,
       rungs: [
         JobDef(id: 'founder_garage', title: 'Bootstrapper', pay: 2000, unlockLevel: 1),
