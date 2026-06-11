@@ -199,6 +199,35 @@ class GameController extends ChangeNotifier {
   int health = 100;
   bool isDead = false;
 
+  // ---- App notifications ----
+  /// Unread notification count per app (the red badge on the home screen),
+  /// keyed by the phone-home app id. Cleared to zero when the app is opened.
+  final Map<String, int> appUnread = {};
+
+  /// Recent notification lines per app (newest first, capped), shown as a bar
+  /// at the top of the app. Kept after the badge clears so the bar still has
+  /// something to show when you walk in.
+  final Map<String, List<String>> appFeed = {};
+
+  /// Emit a monthly event AND raise a notification on [appId]. Every routed
+  /// event still shows in the month recap (via [events]); this just also files
+  /// it under the app that owns it so the home screen can badge it.
+  void _ev(List<String> events, String appId, String text) {
+    events.add(text);
+    appUnread[appId] = (appUnread[appId] ?? 0) + 1;
+    final feed = appFeed.putIfAbsent(appId, () => <String>[]);
+    feed.insert(0, text);
+    if (feed.length > 12) feed.removeRange(12, feed.length);
+  }
+
+  /// Mark an app's notifications as seen — clears the red badge. The feed is
+  /// left intact so the in-app bar can still recap what happened.
+  void markAppRead(String appId) {
+    if ((appUnread[appId] ?? 0) == 0) return;
+    appUnread[appId] = 0;
+    notifyListeners();
+  }
+
   double _annualHealthDecline(int age) {
     if (age < 50) return 0.4;
     if (age < 65) return 1.1;
@@ -219,10 +248,11 @@ class GameController extends ChangeNotifier {
     health = next.round();
     if (health <= 0 && !isDead) {
       isDead = true;
-      events.add('🪦 You passed away at age $ageYears, leaving '
+      _ev(events, 'life', '🪦 You passed away at age $ageYears, leaving '
           '${_usd(netWorth)} and a legacy of $score points.');
     } else if (health <= 30) {
-      events.add('🫀 Your health is failing ($health/100). Time grows short — '
+      _ev(events, 'life',
+          '🫀 Your health is failing ($health/100). Time grows short — '
           'make it count.');
     }
   }
@@ -811,7 +841,7 @@ class GameController extends ChangeNotifier {
     if (housingTrend < -0.008) housingTrend = -0.008;
     final label = housingMarketLabel;
     if (label != prevLabel) {
-      events.add('🏘️ Housing market: $label · 30-yr rate '
+      _ev(events, 'nestly', '🏘️ Housing market: $label · 30-yr rate '
           '${(mortgageRate * 100).toStringAsFixed(1)}%.');
     }
   }
@@ -1870,7 +1900,8 @@ class GameController extends ChangeNotifier {
             : 0.0;
     cash += disabilityBenefit;
     if (disabilityBenefit > 0) {
-      events.add('🛟 Income protection paid ${_usd(disabilityBenefit)} while '
+      _ev(events, 'shield',
+          '🛟 Income protection paid ${_usd(disabilityBenefit)} while '
           'you\'re off the payroll.');
     }
     // A partner's take-home pay lands straight in cash. Folded into the income
@@ -1900,7 +1931,7 @@ class GameController extends ChangeNotifier {
           studentLoanPayment = mortgageMonthlyPayment(studentLoan,
               Catalog.studentLoanRate, Catalog.studentLoanRepaymentMonths);
         }
-        events.add('🎓 You earned your ${d.name}! New careers are open. '
+        _ev(events, 'hustl', '🎓 You earned your ${d.name}! New careers are open. '
             'Loan repayment of ${_usd(studentLoanPayment)}/mo begins.');
       }
     } else {
@@ -1916,7 +1947,8 @@ class GameController extends ChangeNotifier {
           rungIndex += 1;
           monthsInRung = 0;
           job = track.rungs[rungIndex];
-          events.add('🎉 Promoted to ${job.title} — now ${_usd(job.pay)}/mo.');
+          _ev(events, 'hustl',
+              '🎉 Promoted to ${job.title} — now ${_usd(job.pay)}/mo.');
         }
       }
     }
@@ -1948,7 +1980,7 @@ class GameController extends ChangeNotifier {
       e.monthsLeft -= 1;
     }
     for (final e in ongoing.where((e) => e.monthsLeft <= 0)) {
-      events.add('✔ ${e.label} is over.');
+      _ev(events, 'life', '✔ ${e.label} is over.');
     }
     ongoing.removeWhere((e) => e.monthsLeft <= 0);
 
@@ -1966,7 +1998,7 @@ class GameController extends ChangeNotifier {
           !h.matured &&
           day + 1 >= h.maturityDay) {
         h.matured = true;
-        events.add(
+        _ev(events, 'sherwood',
             '${def.name} reached maturity — \$${h.balance.toStringAsFixed(0)} now free to withdraw.');
       }
     }
@@ -2067,7 +2099,7 @@ class GameController extends ChangeNotifier {
                   : 1.0;
       if (_rng.nextDouble() < a.defaultRisk * mult) {
         _prices[a.id] = _prices[a.id]! * 0.55;
-        events.add(
+        _ev(events, 'sherwood',
             '⚠ ${a.name} issuer defaulted — bondholders took a ~45% hit.');
       }
     }
@@ -2108,7 +2140,7 @@ class GameController extends ChangeNotifier {
     // 4c) Margin call: a short that has lost all its margin is stopped out.
     holdings.removeWhere((h) {
       if (h.isShort && valueOf(h) <= 0.01) {
-        events.add(
+        _ev(events, 'sherwood',
             '💥 Your short on ${Catalog.assetById(h.assetId).name} was stopped out.');
         return true;
       }
@@ -2179,11 +2211,11 @@ class GameController extends ChangeNotifier {
         cash -= pay;
         mortgagePaid += pay;
         h.monthsPaid += 1;
-        if (h.isPaidOff) events.add('🏠 Paid off your ${pd.name}!');
+        if (h.isPaidOff) _ev(events, 'nestly', '🏠 Paid off your ${pd.name}!');
       }
     }
     if (rentedUnits > 0) {
-      events.add(rentCollected > 0
+      _ev(events, 'nestly', rentCollected > 0
           ? '🔑 Rent collected: +\$${rentCollected.toStringAsFixed(0)} '
               '($occupiedUnits of $rentedUnits unit${rentedUnits == 1 ? '' : 's'} occupied).'
           : '🔑 No rent this month — your rental${rentedUnits == 1 ? ' sat' : 's sat'} vacant.');
@@ -2230,7 +2262,7 @@ class GameController extends ChangeNotifier {
           final salvage = b.purchasePrice * 0.20;
           cash += salvage;
           businesses.remove(b);
-          events.add('🚨 ${b.name} failed and closed — salvaged '
+          _ev(events, 'mainst', '🚨 ${b.name} failed and closed — salvaged '
               '${_usd(salvage)} from the assets.');
         }
       }
@@ -2241,7 +2273,7 @@ class GameController extends ChangeNotifier {
         taxPaid += bizTax;
       }
       if (businessIncome.abs() > 0.5) {
-        events.add(businessIncome >= 0
+        _ev(events, 'mainst', businessIncome >= 0
             ? '🏪 Business profit: +${_usd(businessIncome)} this month.'
             : '🏪 Businesses ran at a loss: −${_usd(-businessIncome)} this month.');
       }
@@ -2257,10 +2289,11 @@ class GameController extends ChangeNotifier {
         cash += payout;
         betsWon++;
         betReturned += payout;
-        events.add(
+        _ev(events, 'draftday',
             '🎉 Bet won: +\$${(payout - b.stake).toStringAsFixed(0)} on ${b.title}.');
       } else {
-        events.add('❌ Bet lost: −\$${b.stake.toStringAsFixed(0)} on ${b.title}.');
+        _ev(events, 'draftday',
+            '❌ Bet lost: −\$${b.stake.toStringAsFixed(0)} on ${b.title}.');
       }
       betHistory.insert(
           0,
@@ -2290,7 +2323,7 @@ class GameController extends ChangeNotifier {
       monthsCashNegative += 1;
       if (monthsCashNegative > overdraftGraceMonths) {
         marginCall = true;
-        events.add(
+        _ev(events, 'vault',
             '🚨 MARGIN CALL — $monthsCashNegative months in the red. You must '
             'liquidate assets to get back above \$0.');
       } else {
@@ -2304,7 +2337,7 @@ class GameController extends ChangeNotifier {
           if (overdraftFee > cap) overdraftFee = cap;
         }
         cash -= overdraftFee;
-        events.add(
+        _ev(events, 'vault',
             '🏦 Overdraft fee −\$${overdraftFee.toStringAsFixed(0)} '
             '(month $monthsCashNegative of $overdraftGraceMonths overdrawn — '
             'clear it or face a margin call).');
@@ -2321,7 +2354,7 @@ class GameController extends ChangeNotifier {
     final hadBirthday = (day + 1) % Catalog.stepsPerYear == 0;
     day += 1;
     if (hadBirthday) {
-      events.add('🎂 Happy birthday — you are now $ageYears.');
+      _ev(events, 'life', '🎂 Happy birthday — you are now $ageYears.');
       _purchasedThisYear.clear(); // annual purchase caps reset each year
       _ageHealth(events); // the clock ticks: health declines, mortality looms
     }
@@ -2349,7 +2382,7 @@ class GameController extends ChangeNotifier {
 
     // 8) Score any newly-completed goals (end-of-month state).
     for (final goal in _checkGoals()) {
-      events.add('🏆 Goal unlocked: ${goal.title} (+${goal.points} pts)');
+      _ev(events, 'goals', '🏆 Goal unlocked: ${goal.title} (+${goal.points} pts)');
     }
 
     netWorthHistory.add(netWorth);

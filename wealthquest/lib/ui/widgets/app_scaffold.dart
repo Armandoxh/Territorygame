@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../state/game_controller.dart';
 import '../../util/format.dart';
+import 'app_notifications.dart';
 import 'crisis_sheet.dart';
 import 'day_summary_dialog.dart';
 import 'lucide.dart';
@@ -203,12 +204,17 @@ class AppScaffold extends StatelessWidget {
     required this.title,
     required this.body,
     this.bottom,
+    this.appId,
   });
 
   final GameController game;
   final String title;
   final WidgetBuilder body;
   final PreferredSizeWidget? bottom;
+
+  /// If set, a notification bar recapping this app's unread alerts is shown at
+  /// the top, and opening the app clears its red badge.
+  final String? appId;
 
   @override
   Widget build(BuildContext context) {
@@ -219,9 +225,17 @@ class AppScaffold extends StatelessWidget {
           bottom: bottom,
           actions: [CashBadge(game: game)],
         ),
-        body: ListenableBuilder(
-          listenable: game,
-          builder: (context, _) => body(context),
+        body: Column(
+          children: [
+            if (appId != null)
+              AppNotificationBar(game: game, appId: appId!),
+            Expanded(
+              child: ListenableBuilder(
+                listenable: game,
+                builder: (context, _) => body(context),
+              ),
+            ),
+          ],
         ),
         floatingActionButton: advanceControls(context, game),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,

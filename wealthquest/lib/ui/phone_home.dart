@@ -19,6 +19,7 @@ import 'prestige_app.dart';
 import 'property_tab.dart';
 import 'rivals_app.dart';
 import 'sports_app.dart';
+import 'widgets/app_notifications.dart';
 import 'widgets/app_scaffold.dart';
 import 'widgets/ui_helpers.dart';
 
@@ -154,9 +155,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Bank',
                         icon: 'landmark',
                         color: const Color(0xFF2E7D32),
+                        badge: game.appUnread['vault'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Vault',
+                          appId: 'vault',
                           body: (_) => DashboardTab(game: game),
                         )),
                       ),
@@ -165,6 +168,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Invest',
                         icon: 'trending-up',
                         color: const Color(0xFF00A86B),
+                        badge: game.appUnread['sherwood'] ?? 0,
                         onTap: () => _open(InvestApp(game: game)),
                       ),
                       _AppIcon(
@@ -172,9 +176,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Real estate',
                         icon: 'house',
                         color: const Color(0xFF5C6BC0),
+                        badge: game.appUnread['nestly'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Nestly',
+                          appId: 'nestly',
                           body: (_) => PropertyTab(game: game),
                         )),
                       ),
@@ -183,9 +189,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Jobs',
                         icon: 'briefcase',
                         color: const Color(0xFFEF6C00),
+                        badge: game.appUnread['hustl'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Hustl',
+                          appId: 'hustl',
                           body: (_) => LifeTab(game: game),
                         )),
                       ),
@@ -194,9 +202,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'News',
                         icon: 'newspaper',
                         color: const Color(0xFF6D4C41),
+                        badge: game.appUnread['ledger'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'The Daily Ledger',
+                          appId: 'ledger',
                           body: (_) => NewsTab(game: game),
                         )),
                       ),
@@ -205,9 +215,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Sports bets',
                         icon: 'dices',
                         color: const Color(0xFFC62828),
+                        badge: game.appUnread['draftday'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'DraftDay',
+                          appId: 'draftday',
                           body: (_) => SportsBody(game: game),
                         )),
                       ),
@@ -216,6 +228,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Expenses',
                         icon: 'heart-pulse',
                         color: const Color(0xFF00897B),
+                        badge: game.appUnread['life'] ?? 0,
                         onTap: () => _open(LifeApp(game: game)),
                       ),
                       _AppIcon(
@@ -223,9 +236,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Commodities',
                         icon: 'gem',
                         color: const Color(0xFFB8860B),
+                        badge: game.appUnread['comex'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Comex',
+                          appId: 'comex',
                           body: (_) => CommoditiesBody(game: game),
                         )),
                       ),
@@ -234,9 +249,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Businesses',
                         icon: 'store',
                         color: const Color(0xFF8E24AA),
+                        badge: game.appUnread['mainst'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Main Street',
+                          appId: 'mainst',
                           body: (_) => BusinessBody(game: game),
                         )),
                       ),
@@ -245,9 +262,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Perks',
                         icon: 'sparkles',
                         color: const Color(0xFFB8860B),
+                        badge: game.appUnread['prestige'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Prestige',
+                          appId: 'prestige',
                           body: (_) => PrestigeBody(game: game),
                         )),
                       ),
@@ -256,9 +275,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Score',
                         icon: 'target',
                         color: const Color(0xFFD81B60),
+                        badge: game.appUnread['goals'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Goals',
+                          appId: 'goals',
                           body: (_) => GoalsBody(game: game),
                         )),
                       ),
@@ -267,9 +288,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Insurance',
                         icon: 'shield',
                         color: const Color(0xFF3949AB),
+                        badge: game.appUnread['shield'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Shield',
+                          appId: 'shield',
                           body: (_) => InsuranceBody(game: game),
                         )),
                       ),
@@ -278,9 +301,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Score',
                         icon: 'credit-card',
                         color: const Color(0xFF00838F),
+                        badge: game.appUnread['credit'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Credit',
+                          appId: 'credit',
                           body: (_) => CreditBody(game: game),
                         )),
                       ),
@@ -289,9 +314,11 @@ class _PhoneHomeState extends State<PhoneHome> {
                         sub: 'Leaderboard',
                         icon: 'users',
                         color: const Color(0xFF7B1FA2),
+                        badge: game.appUnread['rivals'] ?? 0,
                         onTap: () => _open(AppScaffold(
                           game: game,
                           title: 'Rivals',
+                          appId: 'rivals',
                           body: (_) => RivalsBody(game: game),
                         )),
                       ),
@@ -506,6 +533,7 @@ class _AppIcon extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.onTap,
+    this.badge = 0,
   });
 
   final String label;
@@ -513,6 +541,9 @@ class _AppIcon extends StatelessWidget {
   final String icon;
   final Color color;
   final VoidCallback onTap;
+
+  /// Unread notification count, shown as a red badge over the icon.
+  final int badge;
 
   @override
   Widget build(BuildContext context) {
@@ -523,18 +554,29 @@ class _AppIcon extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color, Color.lerp(color, Colors.black, 0.25)!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [color, Color.lerp(color, Colors.black, 0.25)!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Lucide(icon, size: 30, color: Colors.white),
               ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Lucide(icon, size: 30, color: Colors.white),
+              if (badge > 0)
+                Positioned(
+                  top: -5,
+                  right: -5,
+                  child: NotificationBadge(count: badge),
+                ),
+            ],
           ),
           const SizedBox(height: 6),
           Text(label,

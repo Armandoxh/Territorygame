@@ -4,6 +4,7 @@ import 'widgets/lucide.dart';
 import '../data/life.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
+import 'widgets/app_notifications.dart';
 import 'widgets/app_scaffold.dart';
 import 'widgets/swipe_back.dart';
 import 'widgets/ui_helpers.dart';
@@ -36,22 +37,29 @@ class LifeApp extends StatelessWidget {
               ],
             ),
           ),
-          body: ListenableBuilder(
-            listenable: game,
-            builder: (context, _) => TabBarView(
-              // Swipe between tabs. Clamping (no overscroll bounce) stops the
-              // edge swipe from triggering the browser's back/refresh, and the
-              // pager wins the gesture so swiping never pops the route. Use the
-              // app-bar back arrow to leave.
-              physics: const ClampingScrollPhysics(),
-              children: [
-                _ExpensesTab(game: game),
-                _FamilyTab(game: game),
-                _HousingTab(game: game),
-                _TransportTab(game: game),
-                _EventsTab(game: game),
-              ],
-            ),
+          body: Column(
+            children: [
+              AppNotificationBar(game: game, appId: 'life'),
+              Expanded(
+                child: ListenableBuilder(
+                  listenable: game,
+                  builder: (context, _) => TabBarView(
+                    // Swipe between tabs. Clamping (no overscroll bounce) stops
+                    // the edge swipe from triggering the browser's back/refresh,
+                    // and the pager wins the gesture so swiping never pops the
+                    // route. Use the app-bar back arrow to leave.
+                    physics: const ClampingScrollPhysics(),
+                    children: [
+                      _ExpensesTab(game: game),
+                      _FamilyTab(game: game),
+                      _HousingTab(game: game),
+                      _TransportTab(game: game),
+                      _EventsTab(game: game),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           floatingActionButton: advanceControls(context, game),
           floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
