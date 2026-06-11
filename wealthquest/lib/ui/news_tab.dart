@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 
 import '../data/catalog.dart';
 import '../models/asset.dart';
@@ -256,7 +257,7 @@ class _RumorRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(rumor.isBullish ? Icons.trending_up : Icons.trending_down,
+            Lucide(rumor.isBullish ? 'trending-up' : 'trending-down',
                 color: color, size: 18),
             const SizedBox(width: 10),
             Expanded(

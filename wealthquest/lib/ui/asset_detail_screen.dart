@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 
 import '../models/asset.dart';
 import '../models/holding.dart';
@@ -127,7 +128,7 @@ class AssetDetailScreen extends StatelessWidget {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () => _buy(context),
-                        icon: const Icon(Icons.add),
+                        icon: Lucide('plus'),
                         label: const Text('Buy'),
                       ),
                     ),
@@ -135,7 +136,7 @@ class AssetDetailScreen extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _short(context),
-                        icon: const Icon(Icons.trending_down),
+                        icon: Lucide('trending-down'),
                         label: const Text('Short'),
                       ),
                     ),
@@ -144,7 +145,7 @@ class AssetDetailScreen extends StatelessWidget {
               else
                 FilledButton.icon(
                   onPressed: () => _buy(context),
-                  icon: const Icon(Icons.add),
+                  icon: Lucide('plus'),
                   label: Text('Buy ${def.name}'),
                 ),
             ],
@@ -191,7 +192,7 @@ class AssetDetailScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.newspaper, size: 18),
+                  Lucide('newspaper', size: 18),
                   const SizedBox(width: 8),
                   Text('Word on the street',
                       style: theme.textTheme.titleSmall),
@@ -205,10 +206,8 @@ class AssetDetailScreen extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        r.isBullish
-                            ? Icons.trending_up
-                            : Icons.trending_down,
+                      Lucide(
+                        r.isBullish ? 'trending-up' : 'trending-down',
                         size: 16,
                         color: color,
                       ),
@@ -339,7 +338,7 @@ class AssetDetailScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Icon(Icons.info_outline,
+              Lucide('info',
                   size: 18, color: theme.colorScheme.onSurfaceVariant),
               const SizedBox(width: 10),
               Expanded(

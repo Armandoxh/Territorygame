@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 
 import '../data/life.dart';
 import '../state/game_controller.dart';
@@ -421,7 +422,7 @@ class _ChoiceCard extends StatelessWidget {
                   if (selected)
                     Row(
                       children: [
-                        Icon(Icons.check_circle,
+                        Lucide('circle-check',
                             size: 18, color: theme.colorScheme.primary),
                         const SizedBox(width: 4),
                         Text('Selected',
@@ -568,7 +569,7 @@ class _FamilyTab extends StatelessWidget {
                         onPressed: game.cash >= GameController.dateCost
                             ? () => _date(context)
                             : null,
-                        icon: const Icon(Icons.favorite, size: 18),
+                        icon: Lucide('heart', size: 18),
                         label: Text(
                             'Go on a date · ${money(GameController.dateCost)}'),
                       ),
@@ -578,7 +579,7 @@ class _FamilyTab extends StatelessWidget {
                             ? () => _toast(context,
                                 game.proposeMarriage() ?? 'You got married! 🎉')
                             : null,
-                        icon: const Icon(Icons.diamond, size: 18),
+                        icon: Lucide('gem', size: 18),
                         label: Text(
                             'Get married · ${money(GameController.weddingCost)}'),
                       ),
@@ -589,7 +590,7 @@ class _FamilyTab extends StatelessWidget {
                             ? () => _toast(context,
                                 game.haveChild() ?? 'Welcome to the family! 👶')
                             : null,
-                        icon: const Icon(Icons.child_friendly, size: 18),
+                        icon: Lucide('baby', size: 18),
                         label: Text(
                             'Have a child · ${money(GameController.childUpfrontCost)}'),
                       ),
@@ -645,7 +646,7 @@ class _StandingCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.groups, size: 20),
+                Lucide('users', size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text('Social standing',
@@ -766,7 +767,7 @@ class _EventsTab extends StatelessWidget {
                         if (locked)
                           Chip(
                             visualDensity: VisualDensity.compact,
-                            avatar: const Icon(Icons.lock_outline, size: 14),
+                            avatar: Lucide('lock', size: 14),
                             label: Text(_tierName(e.minTier),
                                 style: theme.textTheme.labelSmall),
                           )

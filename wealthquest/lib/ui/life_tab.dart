@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 
 import '../data/catalog.dart';
 import '../models/education.dart';
@@ -127,7 +128,7 @@ class _StudyingCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.school, size: 18),
+                Lucide('graduation-cap', size: 18),
                 const SizedBox(width: 8),
                 Text('Studying: ${d.name}',
                     style: theme.textTheme.titleSmall),
@@ -252,7 +253,7 @@ class _DegreeTile extends StatelessWidget {
     Widget trailing;
     if (earned) {
       trailing = Chip(
-        avatar: const Icon(Icons.check, size: 16),
+        avatar: Lucide('check', size: 16),
         label: const Text('Earned'),
         backgroundColor: kGain.withOpacity(0.20),
       );
@@ -272,7 +273,7 @@ class _DegreeTile extends StatelessWidget {
       child: Opacity(
         opacity: (earned || enrolledHere || !game.isStudying) ? 1 : 0.6,
         child: ListTile(
-          leading: const Icon(Icons.school_outlined),
+          leading: Lucide('graduation-cap'),
           title: Text(degree.name),
           subtitle: Text(
             '${degree.years} yr · borrow ${money(degree.tuition)}\n${degree.blurb}',
@@ -514,7 +515,7 @@ class _RetirementCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.savings_outlined, size: 18),
+                Lucide('piggy-bank', size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                     child: Text('Retirement 401(k)',

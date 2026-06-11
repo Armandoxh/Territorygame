@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 
 import '../state/game_controller.dart';
 import '../util/format.dart';
@@ -52,9 +53,16 @@ class DashboardTab extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.only(top: 6, right: 8),
-                        child: Icon(Icons.circle, size: 6),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, right: 8),
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
                       ),
                       Expanded(
                         child: Text(e, style: theme.textTheme.bodyMedium),
@@ -202,7 +210,7 @@ class _IncomeStreams extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.payments_outlined, size: 18),
+                Lucide('banknote', size: 18),
                 const SizedBox(width: 8),
                 Text('Income streams', style: theme.textTheme.titleMedium),
                 const Spacer(),
@@ -244,7 +252,7 @@ class _ProfitLoss extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.insights_outlined, size: 18),
+                Lucide('chart-line', size: 18),
                 const SizedBox(width: 8),
                 Text('Profit & loss', style: theme.textTheme.titleMedium),
               ],

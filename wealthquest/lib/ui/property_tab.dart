@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 
 import '../data/properties.dart';
 import '../models/property.dart';
@@ -262,7 +263,7 @@ class _OwnedCard extends StatelessWidget {
                           ?.copyWith(color: gainColor(holding.equity))),
                 ],
               ),
-              Icon(Icons.chevron_right,
+              Lucide('chevron-right',
                   color: theme.colorScheme.onSurfaceVariant),
             ],
           ),
@@ -532,7 +533,7 @@ class _ListingCard extends StatelessWidget {
       child: ListTile(
         isThreeLine: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        leading: Icon(_categoryIcon(def.category)),
+        leading: Lucide(_categoryIcon(def.category)),
         title: Text(def.name),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -557,18 +558,18 @@ class _ListingCard extends StatelessWidget {
 }
 
 /// Per-category icon for listings and owned cards.
-IconData _categoryIcon(PropertyCategory c) {
+String _categoryIcon(PropertyCategory c) {
   switch (c) {
     case PropertyCategory.house:
-      return Icons.home_outlined;
+      return 'house';
     case PropertyCategory.apartment:
-      return Icons.apartment;
+      return 'building-2';
     case PropertyCategory.business:
-      return Icons.storefront_outlined;
+      return 'store';
     case PropertyCategory.land:
-      return Icons.terrain_outlined;
+      return 'mountain';
     case PropertyCategory.other:
-      return Icons.category_outlined;
+      return 'shapes';
   }
 }
 

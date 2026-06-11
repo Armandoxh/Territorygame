@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'lucide.dart';
 
 import '../../state/game_controller.dart';
 import '../../util/format.dart';
@@ -253,7 +254,7 @@ Widget _balanceRow(String label, double value, double delta,
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(delta >= 0 ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+              Lucide(delta >= 0 ? 'chevron-up' : 'chevron-down',
                   size: 16, color: dColor),
               Text(money(delta.abs()),
                   style: TextStyle(
@@ -302,7 +303,7 @@ Widget _banner(String text) {
     ),
     child: Row(
       children: [
-        const Icon(Icons.warning_amber_rounded, size: 16, color: _neg),
+        Lucide('triangle-alert', size: 16, color: _neg),
         const SizedBox(width: 8),
         Expanded(
           child: Text(text,

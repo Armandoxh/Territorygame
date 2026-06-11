@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 import 'package:flutter/services.dart';
 
 import '../engine/sports_engine.dart';
@@ -232,12 +233,12 @@ class _SportsBodyState extends State<SportsBody> {
                     ButtonSegment(
                       value: false,
                       label: Text('Singles'),
-                      icon: Icon(Icons.receipt_long, size: 18),
+                      icon: Lucide('receipt', size: 18),
                     ),
                     ButtonSegment(
                       value: true,
                       label: Text('Parlay'),
-                      icon: Icon(Icons.auto_awesome, size: 18),
+                      icon: Lucide('sparkles', size: 18),
                     ),
                   ],
                   selected: {_parlayMode},
@@ -283,7 +284,7 @@ class _SportsBodyState extends State<SportsBody> {
                           ?.copyWith(fontWeight: FontWeight.bold)),
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.close, size: 16),
+                    icon: Lucide('x', size: 16),
                     onPressed: () => _removeLeg(l.eventId),
                   ),
                 ],
@@ -397,7 +398,7 @@ class _SportsBodyState extends State<SportsBody> {
                 ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.close, size: 16),
+                  icon: Lucide('x', size: 16),
                   onPressed: () => _removeLeg(l.eventId),
                 ),
               ],
@@ -457,7 +458,7 @@ class _SportsBodyState extends State<SportsBody> {
           children: [
             Row(
               children: [
-                const Icon(Icons.insights, size: 18),
+                Lucide('chart-line', size: 18),
                 const SizedBox(width: 6),
                 Text('Your betting record', style: theme.textTheme.titleSmall),
               ],
@@ -756,7 +757,7 @@ class _FeaturedCard extends StatelessWidget {
                         ],
                       ),
                       available
-                          ? Icon(Icons.add_circle,
+                          ? Lucide('circle-plus',
                               color: theme.colorScheme.primary)
                           : Text('placed',
                               style: theme.textTheme.labelSmall
@@ -885,7 +886,7 @@ class _EventCard extends StatelessWidget {
             if (locked)
               Row(
                 children: [
-                  Icon(Icons.lock_outline,
+                  Lucide('lock',
                       size: 16, color: theme.colorScheme.outline),
                   const SizedBox(width: 6),
                   Text('Bet placed — settles next month',
@@ -975,7 +976,7 @@ class _OpenBet extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
         child: Row(
           children: [
-            Icon(bet.isParlay ? Icons.auto_awesome : Icons.confirmation_number_outlined),
+            Lucide(bet.isParlay ? 'sparkles' : 'ticket'),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

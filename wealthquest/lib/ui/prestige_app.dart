@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 
 import '../data/catalog.dart';
 import '../models/asset.dart';
@@ -29,7 +30,7 @@ class PrestigeBody extends StatelessWidget {
       for (final t in Catalog.careerTracks)
         if (t.unlockLevel >= 1)
           _Perk(t.unlockLevel, '${t.emoji} ${t.name}', 'Career path', t.blurb,
-              Icons.work_outline),
+              'briefcase'),
       for (final a in Catalog.assets)
         if (a.unlockLevel >= 1)
           _Perk(
@@ -38,8 +39,8 @@ class PrestigeBody extends StatelessWidget {
               a.kind.label,
               a.blurb,
               a.kind == AssetKind.commodity
-                  ? Icons.diamond_outlined
-                  : Icons.trending_up),
+                  ? 'gem'
+                  : 'trending-up'),
     ]..sort((x, y) => x.level.compareTo(y.level));
 
     final active = perks.where((p) => p.level <= level).toList();
@@ -70,7 +71,7 @@ class PrestigeBody extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.auto_awesome, color: _goldBright),
+                  Lucide('sparkles', color: _goldBright),
                   const SizedBox(width: 8),
                   Text(level > 0 ? '★ Prestige $level' : 'Prestige 0',
                       style: theme.textTheme.headlineSmall
@@ -165,7 +166,7 @@ class _Perk {
   final String name;
   final String kind;
   final String blurb;
-  final IconData icon;
+  final String icon;
 }
 
 class _PerkTile extends StatelessWidget {
@@ -182,8 +183,8 @@ class _PerkTile extends StatelessWidget {
       child: Card(
         child: ListTile(
           isThreeLine: true,
-          leading: Icon(
-            locked ? Icons.lock_outline : perk.icon,
+          leading: Lucide(
+            locked ? 'lock' : perk.icon,
             color: locked
                 ? theme.colorScheme.outline
                 : const Color(0xFFE6B800),

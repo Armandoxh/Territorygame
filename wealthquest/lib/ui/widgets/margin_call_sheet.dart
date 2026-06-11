@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'lucide.dart';
 
 import '../../data/catalog.dart';
 import '../../data/properties.dart';
@@ -41,7 +42,7 @@ Future<void> showMarginCall(BuildContext context, GameController game) {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.warning_amber_rounded,
+                                Lucide('triangle-alert',
                                     color: kLoss),
                                 const SizedBox(width: 8),
                                 Text('Margin call',

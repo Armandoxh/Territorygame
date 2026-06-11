@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 
 import '../data/businesses.dart';
 import '../models/business.dart';
@@ -244,7 +245,7 @@ class _OwnedBizCard extends StatelessWidget {
                       style: theme.textTheme.bodySmall),
                 ],
               ),
-              Icon(Icons.chevron_right,
+              Lucide('chevron-right',
                   color: theme.colorScheme.onSurfaceVariant),
             ],
           ),

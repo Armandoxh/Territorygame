@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
 
 import '../data/catalog.dart';
 import '../models/asset.dart';
@@ -24,7 +25,7 @@ class PortfolioTab extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.savings_outlined,
+              Lucide('piggy-bank',
                   size: 56, color: theme.colorScheme.onSurfaceVariant),
               const SizedBox(height: 12),
               Text('No investments yet',
@@ -208,10 +209,10 @@ class _HoldingTile extends StatelessWidget {
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             leading: holding.isShort
-                ? const Icon(Icons.trending_down, color: kLoss)
+                ? Lucide('trending-down', color: kLoss)
                 : holding.isLocked
-                    ? const Icon(Icons.lock_outline)
-                    : const Icon(Icons.show_chart),
+                    ? Lucide('lock')
+                    : Lucide('chart-line'),
             title: Text(def.name),
             subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
             trailing: Column(
