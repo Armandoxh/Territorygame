@@ -24,6 +24,7 @@ Future<void> showMarginCall(BuildContext context, GameController game) {
             final theme = Theme.of(context);
             final settled = game.cash >= -0.01;
             final stuck = !settled && !game.hasLiquidatableAssets;
+            final bankrupt = game.faceBankruptcy; // stuck AND underwater
             final canContinue = settled || stuck;
             return Dialog(
               insetPadding:
@@ -51,9 +52,17 @@ Future<void> showMarginCall(BuildContext context, GameController game) {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              "You've run out of cash for too long. Sell off "
-                              "investments or real estate until your cash is "
-                              "back above \$0.",
+                              bankrupt
+                                  ? "You're out of cash and out of things to "
+                                      "sell, and you're underwater. There's only "
+                                      "one way out: bankruptcy. Your assets get "
+                                      "liquidated and consumer debt wiped, but "
+                                      "you lose everything you built and a "
+                                      "7-year mark bars you from financing. "
+                                      "(Your 401(k) is protected.)"
+                                  : "You've run out of cash for too long. Sell "
+                                      "off investments or real estate until your "
+                                      "cash is back above \$0.",
                               style: theme.textTheme.bodySmall,
                             ),
                             const SizedBox(height: 12),
@@ -94,18 +103,27 @@ Future<void> showMarginCall(BuildContext context, GameController game) {
                         child: SizedBox(
                           width: double.infinity,
                           child: FilledButton(
+                            style: bankrupt
+                                ? FilledButton.styleFrom(backgroundColor: kLoss)
+                                : null,
                             onPressed: canContinue
                                 ? () {
-                                    game.clearOverdraftStreak();
+                                    if (bankrupt) {
+                                      game.declareBankruptcy();
+                                    } else {
+                                      game.clearOverdraftStreak();
+                                    }
                                     Navigator.pop(context);
                                   }
                                 : null,
                             child: Text(
-                              settled
-                                  ? 'Continue'
-                                  : stuck
-                                      ? 'Nothing left to sell — continue'
-                                      : 'Raise \$${(-game.cash).toStringAsFixed(0)} more',
+                              bankrupt
+                                  ? 'Declare bankruptcy'
+                                  : settled
+                                      ? 'Continue'
+                                      : stuck
+                                          ? 'Nothing left to sell — continue'
+                                          : 'Raise \$${(-game.cash).toStringAsFixed(0)} more',
                             ),
                           ),
                         ),

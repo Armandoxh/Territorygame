@@ -174,6 +174,44 @@ class GameController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---- Bankruptcy: the real failure state ----
+  /// How many times you've gone bankrupt — a permanent mark on this life.
+  int bankruptcies = 0;
+
+  /// Day index until which a recent bankruptcy bars you from new financing —
+  /// 7 years, like a real Chapter 7 staying on your credit report.
+  int creditBlackMarkUntilDay = 0;
+  static const int bankruptcyCreditMonths = 84;
+
+  bool get hasBankruptcyMark => day < creditBlackMarkUntilDay;
+  int get bankruptcyMonthsLeft =>
+      hasBankruptcyMark ? creditBlackMarkUntilDay - day : 0;
+
+  /// You're at a margin call you can't dig out of: nothing left to liquidate
+  /// and underwater. The margin-call dialog offers bankruptcy here.
+  bool get faceBankruptcy =>
+      !hasLiquidatableAssets && cash < -0.01 && netWorth < 0;
+
+  /// Chapter 7. Assets are liquidated/repossessed and unsecured debt is
+  /// discharged — but you lose everything you built and carry a 7-year credit
+  /// black mark that bars new mortgages. Your 401(k) is protected and student
+  /// loans survive (as in real life), so the hole isn't magically zeroed.
+  void declareBankruptcy() {
+    holdings.clear();
+    properties.clear();
+    businesses.clear();
+    debt = 0; // unsecured consumer debt is discharged
+    cash = 0;
+    monthsCashNegative = 0;
+    bankruptcies += 1;
+    creditBlackMarkUntilDay = day + bankruptcyCreditMonths;
+    _log('💥 BANKRUPTCY filed. Everything you built was liquidated and your '
+        'consumer debt wiped. You keep your job, your protected 401(k), and '
+        '(unfortunately) your student loans — and a 7-year mark now bars you '
+        'from financing. Rebuild from here.');
+    notifyListeners();
+  }
+
   // ---- Family & relationships ----
   /// Where you are in your relationship arc.
   RelationshipStage relationship = RelationshipStage.single;
@@ -1036,6 +1074,11 @@ class GameController extends ChangeNotifier {
     if (down > cash + 0.01) return 'Not enough cash for the down payment.';
 
     final loan = price - down;
+    if (loan > 0 && hasBankruptcyMark) {
+      return 'A recent bankruptcy bars you from a mortgage for '
+          '${(bankruptcyMonthsLeft / 12).ceil()} more years. Pay all-cash or '
+          'wait it out.';
+    }
     final rate = effectiveMortgageRate(m);
     final payment = mortgageMonthlyPayment(loan, rate, m.termMonths);
     if (loan > 0 && payment > qualifyingIncome * maxPaymentShare) {
