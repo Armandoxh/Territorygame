@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../data/catalog.dart';
 import '../state/game_controller.dart';
@@ -135,7 +136,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Vault',
                         sub: 'Bank',
-                        icon: Icons.account_balance,
+                        icon: PhosphorIconsFill.bank,
                         color: const Color(0xFF2E7D32),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -146,14 +147,14 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Sherwood',
                         sub: 'Invest',
-                        icon: Icons.show_chart,
+                        icon: PhosphorIconsFill.chartLineUp,
                         color: const Color(0xFF00A86B),
                         onTap: () => _open(InvestApp(game: game)),
                       ),
                       _AppIcon(
                         label: 'Nestly',
                         sub: 'Real estate',
-                        icon: Icons.home,
+                        icon: PhosphorIconsFill.house,
                         color: const Color(0xFF5C6BC0),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -164,7 +165,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Hustl',
                         sub: 'Jobs',
-                        icon: Icons.work,
+                        icon: PhosphorIconsFill.briefcase,
                         color: const Color(0xFFEF6C00),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -175,7 +176,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Ledger',
                         sub: 'News',
-                        icon: Icons.newspaper,
+                        icon: PhosphorIconsFill.newspaper,
                         color: const Color(0xFF6D4C41),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -186,7 +187,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'DraftDay',
                         sub: 'Sports bets',
-                        icon: Icons.sports_football,
+                        icon: PhosphorIconsFill.football,
                         color: const Color(0xFFC62828),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -197,14 +198,14 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Life',
                         sub: 'Expenses',
-                        icon: Icons.spa,
+                        icon: PhosphorIconsFill.heartbeat,
                         color: const Color(0xFF00897B),
                         onTap: () => _open(LifeApp(game: game)),
                       ),
                       _AppIcon(
                         label: 'Comex',
                         sub: 'Commodities',
-                        icon: Icons.diamond,
+                        icon: PhosphorIconsFill.diamond,
                         color: const Color(0xFFB8860B),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -215,7 +216,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Main St',
                         sub: 'Businesses',
-                        icon: Icons.storefront,
+                        icon: PhosphorIconsFill.storefront,
                         color: const Color(0xFF8E24AA),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -226,7 +227,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Prestige',
                         sub: 'Perks',
-                        icon: Icons.auto_awesome,
+                        icon: PhosphorIconsFill.sparkle,
                         color: const Color(0xFFB8860B),
                         onTap: () => _open(AppScaffold(
                           game: game,

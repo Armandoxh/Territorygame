@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'ui/phone_home.dart';
 
@@ -11,13 +12,20 @@ class WealthQuestApp extends StatelessWidget {
       seedColor: const Color(0xFF2E7D32),
       brightness: Brightness.dark,
     );
+    final base = ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: const Color(0xFF0E1512),
+    );
+    // Manrope is a clean, modern "fintech" sans with proper tabular figures —
+    // a big step up from the default Roboto for money figures and headings.
+    final textTheme = GoogleFonts.manropeTextTheme(base.textTheme);
     return MaterialApp(
       title: 'WealthQuest',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: colorScheme,
-        scaffoldBackgroundColor: const Color(0xFF0E1512),
+      theme: base.copyWith(
+        textTheme: textTheme,
+        primaryTextTheme: textTheme,
       ),
       // On wide screens (desktop/web) keep the phone-style UI in a centered,
       // phone-width column instead of stretching everything across the window.

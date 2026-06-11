@@ -1,7 +1,7 @@
 name: wealthquest
 description: "A mobile life-sim / stock-market game. Start at 18 with a day job; each Next Month advances a month — watch your investments perform."
 publish_to: "none"
-version: 0.44.0+102
+version: 0.44.0+103
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   intl: ^0.19.0
+  google_fonts: ^6.2.1
+  phosphor_flutter: ^2.1.0
 
 dev_dependencies:
   flutter_test:
