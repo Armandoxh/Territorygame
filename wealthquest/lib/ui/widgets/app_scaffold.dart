@@ -4,6 +4,7 @@ import '../../state/game_controller.dart';
 import '../../util/format.dart';
 import 'crisis_sheet.dart';
 import 'day_summary_dialog.dart';
+import 'lucide.dart';
 import 'margin_call_sheet.dart';
 import 'swipe_back.dart';
 import 'ui_helpers.dart';
@@ -105,7 +106,8 @@ Widget advanceControls(BuildContext context, GameController game) {
         FloatingActionButton.extended(
           heroTag: null,
           onPressed: () => nextMonth(context, game),
-          icon: const Icon(Icons.skip_next),
+          icon: Lucide('skip-forward',
+              size: 20, color: Theme.of(context).colorScheme.onPrimaryContainer),
           label: const Text('Next Month'),
         ),
         const SizedBox(width: 8),
@@ -145,7 +147,7 @@ class CashBadge extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.account_balance_wallet, size: 14, color: color),
+                  Lucide('wallet', size: 14, color: color),
                   const SizedBox(width: 5),
                   Text(
                     moneyWhole(game.cash),

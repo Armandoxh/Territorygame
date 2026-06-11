@@ -4,6 +4,7 @@ import '../data/catalog.dart';
 import '../state/game_controller.dart';
 import '../util/format.dart';
 import '../version.dart';
+import 'widgets/lucide.dart';
 import 'business_app.dart';
 import 'commodities_app.dart';
 import 'dashboard_tab.dart';
@@ -116,7 +117,8 @@ class _PhoneHomeState extends State<PhoneHome> {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                     child: FilledButton.icon(
                       onPressed: _retire,
-                      icon: const Icon(Icons.celebration),
+                      icon: Lucide('party-popper',
+                          size: 18, color: theme.colorScheme.onPrimary),
                       label: const Text('You can retire — start a new life'),
                     ),
                   ),
@@ -135,7 +137,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Vault',
                         sub: 'Bank',
-                        icon: Icons.account_balance,
+                        icon: 'landmark',
                         color: const Color(0xFF2E7D32),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -146,14 +148,14 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Sherwood',
                         sub: 'Invest',
-                        icon: Icons.show_chart,
+                        icon: 'trending-up',
                         color: const Color(0xFF00A86B),
                         onTap: () => _open(InvestApp(game: game)),
                       ),
                       _AppIcon(
                         label: 'Nestly',
                         sub: 'Real estate',
-                        icon: Icons.home,
+                        icon: 'house',
                         color: const Color(0xFF5C6BC0),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -164,7 +166,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Hustl',
                         sub: 'Jobs',
-                        icon: Icons.work,
+                        icon: 'briefcase',
                         color: const Color(0xFFEF6C00),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -175,7 +177,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Ledger',
                         sub: 'News',
-                        icon: Icons.newspaper,
+                        icon: 'newspaper',
                         color: const Color(0xFF6D4C41),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -186,7 +188,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'DraftDay',
                         sub: 'Sports bets',
-                        icon: Icons.sports_football,
+                        icon: 'dices',
                         color: const Color(0xFFC62828),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -197,14 +199,14 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Life',
                         sub: 'Expenses',
-                        icon: Icons.spa,
+                        icon: 'heart-pulse',
                         color: const Color(0xFF00897B),
                         onTap: () => _open(LifeApp(game: game)),
                       ),
                       _AppIcon(
                         label: 'Comex',
                         sub: 'Commodities',
-                        icon: Icons.diamond,
+                        icon: 'gem',
                         color: const Color(0xFFB8860B),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -215,7 +217,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Main St',
                         sub: 'Businesses',
-                        icon: Icons.storefront,
+                        icon: 'store',
                         color: const Color(0xFF8E24AA),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -226,7 +228,7 @@ class _PhoneHomeState extends State<PhoneHome> {
                       _AppIcon(
                         label: 'Prestige',
                         sub: 'Perks',
-                        icon: Icons.auto_awesome,
+                        icon: 'sparkles',
                         color: const Color(0xFFB8860B),
                         onTap: () => _open(AppScaffold(
                           game: game,
@@ -330,7 +332,7 @@ class _AppIcon extends StatelessWidget {
 
   final String label;
   final String sub;
-  final IconData icon;
+  final String icon;
   final Color color;
   final VoidCallback onTap;
 
@@ -354,7 +356,7 @@ class _AppIcon extends StatelessWidget {
               ),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(icon, color: Colors.white, size: 30),
+            child: Lucide(icon, size: 30, color: Colors.white),
           ),
           const SizedBox(height: 6),
           Text(label,
