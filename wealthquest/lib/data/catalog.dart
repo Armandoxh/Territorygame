@@ -537,11 +537,15 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 43250.0,
-      dailyDrift: 0.0075,
-      dailyVol: 0.09,
+      // A high-variance GAMBLE, not a strategy: modest median return (barely
+      // above cash after vol-drag) with a fat right tail and brutal drawdowns,
+      // so all-in crypto no longer dominates a diversified book.
+      dailyDrift: 0.0045,
+      dailyVol: 0.105,
       sector: 'Digital',
       sharesOutstanding: 1.95e7,
-      blurb: 'The original. Massive swings, massive narratives.',
+      blurb: 'The original. Massive swings, massive narratives. A coin-flip with '
+          'a moonshot tail — not a retirement plan.',
     ),
     AssetDef(
       id: 'etq',
@@ -550,11 +554,12 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 2280.0,
-      dailyDrift: 0.008,
-      dailyVol: 0.10,
+      dailyDrift: 0.0048,
+      dailyVol: 0.12,
       sector: 'Digital',
       sharesOutstanding: 1.2e8,
-      blurb: 'Smart-contract platform. Even wilder than BTQ.',
+      blurb: 'Smart-contract platform. Even wilder than BTQ — bigger swings '
+          'both ways.',
     ),
     AssetDef(
       id: 'dogz',
