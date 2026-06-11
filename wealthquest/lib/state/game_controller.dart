@@ -6,6 +6,7 @@ import '../data/businesses.dart';
 import '../data/catalog.dart';
 import '../data/crises.dart';
 import '../data/goals.dart';
+import '../data/insurance.dart';
 import '../data/life.dart';
 import '../data/properties.dart';
 import '../engine/climate_engine.dart';
@@ -125,6 +126,10 @@ class GameController extends ChangeNotifier {
   /// from [_rng] so owning businesses never perturbs the market/crisis stream.
   final Random _bizRng;
 
+  /// A dedicated RNG for insurance incidents — again separate from [_rng] so the
+  /// market/crisis/bet sequence stays identical regardless of coverage.
+  final Random _insuranceRng;
+
   /// How many businesses you can personally run well; beyond this, UNMANAGED
   /// businesses run at reduced efficiency (you're spread thin). Hire managers
   /// to scale past it.
@@ -183,6 +188,65 @@ class GameController extends ChangeNotifier {
   /// 7 years, like a real Chapter 7 staying on your credit report.
   int creditBlackMarkUntilDay = 0;
   static const int bankruptcyCreditMonths = 84;
+
+  // ---- Insurance ----
+  /// Ids of policies you currently carry.
+  final Set<String> insurancePolicies = {};
+
+  void toggleInsurance(String id) {
+    if (!insurancePolicies.remove(id)) insurancePolicies.add(id);
+    notifyListeners();
+  }
+
+  double get monthlyInsurancePremium {
+    var sum = 0.0;
+    for (final id in insurancePolicies) {
+      sum += Insurance.byId(id).premium;
+    }
+    return sum;
+  }
+
+  static String _incidentLabel(String id) {
+    switch (id) {
+      case 'health':
+        return 'Medical emergency';
+      case 'auto':
+        return 'Car accident';
+      case 'home':
+        return 'Home damage';
+      default:
+        return 'Lost income (disability)';
+    }
+  }
+
+  /// Pay premiums on covered policies; roll for ruinous incidents on uncovered
+  /// ones. Returns the total cash hit this month (folded into expenses so the
+  /// cash-flow audit stays exact). Uses [_insuranceRng] only.
+  double _runInsurance(List<String> events) {
+    if (day <= 12) return 0; // a grace period while you find your feet
+    var cost = 0.0;
+    for (final p in Insurance.all) {
+      if (insurancePolicies.contains(p.id)) {
+        cost += p.premium; // covered: you just pay the premium
+        continue;
+      }
+      // Uninsured. Skip car incidents if you don't drive.
+      if (p.id == 'auto' &&
+          (transportChoiceId == 'bike' || transportChoiceId == 'transit')) {
+        continue;
+      }
+      if (_insuranceRng.nextDouble() < p.incidentChance) {
+        final hit = p.incidentMin +
+            _insuranceRng.nextDouble() * (p.incidentMax - p.incidentMin);
+        cost += hit;
+        events.add('${p.emoji} ${_incidentLabel(p.id)} — '
+            '−\$${hit.toStringAsFixed(0)}. No ${p.name.toLowerCase()}, so you '
+            'eat the whole bill.');
+      }
+    }
+    cash -= cost;
+    return cost;
+  }
 
   // ---- Goals / score ----
   /// Achievements completed this life. Your score is the sum of their points.
@@ -682,6 +746,8 @@ class GameController extends ChangeNotifier {
             Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x5DEECE66),
         _bizRng =
             Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x1F123BB5),
+        _insuranceRng =
+            Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x2C9277B5),
         cash = Catalog.startingCash,
         job = Catalog.startingJob {
     currentTrackId = Catalog.startingTrackId; // begin in the service track
@@ -1699,6 +1765,9 @@ class GameController extends ChangeNotifier {
         : Catalog.incomeTaxOnTaxable(annualTaxable) / 12;
     cash -= taxPaid;
     cash -= expenses;
+    // Insurance: premiums on covered policies, plus full-freight incidents on
+    // uncovered ones. Folded into the expenses figure for the recap + audit.
+    final insuranceCost = _runInsurance(events);
     // A partner's take-home pay lands straight in cash. Folded into the income
     // figure below so the recap and the cash-flow audit stay exact.
     final partnerNet = partnerMonthlyIncome;
@@ -2176,7 +2245,7 @@ class GameController extends ChangeNotifier {
 
     final summary = DayResult(
       income: income + partnerNet,
-      expenses: expenses,
+      expenses: expenses + insuranceCost,
       dividends: dividends,
       interest: interest,
       rent: rentCollected,

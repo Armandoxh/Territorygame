@@ -9,6 +9,7 @@ import 'business_app.dart';
 import 'commodities_app.dart';
 import 'dashboard_tab.dart';
 import 'goals_app.dart';
+import 'insurance_app.dart';
 import 'invest_app.dart';
 import 'life_app.dart';
 import 'life_tab.dart';
@@ -246,6 +247,17 @@ class _PhoneHomeState extends State<PhoneHome> {
                           game: game,
                           title: 'Goals',
                           body: (_) => GoalsBody(game: game),
+                        )),
+                      ),
+                      _AppIcon(
+                        label: 'Shield',
+                        sub: 'Insurance',
+                        icon: 'shield',
+                        color: const Color(0xFF3949AB),
+                        onTap: () => _open(AppScaffold(
+                          game: game,
+                          title: 'Shield',
+                          body: (_) => InsuranceBody(game: game),
                         )),
                       ),
                     ],
