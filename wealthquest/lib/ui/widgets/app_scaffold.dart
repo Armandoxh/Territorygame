@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../state/game_controller.dart';
 import '../../util/format.dart';
@@ -106,7 +105,7 @@ Widget advanceControls(BuildContext context, GameController game) {
         FloatingActionButton.extended(
           heroTag: null,
           onPressed: () => nextMonth(context, game),
-          icon: const Icon(PhosphorIconsBold.skipForward),
+          icon: const Icon(Icons.skip_next),
           label: const Text('Next Month'),
         ),
         const SizedBox(width: 8),
@@ -146,7 +145,7 @@ class CashBadge extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(PhosphorIconsFill.wallet, size: 14, color: color),
+                  Icon(Icons.account_balance_wallet, size: 14, color: color),
                   const SizedBox(width: 5),
                   Text(
                     moneyWhole(game.cash),
