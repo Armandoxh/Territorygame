@@ -31,6 +31,9 @@ class MarketTab extends StatelessWidget {
           ),
           Expanded(
             child: TabBarView(
+              // Clamp the edges so swiping past the first/last category doesn't
+              // chain to the browser's back/refresh gesture.
+              physics: const ClampingScrollPhysics(),
               children: [
                 for (final c in Catalog.categories)
                   _CategoryView(game: game, category: c),

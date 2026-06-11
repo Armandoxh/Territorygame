@@ -38,10 +38,11 @@ class LifeApp extends StatelessWidget {
           body: ListenableBuilder(
             listenable: game,
             builder: (context, _) => TabBarView(
-              // Tap tabs to switch; horizontal swipe stays free for swipe-back
-              // instead of being eaten by the pager (which let it hit the
-              // browser's back/refresh gesture).
-              physics: const NeverScrollableScrollPhysics(),
+              // Swipe between tabs. Clamping (no overscroll bounce) stops the
+              // edge swipe from triggering the browser's back/refresh, and the
+              // pager wins the gesture so swiping never pops the route. Use the
+              // app-bar back arrow to leave.
+              physics: const ClampingScrollPhysics(),
               children: [
                 _ExpensesTab(game: game),
                 _FamilyTab(game: game),
