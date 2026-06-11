@@ -18,12 +18,21 @@ format from `/playtest`** — read that first and reuse
   in a second run `...choices.last` — confirm both branches resolve
   cleanly, never softlock, and never gouge an asset-rich/cash-light
   player past the documented caps (≤6% net worth / ≤30% cash).
-- **Overdraft → margin call:** deliberately overspend (buy an expensive
-  business or property with thin cash) to go negative. Confirm the
-  overdraft fee is the gentler capped amount (5%/mo, ≤2% net worth), that
-  the margin call fires on the 4th red month, and that liquidating
-  recovers cash ≥ 0 and clears the streak. Confirm a player with **no**
-  liquidatable assets still resolves (no infinite popup, no crash).
+- **Overdraft → margin call → BANKRUPTCY:** deliberately overspend (buy an
+  expensive business or property with thin cash) to go negative. Confirm
+  the overdraft fee is the gentler capped amount (5%/mo, ≤2% net worth),
+  the margin call fires on the 4th red month, and liquidating recovers
+  cash ≥ 0. Then drive a life all the way down until `g.faceBankruptcy`,
+  call `g.declareBankruptcy()`, and confirm: assets cleared, `debt == 0`,
+  retirement preserved, `hasBankruptcyMark == true`, a financed
+  `buyProperty` is blocked, and `creditScore` dropped ~180.
+- **Health & mortality (the clock):** advance a life to old age and confirm
+  `g.health` declines with age, `g.isDead` flips ~78–88, and an *uninsured*
+  life (no `toggleInsurance('health')`) dies a touch younger. The agent
+  loop must stop at `g.isDead`.
+- **Insurance under stress:** same seed, insured vs uninsured — the
+  uninsured run should occasionally take a ruinous incident that tips it
+  into the margin-call/bankruptcy spiral above.
 - **Softlock probe:** assert there is always *some* legal action that
   advances the game — the player can never be permanently stuck with
   negative cash and nothing to do.
@@ -37,8 +46,9 @@ format from `/playtest`** — read that first and reuse
 
 `crisisFirstChoice`, `crisisLastChoice`, `crisisCapsRespected`,
 `overdraftFee`, `overdraftCapped`, `marginCall`, `marginRecovery`,
-`brokeNoAssetsSurvives`, `noSoftlock`, `reachMillion`, `prestigeUnlocks`,
-`prestigeGating`.
+`brokeNoAssetsSurvives`, `noSoftlock`, `bankruptcy`, `bankruptcyMark`,
+`creditDrop`, `healthDeclines`, `death`, `uninsuredDiesYounger`,
+`reachMillion`, `prestigeUnlocks`, `prestigeGating`.
 
 ## Focused assertions
 

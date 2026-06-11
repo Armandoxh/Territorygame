@@ -30,6 +30,10 @@ format from `/playtest`** — read that first and reuse
   the bar. Confirm the tip reliability bonus scales with tier.
 - **Expenses:** confirm the live breakdown (housing + transport +
   food/insurance/utilities/fun + childcare) reconciles to what's billed.
+- **Insurance:** toggle each of `Insurance.all` (`toggleInsurance(id)`) and
+  confirm premiums show up in monthly expenses; run an uninsured life on
+  the same seed and confirm it occasionally eats a full-freight incident.
+  Health insurance should also slow `g.health` decline (longevity payoff).
 
 ## Coverage checklist (mark each)
 

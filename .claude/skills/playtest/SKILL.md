@@ -58,6 +58,14 @@ State (getters): `g.cash`, `g.netWorth`, `g.ageYears`, `g.day`,
 `g.dailyExpenses`, `g.pendingCrisis`, `g.sportsSlate`,
 `g.featuredParlays`, `g.attendedEventThisMonth`.
 
+New-systems state (added in the "fun" pass, builds 107–113):
+`g.score`, `g.completedGoals`, `g.insurancePolicies`,
+`g.monthlyInsurancePremium`, `g.creditScore`, `g.creditBand`,
+`g.creditRateAdjustment`, `g.health`, `g.isDead`, `g.bankruptcies`,
+`g.hasBankruptcyMark`, `g.bankruptcyMonthsLeft`, `g.faceBankruptcy`.
+Data: `Goals.all`, `Insurance.all`, `Rivals.all` (each
+`Rival.netWorthAt(g.day)`).
+
 Data lists: `Catalog.assets`, `Catalog.categories`, `Catalog.jobs`,
 `Catalog.degrees`, `Catalog.careerTracks`, `Catalog.assetsInCategory(id)`;
 `Properties.ladder`, `Properties.mortgages`; `Businesses.all`;
@@ -80,6 +88,8 @@ Actions (most return `String?` = error message, null = success):
 - Life: `goOnDate()`, `proposeMarriage()`, `haveChild()`,
   `chooseHousing(id?)`, `chooseTransport(id?)`,
   `attendLifeEvent(LifeEvent)`.
+- Insurance: `toggleInsurance(id)` (ids: health/auto/home/life).
+- Bankruptcy: `declareBankruptcy()` — only when `g.faceBankruptcy`.
 - Crises: `resolveCrisis(g.pendingCrisis!.choices.first)`.
 - Time: `advanceDay()` → `DayResult`; `advanceMonths(n)` →
   `({DayResult result, int months})` (stops early on a crisis or margin
@@ -137,6 +147,7 @@ class LifeAgent {
         }
         g.clearOverdraftStreak();
       }
+      if (g.isDead) break; // the clock ran out — don't simulate a corpse
       if (out.months == 0 && g.pendingCrisis == null) break; // safety
     }
     // Invariants that must hold every life:
@@ -152,9 +163,12 @@ class LifeAgent {
   String report(String title) {
     final b = StringBuffer()
       ..writeln('\n===== PLAYTHROUGH: $title =====')
-      ..writeln('Ended age ${g.ageYears} · net worth '
+      ..writeln('Ended age ${g.ageYears}'
+          '${g.isDead ? ' (died)' : ''} · net worth '
           '\$${g.netWorth.toStringAsFixed(0)} · cash '
           '\$${g.cash.toStringAsFixed(0)}')
+      ..writeln('Score ${g.score} · health ${g.health} · credit '
+          '${g.creditScore} · bankruptcies ${g.bankruptcies}')
       ..writeln('Covered (${covered.length}): ${covered.toList()..sort()}')
       ..writeln('BUGS (${bugs.length}):');
     for (final x in bugs) b.writeln('  ❌ $x');
@@ -240,6 +254,36 @@ void main() {
 > and return `null` from the closure, e.g.
 > `a.act('chooseHousing', () { g.chooseHousing('roommates'); return null; });`
 > Write it cleanly when you generate the file.
+
+## New systems to weave into the run (builds 107–113)
+
+Also exercise these — they're what make the game a *game* now:
+
+- **Goals/score:** assert `g.score` rises as milestones are met and
+  `g.completedGoals` grows; check specific goals fire (e.g. `nw_1m` once
+  net worth ≥ \$1M). Report final score and which goals went unmet.
+- **Insurance:** run two lives on the same seed — one that buys all of
+  `Insurance.all` (`toggleInsurance(id)`), one uninsured — and compare
+  ending net worth and bankruptcy rate. Uninsured should be *higher mean,
+  fatter left tail* (occasional ruin). If insurance never matters, the
+  incident odds/costs need tuning.
+- **Bankruptcy:** deliberately over-leverage (buy an expensive business or
+  property with thin cash) to drive `g.faceBankruptcy == true`, then call
+  `declareBankruptcy()`. Confirm holdings/properties/businesses cleared,
+  `debt == 0`, retirement preserved, `hasBankruptcyMark == true`, and a
+  financed `buyProperty` is then blocked.
+- **Credit:** track `g.creditScore` across the life; confirm it rises with
+  net worth/age and *drops* after a bankruptcy, and that
+  `creditRateAdjustment` moves the mortgage rate accordingly.
+- **Health/mortality:** advance to old age and confirm `g.health` declines
+  (faster uninsured), `g.isDead` flips ~age 78–88, and that the harness
+  stops the loop at death. Verify uninsured lives die a bit younger.
+- **Rivals:** compute your leaderboard rank
+  (`Rivals.all.where((r) => r.netWorthAt(g.day) > g.netWorth).length + 1`)
+  over the life; report when you overtake each rival.
+
+The `LifeAgent.advance` loop MUST break when `g.isDead` (don't simulate a
+corpse). Add `if (g.isDead) break;` inside its month loop.
 
 ## Report format (what you tell the user)
 
