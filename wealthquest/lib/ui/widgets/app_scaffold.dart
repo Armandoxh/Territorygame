@@ -22,6 +22,10 @@ Future<void> nextMonth(BuildContext context, GameController game) async {
   if (game.pendingCrisis != null && context.mounted) {
     await showCrisis(context, game);
   }
+  // Death ends the life — surface the home screen, which shows the eulogy.
+  if (game.isDead && context.mounted) {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
 }
 
 /// Fast-forward [n] months. Each month is really simulated; if a decision or
@@ -93,6 +97,9 @@ Future<void> fastForward(BuildContext context, GameController game, int n) async
   );
   if (!context.mounted) return;
   await showDaySummary(context, game, agg, monthsCovered: n - remaining);
+  if (game.isDead && context.mounted) {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
 }
 
 /// The bottom controls shared by the home screen and every app: advance one

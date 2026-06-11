@@ -130,6 +130,9 @@ class GameController extends ChangeNotifier {
   /// market/crisis/bet sequence stays identical regardless of coverage.
   final Random _insuranceRng;
 
+  /// A dedicated RNG for health/mortality noise.
+  final Random _healthRng;
+
   /// How many businesses you can personally run well; beyond this, UNMANAGED
   /// businesses run at reduced efficiency (you're spread thin). Hire managers
   /// to scale past it.
@@ -188,6 +191,38 @@ class GameController extends ChangeNotifier {
   /// 7 years, like a real Chapter 7 staying on your credit report.
   int creditBlackMarkUntilDay = 0;
   static const int bankruptcyCreditMonths = 84;
+
+  // ---- Health & mortality (the clock) ----
+  /// 0–100. Declines with age (faster late in life), a bit faster if you skip
+  /// health insurance. At 0 you die — a finite life is the real time limit.
+  int health = 100;
+  bool isDead = false;
+
+  double _annualHealthDecline(int age) {
+    if (age < 45) return 0.4;
+    if (age < 60) return 1.2;
+    if (age < 72) return 2.6;
+    if (age < 82) return 4.6;
+    if (age < 92) return 7.0;
+    return 12.0;
+  }
+
+  /// Tick the clock once a year (on a birthday).
+  void _ageHealth(List<String> events) {
+    final decline =
+        _annualHealthDecline(ageYears) + _healthRng.nextDouble() * 2.0;
+    final neglect = insurancePolicies.contains('health') ? 0.0 : 0.6;
+    final next = (health - decline - neglect).clamp(0, 100);
+    health = next.round();
+    if (health <= 0 && !isDead) {
+      isDead = true;
+      events.add('🪦 You passed away at age $ageYears, leaving '
+          '${_usd(netWorth)} and a legacy of $score points.');
+    } else if (health <= 30) {
+      events.add('🫀 Your health is failing ($health/100). Time grows short — '
+          'make it count.');
+    }
+  }
 
   // ---- Insurance ----
   /// Ids of policies you currently carry.
@@ -785,6 +820,8 @@ class GameController extends ChangeNotifier {
             Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x1F123BB5),
         _insuranceRng =
             Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x2C9277B5),
+        _healthRng =
+            Random((seed ?? DateTime.now().millisecondsSinceEpoch) ^ 0x41C64E6D),
         cash = Catalog.startingCash,
         job = Catalog.startingJob {
     currentTrackId = Catalog.startingTrackId; // begin in the service track
@@ -2249,6 +2286,7 @@ class GameController extends ChangeNotifier {
     if (hadBirthday) {
       events.add('🎂 Happy birthday — you are now $ageYears.');
       _purchasedThisYear.clear(); // annual purchase caps reset each year
+      _ageHealth(events); // the clock ticks: health declines, mortality looms
     }
 
     // 6b) Life happens: occasionally a crisis/decision interrupts. Settle in

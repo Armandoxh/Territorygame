@@ -107,12 +107,23 @@ class _PhoneHomeState extends State<PhoneHome> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      body: SafeArea(
-        child: ListenableBuilder(
-          listenable: game,
-          builder: (context, _) {
-            return Column(
+    return ListenableBuilder(
+      listenable: game,
+      builder: (context, _) {
+        if (game.isDead) {
+          return _DeathScreen(
+            game: game,
+            prestige: _prestige,
+            onNewLife: () => setState(() {
+              final old = game;
+              game = GameController(prestige: _prestige);
+              old.dispose();
+            }),
+          );
+        }
+        return Scaffold(
+          body: SafeArea(
+            child: Column(
               children: [
                 _StatusPanel(game: game, prestige: _prestige),
                 if (game.canRetire)
@@ -280,14 +291,92 @@ class _PhoneHomeState extends State<PhoneHome> {
                         color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 8),
               ],
-            );
-          },
-        ),
-      ),
-      floatingActionButton: advanceControls(context, game),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+            ),
+          ),
+          floatingActionButton: advanceControls(context, game),
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerFloat,
+        );
+      },
     );
   }
+}
+
+/// Shown when the player dies — the life is over. A eulogy with the final
+/// tally, then a button to begin a fresh life at 18 (same prestige; you didn't
+/// retire rich, so no prestige reward — that's the sting of not making it).
+class _DeathScreen extends StatelessWidget {
+  const _DeathScreen({
+    required this.game,
+    required this.prestige,
+    required this.onNewLife,
+  });
+
+  final GameController game;
+  final int prestige;
+  final VoidCallback onNewLife;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Lucide('flag', size: 44, color: theme.colorScheme.outline),
+                const SizedBox(height: 16),
+                Text('A life lived', style: theme.textTheme.headlineSmall),
+                const SizedBox(height: 8),
+                Text(
+                  'You passed away at age ${game.ageYears}.',
+                  style: theme.textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                _stat(theme, 'Final net worth', moneyWhole(game.netWorth)),
+                _stat(theme, 'Legacy score', '${game.score} pts'),
+                _stat(theme, 'Prestige', prestige > 0 ? '★ $prestige' : '—'),
+                const SizedBox(height: 24),
+                Text(
+                  'You didn\'t retire a millionaire, so there\'s no prestige '
+                  'reward this time — the clock ran out. Your score and unlocks '
+                  'carry on.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: onNewLife,
+                  child: const Text('Begin a new life at 18'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _stat(ThemeData theme, String k, String v) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(k,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            const SizedBox(width: 24),
+            Text(v,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
 }
 
 class _StatusPanel extends StatelessWidget {
@@ -328,6 +417,8 @@ class _StatusPanel extends StatelessWidget {
           const SizedBox(height: 4),
           Text('Cash ${moneyWhole(game.cash)}',
               style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          _HealthBar(health: game.health),
           if (game.ongoing.isNotEmpty) ...[
             const SizedBox(height: 6),
             Wrap(
@@ -353,6 +444,44 @@ class _StatusPanel extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// A slim health bar in the status panel — the clock you're racing.
+class _HealthBar extends StatelessWidget {
+  const _HealthBar({required this.health});
+  final int health;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = health >= 60
+        ? kGain
+        : health >= 30
+            ? const Color(0xFFEF6C00)
+            : kLoss;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Lucide('heart-pulse', size: 14, color: color),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 130,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (health / 100).clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text('$health',
+            style: theme.textTheme.labelSmall?.copyWith(color: color)),
+      ],
     );
   }
 }
