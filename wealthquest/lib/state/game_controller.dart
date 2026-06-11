@@ -199,20 +199,22 @@ class GameController extends ChangeNotifier {
   bool isDead = false;
 
   double _annualHealthDecline(int age) {
-    if (age < 45) return 0.4;
-    if (age < 60) return 1.2;
-    if (age < 72) return 2.6;
-    if (age < 82) return 4.6;
+    if (age < 50) return 0.4;
+    if (age < 65) return 1.1;
+    if (age < 75) return 2.6;
+    if (age < 83) return 4.6;
     if (age < 92) return 7.0;
     return 12.0;
   }
 
-  /// Tick the clock once a year (on a birthday).
+  /// Tick the clock once a year (on a birthday). Tuned so a typical life ends
+  /// ~82–86 (a few years younger if you neglect health insurance). Noise is
+  /// mean-zero so it adds variety without systematically shortening lives.
   void _ageHealth(List<String> events) {
-    final decline =
-        _annualHealthDecline(ageYears) + _healthRng.nextDouble() * 2.0;
-    final neglect = insurancePolicies.contains('health') ? 0.0 : 0.6;
-    final next = (health - decline - neglect).clamp(0, 100);
+    final noise = (_healthRng.nextDouble() - 0.5) * 1.0; // ±0.5
+    final neglect = insurancePolicies.contains('health') ? 0.0 : 0.4;
+    final decline = _annualHealthDecline(ageYears) + neglect + noise;
+    final next = (health - decline).clamp(0, 100);
     health = next.round();
     if (health <= 0 && !isDead) {
       isDead = true;
@@ -258,7 +260,7 @@ class GameController extends ChangeNotifier {
   /// ones. Returns the total cash hit this month (folded into expenses so the
   /// cash-flow audit stays exact). Uses [_insuranceRng] only.
   double _runInsurance(List<String> events) {
-    if (day <= 12) return 0; // a grace period while you find your feet
+    if (day <= 24) return 0; // a grace period (to ~age 20) while you find your feet
     var cost = 0.0;
     for (final p in Insurance.all) {
       if (insurancePolicies.contains(p.id)) {

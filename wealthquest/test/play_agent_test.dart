@@ -205,11 +205,18 @@ void main() {
         expect(g.netWorth, closeTo(g.cash + hv, tol),
             reason: 'seed $seed m$m: netWorth != cash + holdings');
 
-        // (b) cash flow: salary in, tax + expenses out, dividends in
+        // (b) cash flow: salary in, tax + expenses (incl. insurance) +
+        //     overdraft fee out, dividends in.
         expect(
             g.cash,
             closeTo(
-                cashBefore + r.income - r.tax - r.expenses + r.dividends, tol),
+                cashBefore +
+                    r.income -
+                    r.tax -
+                    r.expenses +
+                    r.dividends -
+                    r.overdraftFee,
+                tol),
             reason: 'seed $seed m$m: cash-flow identity broken');
 
         // (c) bookkeeping sanity

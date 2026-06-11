@@ -42,14 +42,14 @@ class Insurance {
   Insurance._();
 
   static const List<InsurancePolicy> all = [
-    InsurancePolicy('health', 'Health insurance', '🩺', 320, 0.011, 4000, 45000,
+    InsurancePolicy('health', 'Health insurance', '🩺', 300, 0.008, 2500, 32000,
         1500, 'Covers medical emergencies. The single most ruinous bill if '
             'you skip it.'),
-    InsurancePolicy('auto', 'Auto insurance', '🚗', 120, 0.011, 2000, 16000,
+    InsurancePolicy('auto', 'Auto insurance', '🚗', 110, 0.008, 1500, 12000,
         1000, 'Accidents and liability. Only matters if you actually drive.'),
-    InsurancePolicy('home', 'Home / renters', '🏠', 90, 0.006, 3000, 28000, 1000,
+    InsurancePolicy('home', 'Home / renters', '🏠', 80, 0.005, 2500, 20000, 1000,
         'Fire, theft, water damage to where you live and your stuff.'),
-    InsurancePolicy('life', 'Life & disability', '🛟', 110, 0.004, 6000, 55000,
+    InsurancePolicy('life', 'Life & disability', '🛟', 95, 0.003, 5000, 38000,
         0, 'Protects your income (and your family) if you can\'t work.'),
   ];
 

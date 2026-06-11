@@ -268,8 +268,8 @@ void main() {
 
     expect(allBugs, isEmpty, reason: 'agent hit ${allBugs.length} bug(s)');
     expect(allCovered.length, greaterThan(18), reason: 'coverage too thin');
-    // Every life should end (death or the age cap).
-    expect(results.values.every((r) => r.deathAge.every((age) => age >= 60)),
-        isTrue);
+    // Lives should end of old age, not in their 50s: median death age sane.
+    expect(median(allDeathAges), greaterThan(72),
+        reason: 'median death age ${median(allDeathAges)} — health clock too harsh');
   });
 }

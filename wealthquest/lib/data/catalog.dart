@@ -537,11 +537,11 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 43250.0,
-      // A high-variance GAMBLE, not a strategy: modest median return (barely
-      // above cash after vol-drag) with a fat right tail and brutal drawdowns,
-      // so all-in crypto no longer dominates a diversified book.
-      dailyDrift: 0.0045,
-      dailyVol: 0.105,
+      // A high-variance GAMBLE: median roughly in line with (a touch under)
+      // equities, but a fat right tail (moonshots) and brutal drawdowns. Not
+      // the free 10x it once was, not the dud the first nerf made it.
+      dailyDrift: 0.0068,
+      dailyVol: 0.11,
       sector: 'Digital',
       sharesOutstanding: 1.95e7,
       blurb: 'The original. Massive swings, massive narratives. A coin-flip with '
@@ -554,8 +554,8 @@ class Catalog {
       categoryId: 'crypto',
       kind: AssetKind.crypto,
       basePrice: 2280.0,
-      dailyDrift: 0.0048,
-      dailyVol: 0.12,
+      dailyDrift: 0.0070,
+      dailyVol: 0.125,
       sector: 'Digital',
       sharesOutstanding: 1.2e8,
       blurb: 'Smart-contract platform. Even wilder than BTQ — bigger swings '
