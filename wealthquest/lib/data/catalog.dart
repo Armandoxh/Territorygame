@@ -862,6 +862,10 @@ class Catalog {
       id: 'service',
       name: 'Service & Hospitality',
       emoji: '☕',
+      // The starter track: a part-time gig you can hold from the start age (the
+      // player begins on it), no degree. Climb to managing a region — but the
+      // ceiling is modest.
+      minAge: startAge,
       blurb: 'Start earning today, no degree. Climb to managing a region — but '
           'the ceiling is modest.',
       rungs: [

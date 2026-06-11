@@ -38,7 +38,7 @@ void main() {
       for (var i = 0; i < Catalog.stepsPerYear; i++) {
         g.advanceDay();
       }
-      expect(g.ageYears, 19);
+      expect(g.ageYears, Catalog.startAge + 1);
     });
 
     test('buying reduces cash and creates a holding', () {
@@ -641,6 +641,8 @@ void main() {
     test('Medicine needs the MD specifically — a master\'s will not do', () {
       final g = GameController(seed: 1);
       final med = Catalog.trackById('medicine')!;
+      // Old enough that age isn't the blocker — this test is about the degree.
+      g.day = (med.minAge - Catalog.startAge) * Catalog.stepsPerYear;
       expect(g.qualifiesForTrack(med), isFalse);
       g.eduLevel = 3; // even a master's
       expect(g.qualifiesForTrack(med), isFalse);
@@ -651,6 +653,8 @@ void main() {
     test('Skilled Trades requires trade school (not a free upgrade)', () {
       final g = GameController(seed: 1);
       final trades = Catalog.trackById('trades')!;
+      // Old enough that age isn't the blocker — this test is about the degree.
+      g.day = (trades.minAge - Catalog.startAge) * Catalog.stepsPerYear;
       expect(g.qualifiesForTrack(trades), isFalse);
       g.completedDegrees.add('trade');
       expect(g.qualifiesForTrack(trades), isTrue);
