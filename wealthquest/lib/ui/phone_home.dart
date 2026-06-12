@@ -96,6 +96,35 @@ class _PhoneHomeState extends State<PhoneHome> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => app));
   }
 
+  /// Wipe the save and begin a fresh life at the start age, prestige 0 — a
+  /// clean slate for testing (and for anyone who just wants to start over).
+  Future<void> _confirmStartOver() async {
+    final theme = Theme.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Start over?'),
+        content: Text(
+          'This erases your saved life — net worth, career, everything — and '
+          'begins again at age ${Catalog.startAge}, prestige 0. No undo.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(backgroundColor: kLoss),
+              child: const Text('Erase & restart')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await SaveService.clear();
+    _newGame(0);
+  }
+
   /// Retire (once eligible): show a legacy screen, then start a fresh life at
   /// the next prestige level — which unlocks new content.
   Future<void> _retire() async {
@@ -360,9 +389,19 @@ class _PhoneHomeState extends State<PhoneHome> {
                     ],
                   ),
                 ),
-                Text('v$kAppVersion · build $kBuildNumber',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
+                TextButton(
+                  onPressed: _confirmStartOver,
+                  style: TextButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  child: Text('v$kAppVersion · build $kBuildNumber · restart',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ),
                 const SizedBox(height: 8),
               ],
             ),
