@@ -100,4 +100,26 @@ class BusinessHolding {
         name: name,
         monthsOwned: monthsOwned,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'defId': defId,
+        'monthlyProfit': monthlyProfit,
+        'purchasePrice': purchasePrice,
+        'investedCapital': investedCapital,
+        'managed': managed,
+        'name': name,
+        'monthsOwned': monthsOwned,
+      };
+
+  factory BusinessHolding.fromJson(Map<String, dynamic> j) => BusinessHolding(
+        id: j['id'] as int,
+        defId: j['defId'] as String,
+        monthlyProfit: (j['monthlyProfit'] as num).toDouble(),
+        purchasePrice: (j['purchasePrice'] as num).toDouble(),
+        investedCapital: (j['investedCapital'] as num).toDouble(),
+        managed: j['managed'] as bool,
+        name: (j['name'] as String?) ?? '',
+        monthsOwned: j['monthsOwned'] as int,
+      );
 }

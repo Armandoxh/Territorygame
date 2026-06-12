@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../data/catalog.dart';
 import '../state/game_controller.dart';
+import '../state/save_service.dart';
 import '../util/format.dart';
 import '../version.dart';
 import 'widgets/lucide.dart';
@@ -35,15 +38,56 @@ class PhoneHome extends StatefulWidget {
 class _PhoneHomeState extends State<PhoneHome> {
   int _prestige = 0;
   late GameController game;
+  Timer? _saveTimer;
 
   @override
   void initState() {
     super.initState();
     game = GameController(prestige: _prestige);
+    _attachSave(game);
+    _restore();
+  }
+
+  /// Load a saved life on boot, if one exists, replacing the fresh game.
+  Future<void> _restore() async {
+    final loaded = await SaveService.load();
+    if (loaded == null || !mounted) return;
+    setState(() {
+      game.removeListener(_scheduleSave);
+      game.dispose();
+      game = loaded;
+      _prestige = loaded.prestige;
+      _attachSave(game);
+    });
+  }
+
+  /// Persist on every change, debounced so a flurry of taps writes once.
+  void _attachSave(GameController g) => g.addListener(_scheduleSave);
+
+  void _scheduleSave() {
+    _saveTimer?.cancel();
+    _saveTimer =
+        Timer(const Duration(milliseconds: 800), () => SaveService.save(game));
+  }
+
+  /// Swap in a brand-new life (after retiring or dying) and persist it at once,
+  /// overwriting the old save.
+  void _newGame(int prestige) {
+    setState(() {
+      game.removeListener(_scheduleSave);
+      final old = game;
+      _prestige = prestige;
+      game = GameController(prestige: _prestige);
+      _attachSave(game);
+      old.dispose();
+    });
+    SaveService.save(game);
   }
 
   @override
   void dispose() {
+    _saveTimer?.cancel();
+    game.removeListener(_scheduleSave);
     game.dispose();
     super.dispose();
   }
@@ -97,12 +141,7 @@ class _PhoneHomeState extends State<PhoneHome> {
       ),
     );
     if (confirmed == true) {
-      setState(() {
-        final old = game;
-        _prestige = newLevel;
-        game = GameController(prestige: _prestige);
-        old.dispose();
-      });
+      _newGame(newLevel);
     }
   }
 
@@ -116,11 +155,7 @@ class _PhoneHomeState extends State<PhoneHome> {
           return _DeathScreen(
             game: game,
             prestige: _prestige,
-            onNewLife: () => setState(() {
-              final old = game;
-              game = GameController(prestige: _prestige);
-              old.dispose();
-            }),
+            onNewLife: () => _newGame(_prestige),
           );
         }
         return Scaffold(

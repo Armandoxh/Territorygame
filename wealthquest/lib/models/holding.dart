@@ -67,4 +67,34 @@ class Holding {
         isShort: isShort,
         entryPrice: entryPrice,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'assetId': assetId,
+        'kind': kind.name,
+        'shares': shares,
+        'balance': balance,
+        'costBasis': costBasis,
+        'openedDay': openedDay,
+        'maturityDay': maturityDay,
+        'matured': matured,
+        'hardLock': hardLock,
+        'isShort': isShort,
+        'entryPrice': entryPrice,
+      };
+
+  factory Holding.fromJson(Map<String, dynamic> j) => Holding(
+        id: j['id'] as int,
+        assetId: j['assetId'] as String,
+        kind: AssetKind.values.byName(j['kind'] as String),
+        shares: (j['shares'] as num).toDouble(),
+        balance: (j['balance'] as num).toDouble(),
+        costBasis: (j['costBasis'] as num).toDouble(),
+        openedDay: j['openedDay'] as int,
+        maturityDay: j['maturityDay'] as int,
+        matured: j['matured'] as bool,
+        hardLock: j['hardLock'] as bool,
+        isShort: j['isShort'] as bool,
+        entryPrice: (j['entryPrice'] as num).toDouble(),
+      );
 }

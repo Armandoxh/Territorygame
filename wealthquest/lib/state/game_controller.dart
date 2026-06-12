@@ -89,6 +89,20 @@ class OngoingEffect {
     this.monthlyCost = 0,
     this.suspendsIncome = false,
   });
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'monthsLeft': monthsLeft,
+        'monthlyCost': monthlyCost,
+        'suspendsIncome': suspendsIncome,
+      };
+
+  factory OngoingEffect.fromJson(Map<String, dynamic> j) => OngoingEffect(
+        label: j['label'] as String,
+        monthsLeft: j['monthsLeft'] as int,
+        monthlyCost: (j['monthlyCost'] as num).toDouble(),
+        suspendsIncome: j['suspendsIncome'] as bool,
+      );
 }
 
 /// Your relationship arc: single → dating → partnered → married. A partner
@@ -697,6 +711,238 @@ class GameController extends ChangeNotifier {
       ..clear()
       ..addAll(completedDegrees);
     return c;
+  }
+
+  // ---- Save / load ----
+  /// Current save format. Bump if the shape changes incompatibly.
+  static const int saveVersion = 1;
+
+  /// Serialize the full playable state to a JSON-able map. Transient,
+  /// cheaply-regenerated things (this month's betting slate, the rumor edition,
+  /// an in-flight crisis popup, an active sector event) are intentionally left
+  /// out and rebuilt on load — they don't carry meaningful progress.
+  Map<String, dynamic> toJson() => {
+        'v': saveVersion,
+        'prestige': prestige,
+        'day': day,
+        'cash': cash,
+        'debt': debt,
+        'health': health,
+        'isDead': isDead,
+        'jobId': job.id,
+        'monthsCashNegative': monthsCashNegative,
+        'bankruptcies': bankruptcies,
+        'creditBlackMarkUntilDay': creditBlackMarkUntilDay,
+        'regime': regime.name,
+        'mortgageRate': mortgageRate,
+        'housingTrend': housingTrend,
+        'lastMarketFactor': lastMarketFactor,
+        'eduLevel': eduLevel,
+        'currentTrackId': currentTrackId,
+        'rungIndex': rungIndex,
+        'monthsInRung': monthsInRung,
+        'enrolledDegreeId': enrolledDegreeId,
+        'enrollMonthsLeft': enrollMonthsLeft,
+        'studentLoan': studentLoan,
+        'studentLoanPayment': studentLoanPayment,
+        'retirementBalance': retirementBalance,
+        'retirementContribPct': retirementContribPct,
+        'relationship': relationship.name,
+        'datesBeen': datesBeen,
+        'children': children,
+        'socialStanding': socialStanding,
+        'housingChoiceId': housingChoiceId,
+        'transportChoiceId': transportChoiceId,
+        'attendedEventThisMonth': attendedEventThisMonth,
+        'reliabilityRevealed': reliabilityRevealed,
+        'betsSettled': betsSettled,
+        'betsWon': betsWon,
+        'betStaked': betStaked,
+        'betReturned': betReturned,
+        'nextHoldingId': _nextHoldingId,
+        'nextPropertyId': _nextPropertyId,
+        'nextBizId': _nextBizId,
+        'nextEventId': _nextEventId,
+        'nextBetId': _nextBetId,
+        'prices': _prices,
+        'prevPrices': _prevPrices,
+        'propertyPrices': propertyPrices,
+        // Cap the chart history so the save stays small but charts still read.
+        'priceHistory': {
+          for (final e in priceHistory.entries)
+            e.key: e.value.length > 120
+                ? e.value.sublist(e.value.length - 120)
+                : e.value,
+        },
+        'purchasedThisYear': _purchasedThisYear,
+        'holdings': [for (final h in holdings) h.toJson()],
+        'properties': [for (final p in properties) p.toJson()],
+        'businesses': [for (final b in businesses) b.toJson()],
+        'ongoing': [for (final e in ongoing) e.toJson()],
+        'bets': [for (final b in bets) b.toJson()],
+        'betHistory': [for (final b in betHistory) b.toJson()],
+        'insurancePolicies': insurancePolicies.toList(),
+        'completedDegrees': completedDegrees.toList(),
+        'completedGoals': completedGoals.toList(),
+        'recentCrisisIds': recentCrisisIds,
+        'appUnread': appUnread,
+        'appFeed': {for (final e in appFeed.entries) e.key: e.value},
+        'netWorthHistory': netWorthHistory.length > 240
+            ? netWorthHistory.sublist(netWorthHistory.length - 240)
+            : netWorthHistory,
+      };
+
+  /// Rebuild a controller from a [toJson] map. A fresh RNG is seeded (Dart's
+  /// `Random` can't be resumed), so future market draws differ — but every
+  /// dollar, holding, and life choice is restored exactly.
+  static GameController fromJson(Map<String, dynamic> j) {
+    final c = GameController(prestige: (j['prestige'] as int?) ?? 0);
+    c._applyJson(j);
+    return c;
+  }
+
+  static Map<String, double> _doubleMap(dynamic raw) => {
+        for (final e in (raw as Map).entries)
+          e.key as String: (e.value as num).toDouble(),
+      };
+
+  void _applyJson(Map<String, dynamic> j) {
+    day = j['day'] as int;
+    cash = (j['cash'] as num).toDouble();
+    debt = (j['debt'] as num).toDouble();
+    health = j['health'] as int;
+    isDead = j['isDead'] as bool;
+    job = Catalog.jobs.firstWhere((x) => x.id == j['jobId'],
+        orElse: () => Catalog.startingJob);
+    monthsCashNegative = j['monthsCashNegative'] as int;
+    bankruptcies = j['bankruptcies'] as int;
+    creditBlackMarkUntilDay = j['creditBlackMarkUntilDay'] as int;
+    regime = MarketRegime.values.byName(j['regime'] as String);
+    mortgageRate = (j['mortgageRate'] as num).toDouble();
+    housingTrend = (j['housingTrend'] as num).toDouble();
+    lastMarketFactor = (j['lastMarketFactor'] as num).toDouble();
+    eduLevel = j['eduLevel'] as int;
+    currentTrackId = j['currentTrackId'] as String?;
+    rungIndex = j['rungIndex'] as int;
+    monthsInRung = j['monthsInRung'] as int;
+    enrolledDegreeId = j['enrolledDegreeId'] as String?;
+    enrollMonthsLeft = j['enrollMonthsLeft'] as int;
+    studentLoan = (j['studentLoan'] as num).toDouble();
+    studentLoanPayment = (j['studentLoanPayment'] as num).toDouble();
+    retirementBalance = (j['retirementBalance'] as num).toDouble();
+    retirementContribPct = (j['retirementContribPct'] as num).toDouble();
+    relationship = RelationshipStage.values.byName(j['relationship'] as String);
+    datesBeen = j['datesBeen'] as int;
+    children = j['children'] as int;
+    socialStanding = j['socialStanding'] as int;
+    housingChoiceId = j['housingChoiceId'] as String?;
+    transportChoiceId = j['transportChoiceId'] as String?;
+    attendedEventThisMonth = j['attendedEventThisMonth'] as bool;
+    reliabilityRevealed = (j['reliabilityRevealed'] as bool?) ?? false;
+    betsSettled = j['betsSettled'] as int;
+    betsWon = j['betsWon'] as int;
+    betStaked = (j['betStaked'] as num).toDouble();
+    betReturned = (j['betReturned'] as num).toDouble();
+    _nextHoldingId = j['nextHoldingId'] as int;
+    _nextPropertyId = j['nextPropertyId'] as int;
+    _nextBizId = j['nextBizId'] as int;
+    _nextEventId = j['nextEventId'] as int;
+    _nextBetId = j['nextBetId'] as int;
+
+    _prices
+      ..clear()
+      ..addAll(_doubleMap(j['prices']));
+    _prevPrices
+      ..clear()
+      ..addAll(_doubleMap(j['prevPrices']));
+    propertyPrices
+      ..clear()
+      ..addAll(_doubleMap(j['propertyPrices']));
+    priceHistory
+      ..clear()
+      ..addAll({
+        for (final e in (j['priceHistory'] as Map).entries)
+          e.key as String: [
+            for (final v in (e.value as List)) (v as num).toDouble()
+          ],
+      });
+    _purchasedThisYear
+      ..clear()
+      ..addAll(_doubleMap(j['purchasedThisYear']));
+
+    holdings
+      ..clear()
+      ..addAll([
+        for (final h in (j['holdings'] as List))
+          Holding.fromJson(h as Map<String, dynamic>)
+      ]);
+    properties
+      ..clear()
+      ..addAll([
+        for (final p in (j['properties'] as List))
+          PropertyHolding.fromJson(p as Map<String, dynamic>)
+      ]);
+    businesses
+      ..clear()
+      ..addAll([
+        for (final b in (j['businesses'] as List))
+          BusinessHolding.fromJson(b as Map<String, dynamic>)
+      ]);
+    ongoing
+      ..clear()
+      ..addAll([
+        for (final e in (j['ongoing'] as List))
+          OngoingEffect.fromJson(e as Map<String, dynamic>)
+      ]);
+    bets
+      ..clear()
+      ..addAll([
+        for (final b in (j['bets'] as List))
+          PendingBet.fromJson(b as Map<String, dynamic>)
+      ]);
+    betHistory
+      ..clear()
+      ..addAll([
+        for (final b in (j['betHistory'] as List))
+          BetResult.fromJson(b as Map<String, dynamic>)
+      ]);
+    insurancePolicies
+      ..clear()
+      ..addAll([for (final s in (j['insurancePolicies'] as List)) s as String]);
+    completedDegrees
+      ..clear()
+      ..addAll([for (final s in (j['completedDegrees'] as List)) s as String]);
+    completedGoals
+      ..clear()
+      ..addAll([for (final s in (j['completedGoals'] as List)) s as String]);
+    recentCrisisIds
+      ..clear()
+      ..addAll([for (final s in (j['recentCrisisIds'] as List)) s as String]);
+    appUnread
+      ..clear()
+      ..addAll({
+        for (final e in (j['appUnread'] as Map).entries)
+          e.key as String: e.value as int,
+      });
+    appFeed
+      ..clear()
+      ..addAll({
+        for (final e in (j['appFeed'] as Map).entries)
+          e.key as String: [for (final s in (e.value as List)) s as String],
+      });
+    netWorthHistory
+      ..clear()
+      ..addAll(
+          [for (final v in (j['netWorthHistory'] as List)) (v as num).toDouble()]);
+
+    // Rebuild the transient layer so the betting & news apps aren't blank.
+    sportsSlate = SportsEngine.generateSlate(_rng, _nextEventId);
+    _nextEventId += sportsSlate.length;
+    featuredParlays =
+        SportsEngine.featuredParlays(sportsSlate, Random(_nextEventId));
+    currentRumors = NewsEngine.generateEdition(_rng, day);
+
+    notifyListeners();
   }
 
   // ---- Life / events ----

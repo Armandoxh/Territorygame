@@ -215,6 +215,24 @@ class PendingBet {
   bool get isParlay => legs.length > 1;
   String get title => isParlay ? '${legs.length}-leg parlay' : legs.first;
   double get potentialPayout => stake * decimalOdds;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'legs': legs,
+        'eventIds': eventIds,
+        'stake': stake,
+        'decimalOdds': decimalOdds,
+        'winProb': winProb,
+      };
+
+  factory PendingBet.fromJson(Map<String, dynamic> j) => PendingBet(
+        id: j['id'] as int,
+        legs: [for (final l in (j['legs'] as List)) l as String],
+        eventIds: [for (final e in (j['eventIds'] as List)) e as int],
+        stake: (j['stake'] as num).toDouble(),
+        decimalOdds: (j['decimalOdds'] as num).toDouble(),
+        winProb: (j['winProb'] as num).toDouble(),
+      );
 }
 
 /// A settled wager, kept for the betting record / hit-rate feed.
@@ -233,6 +251,22 @@ class BetResult {
   });
 
   double get profit => payout - stake;
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'stake': stake,
+        'payout': payout,
+        'won': won,
+        'isParlay': isParlay,
+      };
+
+  factory BetResult.fromJson(Map<String, dynamic> j) => BetResult(
+        title: j['title'] as String,
+        stake: (j['stake'] as num).toDouble(),
+        payout: (j['payout'] as num).toDouble(),
+        won: j['won'] as bool,
+        isParlay: j['isParlay'] as bool,
+      );
 }
 
 /// A pre-built "house" parlay shown as a one-tap card at the top of the book —

@@ -155,6 +155,46 @@ class PropertyHolding {
         rentedOut: rentedOut,
         occupied: occupied,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'defId': defId,
+        'currentValue': currentValue,
+        'loanBalance': loanBalance,
+        'monthlyPayment': monthlyPayment,
+        'annualRate': annualRate,
+        'termMonths': termMonths,
+        'purchasePrice': purchasePrice,
+        'address': address,
+        'monthsPaid': monthsPaid,
+        'renovationInvested': renovationInvested,
+        'rentYield': rentYield,
+        'renoYield': renoYield,
+        'rentable': rentable,
+        'occupancy': occupancy,
+        'rentedOut': rentedOut,
+        'occupied': occupied,
+      };
+
+  factory PropertyHolding.fromJson(Map<String, dynamic> j) => PropertyHolding(
+        id: j['id'] as int,
+        defId: j['defId'] as String,
+        currentValue: (j['currentValue'] as num).toDouble(),
+        loanBalance: (j['loanBalance'] as num).toDouble(),
+        monthlyPayment: (j['monthlyPayment'] as num).toDouble(),
+        annualRate: (j['annualRate'] as num).toDouble(),
+        termMonths: j['termMonths'] as int,
+        purchasePrice: (j['purchasePrice'] as num).toDouble(),
+        address: (j['address'] as String?) ?? '',
+        monthsPaid: j['monthsPaid'] as int,
+        renovationInvested: (j['renovationInvested'] as num).toDouble(),
+        rentYield: (j['rentYield'] as num).toDouble(),
+        renoYield: (j['renoYield'] as num).toDouble(),
+        rentable: j['rentable'] as bool,
+        occupancy: (j['occupancy'] as num).toDouble(),
+        rentedOut: j['rentedOut'] as bool,
+        occupied: j['occupied'] as bool,
+      );
 }
 
 /// Standard fixed-rate amortization: the level monthly payment that pays a
