@@ -2,9 +2,9 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 
 import '../data/tickets.dart';
+import '../util/haptics.dart' as haptics;
 
 /// The heart of the game: a ticket you scratch with your finger. A latex
 /// coating sits over the symbol grid; pan gestures erase it (BlendMode.clear
@@ -95,8 +95,9 @@ class _ScratchCardState extends State<ScratchCard>
     stroke.add(p);
     _spawnShavings(p);
 
-    // Occasional haptic tick sells the texture (no-op on web/desktop).
-    if (++_hapticTick % 9 == 0) HapticFeedback.selectionClick();
+    // A feather-light tick every so often sells the texture without buzzing —
+    // 4ms browser pulses at ~3-4/sec while actively scratching.
+    if (++_hapticTick % 14 == 0) haptics.scratchTick();
 
     // Mark this cell + neighbours as cleared.
     final cx = (p.dx / size.width * _gridN).floor().clamp(0, _gridN - 1);
@@ -121,9 +122,9 @@ class _ScratchCardState extends State<ScratchCard>
     final t = widget.ticket;
     if (t.isWinner && t.payout >= t.def.cost * 10) {
       _confetti.forward(from: 0);
-      HapticFeedback.heavyImpact();
+      haptics.bigWinThud();
     } else if (t.isWinner) {
-      HapticFeedback.mediumImpact();
+      haptics.revealThud();
     }
     setState(() {});
     widget.onRevealed();
