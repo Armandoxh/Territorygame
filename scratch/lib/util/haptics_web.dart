@@ -34,19 +34,31 @@ html.InputElement get _switch {
       ..type = 'checkbox';
     el.setAttribute('switch', '');
     el.setAttribute('aria-hidden', 'true');
+    // Full-size but parked above the viewport: zero-size/invisible elements
+    // have been reported to not fire the haptic, offscreen ones do.
     el.style
       ..position = 'fixed'
-      ..bottom = '0'
-      ..right = '0'
-      ..width = '1px'
-      ..height = '1px'
-      ..opacity = '0'
-      ..pointerEvents = 'none';
+      ..top = '-100px'
+      ..left = '0'
+      ..width = '51px'
+      ..height = '31px';
     html.document.body?.append(el);
     _switchEl = el;
   }
   return el;
 }
+
+// ---- Diagnostics (surfaced by the in-game haptics test panel) ----
+
+String debugInfo() {
+  _switch; // ensure the element exists before reporting on it
+  final ua = html.window.navigator.userAgent;
+  return 'vibrate API: $_canVibrate · switch attached: ${_switchEl?.isConnected} · UA: $ua';
+}
+
+void debugSwitchTick() => _iosTick();
+
+void debugVibrate(int ms) => _vibrate(ms);
 
 /// One system toggle-tick (iOS). Requires a recent user gesture — scratching
 /// is one, so it fires mid-pan exactly when we want it.

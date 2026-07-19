@@ -7,3 +7,11 @@ void scratchTick() => HapticFeedback.lightImpact();
 void revealThud() => HapticFeedback.mediumImpact();
 
 void bigWinThud() => HapticFeedback.heavyImpact();
+
+// ---- Diagnostics (parity with the web implementation) ----
+
+String debugInfo() => 'native haptics (system engine)';
+
+void debugSwitchTick() => HapticFeedback.selectionClick();
+
+void debugVibrate(int ms) => HapticFeedback.vibrate();

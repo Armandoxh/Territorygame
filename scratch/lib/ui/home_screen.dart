@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../state/game_state.dart';
 import '../state/save_service.dart';
+import '../util/haptics.dart' as haptics;
 import '../version.dart';
 import 'scratch_card.dart';
 
@@ -166,6 +167,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => showDialog<void>(
+                          context: context,
+                          builder: (_) => const _HapticsLab(),
+                        ),
+                        child: Text(
+                          '🔧 haptics test',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -173,6 +187,53 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+/// Temporary diagnostics: fires each haptic path on demand and shows what the
+/// browser reports, so "no ticks" can be pinned to device, setting, or trick.
+class _HapticsLab extends StatelessWidget {
+  const _HapticsLab();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Haptics test'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FilledButton.tonal(
+            onPressed: () => haptics.debugSwitchTick(),
+            child: const Text('1 · Switch tick (iPhone path)'),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonal(
+            onPressed: () => haptics.debugVibrate(50),
+            child: const Text('2 · Vibrate 50ms (Android path)'),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonal(
+            onPressed: () => haptics.bigWinThud(),
+            child: const Text('3 · Big-win pattern'),
+          ),
+          const SizedBox(height: 12),
+          Text(haptics.debugInfo(), style: theme.textTheme.bodySmall),
+          const SizedBox(height: 8),
+          Text(
+            'iPhone needs iOS 17.4+ and Settings → Sounds & Haptics → '
+            'System Haptics ON.',
+            style: theme.textTheme.labelSmall,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close')),
+      ],
     );
   }
 }
