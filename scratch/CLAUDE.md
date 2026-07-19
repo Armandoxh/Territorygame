@@ -1,6 +1,6 @@
 # Scratch Empire — project rules
 
-## ▶ CURRENT BUILD: v0.1.0 · build 4
+## ▶ CURRENT BUILD: v0.1.0 · build 5
 
 An idle/incremental game about building a scratch-off ticket empire.
 Lives at https://armandoxh.github.io/Territorygame/scratch/ (deployed by

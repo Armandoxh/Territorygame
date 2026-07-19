@@ -16,6 +16,15 @@ bool? _vibrateSupported;
 bool get _canVibrate => _vibrateSupported ??=
     js_util.hasProperty(html.window.navigator, 'vibrate');
 
+/// Recent SDKs removed `vibrate` from dart:html's Navigator, so call it
+/// dynamically — _canVibrate already guarantees it exists before we do.
+void _vibrate(Object pattern) {
+  try {
+    js_util.callMethod(
+        html.window.navigator, 'vibrate', [js_util.jsify(pattern)]);
+  } catch (_) {}
+}
+
 html.InputElement? _switchEl;
 
 html.InputElement get _switch {
@@ -52,7 +61,7 @@ void _iosTick() {
 
 void scratchTick() {
   if (_canVibrate) {
-    html.window.navigator.vibrate(4);
+    _vibrate(4);
   } else {
     _iosTick();
   }
@@ -60,7 +69,7 @@ void scratchTick() {
 
 void revealThud() {
   if (_canVibrate) {
-    html.window.navigator.vibrate(15);
+    _vibrate(15);
   } else {
     _iosTick();
   }
@@ -69,7 +78,7 @@ void revealThud() {
 /// A little celebratory da-da-dum for 10x+ wins.
 void bigWinThud() {
   if (_canVibrate) {
-    html.window.navigator.vibrate([20, 60, 30]);
+    _vibrate(const [20, 60, 30]);
   } else {
     _iosTick();
     Timer(const Duration(milliseconds: 90), _iosTick);
