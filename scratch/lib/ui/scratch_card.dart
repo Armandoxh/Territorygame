@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../data/tickets.dart';
@@ -42,8 +43,45 @@ class _ScratchCardState extends State<ScratchCard>
   late final AnimationController _confetti = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 1100));
 
+  /// Latex shavings that crumble off under the finger — THE scratching effect.
+  /// Driven by a ticker that only runs while particles are alive.
+  final List<_Shaving> _shavings = [];
+  final Random _fx = Random();
+  late final Ticker _shavingTicker = createTicker(_onShavingTick);
+  double _clock = 0;
+
+  void _onShavingTick(Duration elapsed) {
+    _clock = elapsed.inMicroseconds / 1e6;
+    _shavings.removeWhere((s) => _clock - s.born > s.life);
+    if (_shavings.isEmpty) {
+      _shavingTicker.stop();
+      _clock = 0;
+    }
+    setState(() {});
+  }
+
+  void _spawnShavings(Offset p) {
+    for (var i = 0; i < 3; i++) {
+      _shavings.add(_Shaving(
+        pos: p + Offset(_fx.nextDouble() * 18 - 9, _fx.nextDouble() * 18 - 9),
+        vel: Offset(_fx.nextDouble() * 140 - 70, 30 + _fx.nextDouble() * 130),
+        born: _clock,
+        life: 0.45 + _fx.nextDouble() * 0.35,
+        size: 1.6 + _fx.nextDouble() * 2.6,
+        color: _Shaving.silvers[_fx.nextInt(_Shaving.silvers.length)],
+        spin: _fx.nextDouble() * 10 - 5,
+      ));
+    }
+    // Cap the flock so a frantic scratcher can't hurt the frame rate.
+    if (_shavings.length > 90) {
+      _shavings.removeRange(0, _shavings.length - 90);
+    }
+    if (!_shavingTicker.isActive) _shavingTicker.start();
+  }
+
   @override
   void dispose() {
+    _shavingTicker.dispose();
     _fade.dispose();
     _confetti.dispose();
     super.dispose();
@@ -55,6 +93,7 @@ class _ScratchCardState extends State<ScratchCard>
     final stroke = _strokes.last;
     if (stroke.isNotEmpty && (stroke.last - p).distance < 5) return;
     stroke.add(p);
+    _spawnShavings(p);
 
     // Occasional haptic tick sells the texture (no-op on web/desktop).
     if (++_hapticTick % 9 == 0) HapticFeedback.selectionClick();
@@ -173,6 +212,14 @@ class _ScratchCardState extends State<ScratchCard>
                           ),
                         ),
                       ),
+                      if (_shavings.isNotEmpty)
+                        IgnorePointer(
+                          child: CustomPaint(
+                            painter: _ShavingsPainter(
+                                shavings: _shavings, now: _clock),
+                            size: size,
+                          ),
+                        ),
                       if (_revealed)
                         IgnorePointer(
                           child: AnimatedBuilder(
@@ -356,6 +403,73 @@ class _ConfettiPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ConfettiPainter old) => old.t != t;
+}
+
+/// One crumb of latex flicked off by the finger.
+class _Shaving {
+  _Shaving({
+    required this.pos,
+    required this.vel,
+    required this.born,
+    required this.life,
+    required this.size,
+    required this.color,
+    required this.spin,
+  });
+
+  final Offset pos;
+  final Offset vel;
+  final double born;
+  final double life;
+  final double size;
+  final Color color;
+  final double spin;
+
+  static const silvers = [
+    Color(0xFFCFCFCF),
+    Color(0xFFB0B0B0),
+    Color(0xFF9A9A9A),
+    Color(0xFF8A8A8A),
+  ];
+}
+
+/// Draws the shavings: tiny rotated flecks that arc down under gravity and
+/// fade out over their short lives.
+class _ShavingsPainter extends CustomPainter {
+  _ShavingsPainter({required this.shavings, required this.now});
+
+  final List<_Shaving> shavings;
+  final double now;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const gravity = 420.0;
+    final paint = Paint();
+    for (final s in shavings) {
+      final dt = now - s.born;
+      final t = dt / s.life;
+      if (t < 0 || t >= 1) continue;
+      final pos = s.pos +
+          s.vel * dt +
+          Offset(0, gravity * dt * dt * 0.5);
+      paint.color = s.color.withOpacity((1 - t) * 0.9);
+      canvas.save();
+      canvas.translate(pos.dx, pos.dy);
+      canvas.rotate(s.spin * dt);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+              center: Offset.zero, width: s.size * 2.2, height: s.size),
+          const Radius.circular(1),
+        ),
+        paint,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ShavingsPainter old) => true;
 }
 
 /// The verdict under a revealed ticket.
