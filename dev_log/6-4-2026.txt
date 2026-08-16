@@ -1,0 +1,430 @@
+2026-06-04  New game: WealthQuest (Flutter mobile finance sim)
+  WHAT: Scaffolded a brand-new, standalone Flutter game under
+        wealthquest/ on branch claude/new-mobile-game-repo-JDskF.
+        It's unrelated to v1 (territory) and v2 (swarm) — a
+        personal-finance / stock-market life sim. Core loop:
+        start at age 18 with a day job; press "Next Day" to
+        advance one in-game WEEK; salary lands, living expenses
+        come out, every market moves (random walk), interest +
+        bond coupons accrue, CDs mature, you age up every 52
+        days. Data-driven catalog of 17 instruments across 5
+        categories (savings, CDs, bonds, stocks, ETFs, crypto)
+        — adding one is a single AssetDef entry. Four tabs:
+        Dashboard (net-worth sparkline + cash-flow + activity
+        feed), Market (buy), Portfolio (sell/redeem + live P/L),
+        Life (age-gated career ladder). Pure, seedable market
+        engine with unit tests (test/game_controller_test.dart).
+  WHY:  User: "I want to create a new game/ repo. It is a mobile
+        app... a stock market simulator. At the end of the day
+        you say next day and see how your assets perform. CDs,
+        bonds, all types of investments in categories. Start
+        small, passive income from a day job at 18, every 'day'
+        is a week." Picked: separate repo, Flutter, private.
+
+  Notes:
+   - Intended target was a STANDALONE GitHub repo
+     (Armandoxh/wealthquest, private). The session's GitHub
+     integration is scoped to armandoxh/territorygame, so
+     create_repository returned 403. Built it here in
+     wealthquest/ instead; README documents the git subtree
+     split to relocate it to its own repo later.
+   - Flutter not installed in the sandbox, so this ships
+     lib/ + pubspec + tests only. Run `flutter create .` to
+     generate android/ios/web around the existing lib/.
+   - Followed the repo's incremental mantra: nailed ONE core
+     loop, kept tunables in data/catalog.dart, engine branches
+     on AssetKind (not specific assets) so new instruments are
+     data not code. Deferred scope listed in the README.
+
+2026-06-04  WealthQuest nail: market sub-tabs + per-asset depth
+  WHAT: Restructured the Market screen into per-category sub-tabs
+        (Cash / Bonds & CDs / Stocks / Funds / Crypto), each its
+        own scrollable window. Every row drills into a new
+        per-asset detail screen with a price-history chart and a
+        full stat sheet: market cap, 52-wk high/low, annualized
+        volatility, P/E + EPS (equities), dividend yield / coupon,
+        expense ratio (ETFs), credit rating (bonds), your position
+        + P/L, and buy/sell. Added the supporting mechanics:
+        per-asset price history tracking, market cap (price x
+        shares outstanding), P/E, and dividends paid weekly from
+        stocks/ETFs (generalized the old bond-coupon path via
+        AssetDef.incomeYield). Enriched the catalog with deep
+        fundamentals on every instrument and added 7 new ones
+        (MMF, 3yr CD, muni, FNB, MEDI, TECH, BNDX) so each sub-tab
+        is full. Fixed a latent bug where tab content didn't
+        refresh after Next Day until switching tabs.
+  WHY:  User: "have each section of investment be its own tab in a
+        sub window. Add 10x more depth — price histories, market
+        cap, net worth of companies, historic highs/lows.
+        Everything a real investor needs to make a decision."
+        This is nail 1 of 2; the rumor-mill newspaper is nail 2.
+
+2026-06-04  WealthQuest nail: rumor-mill newspaper
+  WHAT: Added "The Daily Ledger" — a News tab that publishes a
+        weekly edition of 2-3 rumors, each a bullish/bearish tip
+        on one asset. Rumors mechanically bias next week's price
+        move, but the mill is only ~25% reliable (base): a true
+        rumor (25%) moves the asset its predicted way; a false one
+        sometimes swings the other way, sometimes fizzles. Each
+        week resolves last edition's tips (TRUE/FALSE stamp +
+        actual move) and publishes a fresh one. Rumors also surface
+        on each asset's detail screen ("Word on the street"). Built
+        for the future upgrade tree: reliability is a field and a
+        `reliabilityRevealed` flag gates showing the exact %, which
+        stays hidden for now per the user's spec.
+  WHY:  User: "a newspaper rumor mill — news that's most likely
+        true but may swing the other way, right ~25% of the time.
+        When we get the upgrade tree I want the user to see the %
+        probability that news is right." Nail 2 of 2.
+
+  Architecture:
+   - models/rumor.dart, engine/news_engine.dart (headline
+     templates per asset kind + generator, deterministic under
+     seed). MarketEngine.stepPrice gained an optional `bias`.
+   - GameController: currentRumors / lastResolved / rumorArchive +
+     resolution-and-bias step in advanceDay, fresh edition each
+     week. ui/news_tab.dart + News bottom-nav slot + rumor card on
+     the asset detail screen.
+
+2026-06-04  WealthQuest tweaks: 50/50 rumors, MAX fix, week framing
+  WHAT: (1) Rumor reliability 25% -> 50% (coin flip). (2) Each
+        edition now guarantees a rumor on a stock, an ETF, AND a
+        crypto (plus a wildcard) so tips aren't stock-only;
+        4 rumors/edition. (3) Fixed the "MAX" buy bug: the amount
+        sheet rounded UP (toStringAsFixed(0)) so Max could exceed
+        cash and get rejected — now it floors to whole cents, so
+        Max buys exactly what you can afford. (4) Removed the
+        day/week mix-up that hurt immersion: every user-facing
+        string now says WEEK — "Next Week" button, "Week N"
+        counters, CD terms in weeks, "matures week N", etc. One
+        press = one week; age still advances a year per 52 weeks.
+  WHY:  Direct user feedback: "make rumors 50/50; put them on ETF
+        and crypto too; MAX should buy as much as I can, not round
+        up; stop mixing day and week — Next Day should say Next
+        Week and advance my age by a week."
+
+2026-06-04  WealthQuest: kill the service-worker cache (iteration fix)
+  WHAT: Build now uses `flutter build web --pwa-strategy=none` so no
+        caching service worker is installed — every deploy shows up on
+        a single refresh. Added web/flutter_service_worker.js, a
+        self-unregistering "kill-switch" worker: browsers that already
+        installed the old Flutter SW fetch this on their update check,
+        which clears caches, unregisters, and reloads into the fresh app.
+  WHY:  User reported still seeing the old "Next Day" button after the
+        rename deployed — classic Flutter web SW double-reload caching.
+        This removes the friction for all future iterations.
+
+2026-06-04  WealthQuest: swipe-to-go-back on the asset detail screen
+  WHAT: Added ui/widgets/swipe_back.dart and wrapped the asset detail
+        screen in it. A horizontal fling (either direction) pops the
+        route instantly via Navigator instead of falling through to the
+        browser's edge-swipe back, which reloaded the whole web app and
+        felt slow.
+  WHY:  User: "Swipe left to go back is a must. Right now it loads the
+        page and takes time." The slowness was Safari's history-back
+        reloading the SPA; an in-app pop is instant.
+
+2026-06-04  WealthQuest: more cash instruments + version badge + release rule
+  WHAT: Added 6 cash-category instruments (research-backed): Checking
+        (0.5%), Money Market Account (4%), Cash Management Account
+        (4.2%), 13-Week T-Bill (3.6%, short lock), Series I Bond
+        (4.8%, 1-yr lock, $10k/yr cap — inflation hedge, new
+        annual-purchase-cap mechanic), and an Ultra-Short Bond Fund
+        (~4.5%, tiny price wobble, etf-kind). New AssetDef field
+        annualPurchaseCap; GameController tracks per-year purchases
+        and resets each birthday; detail screen shows the cap +
+        remaining and the buy MAX respects it. Fixed market-row CD
+        label 'd lock' -> 'w lock'.
+        Also added a VERSION BADGE: lib/version.dart (kAppVersion +
+        kBuildNumber), shown pinned at the top of the home header so
+        the user can confirm the live page is current. Created
+        wealthquest/CLAUDE.md with the release rule: bump kBuildNumber
+        on every deploy, kAppVersion for features, keep pubspec +
+        the pinned 'CURRENT BUILD' line in sync. This is build 7.
+  WHY:  User: research what else fits Cash (added all picks); and
+        "put a release version number, increment it every build, pin
+        it at the top so I know what I'm looking at is current."
+
+2026-06-04  WealthQuest (build 8): differentiate cash instruments
+  WHAT: Made cash vehicles real trade-offs instead of clones. New
+        AssetDef fields: minBalance + belowMinApy (account earns the
+        reduced rate if balance drops under the minimum) and `insured`
+        (FDIC/govt). Tuned the ladder: HYSA 4% insured liquid; MMA
+        4.3% insured but must keep $1k (else 0.5%); CMA 4.6% uninsured,
+        $2.5k min; T-Bill 4.2% insured but locked 13w; I-Bond 4.8%
+        insured locked 1y capped; MMF 4.8% uninsured liquid; Ultra-Short
+        ~5% uninsured price-wobble. Surfaced minimums on market rows and
+        added Insured / Rate (Fixed|Variable) / min-balance rows to the
+        detail stat sheet. Controller now accrues at the reduced APY
+        when under minBalance.
+  WHY:  User: these were 'virtually the same, just another asset to buy'
+        — differentiate them like real life (min investment, etc).
+  NOTE: Known gap raised by user — MMF (4.8%, liquid, low min) still
+        dominates because 'uninsured' has no teeth yet. Next nail:
+        give insurance meaning via downturn risk (uninsured cash can
+        lose in a crash; insured never does). Pending user's choice.
+
+2026-06-04  WealthQuest (build 9): market climate + crashes (insurance teeth)
+  WHAT: Added a macro layer that makes 'uninsured' finally matter (fixes
+        the MMF-dominates problem). models/climate.dart (MarketRegime:
+        boom/normal/downturn/crash/recovery + SectorEvent) and
+        engine/climate_engine.dart (Markov regime transitions, per-asset
+        beta, sector boom/bust generator). Each week the regime rolls and
+        applies a market-wide drift scaled by each asset's beta (bonds
+        barely move, crypto swings hard); a CRASH applies a severe drop
+        AND carves 2% off uninsured cash (MMF, CMA) while FDIC/govt
+        options are untouched. Occasional sector events ('Tech rally',
+        'Energy slump') bias one sector for 1-3 weeks. A climate banner
+        on the News tab shows the current regime + active sector event;
+        regime changes/crashes/sector events surface in the Next Week
+        summary. Marked CDs insured so crashes don't hit them.
+  WHY:  User: 'why would a player not just take the 4.8% MMF and ignore
+        the rest?' Right — uninsured had no teeth. Now the yield premium
+        of uninsured cash is a real risk premium paid back in crashes,
+        and insured cash is a genuine safe harbor.
+  TUNING: crash ~0.8%/wk from calm, ~5% from a bear; crashCashLoss 2%;
+        beta = vol/0.03 capped at 2.0. Knobs in climate.dart /
+        climate_engine.dart.
+
+2026-06-04  WealthQuest (build 10): calmer markets (volatility tuning)
+  WHAT: Dialed the whole market calmer per user feedback ("weekly swings
+        and crashes might be too much"). Added MarketEngine.volScale
+        (0.55) — a single global knob multiplying every asset's weekly
+        volatility — so ~45% less week-to-week noise (index ~1.2%/wk,
+        blue chips ~1.7%, crypto ~6%, memecoin ~15%). Drift (expected
+        return) left intact so wealth still compounds, just smoother.
+        Softened the climate: crash drift -0.16 -> -0.09, boom/downturn/
+        recovery trimmed, beta cap 2.0 -> 1.5, crash uninsured-cash hit
+        2% -> 1.2%. Trimmed rumor swing magnitudes (clamp 0.4 -> 0.18)
+        so tips don't dwarf the calmer baseline.
+  WHY:  User wanted "much calmer / realistic." volScale is now THE dial
+        for future choppiness tweaks.
+
+2026-06-04  WealthQuest: automated play-agent + UI smoke test (CI "on the side")
+  WHAT: Added test/play_agent_test.dart — an automated player that runs
+        the REAL game logic for 25 years across 5 seeds with several
+        strategies (diversified+climate-aware, all-HYSA, all-S&P,
+        all-crypto), checks invariants (finite net worth/cash, no NaN),
+        and prints a report (avg final net worth, max drawdown, whether
+        it ever went cash-negative). Added test/ui_flow_test.dart — a
+        widget smoke test that taps through the real screens (advance a
+        week, browse Market→Stocks, open an asset detail, visit every
+        tab). New workflow .github/workflows/wealthquest-sim.yml runs
+        `flutter test` on every push, separate from deploy so a failure
+        never blocks shipping; the agent report shows in the log.
+  WHY:  User asked for an agent to play the game and test the flow on the
+        side. Can't drive the rendered Flutter canvas from the sandbox,
+        so this exercises the real mechanics + UI wiring in CI instead.
+  NOTE: test-only change — app is byte-identical, still build 10.
+
+2026-06-04  WealthQuest (build 11): economy rebalance so investing matters
+  WHAT: Play-agent revealed salary dominated everything (all-HYSA ~tied
+        the best strategies; crypto was strictly dominated). Step 1 of
+        the rebalance: cut wages ~45% (banker 5000->2800/wk etc.);
+        expenses now scale with income (lifestyle creep):
+        140 + 0.35*pay + (age-18)*2, so high earners spend more.
+        Crypto risk premium: BTQ drift 0.004->0.006, ETQ 0.0045->0.007.
+        Harsher shocks per user: crash drift -0.09->-0.13, bear
+        -0.005->-0.008, beta cap 1.5->1.8, crash cash hit 1.2%->2%,
+        crash freq up (~1.2% calm, ~7% in a bear).
+  WHY:  User picked: lower wages + bigger expenses, fix crypto premium,
+        harsher shocks (taxes + real estate coming as their own nails).
+  NEXT: real-estate system (property ladder + mortgages), then taxes.
+
+2026-06-04  WealthQuest (build 12): restore the equity risk premium
+  WHAT: Build-11 agent report showed harsher shocks erased the equity
+        premium — All-HYSA ($2.55M, 0% dd) BEAT All-S&P ($1.83M, 36% dd).
+        Fix: added MarketEngine.driftScale (1.5) global expected-return
+        dial lifting every price-asset's drift over the fixed cash rate
+        (cash untouched); softened steady bear drift -0.008 -> -0.005
+        while KEEPING harsh crashes (-0.13). Target ladder: cash < bonds
+        < stocks < crypto in expected return, rising drawdown.
+
+2026-06-04  WealthQuest (build 13): fix crypto risk/reward
+  WHAT: Build-12 ladder was right except crypto was dominated (worst
+        avg AND worst drawdown, ceiling below stocks). Bumped crypto
+        expected return: BTQ drift 0.006->0.010, ETQ 0.007->0.011, so
+        crypto becomes the true high-risk/high-reward top with the
+        biggest ceiling (variance/89% drawdown preserved). Agent to
+        verify crypto avg now clears cash/stocks with a high ceiling.
+
+2026-06-04  WealthQuest (build 14): re-cadence weekly -> MONTHLY
+  WHAT: Switched the whole sim from weeks to months (12 steps/year) per
+        user. Added Catalog.stepsPerYear (12) + driftStepFactor (52/12)
+        and volStepFactor (sqrt) so catalog drift/vol (authored weekly)
+        scale to monthly while preserving ANNUAL return/vol (the tuned
+        balance carries over). Interest/dividends/coupons now accrue
+        /stepsPerYear (monthly APR). Age/birthday/caps/1-yr high-low use
+        stepsPerYear. Climate: persistent regimes scale by driftStepFactor;
+        a crash stays a discrete -13% bad month; crash transition probs
+        re-tuned for ~0.5-0.8 crashes/yr at monthly cadence. Rumor swing
+        magnitudes scaled by volStepFactor. Pay -> monthly (barista
+        1300..banker 12000/mo), expenses -> monthly (600 + 0.35*pay +
+        9*age-creep), starting cash 500 -> 2000. CD/T-Bill/I-Bond terms
+        in months (6/12/36/3/12). All UI text Week -> Month; "Next Month"
+        button; "1-yr high/low". Tests + play-agent updated to cadence-
+        independent (Catalog.stepsPerYear). Also crypto ETQ drift ->0.0082,
+        BTQ ->0.0074 (from the dominance fix).
+  WHY:  User: "instead of weeks can we go by months? All APR etc and
+        market events have to trickle across [monthly]." Sets up real
+        estate (monthly mortgages) next.
+
+2026-06-04  WealthQuest (build 15): revamp agent (3 kinds) + monthly re-tune
+  WHAT: Agent split into TUNNEL (all-in one asset), MIXED (diversified),
+        and AUDITOR (no trading; asserts netWorth==cash+holdings, the
+        cash-flow identity, history sync, no NaN every month). Report adds
+        MEDIAN (robust to crypto skew). Fixed ui_flow_test 'Next Week'.
+        Build-14 showed monthly compounding exploded returns (crypto avg
+        $602M); re-tune driftScale 1.5->1.0, crypto BTQ 0.0074->0.0045/
+        vol 0.09, ETQ 0.005/vol 0.10. Agent to re-measure.
+
+2026-06-04  WealthQuest (build 16): crypto nudge for monthly balance
+  WHAT: Build-15 ladder healthy (stocks ~$4.6M median > cash ~$2.5M;
+        auditor green) except crypto undershot (median $1.35M < cash).
+        Bumped crypto drift BTQ 0.0045->0.006, ETQ 0.005->0.0065.
+
+2026-06-04  WealthQuest (build 17): REAL ESTATE system
+  WHAT: Added the property ladder + mortgages (user's big request).
+        models/property.dart (PropertyDef, MortgageType, PropertyHolding
+        + amortization), data/properties.dart (ladder: shack -> studio
+        -> 1BR -> 2BR -> house -> luxury, monthly appreciation ~3-4.5%/yr
+        low vol; mortgages: 30yr fixed 6.5%, 15yr fixed 5.8%, 5/1 ARM
+        5.5%). Controller: propertyPrices (appreciating listings),
+        owned properties, buyProperty(def, mortgage, downFraction) with
+        a 45%-of-income DTI gate + min 5% down, sellProperty (cash +=
+        equity), monthly appreciation + mortgage servicing (interest vs
+        principal; principal builds equity), net worth now includes
+        property equity. DayResult.mortgage + summary line. New Property
+        bottom-nav tab: browse ladder, buy sheet with a down-payment
+        slider + mortgage-type chips + live monthly-payment/DTI preview,
+        manage owned (equity, loan, payment, sell). Unit tests for
+        amortization, buy/equity, mortgage paydown, DTI gate, and a
+        30-year finite/payoff run.
+  WHY:  User: real estate ladder, fair appreciation, mortgage fee,
+        varying mortgage types/rates, selectable down payment.
+
+2026-06-04  WealthQuest (build 18): 15-seed agent + crypto bump
+  WHAT: Agent seeds 5 -> 15 for stable medians (real estate RNG draws
+        reshuffled the market stream). Crypto drift BTQ 0.006->0.0075,
+        ETQ 0.0065->0.008 so its median clears cash, lottery shape kept.
+
+2026-06-04  WealthQuest (build 19): candlestick charts + short positions
+  WHAT: (1) Replaced both charts with a trading-style CandleChart
+        (ui/widgets/candle_chart.dart): green/red candlesticks with
+        synthetic wicks from the close series, gridlines, price labels,
+        dashed last-price line. Used on the asset detail (price) and the
+        dashboard (net worth). Removed price_chart.dart + networth_chart.
+        (2) SHORT positions: Holding.isShort + entryPrice; controller
+        short(def, amount) posts cash margin (net-worth-neutral at open),
+        valueOf = margin + shares*(entry - price) floored at 0,
+        coverShort returns value to cash, margin-call stop-out in
+        advanceMonth when a short's value hits 0 (~price doubles). Shorts
+        skip dividends/passive and never merge with longs. UI: Buy|Short
+        buttons on the (price-based) detail screen, SHORT badge + Cover
+        in the position card and Portfolio tab. Unit tests for margin/
+        net-worth-neutral open, cover, separate long+short, no-cash-short.
+  WHY:  User: "make all the charts look like ticker graphs. Also have a
+        short position we can place."
+
+2026-06-04  WealthQuest (build 20): yield ladder (fun > realism discussion)
+  WHAT: User: "the game isn't fun — $500 unlocks the best APY, no
+        progression." Redesigned the Cash tier into an aspiration ladder
+        where APY scales with entry minimum + lock-up + RISK. New
+        AssetKind.fund + LockKind {none, penalty, hard} + AssetDef
+        lockKind/earlyPenalty/crashLoss. Ladder: Checking $0/0.5%,
+        HYSA $1k/4%, MMF $10k/4.8% (crashLoss 2%), Income Fund $50k/6.5%
+        (12mo penalty lock, forfeit 50% gains early, crashLoss 3%),
+        Private Credit $250k/8.5% (24mo HARD lock, crashLoss 6%), Hedge
+        $1M/11% (36mo HARD lock, crashLoss 10%). Removed redundant
+        MMA/CMA. High yields are UNINSURED and take real drawdowns in
+        crashes/bears (per-asset crashLoss replaces the old global hit),
+        so they don't dominate stocks/crypto or snowball risk-free.
+        Controller: fund buy = separate maturing holding (hardLock flag),
+        sell blocks hard locks + applies penalty on early penalty-lock
+        exit, maturity for funds, per-asset crash/bear balance risk.
+        UI: market-row lock labels, detail stats (Crash risk / Term /
+        Early-exit / Liquidity), position subtitles. Tests for entry min,
+        early-exit penalty, hard lock. Income Fund added to the agent
+        tunnel set.
+  WHY:  User design discussion: scale APY with type + higher entry +
+        minimum hold; mix of hard locks and penalties; high yield = real
+        risk. Yield ladder first; goals/progression spine to follow.
+
+2026-06-04  WealthQuest (build 21): lower fund entry mins + smarter agent
+  WHAT: Lowered fund entry minimums (Income $50k->$20k, Private Credit
+        $250k->$100k, Hedge $1M->$400k). Fixed agent idle-cash flaw: new
+        LADDER agents save in HYSA until they can afford a fund, then move
+        in. Mixed agent uses MMF once its cash sleeve is big.
+  WHY:  Build-20 agent showed funds ~= cash (late-game gates + idle cash).
+
+2026-06-04  WealthQuest (build 22): fix fund balance (risk over-corrected)
+  WHAT: Build-21 ladder agent (honest) showed the high-tier funds netted
+        WORSE than free HYSA (Hedge $2.40M < HYSA $2.52M) — crashLoss
+        6%/10% ate the whole yield premium. Cut crashLoss: MMF 0.02->0.015,
+        Income 0.03->0.015, Private Credit 0.06->0.03, Hedge 0.10->0.045,
+        so the funds net above cash in a rising ladder; the LOCK-UP
+        illiquidity is now the main cost (the trade-off the user wanted).
+
+2026-06-04  WealthQuest (build 23): bond maturity ladder + unique junk bond
+  WHAT: User: bonds need 2/4/6/10-year options and the bottom 3 felt
+        same-y. Replaced single Treasury + redundant Muni with a Treasury
+        MATURITY LADDER (2/4/6/10-Year, ust2/ust4/ust6/ust10): longer =
+        higher coupon (4.3->5.3%) AND bigger price vol (duration risk).
+        Added a UNIQUE bond: High-Yield (Junk) Bond — 9.5% coupon, B-rated,
+        with a new DEFAULT mechanic (AssetDef.defaultRisk): each month a
+        chance the issuer defaults and the price takes a ~45% hit, 3x more
+        likely in a downturn, 6x in a crash. Gave Corporate a tiny default
+        risk too, so Treasury->Corporate->Junk is a clear safe->risky line.
+        Detail screen shows a 'Default risk' stat. Agent tbond refs ->
+        ust10. Tests for the ladder + junk default risk.
+  WHY:  User: "2 year, 4 year, 6, 10 option; find a unique type of bond,
+        the bottom 3 seem the same."
+
+2026-06-04  WealthQuest (build 24): UI revamp -> phone home with apps
+  WHAT: Replaced the 6-tab bottom nav with a PHONE HOME screen (status
+        panel: net worth, month, age, cash + version) and a grid of
+        app icons that each open full-screen:
+          - Vault (Bank): dashboard + a real balance sheet (assets:
+            cash/investments/property; liabilities: mortgages; net worth).
+          - Sherwood (Robinhood play): all investing — Portfolio + Market
+            tabs (browse, buy/sell/short).
+          - Nestly (real estate), Hustl (jobs), Ledger (news).
+        New ui/phone_home.dart, ui/invest_app.dart, widgets/app_scaffold
+        .dart (AppBar + Next Month FAB + swipe-to-home), shared nextMonth()
+        helper. Added controller getters propertyValue + totalLoanBalance
+        for the balance sheet. Deleted home_screen.dart. FABs use
+        heroTag:null to avoid push-transition hero conflicts. Rewrote the
+        UI smoke test for the new navigation. Every app + the home have a
+        persistent Next Month button.
+  WHY:  User: "entry point should be a phone home with apps — a bank app,
+        an investing app (Robinhood), separate apps for jobs, houses, and
+        news, so it's not cluttered."
+
+2026-06-04  WealthQuest (build 25): DraftDay — sports betting app
+  WHAT: Added a sports betting app (DraftDay) to the phone home. models/
+        bet.dart (SportsEvent, PendingBet), engine/sports_engine.dart
+        (monthly slate of matchups with a ~6% house vig baked into the
+        odds, so every bet is -EV; American-odds display). Controller:
+        sportsSlate + bets, placeBet (cash -> pending bet, net-worth-
+        neutral), resolution each Next Month (roll true win prob, pay
+        winners, clear, post a fresh slate), pendingBetsValue in net
+        worth. ui/sports_app.dart: house-edge warning, open bets with
+        potential payout, and the slate with two odds buttons per game.
+        Phone-home gets a DraftDay icon. Tests: net-worth-neutral place,
+        -EV odds, resolves-and-clears.
+  WHY:  User: "have a sports betting app." A high-variance, -EV money
+        sink — the degenerate cousin of crypto.
+
+2026-06-04  WealthQuest (build 26): parlays + per-sport sections (DraftDay)
+  WHAT: DraftDay now has a section per sport (Football/Basketball/Baseball/
+        Soccer/Hockey/Tennis, 2 games each) and PARLAYS. models/bet.dart
+        gains ParlayLeg; PendingBet now holds a list of leg labels (title
+        getter, isParlay). Engine slate generates per-sport with a
+        sportName. Controller: placeParlay(legs, stake) — odds and win-prob
+        multiply across legs (vig compounds, so parlays are worse EV);
+        placeBet is now a 1-leg parlay. ui/sports_app.dart rewritten with a
+        DraftKings-style BET SLIP: tap odds to add picks (highlighted),
+        2+ picks = a parlay, live combined odds + to-win, stake field,
+        place. Open bets show parlay legs. Tests: parlay multiplies odds +
+        net-worth-neutral.
+  WHY:  User: "add parlays like DraftKings; add a section for each sport."

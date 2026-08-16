@@ -1,0 +1,186 @@
+build 27 (v0.16.1) — One bet per game. The user bet twice on the same game/team,
+advanced a month, and saw one of the two wagers win while the other lost — because
+each PendingBet rolled its own independent _rng.nextDouble() at resolution, so two
+bets on one matchup could (and did) contradict each other. Fix: track eventIds on
+PendingBet and reject any wager touching a game you already have an open bet on (and
+any parlay that lists the same game twice) in placeParlay; added hasBetOn(eventId).
+The DraftDay UI now locks a matchup once it's bet — the odds buttons are replaced by
+a "Bet placed — settles next month" lock row. Added regression tests for both the
+straight-bet and parlay duplicate cases.
+build 28 (v0.17.0) — Explicit Singles/Parlay slip. The old DraftDay slip auto-fused
+any 2+ picks into a single parlay, with no real "create parlay" affordance — the user
+asked for a button. Reworked SportsBody so the slip now defaults to Singles (each pick
+its own bet with its own stake field + per-pick to-win) and, once you have 2+ picks,
+shows a SegmentedButton toggle to flip to Parlay (one combined stake, multiplied odds,
+all-must-hit). _placeSingles places each staked pick as its own straight bet and leaves
+un-staked picks in the slip; _placeParlay combines. Per-pick stake controllers are
+tracked in a Map keyed by eventId and disposed on remove/clear. No engine change.
+build 29 (v0.18.0) — Cash now matters + richer monthly recap. Negative cash had zero
+consequence; player wanted stakes. Added a cash-discipline mechanic in advanceDay:
+months 1-3 in the red each cost a 10% overdraft fee (monthsCashNegative counter); the
+4th consecutive red month flips DayResult.marginCall, which nextMonth() turns into a
+blocking margin-call dialog (margin_call_sheet.dart) with Portfolio + Real estate tabs —
+the player must sell holdings/properties until cash ≥ $0, then clearOverdraftStreak()
+resets it. Locked CDs/bonds can't be sold; if nothing is liquidatable they can continue.
+The recap (day_summary_dialog) now shows Cash + its monthly delta (red when negative),
+an overdraft-fee line, and portfolio shout-outs (top gainer/loser by $, and an idle-cash
+nudge) built by GameController._portfolioNotes(). Next up (build 30): the Life app.
+build 30 (v0.19.0) — Life app. New "Life" home-screen app (life_app.dart) with four tabs:
+Expenses shows the monthly living cost broken into Housing/Food/Transport/Insurance/
+Utilities/Fun slices (proportions in data/life.dart, dollars derived from dailyExpenses)
+and explains lifestyle creep; Housing and Transport show the apartment/car your income
+affords as read-only flavor (apartmentFor/carFor tiers, upgrades flagged "coming soon" per
+the user's "breakdown + events now, tiers later" choice); Events lists outings (crypto
+meetup → charity gala, $100-$750) you can attend once per month — attendLifeEvent() deducts
+cash and drops a targeted tip into The Daily Ledger via NewsEngine.insiderTip(), with
+pricier rooms = higher reliability. attendedEventThisMonth resets each advanceDay.
+build 31 (v0.19.1) — Surface dividends (note 1 of a 6-item batch, done 1-by-1). The market
+browse list gave no at-a-glance signal of which assets pay you cash. Added a green income
+pill to each paying row in market_tab (_Subtitle): "3.5% div" for stocks/ETFs with a
+dividendYield, "4.2% coupon" for bonds. Crypto/growth names show nothing. The detail
+screen already listed Dividend yield/Coupon in Key stats, so this just closes the
+browse-list gap. No engine change.
+build 32 (v0.20.0) — Categorized the Ledger (note 2 of the batch). The news was one long
+wordy scroll of big italic rumor cards. Rewrote news_tab to group this month's rumors by
+asset kind into compact sections — 📈 Stocks, 🧺 ETFs, 🪙 Crypto, 📜 Bonds — each a header +
+one-line tip rows (direction icon, short headline, ticker chip), and added short 🏠 Real
+Estate (regime-flavored housing read) and 🏈 Sports (slate/open-bets teaser) sections plus
+the settled list. Much less to read; scannable by category. Dropped the wordy reliability
+preamble. No engine change.
+build 33 (v0.20.1) — Pay off mortgage early (note 3 of the batch). Owning property gave no
+way to pay down the loan. Added GameController.payDownMortgage(h, amount, {max}) — applies
+cash straight to principal (capped at the balance), monthly payment unchanged so the loan
+just retires sooner; zeroes out and flips isPaidOff when cleared. Nestly's owned-property
+card gets a "Pay down loan" button → amount sheet (MAX pays it off free and clear).
+build 34 (v0.21.0) — Rent out property (note 4 of the batch). Owned homes can now be a
+landlord play. PropertyHolding gains rentedOut + occupied flags and monthlyRent (0.6% of
+value/mo); GameController.toggleRental(h) lists/unlists. In advanceDay's real-estate block,
+each rented home rolls occupancy (occupancyChance = 0.75); when occupied, rent lands in cash
+and offsets part of the mortgage, summarized in events and a new "Rent collected" recap row
+(DayResult.rent). Nestly's owned card gets a Rent-it-out switch + live occupancy status.
+Defaults to tune later if needed: 0.6%/mo rent, 75% occupancy.
+build 35 (v0.21.1) — Sportsbook readability (note 5 of the batch). DraftDay odds were
+opaque (+150/-200) and parlays were hard. Replaced American odds everywhere with plain
+language: each pick button is now a tap-card showing the team, "$100 → $260" (what a $100
+bet returns), and a Favorite/Underdog tag, with a clear selected state (highlight + check).
+Rewrote the how-to banner in plain English incl. how to build a parlay. Slip now shows
+"2.60×" multipliers and "All N must win · pays X×" instead of combined American odds. Pure
+UI; betting logic/one-bet-per-game/Singles-Parlay toggle unchanged.
+build 36 (v0.22.0) — Jobs cost time + money via degrees (note 6, final of the batch).
+Switching jobs was free/age-gated; now better careers require a credential. New models/
+education.dart (DegreeDef + educationLabel); Catalog.degrees = Associate(2yr/$18k) /
+Bachelor(4yr/$60k) / Master(6yr/$110k), JobDef.requiredEdu gates junior_dev(1)/accountant+
+engineer(2)/banker(3). GameController gains eduLevel, enrolledDegreeId, enrollMonthsLeft,
+studentLoan + enroll()/payStudentLoan()/effectivePay/meetsEducation; per user's choices,
+enrolling borrows tuition as a student loan (compounds at studentLoanRate 6%/yr, subtracted
+from net worth) and drops you to PART-TIME (half pay) until you graduate. advanceDay ticks
+the term, completes the degree, compounds the loan. Hustl (life_tab) rebuilt: You card +
+in-progress study card + loan card (Pay loan) + Education (enroll w/ confirm) + gated
+Careers. Vault balance sheet + dashboard cash-flow/salary now reflect the loan and part-time
+pay. Tests added for gating, enroll→graduate, and loan compounding/payoff.
+build 37 (v0.22.1) — Balance harness. Concern: lots of interacting systems (rent, student
+loans, degrees, overdraft, betting) with no visibility into long-game balance. Added
+test/balance_report_test.dart: (1) BALANCE REPORT — closed-form economics per subsystem read
+from LIVE constants, flagged OK/WARN/CRITICAL vs target bands (CRIT fails CI, WARN = tuning
+signal). (2) AGENTS — LANDLORD + SCHOLAR 12-yr scoreboard exercising rent + degrees. (3)
+LANDLORD-AUDITOR — verifies cash-flow identity incl. rent - mortgage - overdraft. Findings:
+rentals ~12-18%/yr ROE at low risk (rent over-covers mortgage, no carrying costs); degrees
+recoup in ~10-15mo (too cheap long-term) yet bleed ~-$370/mo in school (unaffordable early).
+Measurement layer only, no gameplay change.
+build 38 (v0.23.0) — Rebalance from the harness findings (rentals + degrees + school crunch).
+Rentals: monthlyRent 0.6%->0.5% of value so occupied rent ~= the mortgage (was 1.19x);
+ROE falls from 12-18% into the ~8-13% equities band. School crunch eased: part-time pay
+0.5->0.6 (partTimePayFraction const) AND living expenses now scale with effectivePay (a
+student lives leaner), so the first degree is survivable from a standing start instead of
+-$371/mo. Degrees made a real tradeoff: tuition assoc 18k->36k, bachelor 60k->100k, master
+110k->200k, studentLoanRate 6%->7.5% — you graduate with a big compounding loan that competes
+with investing. Updated balance_report harness to mirror the new part-time/expense math and
+clamped the SCHOLAR drawdown metric (early sub-$0 dip no longer prints absurd %).
+build 39 (v0.23.1) — Monthly report redesign. The recap "read like an email" (7 labeled
+cash rows + bulleted paragraphs). Rebuilt day_summary_dialog as a visual snapshot: two hero
+stats (Net worth + Cash, each with a colored ▲/▼ move; cash turns red when negative), the
+month's cash flow as compact signed pills (+$1,300 Pay / −$1,181 Living / Rent / Mortgage /
+Fee — only the ones that happened) instead of a row list, a slim red banner when cash is
+negative, and highlights (portfolio notes + events) trimmed to 5 with a "+N more". Same
+DayResult data, far less reading. Continue button unchanged so the UI smoke test still passes.
+build 40 (v0.23.2) — Monthly recap as a clean P&L (chips in build 39 were worse). Rebuilt
+day_summary_dialog as a profit-and-loss statement: a green "MONEY IN" section (Salary,
+Interest, Dividends & coupons, Rental income) with a bold "Total in", a red "MONEY OUT"
+section (Living expenses, Mortgage, Overdraft fee) with "Total out", a thick rule, then a
+bold colored "Net this month". Below, running balances Net worth + Cash each with a ▲/▼
+move (cash red when negative), the negative-cash banner, and highlights trimmed to 4.
+Labeled, grouped by direction, color-coded — reads like a statement, not an email or chips.
+build 41 (v0.24.0) — Fast-forward (note 1 of a 3-item batch from a year-72 playthrough).
+Clicking Next Month hundreds of times was tedious. Added GameController.advanceMonths(n)
+which really runs advanceDay n times (markets/interest/rent/loan all real), sums the months
+into one aggregated DayResult, and stops early if a margin call fires (returns
+(result, months)). UI: app_scaffold now exposes fastForward() + a shared advanceControls()
+bar — "Next Month" + "6 mo" + "12 mo" (FittedBox so it never overflows) — wired into phone
+home, AppScaffold, invest_app, life_app. The recap takes monthsCovered to retitle ("12
+months · now Age X" / "Net change"). Tests: advanceMonths advances the clock 12 + aggregates;
+fast-forward halts at a margin call. Next in batch: trim investments + commodities app; endgame.
+build 42 (v0.25.0) — Trim true dupes + Comex commodities app (note 2 of the batch; user
+chose "merge true dupes only"). Removed VTM (Total Market ETF) — drift 0.0016/vol 0.024/div
+1.4% was a statistical clone of SPX; everything else is genuinely differentiated so it stays.
+Added a commodities desk: new AssetKind.commodity + AssetDef.safeHaven flag; six goods (Gold,
+Silver — safe havens; Crude Oil, Natural Gas, Copper, Wheat) under categoryId 'commodities'
+(deliberately NOT in Catalog.categories so they don't clutter Sherwood). New Comex app
+(commodities_app.dart) lists them with a safe-haven badge; trade via the normal detail screen
+(buy/sell/short), positions show in the portfolio. advanceDay: safe-haven assets move COUNTER
+to the macro cycle (bid in crash/downturn, drag in boom) instead of with beta. Commodities
+excluded from the rumor mill. mixed agent's vtm weight moved to divx. Tests for commodities +
+fast-forward added.
+build 43 (v0.26.0) — Crises & decisions (note 3a of the batch; user chose "frequent &
+punchy"). New models/crisis.dart (CrisisEvent + CrisisChoice) + data/crises.dart: a library
+of 10 blocking decision events (lawsuit, medical, startup buy-in, inheritance, repairs, tax
+audit, year-end bonus cash-vs-stock, shady tip, recession hedge→gold, buy-the-dip→S&P), most
+with stakes scaled to net worth so they still bite in a rich late game; some gated by regime.
+GameController: pendingCrisis + crisisChance 0.13/mo (fires after month 6, never stacks),
+DayResult.crisis flag, resolveCrisis(); advanceMonths now halts on a crisis too. UI:
+crisis_sheet.dart shows a non-dismissible decision dialog (pick → see outcome → continue),
+wired into nextMonth + fastForward after the recap/margin-call. Effects only apply on resolve
+so the agents/auditors (which never resolve) stay cash-flow-consistent. Tests added. Next: prestige/restart.
+build 44 (v0.27.0) — Prestige / retirement with content unlocks (note 3b, final of the
+batch; user chose "unlock content"). Once net worth >= $1M (GameController.retireThreshold)
+a "You can retire — start a new life" button appears on the phone home; retiring shows a
+legacy screen (final net worth/age + what's newly unlocked via Catalog.unlocksAt) then
+rebuilds a fresh GameController at prestige+1 (in-session; no save system exists yet, so it
+carries within a session like everything else). AssetDef + JobDef gain unlockLevel; added
+prestige-gated content: Hedge Fund Manager (P1) & Tech CEO (P2) careers, Pre-IPO Unicorn
+stock (P1), Platinum safe-haven commodity (P1). game.unlockedJobs/unlockedAssets() filter by
+prestige; market_tab, commodities_app, life_tab use them. Prestige badge on the status panel.
+Tests for the retire threshold + prestige gating. NOTE: full cross-refresh persistence (a
+real save system) is a natural follow-up if wanted.
+build 45 (v0.28.0) — Big life-event catalog (10 -> 50) + a debt mechanic. Player loved the
+crises/6-month-skip and wanted ~50 varied events instead of scaled costs. Expanded
+data/crises.dart to 50 events across themes: money troubles, windfalls, career, PROPERTY/
+LANDLORD (eminent domain, developer offer, property-tax reassessment, roof emergency, tenant
+non-payment, trashed unit, squatters in a vacant rental, tenant prepay, gentrification value
+bump, HOA), LOAN SHARKS/DEBT, gambles/scams (startup, insider tip, pyramid, casino, crypto
+hack, overseas scam), markets (buyout, special dividend, hedge, buy-the-dip), and everyday
+life (wedding, friend loan, jury duty, pet vet, rent hike, brand deal, art flip, disaster,
+gala). Many gated by context (owns property / has a rental / vacant / holds crypto/stock /
+in debt / regime). New helpers pick random properties/holdings; effects can sell/modify
+properties & holdings, not just cash. Added a generic high-interest debt field (28%/yr,
+compounds in advanceDay, subtracts from net worth) so loan-shark/payday events mean
+something; payable via Vault balance sheet ("Pay down debt") or events (shark collects,
+consolidation). Tests: catalog >=45 with unique ids + choices; debt compounds & pays off.
+NOTE (important): this container was re-cloned at build 30 mid-session; remote was correct at
+build 44 — reset --hard origin before this work. All fine.
+build 46 (v0.29.0) — Wealth-tiered life events + real consequences (web-researched). Per the
+player: stop showing events randomly — start cheap, unlock bigger/pricier ones as net worth
+grows, and every choice should cost something. Researched real "unexpected expenses" (Chase/
+SoFi/US Bank: furnace $1-12k, transmission, sewer backups, foundation, medical $6k OOP, legal
+$350/hr, avg surprise $5,500). Reworked data/crises.dart (~60 events) into NET-WORTH TIERS via
+new CrisisEvent.minNetWorth/maxNetWorth: T0 everyday-cheap flat-cost (phone, tires, vet,
+dental, appliance, ticket…) that FADE OUT when rich (maxNetWorth); T1 $30k+ (transmission,
+furnace, plumbing, hospital, lawsuit, headhunter, layoff); T2 $150k+ (foundation, major
+surgery, eldercare, startup, inheritance); T3 $750k+ (big lawsuit, divorce, family bailout,
+failed venture, luxury upkeep); T4 $5M+ (estate restructuring, headline lawsuit, art-forgery).
+Crises.pick now filters by net-worth band. CONSEQUENCES: new OngoingEffect system on
+GameController (ongoing list, takeUnpaidLeave/addObligation; effectivePay returns $0 while
+income suspended; advanceDay step 1c drains recurring costs + ticks down). Wired the user's
+example — layoff severance = cash now BUT 3 months no pay — plus headhunter (1 mo gap), injury/
+surgery (1-3 mo off), eldercare/divorce (recurring obligations), DIY move (month off). Active
+consequences show as red chips on the home status panel. Tests: pool grows with wealth;
+severance suspends pay for the period; catalog >=45 unique.

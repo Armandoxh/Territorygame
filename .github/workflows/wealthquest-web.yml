@@ -1,0 +1,53 @@
+name: WealthQuest Web
+
+# Builds the WealthQuest Flutter app for the web and publishes it to the
+# GitHub Pages branch under docs/wealthquest, so it shows up at
+# https://armandoxh.github.io/Territorygame/wealthquest/ — without touching
+# v1 (/) or v2 (/swarm/).
+
+on:
+  push:
+    branches: [claude/new-mobile-game-repo-JDskF]
+    paths:
+      - 'wealthquest/**'
+      - '.github/workflows/wealthquest-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wealthquest-web
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build web
+        working-directory: wealthquest
+        run: |
+          flutter --version
+          flutter create . --platforms=web
+          flutter pub get
+          flutter build web --release --base-href /Territorygame/wealthquest/ --pwa-strategy=none
+
+      - name: Deploy to Pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./wealthquest/build/web
+          publish_branch: claude/territorial-game-mobile-xXdYn
+          destination_dir: docs/wealthquest
+          keep_files: true
+          commit_message: 'Deploy wealthquest web build [skip ci]'
+          user_name: 'github-actions[bot]'
+          user_email: '41898282+github-actions[bot]@users.noreply.github.com'
