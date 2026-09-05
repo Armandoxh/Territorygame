@@ -35,9 +35,10 @@ class _MetroMapState extends State<MetroMap> {
 
   void _handleTap(Offset local, Size size) {
     final g = widget.game;
-    final s = size.shortestSide / 100.0;
+    final world = g.city.size;
+    final s = size.shortestSide / world;
     final origin = Offset(
-        (size.width - 100 * s) / 2, (size.height - 100 * s) / 2);
+        (size.width - world * s) / 2, (size.height - world * s) / 2);
     final map = (local - origin) / s;
     StationDef? best;
     var bestD = 8.0; // tap tolerance in map units
@@ -88,8 +89,12 @@ class _MetroMapState extends State<MetroMap> {
             final size = Size(side, side);
             if (!_centered) {
               _centered = true;
+              // Open on the whole metropolis: scale-to-fit the width,
+              // vertically centered — the top-down diagram view.
+              final fit = constraints.maxWidth / side;
               _viewer.value = Matrix4.identity()
-                ..translate((constraints.maxWidth - side) / 2, 0.0);
+                ..translate(0.0, (constraints.maxHeight - side * fit) / 2)
+                ..scale(fit);
             }
             return Stack(
               children: [
@@ -97,8 +102,8 @@ class _MetroMapState extends State<MetroMap> {
                   child: InteractiveViewer(
                     transformationController: _viewer,
                     constrained: false,
-                    minScale: 0.75,
-                    maxScale: 5,
+                    minScale: 0.7,
+                    maxScale: 10,
                     boundaryMargin: const EdgeInsets.all(80),
                     child: SizedBox(
                       width: side,
@@ -176,10 +181,11 @@ class _MapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide / 100.0;
+    final world = game.city.size;
+    final s = size.shortestSide / world;
     Offset m(Offset p) => Offset(
-        p.dx * s + (size.width - 100 * s) / 2,
-        p.dy * s + (size.height - 100 * s) / 2);
+        p.dx * s + (size.width - world * s) / 2,
+        p.dy * s + (size.height - world * s) / 2);
 
     // STYLE.md: the landmass is one flat color — no grid, no texture. The
     // city comes from geography: flat water bodies with map labels, and
@@ -211,9 +217,9 @@ class _MapPainter extends CustomPainter {
           text: d.text,
           style: GoogleFonts.inter(
             color: const Color(0xFFCDCDCD),
-            fontSize: 4.0 * s,
+            fontSize: 9.0 * s,
             fontWeight: FontWeight.w800,
-            letterSpacing: 2,
+            letterSpacing: 3,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -237,7 +243,7 @@ class _MapPainter extends CustomPainter {
           text: wl.text,
           style: GoogleFonts.inter(
             color: const Color(0xFF6E93AC),
-            fontSize: (2.4 * s).clamp(7.0, 10.0),
+            fontSize: 4.5 * s,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.2,
           ),
@@ -355,7 +361,7 @@ class _MapPainter extends CustomPainter {
 
       // Label with a white halo (like real map labels) at its hand-tuned
       // offset — dense corridors fan their labels out via StationDef data.
-      final fontSize = (2.9 * s).clamp(8.5, 12.0);
+      final fontSize = 2.9 * s;
       TextPainter mkLabel(TextStyle style) => TextPainter(
             text: TextSpan(text: st.name, style: style),
             textDirection: TextDirection.ltr,
@@ -379,7 +385,7 @@ class _MapPainter extends CustomPainter {
       } else if (st.labelDy < 0) {
         top = c.dy + st.labelDy * s - label.height;
       } else {
-        final above = st.y > 75;
+        final above = st.y > city.size * 0.88;
         top = above ? c.dy - 3.2 * s - label.height : c.dy + 3.2 * s;
       }
       final labelPos = Offset(
@@ -499,7 +505,7 @@ class _MapPainter extends CustomPainter {
           text: '+\$${p.amount.toStringAsFixed(0)}',
           style: GoogleFonts.inter(
             color: const Color(0xFF1B5E20).withOpacity(1 - t),
-            fontSize: (3.0 * s).clamp(9.0, 13.0),
+            fontSize: 3.0 * s,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -544,7 +550,7 @@ class _MapPainter extends CustomPainter {
         text: '${line.bullet} · \$${_fmtMoney(line.unlockCost)}',
         style: GoogleFonts.inter(
           color: _ink,
-          fontSize: (3.0 * s).clamp(9.0, 12.0),
+          fontSize: 2.6 * s,
           fontWeight: FontWeight.w800,
         ),
       ),

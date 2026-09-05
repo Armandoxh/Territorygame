@@ -1,9 +1,9 @@
 import 'dart:ui';
 
-/// One stop in the city. Positions are in a normalized 0–100 map space; all
-/// coordinates are chosen so consecutive stations on a line connect at
-/// 45°/90° angles — the classic transit-map look. Stations are city-level so
-/// two lines can share one (an interchange).
+/// One stop in the city. Positions are in a normalized 0–[CityDef.size] map
+/// space; all coordinates are chosen so consecutive stations on a line
+/// connect at 45°/90° angles — the transit-diagram look. Stations are
+/// city-level so two lines can share one (an interchange).
 class StationDef {
   final String id;
   final String name;
@@ -16,8 +16,6 @@ class StationDef {
   /// Hand-tuned label placement (map units). labelDy > 0: label sits below
   /// the dot at that offset; labelDy < 0: label sits above with its bottom at
   /// that offset; 0 = automatic (below, or above near the map's bottom edge).
-  /// Dense corridors NEED these — three stations on one row will otherwise
-  /// stack their labels.
   final double labelDx;
   final double labelDy;
 
@@ -45,7 +43,7 @@ class ParkDef {
   const ParkDef(this.cx, this.cy, this.w, this.h, this.rotDeg);
 }
 
-/// A water-body label ("MERIDIAN HARBOR"), optionally rotated for rivers.
+/// A text placed on the geography (water bodies, district names).
 class WaterLabel {
   final String text;
   final double x;
@@ -89,19 +87,23 @@ class LineDef {
   });
 }
 
-/// A city — one map template in the ladder. v0.2 fills New Meridian out to
-/// three lines; the 4–5 city progression (Angel Bay ≈ LA, Lakewind ≈ Chicago,
-/// Fogport ≈ SF, Kanto ≈ Tokyo) lands in v0.4. Fictional names on purpose:
-/// real transit branding is trademarked; the *style* is the homage.
+/// A city — one map template in the ladder. New Meridian is now a 240-unit
+/// metropolis: the default view is the whole diagram (tiny, top-down, like
+/// the real map) and you zoom all the way in. The 4–5 city progression
+/// (Angel Bay ≈ LA, Lakewind ≈ Chicago, Fogport ≈ SF, Kanto ≈ Tokyo) lands
+/// in v0.4 — each with its own size, coastlines, and districts, all data.
+/// Fictional names on purpose: real transit branding is trademarked.
 class CityDef {
   final String id;
   final String name;
   final String tagline;
+
+  /// Side length of the square map space (station coords live in 0..size).
+  final double size;
   final List<StationDef> stations;
   final List<LineDef> lines;
 
-  /// The landmass outline (45-degree-cornered, floating in water) — the
-  /// signature of the MTA diagram look.
+  /// The landmass outline (45°-cornered, floating in water).
   final List<Offset> land;
 
   /// Water channels cut into the land (closed polygons).
@@ -116,6 +118,7 @@ class CityDef {
     required this.id,
     required this.name,
     required this.tagline,
+    this.size = 100,
     required this.stations,
     required this.lines,
     this.land = const [],
@@ -138,178 +141,156 @@ class Cities {
     id: 'new_meridian',
     name: 'New Meridian',
     tagline: 'The city that never stops riding.',
+    size: 240,
     stations: [
-      // Line 1 corridor. Label offsets are hand-tuned: three stations share
-      // the y=60 row, so their labels fan out instead of stacking.
+      // ---- Line 1 corridor (south-west to north-east) ----
+      StationDef(id: 'battery', name: 'Battery Pt', x: 36, y: 228, demand: 0.3),
       StationDef(
           id: 'harbor',
           name: 'Harbor Yards',
-          x: 15,
-          y: 85,
+          x: 36,
+          y: 204,
           demand: 0.4,
           labelDx: 2.5,
           labelDy: 3.8),
       StationDef(
+          id: 'brookside', name: 'Brookside', x: 65, y: 175, demand: 0.2),
+      StationDef(
           id: 'union',
           name: 'Union Square',
-          x: 40,
-          y: 60,
+          x: 96,
+          y: 144,
           demand: 0.9,
           labelDx: -9,
           labelDy: 4.5),
       StationDef(
           id: 'grand',
           name: 'Grand Terminal',
-          x: 60,
-          y: 60,
+          x: 144,
+          y: 144,
           demand: 0.7,
           labelDx: 13,
           labelDy: -6.5),
       StationDef(
-          id: 'museum',
-          name: 'Museum Mile',
-          x: 60,
-          y: 35,
-          demand: 0.5,
-          labelDx: -9.5,
-          labelDy: 0),
-      StationDef(
-          id: 'northgate', name: 'Northgate', x: 80, y: 15, demand: 0.35),
-      StationDef(
-          id: 'brookside', name: 'Brookside', x: 27, y: 73, demand: 0.2),
-      StationDef(
           id: 'cityhall',
           name: 'City Hall',
-          x: 60,
-          y: 47,
+          x: 144,
+          y: 113,
           demand: 0.3,
           labelDx: -8.5,
           labelDy: 4.5),
       StationDef(
+          id: 'museum',
+          name: 'Museum Mile',
+          x: 144,
+          y: 84,
+          demand: 0.5,
+          labelDx: -9.5,
+          labelDy: 0),
+      StationDef(
           id: 'highridge',
           name: 'High Ridge',
-          x: 70,
-          y: 25,
+          x: 168,
+          y: 60,
           demand: 0.15,
           labelDx: -3,
           labelDy: 0),
       StationDef(
+          id: 'northgate', name: 'Northgate', x: 192, y: 36, demand: 0.35),
+      StationDef(
+          id: 'ironhills',
+          name: 'Iron Hills',
+          x: 204,
+          y: 24,
+          demand: 0.2,
+          labelDx: 9,
+          labelDy: 0),
+      StationDef(
+          id: 'palisade',
+          name: 'Palisade',
+          x: 216,
+          y: 12,
+          demand: 0.25,
+          labelDx: 0,
+          labelDy: 4.2),
+      // ---- Line A corridor (south to north-west) ----
+      StationDef(
+          id: 'boardwalk', name: 'Boardwalk', x: 96, y: 228, demand: 0.4),
+      StationDef(
+          id: 'southport',
+          name: 'Southport',
+          x: 96,
+          y: 216,
+          demand: 0.5,
+          labelDx: 10,
+          labelDy: -4.5),
+      StationDef(
           id: 'ferryst',
           name: 'Ferry St',
-          x: 40,
-          y: 75,
+          x: 96,
+          y: 180,
           demand: 0.45,
           labelDx: -7,
           labelDy: 0),
       StationDef(
           id: 'westgate',
           name: 'Westgate',
-          x: 32,
-          y: 52,
+          x: 77,
+          y: 125,
           demand: 0.55,
           labelDx: -7,
           labelDy: 0),
       StationDef(
-          id: 'riverbend',
-          name: 'Riverbend',
-          x: 82.5,
-          y: 67.5,
-          demand: 0.45),
-      StationDef(
-          id: 'garment',
-          name: 'Garment Dist',
-          x: 45,
-          y: 30,
-          demand: 0.55,
-          labelDx: -8,
-          labelDy: 0),
-      // Line A corridor (interchange at Union Square).
-      StationDef(
-          id: 'southport',
-          name: 'Southport',
-          x: 40,
-          y: 90,
-          demand: 0.5,
-          labelDx: 10,
-          labelDy: -4.5),
-      StationDef(
           id: 'midwest',
           name: 'Midtown West',
-          x: 25,
-          y: 45,
+          x: 60,
+          y: 108,
           demand: 0.7,
           labelDx: -8,
           labelDy: 4.5),
       StationDef(
-          id: 'cathedral', name: 'Cathedral', x: 25, y: 25, demand: 0.5),
-      StationDef(id: 'airport', name: 'Airport', x: 40, y: 10, demand: 0.9),
-      // Line 7 corridor (interchange at Grand Terminal).
+          id: 'cathedral', name: 'Cathedral', x: 60, y: 60, demand: 0.5),
+      StationDef(id: 'airport', name: 'Airport', x: 96, y: 24, demand: 0.9),
       StationDef(
-          id: 'eastdocks', name: 'East Docks', x: 90, y: 75, demand: 0.6),
+          id: 'cargocity',
+          name: 'Cargo City',
+          x: 120,
+          y: 24,
+          demand: 0.3,
+          labelDx: 9,
+          labelDy: 0),
+      // ---- Line 7 corridor (east to south-center) ----
+      StationDef(
+          id: 'eastdocks', name: 'East Docks', x: 216, y: 180, demand: 0.6),
+      StationDef(
+          id: 'riverbend', name: 'Riverbend', x: 198, y: 162, demand: 0.45),
       StationDef(
           id: 'gaslight',
           name: 'Gaslight Qtr',
-          x: 75,
-          y: 60,
+          x: 180,
+          y: 144,
           demand: 0.7,
           labelDx: 3,
           labelDy: 4.5),
-      StationDef(id: 'oldtown', name: 'Old Town', x: 45, y: 45, demand: 0.6),
-      StationDef(id: 'stadium', name: 'Stadium', x: 45, y: 20, demand: 1.1),
-    ],
-    // Geography: a harbor along the south-west shore, the East River on the
-    // right, a corner inlet up north — flat, textureless water — plus park
-    // blocks, each its own size and tilt.
-    land: [
-      Offset(8, 0),
-      Offset(92, 0),
-      Offset(100, 8),
-      Offset(100, 92),
-      Offset(92, 100),
-      Offset(8, 100),
-      Offset(0, 92),
-      Offset(0, 8),
-    ],
-    districts: [
-      WaterLabel('HARBORSIDE', 27, 66),
-      WaterLabel('EASTBANK', 79, 52),
-    ],
-    waters: [
-      [
-        Offset(0, 55),
-        Offset(6, 62),
-        Offset(6, 74),
-        Offset(12, 82),
-        Offset(12, 100),
-        Offset(0, 100),
-      ],
-      [
-        Offset(100, 48),
-        Offset(93, 56),
-        Offset(92, 70),
-        Offset(95, 86),
-        Offset(100, 92),
-      ],
-      [
-        Offset(82, 0),
-        Offset(100, 0),
-        Offset(100, 18),
-      ],
-      [
-        Offset(0, 0),
-        Offset(16, 0),
-        Offset(0, 16),
-      ],
-    ],
-    parks: [
-      ParkDef(50, 73, 15, 8, 7),
-      ParkDef(14, 16, 8, 11, 5),
-      ParkDef(34, 30, 10, 6, -4),
-      ParkDef(83, 42, 9, 7, 11),
-    ],
-    waterLabels: [
-      WaterLabel('MERIDIAN\nHARBOR', 6.5, 86),
-      WaterLabel('EAST RIVER', 96.5, 76, rotDeg: -90),
+      StationDef(
+          id: 'oldtown', name: 'Old Town', x: 108, y: 108, demand: 0.6),
+      StationDef(
+          id: 'garment',
+          name: 'Garment Dist',
+          x: 108,
+          y: 72,
+          demand: 0.55,
+          labelDx: -8,
+          labelDy: 0),
+      StationDef(id: 'stadium', name: 'Stadium', x: 108, y: 48, demand: 1.1),
+      StationDef(
+          id: 'expo',
+          name: 'Expo Park',
+          x: 108,
+          y: 24,
+          demand: 0.35,
+          labelDx: -9,
+          labelDy: 0),
     ],
     lines: [
       LineDef(
@@ -317,7 +298,10 @@ class Cities {
         name: 'Crosstown Local',
         bullet: '1',
         color: Color(0xFFEE352E),
-        stationIds: ['harbor', 'brookside', 'union', 'grand', 'cityhall', 'museum', 'highridge', 'northgate'],
+        stationIds: [
+          'battery', 'harbor', 'brookside', 'union', 'grand', 'cityhall',
+          'museum', 'highridge', 'northgate', 'ironhills', 'palisade',
+        ],
         unlockCost: 0,
         trainCost: 750,
       ),
@@ -326,23 +310,81 @@ class Cities {
         name: 'Airport Express',
         bullet: 'A',
         color: Color(0xFF0039A6),
-        stationIds: ['southport', 'ferryst', 'union', 'westgate', 'midwest', 'cathedral', 'airport'],
+        stationIds: [
+          'boardwalk', 'southport', 'ferryst', 'union', 'westgate',
+          'midwest', 'cathedral', 'airport', 'cargocity',
+        ],
         unlockCost: 4000,
         trainCost: 1500,
-        plateX: 13,
-        plateY: 35,
+        plateX: 31,
+        plateY: 84,
       ),
       LineDef(
         id: 'line7',
         name: 'Stadium Flyer',
         bullet: '7',
         color: Color(0xFFB933AD),
-        stationIds: ['eastdocks', 'riverbend', 'gaslight', 'grand', 'oldtown', 'garment', 'stadium'],
+        stationIds: [
+          'eastdocks', 'riverbend', 'gaslight', 'grand', 'oldtown',
+          'garment', 'stadium', 'expo',
+        ],
         unlockCost: 40000,
         trainCost: 12000,
-        plateX: 69,
-        plateY: 76.5,
+        plateX: 166,
+        plateY: 184,
       ),
+    ],
+    land: [
+      Offset(19, 0),
+      Offset(221, 0),
+      Offset(240, 19),
+      Offset(240, 221),
+      Offset(221, 240),
+      Offset(19, 240),
+      Offset(0, 221),
+      Offset(0, 19),
+    ],
+    districts: [
+      WaterLabel('HARBORSIDE', 65, 158),
+      WaterLabel('EASTBANK', 190, 125),
+      WaterLabel('NORTH HEIGHTS', 160, 18),
+    ],
+    waters: [
+      [
+        Offset(0, 132),
+        Offset(14, 149),
+        Offset(14, 178),
+        Offset(29, 197),
+        Offset(29, 240),
+        Offset(0, 240),
+      ],
+      [
+        Offset(240, 115),
+        Offset(223, 134),
+        Offset(221, 168),
+        Offset(228, 206),
+        Offset(240, 221),
+      ],
+      [
+        Offset(216, 0),
+        Offset(240, 0),
+        Offset(240, 24),
+      ],
+      [
+        Offset(0, 0),
+        Offset(38, 0),
+        Offset(0, 38),
+      ],
+    ],
+    parks: [
+      ParkDef(120, 175, 26, 14, 7),
+      ParkDef(34, 38, 14, 19, 5),
+      ParkDef(82, 72, 17, 10, -4),
+      ParkDef(199, 101, 15, 12, 11),
+    ],
+    waterLabels: [
+      WaterLabel('MERIDIAN\nHARBOR', 15, 206),
+      WaterLabel('EAST RIVER', 232, 182, rotDeg: -90),
     ],
   );
 

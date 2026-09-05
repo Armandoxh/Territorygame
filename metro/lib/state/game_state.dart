@@ -57,7 +57,7 @@ class GameState extends ChangeNotifier {
 
   // ---- Static tuning (the balance harness pins the outcomes) ----
   static const double fare = 2.5;
-  static const double baseSpeed = 10; // map-units/sec along a line
+  static const double baseSpeed = 24; // map-units/sec (240-unit world)
   static const double dwellTime = 0.9; // seconds stopped at a station
   static const double stationCap = 30; // waiting riders cap per station
   static const int levelMax = 10;

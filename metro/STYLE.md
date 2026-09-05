@@ -48,6 +48,11 @@ before implementation. This file wins over taste, defaults, and old code.
   velocity, crisp stops at stations. No stutter, no sway.
 
 ## 5. Locked proportions (map units; changed only via the design rig)
+- **The world is big**: New Meridian is a 240-unit metropolis. The map opens
+  scale-to-fit (the whole diagram, tiny, top-down — like the printed map)
+  and zooms to 10×. Type sizes are TRUE map units, never pixel-clamped, so
+  zooming out is authentically small and zooming in is readable. District
+  names 9.0, water labels 4.5.
 - Active line stroke **2.2** · locked line **1.15** dashed 3.8/2.4 in #D2D2D2.
 - Local dot r **1.9**, ring 0.55 · interchange r **2.4** ring 0.7 (+ inner
   ring r 1.1 only while empty) · locked-line stop: solid #BDBDBD dot r 0.75.
