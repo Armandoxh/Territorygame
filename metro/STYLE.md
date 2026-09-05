@@ -43,10 +43,13 @@ before implementation. This file wins over taste, defaults, and old code.
 
 ## 5. Locked proportions (map units; changed only via the design rig)
 - Active line stroke **2.2** · locked line **1.15** dashed 3.8/2.4 in #D2D2D2.
-- Local dot r **1.6**, ring 0.55 · interchange r **2.4** ring 0.7 + inner
-  ring r 1.1 · locked-line stop: solid #BDBDBD dot r 0.75.
+- Local dot r **1.9**, ring 0.55 · interchange r **2.4** ring 0.7 (+ inner
+  ring r 1.1 only while empty) · locked-line stop: solid #BDBDBD dot r 0.75.
+- **Waiting counts live INSIDE the station circle** (ink, w900; 2.1 for one
+  digit / 1.7 for two). Full platform = **red ring + red number on white** —
+  solid-color circles with numbers are trains and nothing else.
 - Train circle r **2.6**, white ring 0.5, route letter ≈1.15×r.
-- Labels 2.9 (white halo) · badges 2.0 hugging the dot · plates hand-placed
+- Labels 2.9 (white halo) · plates hand-placed
   per line (LineDef.plateX/Y), never at the path midpoint.
 - **Process rule:** iterate any map-visual change in `tools/mapmock.py`
   (renders the same geometry to SVG + headless-Chromium screenshot) and

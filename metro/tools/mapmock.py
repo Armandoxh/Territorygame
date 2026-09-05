@@ -11,7 +11,7 @@ W = H = int(100 * S)
 LINE_W = 2.2          # was 4.5 — 'toddler crayon'
 LOCK_W = 1.15
 LOCK_DASH, LOCK_GAP = 3.8, 2.4
-DOT_R = 1.6           # was 3.0
+DOT_R = 1.9           # holds the waiting count
 DOT_RING = 0.55
 INT_R = 2.4           # interchange outer
 INT_RING = 0.7
@@ -113,14 +113,19 @@ served = {'harbor','brookside','union','grand','cityhall','museum','highridge','
 for sid, (x, y, name, ldx, ldy, waiting) in stations.items():
     if sid not in served:
         continue
-    inter = sid in ('union','grand') and False  # only with A/7 unlocked; mock line1 only
-    if sid == 'grand':
-        inter = False
-    if inter:
-        svg.append(f'<circle cx="{px(x)}" cy="{px(y)}" r="{px(INT_R)}" fill="#fff" stroke="{INK}" stroke-width="{px(INT_RING)}"/>')
+    inter = sid == 'grand'  # preview an interchange with a count inside
+    full = waiting >= 30
+    r = INT_R if inter else DOT_R
+    ringc = '#C62828' if full else INK
+    ringw = (0.85 if full else (INT_RING if inter else DOT_RING))
+    svg.append(f'<circle cx="{px(x)}" cy="{px(y)}" r="{px(r)}" fill="#fff" stroke="{ringc}" stroke-width="{px(ringw)}"/>')
+    if inter and waiting == 0:
         svg.append(f'<circle cx="{px(x)}" cy="{px(y)}" r="{px(INT_INNER_R)}" fill="none" stroke="{INK}" stroke-width="{px(INT_INNER_RING)}"/>')
-    else:
-        svg.append(f'<circle cx="{px(x)}" cy="{px(y)}" r="{px(DOT_R)}" fill="#fff" stroke="{INK}" stroke-width="{px(DOT_RING)}"/>')
+    if waiting > 0:
+        fs = 2.1 if waiting < 10 else 1.7
+        txtc = '#C62828' if full else INK
+        svg.append(f'<text x="{px(x)}" y="{px(y+fs*0.36)}" text-anchor="middle" fill="{txtc}" '
+                   f'font-size="{px(fs)}" font-weight="900">{waiting}</text>')
     # label
     if ldy > 0: ty = y + ldy + LABEL_F*0.8
     elif ldy < 0: ty = y + ldy
@@ -128,15 +133,7 @@ for sid, (x, y, name, ldx, ldy, waiting) in stations.items():
         ty = y - 3.2 if y > 75 else y + 3.2 + LABEL_F*0.8
     svg.append(f'<text x="{px(x+ldx)}" y="{px(ty)}" text-anchor="middle" font-size="{px(LABEL_F)}" '
                f'font-weight="700" fill="{INK}" stroke="#fff" stroke-width="4" paint-order="stroke">{name}</text>')
-    # waiting badge
-    if waiting > 0:
-        full = waiting >= 30
-        bw, bh = px(BADGE_F*0.62*len(str(waiting)) + 1.6), px(BADGE_F + 0.9)
-        bx, by = px(x + DOT_R + 0.5), px(y - DOT_R - 0.4) - bh
-        col = '#C62828' if full else '#555'
-        svg.append(f'<rect x="{bx}" y="{by}" width="{bw}" height="{bh}" rx="{bh/2}" fill="{col}"/>')
-        svg.append(f'<text x="{bx+bw/2}" y="{by+bh*0.74}" text-anchor="middle" fill="#fff" '
-                   f'font-size="{px(BADGE_F)}" font-weight="800">{waiting}</text>')
+
 # train at grand with bullet
 tx, ty = 60, 60
 svg.append(f'<circle cx="{px(tx)}" cy="{px(ty)}" r="{px(TRAIN_R)}" fill="#EE352E" stroke="#fff" stroke-width="{px(0.5)}"/>')

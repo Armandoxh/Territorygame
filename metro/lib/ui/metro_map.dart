@@ -270,19 +270,24 @@ class _MapPainter extends CustomPainter {
             c, 0.75 * s, Paint()..color = const Color(0xFFBDBDBD));
         continue;
       }
-      // STYLE.md markers: local = white dot + thin ink ring; interchange =
-      // larger concentric circles, like the real digital map.
+      // STYLE.md markers: white dot + thin ring, sized to hold the waiting
+      // count INSIDE it (saves space vs a floating badge). A full platform
+      // turns the ring + number red — demand is being lost. Solid-color
+      // circles are trains only, so the two can never be confused.
       final interchange = (linesAt[st.id] ?? 0) > 1;
-      final r = (interchange ? 2.4 : 1.6) * s;
+      final count = game.waiting[st.id]!.floor();
+      final full = game.waiting[st.id]! >= GameState.stationCap - 0.001;
+      final r = (interchange ? 2.4 : 1.9) * s;
       canvas.drawCircle(c, r, Paint()..color = Colors.white);
       canvas.drawCircle(
           c,
           r,
           Paint()
-            ..color = _ink
+            ..color = full ? const Color(0xFFC62828) : _ink
             ..style = PaintingStyle.stroke
-            ..strokeWidth = (interchange ? 0.7 : 0.55) * s);
-      if (interchange) {
+            ..strokeWidth =
+                (full ? 0.85 : (interchange ? 0.7 : 0.55)) * s);
+      if (interchange && count == 0) {
         canvas.drawCircle(
             c,
             1.1 * s,
@@ -290,6 +295,21 @@ class _MapPainter extends CustomPainter {
               ..color = _ink
               ..style = PaintingStyle.stroke
               ..strokeWidth = 0.5 * s);
+      }
+      if (count > 0) {
+        final countPainter = TextPainter(
+          text: TextSpan(
+            text: '$count',
+            style: GoogleFonts.inter(
+              color: full ? const Color(0xFFC62828) : _ink,
+              fontSize: (count < 10 ? 2.1 : 1.7) * s,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        countPainter.paint(canvas,
+            c - Offset(countPainter.width / 2, countPainter.height / 2));
       }
 
       // Label with a white halo (like real map labels) at its hand-tuned
@@ -328,34 +348,6 @@ class _MapPainter extends CustomPainter {
       );
       halo.paint(canvas, labelPos);
       label.paint(canvas, labelPos);
-
-      // Waiting riders badge; full platforms flash red (demand being lost).
-      final count = game.waiting[st.id]!.floor();
-      if (count > 0) {
-        final full = game.waiting[st.id]! >= GameState.stationCap - 0.001;
-        final badge = TextPainter(
-          text: TextSpan(
-            text: '$count',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: (2.0 * s).clamp(7.0, 10.0),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        final bw = badge.width + 1.6 * s;
-        final bh = badge.height + 0.9 * s;
-        final bc = Offset(c.dx + 2.1 * s, c.dy - 2.5 * s - bh);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-              Rect.fromLTWH(bc.dx, bc.dy, bw, bh), Radius.circular(bh / 2)),
-          Paint()
-            ..color =
-                full ? const Color(0xFFC62828) : const Color(0xFF444444),
-        );
-        badge.paint(canvas, Offset(bc.dx + 0.8 * s, bc.dy + 0.45 * s));
-      }
 
       // Food-court marker: a clean square "F" chip (no emoji — STYLE.md).
       if ((game.foodLevel[st.id] ?? 0) > 0) {
