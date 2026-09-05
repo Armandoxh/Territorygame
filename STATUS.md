@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.3.0 · build 11 | **Active** — approved 9-line network LIVE (build 11 green: full harness + deploy verified) |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.4.1 · build 13 | **Active** — approved 9-line network LIVE with per-line upgrades, $2 fare, cap 60, rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -38,10 +38,16 @@ build food courts. Offline earnings (50% rate, 8h cap) with a
 **Engineering state:**
 - `lib/data/cities.dart` is **generated** from the design rig — never
   hand-edit coordinates
-- Deterministic engine (no RNG), save v3 (v1/v2 migrate money/upgrades,
-  world restarts on ①), balance harness enforces the approved rules as
-  tests (unique colors, escalating ladder, shares ≤ 3 stops, fun-zone
-  earn rate, offline math, determinism)
+- Deterministic engine (no RNG), save v4 (older saves migrate money/
+  upgrades, world restarts on ①), balance harness enforces the approved
+  rules as tests (unique colors, escalating ladder, shares ≤ 3 stops,
+  fun-zone earn rate, offline math, determinism)
+- **Upgrades are scoped per line** (tap a line → its trains, motors,
+  cars, step-free), fare is a checkable \$2/rider (pops show `N× +$`),
+  platform cap 60. `demandScale = 0.75` keeps level 0 just past the
+  supply/demand balance point so all three upgrade types measurably pay —
+  the harness proved access was dead weight at 1.0 (build 12's red Sim)
+  and now pins it (speed 1.16×, cars 1.28×, access 1.12× at L5)
 
 **Next up (discussed, not committed):** make unlocks feel bigger
 (district-reveal moment, per-line ridership stats), then the city ladder

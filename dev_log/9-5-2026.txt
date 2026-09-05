@@ -1,0 +1,15 @@
+Metro Magnate builds 12-13: upgrades rescoped per train line (tap a line
+for its trains/motors/cars/step-free; old global levels migrate onto line
+1, save v4), fare made a checkable $2/rider with rider counts printed on
+fare pops, platform cap raised 30 -> 60. Build 12's Sim run then caught a
+real balance bug the player had already sensed ("not sure the upgrades
+are working"): base demand (6.2 riders/s on line 1) so far outstripped
+one train's scoop rate (~4/s) that queues sat pinned at cap and the
+access upgrade -- a demand multiplier -- moved earnings only 1.02x.
+Build 13 adds GameState.demandScale = 0.75, tuned via an exact Python
+port of the tick loop (scratchpad metro_sim.py sweep): level 0 now sits
+just past the supply/demand balance point, so busy stops still saturate
+(cars 1.28x, speed 1.16x at L5) while quieter stops clear and access
+shows up (1.12x). Lesson: in a saturated system every demand-side
+purchase is dead weight; the harness's "each upgrade must measurably
+raise earnings" guard is what caught it.

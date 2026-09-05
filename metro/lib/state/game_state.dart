@@ -60,6 +60,13 @@ class GameState extends ChangeNotifier {
   // ---- Static tuning (the balance harness pins the outcomes) ----
   /// A clean, player-checkable number: riders boarded × \$2 = the pop you see.
   static const double fare = 2.0;
+
+  /// Scales raw station demand so a level-0 line sits just past the
+  /// supply/demand balance point: busy stops saturate (cars/speed/trains
+  /// pay off) while quieter stops get fully cleared (access pays off).
+  /// At 1.0 the whole line saturated and demand upgrades did nothing —
+  /// the harness's "access L5 must show up" guard is what pins this.
+  static const double demandScale = 0.75;
   static const double baseSpeed = 24;
   static const double dwellTime = 0.9; // seconds stopped at a station
   static const double stationCap = 60; // waiting riders cap per station
@@ -211,8 +218,8 @@ class GameState extends ChangeNotifier {
 
     // Riders arrive at every served station, up to each platform's cap.
     for (final id in _served) {
-      final w =
-          waiting[id]! + city.stationById(id).demand * demandMultAt(id) * dt;
+      final w = waiting[id]! +
+          city.stationById(id).demand * demandScale * demandMultAt(id) * dt;
       waiting[id] = w > stationCap ? stationCap : w;
     }
 

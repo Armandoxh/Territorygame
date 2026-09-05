@@ -1,6 +1,6 @@
 # Metro Magnate — project rules
 
-## ▶ CURRENT BUILD: v0.2.6 · build 9
+## ▶ CURRENT BUILD: v0.4.1 · build 13
 
 An idle game about building a subway empire, one line at a time, drawn in
 the modern Live Subway Map dashboard style (see STYLE.md). Lives at
