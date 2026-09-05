@@ -58,10 +58,11 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Static tuning (the balance harness pins the outcomes) ----
-  static const double fare = 2.5;
-  static const double baseSpeed = 24; // map-units/sec (240-unit world)
+  /// A clean, player-checkable number: riders boarded × \$2 = the pop you see.
+  static const double fare = 2.0;
+  static const double baseSpeed = 24;
   static const double dwellTime = 0.9; // seconds stopped at a station
-  static const double stationCap = 30; // waiting riders cap per station
+  static const double stationCap = 60; // waiting riders cap per station
   static const int levelMax = 10;
   static const int foodMax = 5;
   static const double foodBonusPerLevel = 0.4; // extra $ per rider boarding
@@ -116,31 +117,59 @@ class GameState extends ChangeNotifier {
   final Map<String, int> foodLevel = {};
 
   /// Stations touched by at least one unlocked line — the only ones riders
-  /// show up at.
+  /// show up at — and which unlocked lines serve each.
   Set<String> _served = {};
+  Map<String, List<String>> _linesServing = {};
 
   /// Bumped on every boarding so the map can spawn a floating "+$" exactly
   /// once per stop.
   int boardSeq = 0;
   String lastBoardStationId = '';
   double lastBoardAmount = 0;
+  int lastBoardCount = 0;
 
-  // ---- Global upgrades ----
-  int speedLevel = 0;
-  int capacityLevel = 0;
-  int accessLevel = 0;
+  // ---- Per-line upgrades (scoped, never blanketed) ----
+  final Map<String, int> speedLevels = {};
+  final Map<String, int> carLevels = {};
+  final Map<String, int> accessLevels = {};
 
-  double get trainSpeed => baseSpeed * (1 + 0.12 * speedLevel);
-  double get trainCapacity => 8 + 5.0 * capacityLevel;
-  double get demandMult => 1 + 0.10 * accessLevel;
+  int speedLevelOf(String lineId) => speedLevels[lineId] ?? 0;
+  int carLevelOf(String lineId) => carLevels[lineId] ?? 0;
+  int accessLevelOf(String lineId) => accessLevels[lineId] ?? 0;
 
-  double speedCost(int level) => 400 * pow(1.9, level).toDouble();
-  double capacityCost(int level) => 500 * pow(2.0, level).toDouble();
-  double accessCost(int level) => 600 * pow(2.1, level).toDouble();
+  /// This line's trains: +15% speed per level.
+  double trainSpeedFor(String lineId) =>
+      baseSpeed * (1 + 0.15 * speedLevelOf(lineId));
 
-  double get nextSpeedCost => speedCost(speedLevel);
-  double get nextCapacityCost => capacityCost(capacityLevel);
-  double get nextAccessCost => accessCost(accessLevel);
+  /// This line's cars: riders boarded per stop.
+  double capacityFor(String lineId) => 8 + 6.0 * carLevelOf(lineId);
+
+  /// Step-free access on a line lifts ridership at the stations it serves;
+  /// interchanges take the best level among their unlocked lines.
+  double demandMultAt(String stationId) {
+    var best = 0;
+    for (final lineId in _linesServing[stationId] ?? const <String>[]) {
+      final lvl = accessLevelOf(lineId);
+      if (lvl > best) best = lvl;
+    }
+    return 1 + 0.10 * best;
+  }
+
+  /// Upgrade prices scale with the line's tier, so late lines cost more to
+  /// tune but earn more too.
+  double _upgradeBase(LineDef line) => 250 + line.unlockCost * 0.05;
+  double speedCost(String lineId, int level) =>
+      _upgradeBase(city.lineById(lineId)) * pow(1.9, level).toDouble();
+  double carCost(String lineId, int level) =>
+      _upgradeBase(city.lineById(lineId)) * 1.2 * pow(2.0, level).toDouble();
+  double accessCost(String lineId, int level) =>
+      _upgradeBase(city.lineById(lineId)) * 1.5 * pow(2.1, level).toDouble();
+
+  double nextSpeedCost(String lineId) =>
+      speedCost(lineId, speedLevelOf(lineId));
+  double nextCarCost(String lineId) => carCost(lineId, carLevelOf(lineId));
+  double nextAccessCost(String lineId) =>
+      accessCost(lineId, accessLevelOf(lineId));
 
   // ---- Earn-rate estimate (drives the header and offline earnings) ----
   double avgRate = 0;
@@ -156,6 +185,12 @@ class GameState extends ChangeNotifier {
       for (final id in unlockedLineIds)
         ...city.lineById(id).stationIds,
     };
+    _linesServing = {};
+    for (final lineId in unlockedLineIds) {
+      for (final sid in city.lineById(lineId).stationIds) {
+        _linesServing.putIfAbsent(sid, () => []).add(lineId);
+      }
+    }
   }
 
   bool isUnlocked(String lineId) => unlockedLineIds.contains(lineId);
@@ -176,7 +211,8 @@ class GameState extends ChangeNotifier {
 
     // Riders arrive at every served station, up to each platform's cap.
     for (final id in _served) {
-      final w = waiting[id]! + city.stationById(id).demand * demandMult * dt;
+      final w =
+          waiting[id]! + city.stationById(id).demand * demandMultAt(id) * dt;
       waiting[id] = w > stationCap ? stationCap : w;
     }
 
@@ -208,14 +244,15 @@ class GameState extends ChangeNotifier {
     if (remaining <= 0) return;
 
     final targetD = path.stationDistance[t.target];
-    final next = t.distance + trainSpeed * remaining * t.direction;
+    final next =
+        t.distance + trainSpeedFor(t.lineId) * remaining * t.direction;
     final arrived = t.direction > 0 ? next >= targetD : next <= targetD;
     if (!arrived) {
       t.distance = next;
       return;
     }
     t.distance = targetD;
-    _board(line.stationIds[t.target]);
+    _board(t.lineId, line.stationIds[t.target]);
     t.dwell = dwellTime;
     if (t.target == line.stationIds.length - 1) {
       t.direction = -1;
@@ -228,9 +265,10 @@ class GameState extends ChangeNotifier {
     }
   }
 
-  void _board(String stationId) {
+  void _board(String lineId, String stationId) {
     final w = waiting[stationId]!;
-    final take = w < trainCapacity ? w : trainCapacity;
+    final cap = capacityFor(lineId);
+    final take = w < cap ? w : cap;
     if (take <= 0) return;
     waiting[stationId] = w - take;
     // Food courts turn boardings into concession money too.
@@ -243,17 +281,24 @@ class GameState extends ChangeNotifier {
     boardSeq += 1;
     lastBoardStationId = stationId;
     lastBoardAmount = earned;
+    lastBoardCount = take.floor();
   }
 
   // ---- Purchases ----
-  bool buySpeed() => _buy(speedLevel < levelMax, nextSpeedCost, () {
-        speedLevel += 1;
+  bool buySpeed(String lineId) => _buy(
+      isUnlocked(lineId) && speedLevelOf(lineId) < levelMax,
+      nextSpeedCost(lineId), () {
+        speedLevels[lineId] = speedLevelOf(lineId) + 1;
       });
-  bool buyCapacity() => _buy(capacityLevel < levelMax, nextCapacityCost, () {
-        capacityLevel += 1;
+  bool buyCars(String lineId) => _buy(
+      isUnlocked(lineId) && carLevelOf(lineId) < levelMax,
+      nextCarCost(lineId), () {
+        carLevels[lineId] = carLevelOf(lineId) + 1;
       });
-  bool buyAccess() => _buy(accessLevel < levelMax, nextAccessCost, () {
-        accessLevel += 1;
+  bool buyAccess(String lineId) => _buy(
+      isUnlocked(lineId) && accessLevelOf(lineId) < levelMax,
+      nextAccessCost(lineId), () {
+        accessLevels[lineId] = accessLevelOf(lineId) + 1;
       });
 
   bool buyLine(String lineId) {
@@ -325,7 +370,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 3;
+  static const int saveVersion = 4;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -336,9 +381,9 @@ class GameState extends ChangeNotifier {
         'trains': [for (final t in trains) t.toJson()],
         'waiting': waiting,
         'foodLevel': foodLevel,
-        'speedLevel': speedLevel,
-        'capacityLevel': capacityLevel,
-        'accessLevel': accessLevel,
+        'speedLevels': speedLevels,
+        'carLevels': carLevels,
+        'accessLevels': accessLevels,
         'avgRate': avgRate,
         'lastSeenMs': nowMs,
       };
@@ -348,9 +393,21 @@ class GameState extends ChangeNotifier {
     g.cash = (j['cash'] as num).toDouble();
     g.totalEarned = (j['totalEarned'] as num).toDouble();
     g.totalRiders = (j['totalRiders'] as num).toDouble();
-    g.speedLevel = j['speedLevel'] as int;
-    g.capacityLevel = j['capacityLevel'] as int;
-    g.accessLevel = j['accessLevel'] as int;
+    // Old saves carried GLOBAL upgrade levels — grant them to line 1.
+    if (j.containsKey('speedLevel')) {
+      g.speedLevels['1'] = j['speedLevel'] as int;
+      g.carLevels['1'] = j['capacityLevel'] as int;
+      g.accessLevels['1'] = j['accessLevel'] as int;
+    }
+    for (final e in ((j['speedLevels'] as Map?) ?? {}).entries) {
+      g.speedLevels[e.key as String] = e.value as int;
+    }
+    for (final e in ((j['carLevels'] as Map?) ?? {}).entries) {
+      g.carLevels[e.key as String] = e.value as int;
+    }
+    for (final e in ((j['accessLevels'] as Map?) ?? {}).entries) {
+      g.accessLevels[e.key as String] = e.value as int;
+    }
     g.avgRate = (j['avgRate'] as num).toDouble();
     g._loadedLastSeenMs = j['lastSeenMs'] as int?;
 

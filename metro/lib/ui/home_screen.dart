@@ -86,6 +86,18 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  void _openLine(LineDef line) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(),
+      builder: (context) => ListenableBuilder(
+        listenable: game,
+        builder: (context, _) => _LineSheet(game: game, line: line),
+      ),
+    );
+  }
+
   void _openStation(StationDef st) {
     showModalBottomSheet<void>(
       context: context,
@@ -151,7 +163,7 @@ class _HomeScreenState extends State<HomeScreen>
                     const SizedBox(height: 12),
                     MetroMap(game: game, onStationTap: _openStation),
                     const SizedBox(height: 4),
-                    Text('Pinch to zoom · drag to pan · tap a station for details.',
+                    Text('Tap a line for its trains & upgrades · tap a station for concessions.',
                         style: TransitStyle.signage(
                             size: 10,
                             color: const Color(0x99000000),
@@ -167,44 +179,11 @@ class _HomeScreenState extends State<HomeScreen>
                             if (i > 0)
                               Container(
                                   height: 1, color: TransitStyle.hairline),
-                            _LineRow(game: game, line: game.city.lines[i]),
+                            _LineRow(
+                                game: game,
+                                line: game.city.lines[i],
+                                onOpen: _openLine),
                           ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const SectionLabel('SERVICE UPGRADES'),
-                    const SizedBox(height: 8),
-                    DataPanel(
-                      padding: EdgeInsets.zero,
-                      child: Column(
-                        children: [
-                          _UpgradeRow(
-                            name: 'EXPRESS MOTORS',
-                            level: game.speedLevel,
-                            blurb: '+12% train speed per level',
-                            cost: game.nextSpeedCost,
-                            canAfford: game.cash >= game.nextSpeedCost,
-                            onBuy: () => game.buySpeed(),
-                          ),
-                          Container(height: 1, color: TransitStyle.hairline),
-                          _UpgradeRow(
-                            name: 'BIGGER CARS',
-                            level: game.capacityLevel,
-                            blurb: '+6 riders boarded per stop',
-                            cost: game.nextCapacityCost,
-                            canAfford: game.cash >= game.nextCapacityCost,
-                            onBuy: () => game.buyCapacity(),
-                          ),
-                          Container(height: 1, color: TransitStyle.hairline),
-                          _UpgradeRow(
-                            name: 'STEP-FREE STATIONS',
-                            level: game.accessLevel,
-                            blurb: 'Accessibility: +10% ridership per level',
-                            cost: game.nextAccessCost,
-                            canAfford: game.cash >= game.nextAccessCost,
-                            onBuy: () => game.buyAccess(),
-                          ),
                         ],
                       ),
                     ),
@@ -261,6 +240,7 @@ class _Header extends StatelessWidget {
               style: TransitStyle.signage(size: 40, weight: FontWeight.w900)),
           const SizedBox(height: 2),
           Text(
+            'fare \$${GameState.fare.toStringAsFixed(2)}/rider · '
             '≈ \$${game.avgRate.toStringAsFixed(1)}/sec · '
             '${game.totalRiders.toStringAsFixed(0)} riders served',
             style: TransitStyle.signage(
@@ -275,15 +255,19 @@ class _Header extends StatelessWidget {
 /// One row of the LINES panel: bullet, name, and either the unlock buy or
 /// the train count + next-train buy.
 class _LineRow extends StatelessWidget {
-  const _LineRow({required this.game, required this.line});
+  const _LineRow(
+      {required this.game, required this.line, required this.onOpen});
 
   final GameState game;
   final LineDef line;
+  final void Function(LineDef) onOpen;
 
   @override
   Widget build(BuildContext context) {
     final unlocked = game.isUnlocked(line.id);
-    return Padding(
+    return InkWell(
+      onTap: unlocked ? () => onOpen(line) : null,
+      child: Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
       child: Row(
         children: [
@@ -335,15 +319,107 @@ class _LineRow extends StatelessWidget {
             ),
         ],
       ),
+      ),
     );
   }
 }
 
-/// One row of the SERVICE UPGRADES panel — a minimalist data row.
+/// The per-line sheet: THIS line's trains and its own upgrades — nothing
+/// here blankets across the network.
+class _LineSheet extends StatelessWidget {
+  const _LineSheet({required this.game, required this.line});
+
+  final GameState game;
+  final LineDef line;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = line.id;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            StationSign(
+              child: Row(
+                children: [
+                  RouteBullet(
+                      label: line.bullet, color: line.color, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(line.name.toUpperCase(),
+                        style: TransitStyle.signage(size: 16, spacing: 1)),
+                  ),
+                  Text(
+                      '${game.trainCount(id)} train'
+                      '${game.trainCount(id) == 1 ? '' : 's'}',
+                      style: TransitStyle.signage(
+                          size: 12,
+                          color: Colors.white70,
+                          weight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            DataPanel(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _UpgradeRow(
+                    name: 'ADD TRAIN',
+                    level: game.trainCount(id),
+                    maxLevel: 99,
+                    blurb: 'Another ${line.bullet} train in service',
+                    cost: game.nextTrainCost(line),
+                    canAfford: game.cash >= game.nextTrainCost(line),
+                    onBuy: () => game.buyTrain(id),
+                  ),
+                  Container(height: 1, color: TransitStyle.hairline),
+                  _UpgradeRow(
+                    name: 'EXPRESS MOTORS',
+                    level: game.speedLevelOf(id),
+                    blurb: '+15% speed for ${line.bullet} trains',
+                    cost: game.nextSpeedCost(id),
+                    canAfford: game.cash >= game.nextSpeedCost(id),
+                    onBuy: () => game.buySpeed(id),
+                  ),
+                  Container(height: 1, color: TransitStyle.hairline),
+                  _UpgradeRow(
+                    name: 'BIGGER CARS',
+                    level: game.carLevelOf(id),
+                    blurb:
+                        'Riders per stop: ${game.capacityFor(id).toStringAsFixed(0)} (+6 per level)',
+                    cost: game.nextCarCost(id),
+                    canAfford: game.cash >= game.nextCarCost(id),
+                    onBuy: () => game.buyCars(id),
+                  ),
+                  Container(height: 1, color: TransitStyle.hairline),
+                  _UpgradeRow(
+                    name: 'STEP-FREE STATIONS',
+                    level: game.accessLevelOf(id),
+                    blurb: "+10% ridership on this line's stations",
+                    cost: game.nextAccessCost(id),
+                    canAfford: game.cash >= game.nextAccessCost(id),
+                    onBuy: () => game.buyAccess(id),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A minimalist upgrade data row (used by the line sheet).
 class _UpgradeRow extends StatelessWidget {
   const _UpgradeRow({
     required this.name,
     required this.level,
+    this.maxLevel = GameState.levelMax,
     required this.blurb,
     required this.cost,
     required this.canAfford,
@@ -352,6 +428,7 @@ class _UpgradeRow extends StatelessWidget {
 
   final String name;
   final int level;
+  final int maxLevel;
   final String blurb;
   final double cost;
   final bool canAfford;
@@ -359,7 +436,7 @@ class _UpgradeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxed = level >= GameState.levelMax;
+    final maxed = level >= maxLevel;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
       child: Row(
@@ -368,7 +445,10 @@ class _UpgradeRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$name · LV $level/${GameState.levelMax}',
+                Text(
+                    maxLevel > GameState.levelMax
+                        ? '$name · $level in service'
+                        : '$name · LV $level/$maxLevel',
                     style: TransitStyle.signage(
                         size: 12,
                         color: TransitStyle.ink,
@@ -449,7 +529,7 @@ class _StationSheet extends StatelessWidget {
                   _Stat(
                       label: 'DEMAND',
                       value:
-                          '${(station.demand * game.demandMult * 60).toStringAsFixed(0)}/min'),
+                          '${(station.demand * game.demandMultAt(station.id) * 60).toStringAsFixed(0)}/min'),
                   _Stat(
                       label: 'WAITING',
                       value:

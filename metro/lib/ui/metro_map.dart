@@ -64,6 +64,7 @@ class _MetroMapState extends State<MetroMap> {
         _pops.add(_FarePop(
           stationId: g.lastBoardStationId,
           amount: g.lastBoardAmount,
+          riders: g.lastBoardCount,
           bornMs: now,
         ));
       }
@@ -162,9 +163,13 @@ class _MetroMapState extends State<MetroMap> {
 
 class _FarePop {
   const _FarePop(
-      {required this.stationId, required this.amount, required this.bornMs});
+      {required this.stationId,
+      required this.amount,
+      required this.riders,
+      required this.bornMs});
   final String stationId;
   final double amount;
+  final int riders;
   final int bornMs;
 
   static const int lifeMs = 1100;
@@ -498,7 +503,7 @@ class _MapPainter extends CustomPainter {
       final pos = c + Offset(0, -4.5 * s - 9 * s * t);
       final tp = TextPainter(
         text: TextSpan(
-          text: '+\$${p.amount.toStringAsFixed(0)}',
+          text: '${p.riders}× +\$${p.amount.toStringAsFixed(0)}',
           style: GoogleFonts.inter(
             color: const Color(0xFF1B5E20).withOpacity(1 - t),
             fontSize: 3.0 * s,

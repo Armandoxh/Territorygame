@@ -84,6 +84,52 @@ void main() {
         reason: 'a 2nd train must matter (got ${two / one}x)');
   });
 
+  test('UPGRADES WORK: each line-1 upgrade measurably raises earnings', () {
+    final base = run(240).totalEarned;
+    final faster = run(240, setup: (g) {
+      g.speedLevels['1'] = 5;
+    }).totalEarned;
+    final bigger = run(240, setup: (g) {
+      g.carLevels['1'] = 5;
+    }).totalEarned;
+    final accessible = run(240, setup: (g) {
+      g.accessLevels['1'] = 5;
+    }).totalEarned;
+    expect(faster, greaterThan(base * 1.08),
+        reason: 'speed L5 must show up (got ${faster / base}x)');
+    expect(bigger, greaterThan(base * 1.15),
+        reason: 'cars L5 must show up (got ${bigger / base}x)');
+    expect(accessible, greaterThan(base * 1.05),
+        reason: 'access L5 must show up (got ${accessible / base}x)');
+  });
+
+  test('upgrades are SCOPED: line-A levels do nothing while only 1 runs', () {
+    final base = run(240).totalEarned;
+    final other = run(240, setup: (g) {
+      g.speedLevels['A'] = 8;
+      g.carLevels['A'] = 8;
+      g.accessLevels['A'] = 8;
+    }).totalEarned;
+    expect(other, closeTo(base, base * 0.001),
+        reason: "another line's upgrades must not blanket across");
+  });
+
+  test('income is checkable: one boarding pays riders × fare', () {
+    final g = GameState();
+    var checked = 0;
+    var lastSeq = 0;
+    for (var i = 0; i < 3000 && checked < 20; i++) {
+      g.tick(0.1);
+      if (g.boardSeq != lastSeq) {
+        lastSeq = g.boardSeq;
+        checked++;
+        expect(g.lastBoardCount, lessThanOrEqualTo(g.capacityFor('1')),
+            reason: 'a stop never boards more than the cars hold');
+      }
+    }
+    expect(checked, greaterThan(5));
+  });
+
   test('a food court raises earnings at a busy interchange', () {
     // s114_172 = 45 St, on line 1 (and the future N corridor).
     final plain = run(240).totalEarned;

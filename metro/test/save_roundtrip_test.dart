@@ -16,8 +16,8 @@ void main() {
     g.buyFood('s114_172');
     for (var i = 0; i < 2000; i++) {
       g.tick(0.1);
-      g.buySpeed();
-      g.buyAccess();
+      g.buySpeed('1');
+      g.buyAccess('1');
     }
 
     final r = GameState.fromJson(
@@ -35,8 +35,8 @@ void main() {
       expect(r.trains[i].target, g.trains[i].target);
     }
     expect(r.foodLevel['s114_172'], 2);
-    expect(r.speedLevel, g.speedLevel);
-    expect(r.accessLevel, g.accessLevel);
+    expect(r.speedLevelOf('1'), g.speedLevelOf('1'));
+    expect(r.accessLevelOf('1'), g.accessLevelOf('1'));
     expect(r.avgRate, closeTo(g.avgRate, 0.001));
     for (final e in g.waiting.entries) {
       expect(r.waiting[e.key], closeTo(e.value, 0.001));
@@ -95,7 +95,8 @@ void main() {
     ]) {
       final g = GameState.fromJson(old);
       expect(g.cash, closeTo((old['cash'] as num).toDouble(), 0.001));
-      expect(g.speedLevel, old['speedLevel']);
+      // Old GLOBAL upgrade levels land on line 1.
+      expect(g.speedLevelOf('1'), old['speedLevel']);
       expect(g.avgRate, closeTo((old['avgRate'] as num).toDouble(), 0.001));
       expect(g.unlockedLineIds, {'1'},
           reason: 'migrated worlds restart on line 1 of the approved map');
