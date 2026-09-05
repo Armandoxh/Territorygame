@@ -173,7 +173,7 @@ void main() {
   });
 
   test('a food court raises earnings at a busy interchange', () {
-    // s114_172 = 45 St, on line 1 (and the future N corridor).
+    // s114_172 = 45 St, a line 1 / N corridor stop.
     final plain = run(240).totalEarned;
     final fed = run(240, setup: (g) {
       g.cash = 100000;

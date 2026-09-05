@@ -1,4 +1,4 @@
 /// Shown in the footer; bump the build number on every deployed change so the
 /// live page always tells you which build you're looking at.
-const String kAppVersion = '0.4.2';
-const int kBuildNumber = 14;
+const String kAppVersion = '0.4.3';
+const int kBuildNumber = 15;

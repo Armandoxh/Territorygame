@@ -24,3 +24,13 @@ live so income stays checkable). Save v5 adds globalLevels (older saves
 default 0). Effect sizes tuned in the python sim first (L5: 1.06x/1.08x/
 1.11x/1.63x) and pinned by new harness tests, plus a caps/price-
 escalation test and save round-trip coverage.
+
+Metro Magnate build 15: dead-code sweep (player request). Removed a
+duplicate terminal-bullet draw in _MapPainter.paint that predated the
+segment-lane port and painted a slightly bigger bullet (r1.7, ext 5.0)
+on top of the rig-approved one (r1.6, ext 4.5) -- shipped map now matches
+the approved SVG exactly. Also removed the unused SectionLabel widget
+(orphaned by the tab strip), CityDef.tagline (written, never read), and
+Cities.all (never referenced); fixed _LineRow's broken indentation and
+three stale doc comments (home screen still described the deleted
+SERVICE panel, map doc described the pre-water-frame look).

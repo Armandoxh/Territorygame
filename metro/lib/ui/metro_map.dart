@@ -7,10 +7,12 @@ import '../data/cities.dart';
 import '../state/game_state.dart';
 import 'transit_style.dart';
 
-/// The classic paper transit map: cream ground, colored lines through
-/// white-ringed station dots, trains sliding along them, waiting counts at
-/// each platform, and floating "+$" as riders board. Locked lines are drawn
-/// dashed — the routes you're saving for. Tap a served station to open it.
+/// The living map (STYLE.md): water-framed flat land, lines on their lane
+/// offsets through station dots that inflate with waiting counts, trains
+/// sliding as route bullets, and "riders × +$" pops as they board. Locked
+/// lines draw dashed gray with a price plate — the routes you're saving
+/// for. Pinch-zooms from whole-city to street level; tap a served station
+/// to open it.
 class MetroMap extends StatefulWidget {
   const MetroMap({super.key, required this.game, required this.onStationTap});
 
@@ -414,35 +416,6 @@ class _MapPainter extends CustomPainter {
         )..layout();
         f.paint(canvas,
             fr.center - Offset(f.width / 2, f.height / 2));
-      }
-    }
-
-    // Terminal route bullets: the line's bullet extended past each end,
-    // exactly like the printed diagram caps its routes.
-    for (final line in city.lines) {
-      if (!game.isUnlocked(line.id)) continue;
-      final pts = game.paths[line.id]!.points;
-      for (final end in [0, pts.length - 1]) {
-        final terminal = pts[end];
-        final prev = pts[end == 0 ? 1 : pts.length - 2];
-        final dir = terminal - prev;
-        final len = dir.distance;
-        if (len < 0.001) continue;
-        final pos = m(terminal + dir / len * 5.0);
-        canvas.drawCircle(pos, 1.7 * s, Paint()..color = line.color);
-        final darkTxt = line.color.computeLuminance() > 0.5;
-        final tp = TextPainter(
-          text: TextSpan(
-            text: line.bullet,
-            style: GoogleFonts.inter(
-              color: darkTxt ? _ink : Colors.white,
-              fontSize: 2.0 * s,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
       }
     }
 

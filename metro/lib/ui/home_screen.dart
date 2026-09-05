@@ -11,10 +11,11 @@ import 'metro_map.dart';
 import 'transit_style.dart';
 
 /// One screen, dashboard voice (STYLE.md): the sign-bar header, the living
-/// map, a LINES panel (unlock lines, add trains), SERVICE upgrades, and
-/// tappable stations for per-station work (food courts). The game ticks at
-/// frame rate while open; a periodic timer persists it; time away is
-/// credited on return.
+/// map, and a LINES / NETWORK tab strip — LINES unlocks routes and opens
+/// per-line sheets (trains + scoped upgrades), NETWORK sells the city-wide
+/// levers. Stations tap open for per-station work (food courts). The game
+/// ticks at frame rate while open; a periodic timer persists it; time away
+/// is credited on return.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -359,57 +360,57 @@ class _LineRow extends StatelessWidget {
     return InkWell(
       onTap: unlocked ? () => onOpen(line) : null,
       child: Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-      child: Row(
-        children: [
-          RouteBullet(
-              label: line.bullet,
-              color: line.color,
-              size: 26,
-              dimmed: !unlocked),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(line.name.toUpperCase(),
+        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+        child: Row(
+          children: [
+            RouteBullet(
+                label: line.bullet,
+                color: line.color,
+                size: 26,
+                dimmed: !unlocked),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(line.name.toUpperCase(),
+                      style: TransitStyle.signage(
+                          size: 12,
+                          color: TransitStyle.ink,
+                          weight: FontWeight.w900,
+                          spacing: 0.5)),
+                  Text(
+                    unlocked
+                        ? '${game.trainCount(line.id)} train'
+                            '${game.trainCount(line.id) == 1 ? '' : 's'} in service'
+                        : '${line.stationIds.length} stations · planned route',
                     style: TransitStyle.signage(
-                        size: 12,
-                        color: TransitStyle.ink,
-                        weight: FontWeight.w900,
-                        spacing: 0.5)),
-                Text(
-                  unlocked
-                      ? '${game.trainCount(line.id)} train'
-                          '${game.trainCount(line.id) == 1 ? '' : 's'} in service'
-                      : '${line.stationIds.length} stations · planned route',
-                  style: TransitStyle.signage(
-                      size: 11,
-                      color: const Color(0x99000000),
-                      weight: FontWeight.w600),
-                ),
-              ],
+                        size: 11,
+                        color: const Color(0x99000000),
+                        weight: FontWeight.w600),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          if (unlocked)
-            OutlinedButton(
-              onPressed: game.cash >= game.nextTrainCost(line)
-                  ? () => game.buyTrain(line.id)
-                  : null,
-              child: Text(
-                  '+ TRAIN \$${game.nextTrainCost(line).toStringAsFixed(0)}'),
-            )
-          else
-            FilledButton(
-              onPressed: game.cash >= line.unlockCost
-                  ? () => game.buyLine(line.id)
-                  : null,
-              child:
-                  Text('UNLOCK \$${line.unlockCost.toStringAsFixed(0)}'),
-            ),
-        ],
-      ),
+            const SizedBox(width: 8),
+            if (unlocked)
+              OutlinedButton(
+                onPressed: game.cash >= game.nextTrainCost(line)
+                    ? () => game.buyTrain(line.id)
+                    : null,
+                child: Text(
+                    '+ TRAIN \$${game.nextTrainCost(line).toStringAsFixed(0)}'),
+              )
+            else
+              FilledButton(
+                onPressed: game.cash >= line.unlockCost
+                    ? () => game.buyLine(line.id)
+                    : null,
+                child:
+                    Text('UNLOCK \$${line.unlockCost.toStringAsFixed(0)}'),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -115,26 +115,3 @@ class DataPanel extends StatelessWidget {
   }
 }
 
-/// A section header in dashboard voice: small heavy caps over a hairline.
-class SectionLabel extends StatelessWidget {
-  const SectionLabel(this.text, {super.key});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(text,
-            style: TransitStyle.signage(
-                size: 11,
-                color: TransitStyle.ink,
-                weight: FontWeight.w900,
-                spacing: 2)),
-        const SizedBox(height: 4),
-        Container(height: 1, color: TransitStyle.hairline),
-      ],
-    );
-  }
-}

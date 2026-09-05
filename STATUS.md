@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.4.2 · build 14 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.4.3 · build 15 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -38,7 +38,7 @@ build food courts. Offline earnings (50% rate, 8h cap) with a
 **Engineering state:**
 - `lib/data/cities.dart` is **generated** from the design rig — never
   hand-edit coordinates
-- Deterministic engine (no RNG), save v4 (older saves migrate money/
+- Deterministic engine (no RNG), save v5 (older saves migrate money/
   upgrades, world restarts on ①), balance harness enforces the approved
   rules as tests (unique colors, escalating ladder, shares ≤ 3 stops,
   fun-zone earn rate, offline math, determinism)

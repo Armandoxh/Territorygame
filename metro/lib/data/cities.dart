@@ -86,7 +86,6 @@ class LineDef {
 class CityDef {
   final String id;
   final String name;
-  final String tagline;
 
   /// Side length of the square map space.
   final double size;
@@ -104,7 +103,6 @@ class CityDef {
   const CityDef({
     required this.id,
     required this.name,
-    required this.tagline,
     this.size = 100,
     required this.stations,
     required this.lines,
@@ -126,7 +124,6 @@ class Cities {
   static const newMeridian = CityDef(
     id: 'new_meridian',
     name: 'New Meridian',
-    tagline: 'The city that never stops riding.',
     size: 300,
     stations: [
       // GENERATED from the approved design rig (tools/mapmock.py) —
@@ -335,8 +332,6 @@ class Cities {
       ParkDef(102, 40, 10, 7, -3),
     ],
   );
-
-  static const List<CityDef> all = [newMeridian];
 }
 
 /// Geometry of a line's path: station positions with cumulative distances.
