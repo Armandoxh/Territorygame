@@ -2,8 +2,8 @@
 
 ## ▶ CURRENT BUILD: v0.2.0 · build 3
 
-An idle game about building a subway empire, one line at a time, drawn as a
-classic paper transit map. Lives at
+An idle game about building a subway empire, one line at a time, drawn in
+the modern Live Subway Map dashboard style (see STYLE.md). Lives at
 https://armandoxh.github.io/Territorygame/metro/ (deployed by
 `.github/workflows/metro-web.yml` on every push that touches `metro/`).
 
