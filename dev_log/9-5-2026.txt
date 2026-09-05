@@ -13,3 +13,14 @@ just past the supply/demand balance point, so busy stops still saturate
 shows up (1.12x). Lesson: in a saturated system every demand-side
 purchase is dead weight; the harness's "each upgrade must measurably
 raise earnings" guard is what caught it.
+
+Metro Magnate build 14: NETWORK tab (player request: "add another tab for
+global upgrades"). Lower panel is now a two-tab strip LINES / NETWORK;
+NETWORK holds four city-wide upgrades on four distinct levers so none
+duplicates a per-line buy: Signal Modernization (+4% speed/level, all
+lines), Platform Doors (-5% dwell/level), City Marketing (+5% ridership/
+level), Fare Review (+$0.25 fare/level, capped at $4, header fare updates
+live so income stays checkable). Save v5 adds globalLevels (older saves
+default 0). Effect sizes tuned in the python sim first (L5: 1.06x/1.08x/
+1.11x/1.63x) and pinned by new harness tests, plus a caps/price-
+escalation test and save round-trip coverage.

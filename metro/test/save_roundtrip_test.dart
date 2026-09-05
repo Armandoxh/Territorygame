@@ -18,6 +18,8 @@ void main() {
       g.tick(0.1);
       g.buySpeed('1');
       g.buyAccess('1');
+      g.buyGlobal('signal');
+      g.buyGlobal('fare');
     }
 
     final r = GameState.fromJson(
@@ -37,6 +39,9 @@ void main() {
     expect(r.foodLevel['s114_172'], 2);
     expect(r.speedLevelOf('1'), g.speedLevelOf('1'));
     expect(r.accessLevelOf('1'), g.accessLevelOf('1'));
+    expect(r.globalLevelOf('signal'), g.globalLevelOf('signal'));
+    expect(r.globalLevelOf('fare'), g.globalLevelOf('fare'));
+    expect(r.currentFare, closeTo(g.currentFare, 0.001));
     expect(r.avgRate, closeTo(g.avgRate, 0.001));
     for (final e in g.waiting.entries) {
       expect(r.waiting[e.key], closeTo(e.value, 0.001));
@@ -97,6 +102,8 @@ void main() {
       expect(g.cash, closeTo((old['cash'] as num).toDouble(), 0.001));
       // Old GLOBAL upgrade levels land on line 1.
       expect(g.speedLevelOf('1'), old['speedLevel']);
+      expect(g.globalLevelOf('fare'), 0,
+          reason: 'saves from before the NETWORK tab start with no globals');
       expect(g.avgRate, closeTo((old['avgRate'] as num).toDouble(), 0.001));
       expect(g.unlockedLineIds, {'1'},
           reason: 'migrated worlds restart on line 1 of the approved map');

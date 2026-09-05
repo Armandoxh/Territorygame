@@ -25,6 +25,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   GameState game = GameState();
+  int _tab = 0; // 0 = LINES, 1 = NETWORK
   late final Ticker _ticker = createTicker(_onTick);
   Duration _lastElapsed = Duration.zero;
   Timer? _savePulse;
@@ -66,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showWelcomeBack(double credit) {
-    final riders = (credit / GameState.fare).round();
+    final riders = (credit / game.currentFare).round();
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -163,30 +164,39 @@ class _HomeScreenState extends State<HomeScreen>
                     const SizedBox(height: 12),
                     MetroMap(game: game, onStationTap: _openStation),
                     const SizedBox(height: 4),
-                    Text('Tap a line for its trains & upgrades · tap a station for concessions.',
+                    Text('Tap a line for its trains & upgrades · tap a station for concessions · NETWORK tab for city-wide works.',
                         style: TransitStyle.signage(
                             size: 10,
                             color: const Color(0x99000000),
                             weight: FontWeight.w600)),
                     const SizedBox(height: 16),
-                    const SectionLabel('LINES'),
-                    const SizedBox(height: 8),
-                    DataPanel(
-                      padding: EdgeInsets.zero,
-                      child: Column(
-                        children: [
-                          for (var i = 0; i < game.city.lines.length; i++) ...[
-                            if (i > 0)
-                              Container(
-                                  height: 1, color: TransitStyle.hairline),
-                            _LineRow(
-                                game: game,
-                                line: game.city.lines[i],
-                                onOpen: _openLine),
-                          ],
-                        ],
-                      ),
+                    _TabBar(
+                      tabs: const ['LINES', 'NETWORK'],
+                      selected: _tab,
+                      onSelect: (i) => setState(() => _tab = i),
                     ),
+                    const SizedBox(height: 8),
+                    if (_tab == 0)
+                      DataPanel(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          children: [
+                            for (var i = 0;
+                                i < game.city.lines.length;
+                                i++) ...[
+                              if (i > 0)
+                                Container(
+                                    height: 1, color: TransitStyle.hairline),
+                              _LineRow(
+                                  game: game,
+                                  line: game.city.lines[i],
+                                  onOpen: _openLine),
+                            ],
+                          ],
+                        ),
+                      )
+                    else
+                      _NetworkPanel(game: game),
                     const SizedBox(height: 16),
                     Center(
                       child: TextButton(
@@ -207,6 +217,87 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
+}
+
+/// Square-cornered dashboard tab strip: 1px ink border, active tab inverts
+/// to the sign-bar black — same visual language as the data panels.
+class _TabBar extends StatelessWidget {
+  const _TabBar(
+      {required this.tabs, required this.selected, required this.onSelect});
+
+  final List<String> tabs;
+  final int selected;
+  final void Function(int) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: TransitStyle.ink),
+        color: Colors.white,
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < tabs.length; i++)
+            Expanded(
+              child: GestureDetector(
+                onTap: () => onSelect(i),
+                child: Container(
+                  color: i == selected ? TransitStyle.ink : Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  alignment: Alignment.center,
+                  child: Text(
+                    tabs[i],
+                    style: TransitStyle.signage(
+                        size: 12,
+                        color: i == selected ? Colors.white : TransitStyle.ink,
+                        weight: FontWeight.w900,
+                        spacing: 2),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The NETWORK tab: upgrades that hit every line at once — signals, doors,
+/// marketing, fares. The system-wide counterpart to the per-line sheets.
+class _NetworkPanel extends StatelessWidget {
+  const _NetworkPanel({required this.game});
+  final GameState game;
+
+  @override
+  Widget build(BuildContext context) {
+    return DataPanel(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (var i = 0; i < GameState.globalUpgrades.length; i++) ...[
+            if (i > 0) Container(height: 1, color: TransitStyle.hairline),
+            _UpgradeRow(
+              name: GameState.globalUpgrades[i].name,
+              level: game.globalLevelOf(GameState.globalUpgrades[i].id),
+              maxLevel: GameState.globalUpgrades[i].maxLevel,
+              blurb: _liveBlurb(GameState.globalUpgrades[i]),
+              cost: game.nextGlobalCost(GameState.globalUpgrades[i].id),
+              canAfford: game.cash >=
+                  game.nextGlobalCost(GameState.globalUpgrades[i].id),
+              onBuy: () => game.buyGlobal(GameState.globalUpgrades[i].id),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// The fare row shows the live fare so the header number always traces
+  /// back to a purchase the player made.
+  String _liveBlurb(GlobalUpgradeDef def) => def.id == 'fare'
+      ? '${def.blurb} · now \$${game.currentFare.toStringAsFixed(2)}'
+      : def.blurb;
 }
 
 /// The header is a station sign: black bar, white rule, the bullets of every
@@ -240,7 +331,7 @@ class _Header extends StatelessWidget {
               style: TransitStyle.signage(size: 40, weight: FontWeight.w900)),
           const SizedBox(height: 2),
           Text(
-            'fare \$${GameState.fare.toStringAsFixed(2)}/rider · '
+            'fare \$${game.currentFare.toStringAsFixed(2)}/rider · '
             '≈ \$${game.avgRate.toStringAsFixed(1)}/sec · '
             '${game.totalRiders.toStringAsFixed(0)} riders served',
             style: TransitStyle.signage(

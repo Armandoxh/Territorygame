@@ -103,6 +103,48 @@ void main() {
         reason: 'access L5 must show up (got ${accessible / base}x)');
   });
 
+  test('NETWORK upgrades work: each global upgrade measurably pays', () {
+    final base = run(240).totalEarned;
+    // Measured L5 effects: signal 1.057x, doors 1.079x, marketing 1.105x,
+    // fare 1.625x — thresholds leave margin but prove each lever is real.
+    final mustBeat = {
+      'signal': 1.03,
+      'doors': 1.04,
+      'marketing': 1.05,
+      'fare': 1.4,
+    };
+    for (final def in GameState.globalUpgrades) {
+      final boosted = run(240, setup: (g) {
+        g.globalLevels[def.id] = 5;
+      }).totalEarned;
+      expect(boosted, greaterThan(base * mustBeat[def.id]!),
+          reason: '${def.id} L5 must show up (got ${boosted / base}x)');
+    }
+  });
+
+  test('NETWORK upgrades respect their caps and escalate in price', () {
+    final g = GameState();
+    g.cash = 1e12;
+    for (final def in GameState.globalUpgrades) {
+      var lastCost = 0.0;
+      var bought = 0;
+      while (true) {
+        final cost = g.nextGlobalCost(def.id);
+        if (!g.buyGlobal(def.id)) break;
+        bought++;
+        expect(cost, greaterThan(lastCost),
+            reason: '${def.id} price must escalate');
+        lastCost = cost;
+      }
+      expect(bought, def.maxLevel);
+      expect(g.globalLevelOf(def.id), def.maxLevel);
+    }
+    // Fare reviews are visible in the checkable fare.
+    expect(g.currentFare,
+        closeTo(GameState.fare + 0.25 * GameState.globalById('fare').maxLevel,
+            0.001));
+  });
+
   test('upgrades are SCOPED: line-A levels do nothing while only 1 runs', () {
     final base = run(240).totalEarned;
     final other = run(240, setup: (g) {

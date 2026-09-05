@@ -38,6 +38,27 @@ class TrainState {
       );
 }
 
+/// A network-wide upgrade: one lever that applies to every line at once —
+/// the counterpart to the per-line sheet. Data-only; the engine wires each
+/// id to its effect.
+class GlobalUpgradeDef {
+  const GlobalUpgradeDef({
+    required this.id,
+    required this.name,
+    required this.blurb,
+    required this.baseCost,
+    required this.growth,
+    required this.maxLevel,
+  });
+
+  final String id;
+  final String name;
+  final String blurb;
+  final double baseCost;
+  final double growth;
+  final int maxLevel;
+}
+
 /// The whole simulation: one city, unlockable lines, any number of trains,
 /// per-station food courts. Pure and deterministic — [tick] advances the
 /// world by dt seconds with no RNG, so the balance harness replays it
@@ -135,6 +156,61 @@ class GameState extends ChangeNotifier {
   double lastBoardAmount = 0;
   int lastBoardCount = 0;
 
+  // ---- Network-wide upgrades (the NETWORK tab) ----
+  static const List<GlobalUpgradeDef> globalUpgrades = [
+    GlobalUpgradeDef(
+        id: 'signal',
+        name: 'SIGNAL MODERNIZATION',
+        blurb: '+4% train speed, every line',
+        baseCost: 2500,
+        growth: 2.0,
+        maxLevel: 10),
+    GlobalUpgradeDef(
+        id: 'doors',
+        name: 'PLATFORM DOORS',
+        blurb: 'Stops 5% shorter at every station',
+        baseCost: 2000,
+        growth: 2.0,
+        maxLevel: 10),
+    GlobalUpgradeDef(
+        id: 'marketing',
+        name: 'CITY MARKETING',
+        blurb: '+5% ridership across the city',
+        baseCost: 3000,
+        growth: 2.1,
+        maxLevel: 10),
+    GlobalUpgradeDef(
+        id: 'fare',
+        name: 'FARE REVIEW',
+        blurb: '+\$0.25 fare per rider',
+        baseCost: 5000,
+        growth: 2.5,
+        maxLevel: 8),
+  ];
+
+  final Map<String, int> globalLevels = {};
+
+  int globalLevelOf(String id) => globalLevels[id] ?? 0;
+
+  static GlobalUpgradeDef globalById(String id) =>
+      globalUpgrades.firstWhere((u) => u.id == id);
+
+  double nextGlobalCost(String id) =>
+      globalById(id).baseCost *
+      pow(globalById(id).growth, globalLevelOf(id)).toDouble();
+
+  bool buyGlobal(String id) => _buy(
+      globalLevelOf(id) < globalById(id).maxLevel, nextGlobalCost(id), () {
+        globalLevels[id] = globalLevelOf(id) + 1;
+      });
+
+  /// The fare riders actually pay right now (base + fare reviews) — shown
+  /// live in the header so income stays player-checkable.
+  double get currentFare => fare + 0.25 * globalLevelOf('fare');
+
+  /// Seconds stopped at each station, after platform doors.
+  double get effectiveDwell => dwellTime * (1 - 0.05 * globalLevelOf('doors'));
+
   // ---- Per-line upgrades (scoped, never blanketed) ----
   final Map<String, int> speedLevels = {};
   final Map<String, int> carLevels = {};
@@ -144,9 +220,11 @@ class GameState extends ChangeNotifier {
   int carLevelOf(String lineId) => carLevels[lineId] ?? 0;
   int accessLevelOf(String lineId) => accessLevels[lineId] ?? 0;
 
-  /// This line's trains: +15% speed per level.
+  /// This line's trains: +15% speed per level, times network signals.
   double trainSpeedFor(String lineId) =>
-      baseSpeed * (1 + 0.15 * speedLevelOf(lineId));
+      baseSpeed *
+      (1 + 0.15 * speedLevelOf(lineId)) *
+      (1 + 0.04 * globalLevelOf('signal'));
 
   /// This line's cars: riders boarded per stop.
   double capacityFor(String lineId) => 8 + 6.0 * carLevelOf(lineId);
@@ -159,7 +237,7 @@ class GameState extends ChangeNotifier {
       final lvl = accessLevelOf(lineId);
       if (lvl > best) best = lvl;
     }
-    return 1 + 0.10 * best;
+    return (1 + 0.10 * best) * (1 + 0.05 * globalLevelOf('marketing'));
   }
 
   /// Upgrade prices scale with the line's tier, so late lines cost more to
@@ -260,7 +338,7 @@ class GameState extends ChangeNotifier {
     }
     t.distance = targetD;
     _board(t.lineId, line.stationIds[t.target]);
-    t.dwell = dwellTime;
+    t.dwell = effectiveDwell;
     if (t.target == line.stationIds.length - 1) {
       t.direction = -1;
       t.target -= 1;
@@ -279,7 +357,8 @@ class GameState extends ChangeNotifier {
     if (take <= 0) return;
     waiting[stationId] = w - take;
     // Food courts turn boardings into concession money too.
-    final perRider = fare + foodBonusPerLevel * (foodLevel[stationId] ?? 0);
+    final perRider =
+        currentFare + foodBonusPerLevel * (foodLevel[stationId] ?? 0);
     final earned = take * perRider;
     cash += earned;
     totalEarned += earned;
@@ -361,7 +440,7 @@ class GameState extends ChangeNotifier {
     if (credit < 1) return 0;
     cash += credit;
     totalEarned += credit;
-    totalRiders += credit / fare;
+    totalRiders += credit / currentFare;
     notifyListeners();
     return credit;
   }
@@ -377,7 +456,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 4;
+  static const int saveVersion = 5;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -391,6 +470,7 @@ class GameState extends ChangeNotifier {
         'speedLevels': speedLevels,
         'carLevels': carLevels,
         'accessLevels': accessLevels,
+        'globalLevels': globalLevels,
         'avgRate': avgRate,
         'lastSeenMs': nowMs,
       };
@@ -414,6 +494,9 @@ class GameState extends ChangeNotifier {
     }
     for (final e in ((j['accessLevels'] as Map?) ?? {}).entries) {
       g.accessLevels[e.key as String] = e.value as int;
+    }
+    for (final e in ((j['globalLevels'] as Map?) ?? {}).entries) {
+      g.globalLevels[e.key as String] = e.value as int;
     }
     g.avgRate = (j['avgRate'] as num).toDouble();
     g._loadedLastSeenMs = j['lastSeenMs'] as int?;
