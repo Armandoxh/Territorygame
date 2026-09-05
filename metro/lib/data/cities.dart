@@ -71,6 +71,11 @@ class LineDef {
   /// Cost of the line's 2nd train (each further train ×2.5).
   final double trainCost;
 
+  /// Where the on-map price plate sits while locked — hand-placed in open
+  /// land (the path midpoint landed on interchanges and made a pileup).
+  final double plateX;
+  final double plateY;
+
   const LineDef({
     required this.id,
     required this.name,
@@ -79,6 +84,8 @@ class LineDef {
     required this.stationIds,
     required this.unlockCost,
     required this.trainCost,
+    this.plateX = 0,
+    this.plateY = 0,
   });
 }
 
@@ -126,7 +133,14 @@ class Cities {
     stations: [
       // Line 1 corridor. Label offsets are hand-tuned: three stations share
       // the y=60 row, so their labels fan out instead of stacking.
-      StationDef(id: 'harbor', name: 'Harbor Yards', x: 15, y: 85, demand: 0.5),
+      StationDef(
+          id: 'harbor',
+          name: 'Harbor Yards',
+          x: 15,
+          y: 85,
+          demand: 0.5,
+          labelDx: 2.5,
+          labelDy: 3.8),
       StationDef(
           id: 'union',
           name: 'Union Square',
@@ -141,9 +155,16 @@ class Cities {
           x: 60,
           y: 60,
           demand: 0.8,
-          labelDx: 11,
-          labelDy: -6),
-      StationDef(id: 'museum', name: 'Museum Mile', x: 60, y: 35, demand: 0.6),
+          labelDx: 13,
+          labelDy: -6.5),
+      StationDef(
+          id: 'museum',
+          name: 'Museum Mile',
+          x: 60,
+          y: 35,
+          demand: 0.6,
+          labelDx: -9.5,
+          labelDy: 0),
       StationDef(
           id: 'northgate', name: 'Northgate', x: 80, y: 15, demand: 0.4),
       // Line A corridor (interchange at Union Square).
@@ -233,6 +254,8 @@ class Cities {
         stationIds: ['southport', 'union', 'midwest', 'cathedral', 'airport'],
         unlockCost: 4000,
         trainCost: 1500,
+        plateX: 13,
+        plateY: 35,
       ),
       LineDef(
         id: 'line7',
@@ -242,6 +265,8 @@ class Cities {
         stationIds: ['eastdocks', 'gaslight', 'grand', 'oldtown', 'stadium'],
         unlockCost: 40000,
         trainCost: 12000,
+        plateX: 69,
+        plateY: 76.5,
       ),
     ],
   );

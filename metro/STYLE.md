@@ -41,7 +41,18 @@ before implementation. This file wins over taste, defaults, and old code.
 - Motion is smooth interpolation along the vector path: constant linear
   velocity, crisp stops at stations. No stutter, no sway.
 
-## 5. Assets & effects policy
+## 5. Locked proportions (map units; changed only via the design rig)
+- Active line stroke **2.2** · locked line **1.15** dashed 3.8/2.4 in #D2D2D2.
+- Local dot r **1.6**, ring 0.55 · interchange r **2.4** ring 0.7 + inner
+  ring r 1.1 · locked-line stop: solid #BDBDBD dot r 0.75.
+- Train circle r **2.6**, white ring 0.5, route letter ≈1.15×r.
+- Labels 2.9 (white halo) · badges 2.0 hugging the dot · plates hand-placed
+  per line (LineDef.plateX/Y), never at the path midpoint.
+- **Process rule:** iterate any map-visual change in `tools/mapmock.py`
+  (renders the same geometry to SVG + headless-Chromium screenshot) and
+  LOOK at it before touching the Flutter painter. No more designing blind.
+
+## 6. Assets & effects policy
 - This game is **100% vector, code-drawn** — that is the premium look; no
   bitmap asset packs needed. If an environment feature ever demands more
   (water sim, fog), integrate a reputable open-source package rather than

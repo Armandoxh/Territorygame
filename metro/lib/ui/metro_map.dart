@@ -210,7 +210,7 @@ class _MapPainter extends CustomPainter {
       final route = Paint()
         ..color = line.color
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 4.5 * s
+        ..strokeWidth = 2.2 * s
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
       final path = game.paths[line.id]!;
@@ -237,18 +237,13 @@ class _MapPainter extends CustomPainter {
       if (!served) {
         // A faint hollow dot: a stop on a route you haven't bought yet.
         canvas.drawCircle(
-            c,
-            1.8 * s,
-            Paint()
-              ..color = const Color(0x55000000)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8 * s);
+            c, 0.75 * s, Paint()..color = const Color(0xFFBDBDBD));
         continue;
       }
       // STYLE.md markers: local = white dot + thin ink ring; interchange =
       // larger concentric circles, like the real digital map.
       final interchange = (linesAt[st.id] ?? 0) > 1;
-      final r = (interchange ? 4.2 : 3.0) * s;
+      final r = (interchange ? 2.4 : 1.6) * s;
       canvas.drawCircle(c, r, Paint()..color = Colors.white);
       canvas.drawCircle(
           c,
@@ -256,20 +251,20 @@ class _MapPainter extends CustomPainter {
           Paint()
             ..color = _ink
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.1 * s);
+            ..strokeWidth = (interchange ? 0.7 : 0.55) * s);
       if (interchange) {
         canvas.drawCircle(
             c,
-            2.1 * s,
+            1.1 * s,
             Paint()
               ..color = _ink
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.9 * s);
+              ..strokeWidth = 0.5 * s);
       }
 
       // Label with a white halo (like real map labels) at its hand-tuned
       // offset — dense corridors fan their labels out via StationDef data.
-      final fontSize = (3.3 * s).clamp(9.0, 13.0);
+      final fontSize = (2.9 * s).clamp(8.5, 12.0);
       TextPainter mkLabel(TextStyle style) => TextPainter(
             text: TextSpan(text: st.name, style: style),
             textDirection: TextDirection.ltr,
@@ -294,7 +289,7 @@ class _MapPainter extends CustomPainter {
         top = c.dy + st.labelDy * s - label.height;
       } else {
         final above = st.y > 75;
-        top = above ? c.dy - 5 * s - label.height : c.dy + 4.5 * s;
+        top = above ? c.dy - 3.2 * s - label.height : c.dy + 3.2 * s;
       }
       final labelPos = Offset(
         (c.dx + st.labelDx * s - label.width / 2)
@@ -313,15 +308,15 @@ class _MapPainter extends CustomPainter {
             text: '$count',
             style: GoogleFonts.inter(
               color: Colors.white,
-              fontSize: (3.0 * s).clamp(8.0, 12.0),
+              fontSize: (2.0 * s).clamp(7.0, 10.0),
               fontWeight: FontWeight.w800,
             ),
           ),
           textDirection: TextDirection.ltr,
         )..layout();
-        final bw = badge.width + 3.2 * s;
-        final bh = badge.height + 1.2 * s;
-        final bc = Offset(c.dx + 4.2 * s, c.dy - 4.2 * s - bh / 2);
+        final bw = badge.width + 1.6 * s;
+        final bh = badge.height + 0.9 * s;
+        final bc = Offset(c.dx + 2.1 * s, c.dy - 2.5 * s - bh);
         canvas.drawRRect(
           RRect.fromRectAndRadius(
               Rect.fromLTWH(bc.dx, bc.dy, bw, bh), Radius.circular(bh / 2)),
@@ -329,15 +324,15 @@ class _MapPainter extends CustomPainter {
             ..color =
                 full ? const Color(0xFFC62828) : const Color(0xFF444444),
         );
-        badge.paint(canvas, Offset(bc.dx + 1.6 * s, bc.dy + 0.6 * s));
+        badge.paint(canvas, Offset(bc.dx + 0.8 * s, bc.dy + 0.45 * s));
       }
 
       // Food-court marker: a clean square "F" chip (no emoji — STYLE.md).
       if ((game.foodLevel[st.id] ?? 0) > 0) {
         final fr = Rect.fromCenter(
-            center: c + Offset(-6.2 * s, 4.6 * s),
-            width: 3.6 * s,
-            height: 3.6 * s);
+            center: c + Offset(-3.6 * s, 3.0 * s),
+            width: 2.6 * s,
+            height: 2.6 * s);
         canvas.drawRect(fr, Paint()..color = Colors.white);
         canvas.drawRect(
             fr,
@@ -350,7 +345,7 @@ class _MapPainter extends CustomPainter {
             text: 'F',
             style: GoogleFonts.inter(
               color: _ink,
-              fontSize: 2.4 * s,
+              fontSize: 1.7 * s,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -367,7 +362,7 @@ class _MapPainter extends CustomPainter {
       final line = city.lineById(t.lineId);
       final path = game.paths[t.lineId]!;
       final tPos = m(path.posAt(t.distance));
-      final r = 3.4 * s;
+      final r = 2.6 * s;
       canvas.drawCircle(tPos, r, Paint()..color = line.color);
       canvas.drawCircle(
           tPos,
@@ -375,7 +370,7 @@ class _MapPainter extends CustomPainter {
           Paint()
             ..color = Colors.white
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.8 * s);
+            ..strokeWidth = 0.5 * s);
       final darkText = line.color.computeLuminance() > 0.5;
       final letter = TextPainter(
         text: TextSpan(
@@ -401,18 +396,18 @@ class _MapPainter extends CustomPainter {
       final c = m(st.pos);
       canvas.drawCircle(
           c,
-          (3.0 + 7.0 * t) * s,
+          (2.0 + 6.0 * t) * s,
           Paint()
             ..color = _ink.withOpacity((1 - t) * 0.45)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.8 * s);
-      final pos = c + Offset(0, -6 * s - 10 * s * t);
+            ..strokeWidth = 0.6 * s);
+      final pos = c + Offset(0, -4.5 * s - 9 * s * t);
       final tp = TextPainter(
         text: TextSpan(
           text: '+\$${p.amount.toStringAsFixed(0)}',
           style: GoogleFonts.inter(
             color: const Color(0xFF1B5E20).withOpacity(1 - t),
-            fontSize: (3.8 * s).clamp(10.0, 15.0),
+            fontSize: (3.0 * s).clamp(9.0, 13.0),
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -429,9 +424,9 @@ class _MapPainter extends CustomPainter {
       Canvas canvas, Offset Function(Offset) m, double s, LineDef line) {
     final path = game.paths[line.id]!;
     final paint = Paint()
-      ..color = const Color(0xFFB9B9B9).withOpacity(0.8)
+      ..color = const Color(0xFFD2D2D2)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0 * s
+      ..strokeWidth = 1.15 * s
       ..strokeCap = StrokeCap.butt;
     // Long, uniform dashes cut from the real path with PathMetrics — clean
     // through bends, no stubby round blobs.
@@ -439,7 +434,7 @@ class _MapPainter extends CustomPainter {
     for (final p in path.points.skip(1)) {
       full.lineTo(m(p).dx, m(p).dy);
     }
-    final dash = 5.0 * s, gap = 3.0 * s;
+    final dash = 3.8 * s, gap = 2.4 * s;
     for (final metric in full.computeMetrics()) {
       var d = 0.0;
       while (d < metric.length) {
@@ -449,10 +444,12 @@ class _MapPainter extends CustomPainter {
       }
     }
 
-    final mid = m(path.posAt(path.length / 2));
+    // Hand-placed in open land (see LineDef.plateX/plateY) — the midpoint
+    // landed on interchanges and collided with labels.
+    final mid = m(Offset(line.plateX, line.plateY));
     final tp = TextPainter(
       text: TextSpan(
-        text: '${line.bullet} · \$${line.unlockCost.toStringAsFixed(0)}',
+        text: '${line.bullet} · \$${_fmtMoney(line.unlockCost)}',
         style: GoogleFonts.inter(
           color: _ink,
           fontSize: (3.0 * s).clamp(9.0, 12.0),
@@ -472,6 +469,16 @@ class _MapPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1);
     tp.paint(canvas, plate.topLeft + Offset(3 * s, 1.2 * s));
+  }
+
+  static String _fmtMoney(double v) {
+    final digits = v.round().toString();
+    final out = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
+      out.write(digits[i]);
+    }
+    return out.toString();
   }
 
   @override
