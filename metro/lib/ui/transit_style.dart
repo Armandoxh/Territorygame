@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// The design language: real transit signage. Helvetica-on-black is the NYC
-/// subway's voice — Inter is the standard free stand-in. Route bullets,
-/// station-sign bars, ink-on-cream paper. Every screen borrows from here so
-/// the whole app speaks with one accent.
+/// The design language — see STYLE.md (authoritative): the modern NYC Live
+/// Subway Map dashboard. Flat #F4F4F4 ground, official line hexes, heavy
+/// Swiss neo-grotesque type (Inter as the Helvetica stand-in), and UI that
+/// reads as a data overlay: 1px borders, square corners, no shadows.
 class TransitStyle {
   TransitStyle._();
 
   static const ink = Color(0xFF1A1A1A);
-  static const paper = Color(0xFFF7F3E8);
-  static const ground = Color(0xFFEFEAE0);
+  static const ground = Color(0xFFF4F4F4);
+  static const hairline = Color(0x33000000); // the razor-thin 1px border
 
   static TextStyle signage({
     double size = 14,
@@ -27,7 +27,8 @@ class TransitStyle {
 }
 
 /// The iconic route bullet: a colored disc with the line's letter/number.
-/// Yellow-ish lines get ink text (like the real N/Q/R/W).
+/// Light lines (like the #FCCC0A N/Q/R/W) get ink text, exactly like the
+/// real system.
 class RouteBullet extends StatelessWidget {
   const RouteBullet({
     super.key,
@@ -66,8 +67,8 @@ class RouteBullet extends StatelessWidget {
   }
 }
 
-/// A black station-sign bar with the signature white rule along the top —
-/// the frame for headers and section titles.
+/// A black station-sign bar with the signature white rule along the top.
+/// Square corners — this is signage, not a game card.
 class StationSign extends StatelessWidget {
   const StationSign({super.key, required this.child, this.padding});
 
@@ -76,15 +77,9 @@ class StationSign extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The white rule is an inner strip: BoxDecoration can't mix a one-sided
-    // border with rounded corners.
     return Container(
       width: double.infinity,
-      clipBehavior: Clip.antiAlias,
-      decoration: const BoxDecoration(
-        color: TransitStyle.ink,
-        borderRadius: BorderRadius.all(Radius.circular(10)),
-      ),
+      color: TransitStyle.ink,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -95,6 +90,51 @@ class StationSign extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A flat white data panel: 1px hairline border, 0-radius corners.
+class DataPanel extends StatelessWidget {
+  const DataPanel({super.key, required this.child, this.padding});
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: padding ?? const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: TransitStyle.hairline, width: 1),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// A section header in dashboard voice: small heavy caps over a hairline.
+class SectionLabel extends StatelessWidget {
+  const SectionLabel(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(text,
+            style: TransitStyle.signage(
+                size: 11,
+                color: TransitStyle.ink,
+                weight: FontWeight.w900,
+                spacing: 2)),
+        const SizedBox(height: 4),
+        Container(height: 1, color: TransitStyle.hairline),
+      ],
     );
   }
 }

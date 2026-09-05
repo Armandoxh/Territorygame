@@ -15,11 +15,11 @@ class MetroMagnateApp extends StatelessWidget {
       scaffoldBackgroundColor: TransitStyle.ground,
       useMaterial3: true,
     );
+    // Per STYLE.md: a data dashboard, not a game menu. Square corners, 1px
+    // hairlines, flat white panels, heavy neo-grotesque type, no shadows.
     return MaterialApp(
       title: 'Metro Magnate',
       debugShowCheckedModeBanner: false,
-      // Transit signage voice: Inter everywhere (the standard Helvetica
-      // stand-in), ink-on-cream, black signage buttons.
       theme: base.copyWith(
         textTheme: GoogleFonts.interTextTheme(base.textTheme),
         filledButtonTheme: FilledButtonThemeData(
@@ -27,15 +27,22 @@ class MetroMagnateApp extends StatelessWidget {
             backgroundColor: TransitStyle.ink,
             foregroundColor: Colors.white,
             textStyle: GoogleFonts.inter(fontWeight: FontWeight.w800),
-            shape: const StadiumBorder(),
+            shape: const RoundedRectangleBorder(),
+            elevation: 0,
           ),
         ),
-        cardTheme: const CardThemeData(
-          color: Colors.white,
-          elevation: 0,
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: TransitStyle.ink,
+            side: const BorderSide(color: TransitStyle.ink, width: 1),
+            textStyle: GoogleFonts.inter(fontWeight: FontWeight.w800),
+            shape: const RoundedRectangleBorder(),
+          ),
+        ),
+        dialogTheme: const DialogThemeData(
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-            side: BorderSide(color: Color(0x33000000)),
+            side: BorderSide(color: TransitStyle.ink, width: 1),
           ),
         ),
       ),

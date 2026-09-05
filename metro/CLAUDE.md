@@ -1,6 +1,6 @@
 # Metro Magnate — project rules
 
-## ▶ CURRENT BUILD: v0.1.0 · build 2
+## ▶ CURRENT BUILD: v0.2.0 · build 3
 
 An idle game about building a subway empire, one line at a time, drawn as a
 classic paper transit map. Lives at
@@ -9,9 +9,12 @@ https://armandoxh.github.io/Territorygame/metro/ (deployed by
 
 ## Design pillars (decided with the user — do not drift)
 
-1. **The map IS the game.** Classic paper transit-map aesthetic (cream
-   ground, bold colored lines, white-ringed dots, 45°/90° geometry).
-   Fictional city names on purpose — real transit branding is trademarked.
+1. **The map IS the game — styled per `STYLE.md` (authoritative).** The
+   modern NYC Live Subway Map dashboard look: flat #F4F4F4 ground, official
+   MTA line hexes, 0°/45°/90° vectors only, trains as route-bullet circles,
+   1px-border square-cornered data-overlay UI. Read STYLE.md before touching
+   any visual. Fictional city names on purpose — real transit branding is
+   trademarked.
 2. **Trains run themselves.** The idle core: riders accumulate at stations,
    the train scoops them for fares. Away time pays 50% of the live rate,
    capped at 8h, delivered as the "while you were away" moment.
@@ -24,9 +27,9 @@ https://armandoxh.github.io/Territorygame/metro/ (deployed by
 
 ## Roadmap
 
-- **v0.1 — The Line** (this): one city, one line, animated map, riders +
+- **v0.1 — The Line** (done): one city, one line, animated map, riders +
   fares, 3 upgrades, save + offline earnings.
-- **v0.2 — The System:** more lines in New Meridian, more trains,
+- **v0.2 — The System** (this): more lines in New Meridian, more trains,
   per-station upgrades (accessibility, food courts).
 - **v0.3 — The Attractions:** purchasable map POIs with demand halos.
 - **v0.4 — The Cities:** the 4–5 city ladder (Angel Bay, Lakewind, Fogport,
