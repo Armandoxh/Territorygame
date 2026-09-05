@@ -46,3 +46,5 @@ https://armandoxh.github.io/Territorygame/metro/ (deployed by
   harness is the balance authority.
 - No local Flutter toolchain in the dev container: CI is the compiler.
   Watch both workflows after every push.
+- **Visual changes require player approval of the rig SVG BEFORE any
+  commit/deploy** (see STYLE.md, Approval Gate). Render it, send it, wait.

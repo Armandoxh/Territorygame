@@ -65,6 +65,10 @@ before implementation. This file wins over taste, defaults, and old code.
 - **Process rule:** iterate any map-visual change in `tools/mapmock.py`
   (renders the same geometry to SVG + headless-Chromium screenshot) and
   LOOK at it before touching the Flutter painter. No more designing blind.
+- **APPROVAL GATE (hard rule):** the rig's SVG render must be SENT TO THE
+  PLAYER and EXPLICITLY APPROVED before any visual change is committed or
+  deployed. Render -> send -> wait for approval -> only then port and push.
+  No exceptions, no "just a small tweak".
 
 ## 6. Assets & effects policy
 - This game is **100% vector, code-drawn** — that is the premium look; no
