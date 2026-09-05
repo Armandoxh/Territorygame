@@ -100,11 +100,17 @@ class CityDef {
   final List<StationDef> stations;
   final List<LineDef> lines;
 
-  /// Flat water polygons (closed), drawn under everything — the geography
-  /// that makes the landmass read as a city.
+  /// The landmass outline (45-degree-cornered, floating in water) — the
+  /// signature of the MTA diagram look.
+  final List<Offset> land;
+
+  /// Water channels cut into the land (closed polygons).
   final List<List<Offset>> waters;
   final List<ParkDef> parks;
   final List<WaterLabel> waterLabels;
+
+  /// Big soft district names drawn UNDER the network, real-diagram style.
+  final List<WaterLabel> districts;
 
   const CityDef({
     required this.id,
@@ -112,9 +118,11 @@ class CityDef {
     required this.tagline,
     required this.stations,
     required this.lines,
+    this.land = const [],
     this.waters = const [],
     this.parks = const [],
     this.waterLabels = const [],
+    this.districts = const [],
   });
 
   StationDef stationById(String id) =>
@@ -252,26 +260,45 @@ class Cities {
     // Geography: a harbor along the south-west shore, the East River on the
     // right, a corner inlet up north — flat, textureless water — plus park
     // blocks, each its own size and tilt.
+    land: [
+      Offset(8, 0),
+      Offset(92, 0),
+      Offset(100, 8),
+      Offset(100, 92),
+      Offset(92, 100),
+      Offset(8, 100),
+      Offset(0, 92),
+      Offset(0, 8),
+    ],
+    districts: [
+      WaterLabel('HARBORSIDE', 27, 66),
+      WaterLabel('EASTBANK', 79, 52),
+    ],
     waters: [
       [
-        Offset(0, 68),
+        Offset(0, 55),
+        Offset(6, 62),
         Offset(6, 74),
-        Offset(10, 84),
-        Offset(13, 94),
-        Offset(14, 100),
+        Offset(12, 82),
+        Offset(12, 100),
         Offset(0, 100),
       ],
       [
-        Offset(100, 58),
-        Offset(95, 64),
-        Offset(93, 76),
-        Offset(96, 90),
-        Offset(100, 94),
+        Offset(100, 48),
+        Offset(93, 56),
+        Offset(92, 70),
+        Offset(95, 86),
+        Offset(100, 92),
       ],
       [
-        Offset(86, 0),
+        Offset(82, 0),
         Offset(100, 0),
-        Offset(100, 14),
+        Offset(100, 18),
+      ],
+      [
+        Offset(0, 0),
+        Offset(16, 0),
+        Offset(0, 16),
       ],
     ],
     parks: [

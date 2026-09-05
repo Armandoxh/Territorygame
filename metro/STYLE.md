@@ -17,16 +17,19 @@ before implementation. This file wins over taste, defaults, and old code.
 - **Official MTA hex colors** for lines: #EE352E (1/2/3), #0039A6 (A/C/E),
   #FF6319 (B/D/F/M), #B933AD (7), #FCCC0A (N/Q/R/W, ink text), #00933C
   (4/5/6), #6CBE45 (G), #A7A9AC (S).
-- **Background landmass:** flat ultra-light off-white **#F4F4F4** (dark mode:
-  flat #1A1A1A). Water: one solid, textureless flat color — **#BFD7E4**, with
-  water labels in **#6E93AC**. Parks: flat **#CBE2C6**. No textures, no
-  gradients, no grid overlays.
+- **Water frames the city** (flat **#BDD3E8**); the landmass floats on it as
+  near-white **#FAF9F6** shapes with 45-degree corners softened by a fat
+  round-join stroke. Water channels cut into the land; water labels in
+  **#6E93AC**; parks flat **#CBE2C6**. Big district names (**#CDCDCD**, 4.0,
+  w800) sit UNDER the network. No textures, no gradients, no grids.
 - **Typography:** heavy Swiss neo-grotesque only. Inter (via google_fonts) is
   the free Helvetica stand-in. Station labels sharp, highly legible, adjacent
   to their dots, never overlapping lines.
 
 ## 3. Station markers & UI
-- **Local station:** solid crisp white circle, thin black border.
+- **Quiet local station:** a tiny solid ink dot (r 0.85) on the line — the
+  real diagram's marker. A station holding riders inflates into the white
+  circle with its count inside.
 - **Express/interchange:** larger **concentric circles** (or elongated pill
   when two dots merge), mirroring the real digital map.
 - **UI is a data overlay, not a game menu:** razor-thin 1px borders, **sharp
@@ -34,6 +37,9 @@ before implementation. This file wins over taste, defaults, and old code.
   drop shadows, no rounded cards, no emoji clutter in data rows.
 - **Upgrade feedback:** clean geometric rings or numerical increments that
   scale linearly. No cartoony bounce, no sparkles.
+
+- **Terminal bullets:** every unlocked line is capped past both ends with
+  its route bullet (r 1.7, letter 2.0), like the printed diagram.
 
 ## 4. Train movement ("live tracker")
 - Trains are **solid circles/pills in the line color containing the bold

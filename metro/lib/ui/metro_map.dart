@@ -73,9 +73,9 @@ class _MetroMapState extends State<MetroMap> {
       // Taller than wide: the map dominates the screen.
       aspectRatio: 0.82,
       child: Container(
-        // STYLE.md: flat ultra-light landmass, 1px hairline, square corners.
+        // STYLE.md: water frames the city; the landmass is painted on top.
         decoration: BoxDecoration(
-          color: TransitStyle.ground,
+          color: const Color(0xFFBDD3E8),
           border: Border.all(color: TransitStyle.hairline, width: 1),
         ),
         clipBehavior: Clip.hardEdge,
@@ -186,7 +186,43 @@ class _MapPainter extends CustomPainter {
     // asymmetric park blocks.
     final city = game.city;
 
-    final waterPaint = Paint()..color = const Color(0xFFBFD7E4);
+    // The landmass: near-white, 45-degree corners softened by a fat
+    // round-join stroke in the same color.
+    const landColor = Color(0xFFFAF9F6);
+    if (city.land.isNotEmpty) {
+      final lp = Path()..moveTo(m(city.land.first).dx, m(city.land.first).dy);
+      for (final pt in city.land.skip(1)) {
+        lp.lineTo(m(pt).dx, m(pt).dy);
+      }
+      lp.close();
+      canvas.drawPath(lp, Paint()..color = landColor);
+      canvas.drawPath(
+          lp,
+          Paint()
+            ..color = landColor
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3 * s
+            ..strokeJoin = StrokeJoin.round);
+    }
+    // District names sit UNDER the network, like the real diagram.
+    for (final d in city.districts) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: d.text,
+          style: GoogleFonts.inter(
+            color: const Color(0xFFCDCDCD),
+            fontSize: 4.0 * s,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 2,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final c = m(Offset(d.x, d.y));
+      tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+    }
+
+    final waterPaint = Paint()..color = const Color(0xFFBDD3E8);
     for (final poly in city.waters) {
       final wp = Path()..moveTo(m(poly.first).dx, m(poly.first).dy);
       for (final p in poly.skip(1)) {
@@ -278,15 +314,20 @@ class _MapPainter extends CustomPainter {
       final count = game.waiting[st.id]!.floor();
       final full = game.waiting[st.id]! >= GameState.stationCap - 0.001;
       final r = (interchange ? 2.4 : 1.9) * s;
-      canvas.drawCircle(c, r, Paint()..color = Colors.white);
-      canvas.drawCircle(
-          c,
-          r,
-          Paint()
-            ..color = full ? const Color(0xFFC62828) : _ink
-            ..style = PaintingStyle.stroke
-            ..strokeWidth =
-                (full ? 0.85 : (interchange ? 0.7 : 0.55)) * s);
+      if (count == 0 && !interchange) {
+        // Quiet local stop: the real diagram's tiny solid dot.
+        canvas.drawCircle(c, 0.85 * s, Paint()..color = _ink);
+      } else {
+        canvas.drawCircle(c, r, Paint()..color = Colors.white);
+        canvas.drawCircle(
+            c,
+            r,
+            Paint()
+              ..color = full ? const Color(0xFFC62828) : _ink
+              ..style = PaintingStyle.stroke
+              ..strokeWidth =
+                  (full ? 0.85 : (interchange ? 0.7 : 0.55)) * s);
+      }
       if (interchange && count == 0) {
         canvas.drawCircle(
             c,
@@ -375,6 +416,35 @@ class _MapPainter extends CustomPainter {
         )..layout();
         f.paint(canvas,
             fr.center - Offset(f.width / 2, f.height / 2));
+      }
+    }
+
+    // Terminal route bullets: the line's bullet extended past each end,
+    // exactly like the printed diagram caps its routes.
+    for (final line in city.lines) {
+      if (!game.isUnlocked(line.id)) continue;
+      final pts = game.paths[line.id]!.points;
+      for (final end in [0, pts.length - 1]) {
+        final terminal = pts[end];
+        final prev = pts[end == 0 ? 1 : pts.length - 2];
+        final dir = terminal - prev;
+        final len = dir.distance;
+        if (len < 0.001) continue;
+        final pos = m(terminal + dir / len * 5.0);
+        canvas.drawCircle(pos, 1.7 * s, Paint()..color = line.color);
+        final darkTxt = line.color.computeLuminance() > 0.5;
+        final tp = TextPainter(
+          text: TextSpan(
+            text: line.bullet,
+            style: GoogleFonts.inter(
+              color: darkTxt ? _ink : Colors.white,
+              fontSize: 2.0 * s,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
       }
     }
 

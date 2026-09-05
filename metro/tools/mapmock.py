@@ -24,8 +24,9 @@ BADGE_F = 2.0
 PLATE_F = 2.6
 
 INK = '#1A1A1A'
-GROUND = '#F4F4F4'
-WATER = '#BFD7E4'
+GROUND = '#BDD3E8'  # water frames the city
+LAND = '#FAF9F6'
+WATER = '#BDD3E8'
 WATER_TXT = '#6E93AC'
 PARK = '#CBE2C6'
 
@@ -33,14 +34,14 @@ stations = {
   'harbor':   (15, 85, 'Harbor Yards', 2.5, 4.2,  3),
   'brookside':(27, 73, 'Brookside',    0,  0,   2),
   'cityhall': (60, 47, 'City Hall',   -8.5, 4.5, 5),
-  'highridge':(70, 25, 'High Ridge',  -3,  0,   1),
+  'highridge':(70, 25, 'High Ridge',  -3,  0,   0),
   'ferryst':  (40, 75, 'Ferry St',    -7,  0,   0),
   'westgate': (32, 52, 'Westgate',    -7,  0,   0),
   'riverbend':(82.5, 67.5, 'Riverbend', 0, 0,   0),
   'garment':  (45, 30, 'Garment Dist', -8, 0,   0),
   'union':    (40, 60, 'Union Square', -9,  4.5, 15),
   'grand':    (60, 60, 'Grand Terminal', 13, -6.5, 4),
-  'museum':   (60, 35, 'Museum Mile', -9.5, 0,  2),
+  'museum':   (60, 35, 'Museum Mile', -9.5, 0,  0),
   'northgate':(80, 15, 'Northgate',    0,  0,   30),
   'southport':(40, 90, 'Southport',   10, -4.5, 0),
   'midwest':  (25, 45, 'Midtown West',-8,  4.5, 0),
@@ -56,10 +57,13 @@ lines = [
   ('A', '#0039A6', ['southport','ferryst','union','westgate','midwest','cathedral','airport'], False, (13, 35, 'A · $4,000')),
   ('7', '#B933AD', ['eastdocks','riverbend','gaslight','grand','oldtown','garment','stadium'], False, (69, 76.5, '7 · $40,000')),
 ]
+land = [(8,0),(92,0),(100,8),(100,92),(92,100),(8,100),(0,92),(0,8)]
+districts = [('HARBORSIDE',27,66),('EASTBANK',79,52)]
 waters = [
-  [(0,60),(6,66),(10,76),(12,86),(13,96),(13,100),(0,100)],
-  [(100,58),(95,64),(93,76),(96,90),(100,94)],
-  [(86,0),(100,0),(100,14)],
+  [(0,55),(6,62),(6,74),(12,82),(12,100),(0,100)],
+  [(100,48),(93,56),(92,70),(95,86),(100,92)],
+  [(82,0),(100,0),(100,18)],
+  [(0,0),(16,0),(0,16)],
 ]
 parks = [(50,73,15,8,7),(14,16,8,11,5),(34,30,10,6,-4),(83,42,9,7,11)]
 
@@ -68,7 +72,14 @@ def pt(x, y): return f"{px(x):.1f},{px(y):.1f}"
 
 svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
        f'style="background:{GROUND};font-family:Inter,Helvetica,Arial,sans-serif">']
-# water
+# landmass on the water
+land_pts = " ".join(pt(x,y) for x,y in land)
+svg.append(f'<polygon points="{land_pts}" fill="{LAND}" stroke="{LAND}" '
+           f'stroke-width="{px(3)}" stroke-linejoin="round"/>')
+for name, dx_, dy_ in districts:
+    svg.append(f'<text x="{px(dx_)}" y="{px(dy_)}" text-anchor="middle" fill="#CDCDCD" '
+               f'font-size="{px(4.0)}" font-weight="800" letter-spacing="2">{name}</text>')
+# water channels cut into the land
 for poly in waters:
     svg.append(f'<polygon points="{" ".join(pt(x,y) for x,y in poly)}" fill="{WATER}"/>')
 svg.append(f'<text x="{px(8)}" y="{px(95)}" fill="{WATER_TXT}" font-size="{px(2.2)}" '
@@ -115,10 +126,15 @@ for sid, (x, y, name, ldx, ldy, waiting) in stations.items():
         continue
     inter = sid == 'grand'  # preview an interchange with a count inside
     full = waiting >= 30
+    if waiting == 0 and not inter:
+        svg.append(f'<circle cx="{px(x)}" cy="{px(y)}" r="{px(0.85)}" fill="{INK}"/>')
     r = INT_R if inter else DOT_R
-    ringc = '#C62828' if full else INK
-    ringw = (0.85 if full else (INT_RING if inter else DOT_RING))
-    svg.append(f'<circle cx="{px(x)}" cy="{px(y)}" r="{px(r)}" fill="#fff" stroke="{ringc}" stroke-width="{px(ringw)}"/>')
+    if waiting == 0 and not inter:
+        pass
+    if waiting > 0 or inter:
+        ringc = '#C62828' if full else INK
+        ringw = (0.85 if full else (INT_RING if inter else DOT_RING))
+        svg.append(f'<circle cx="{px(x)}" cy="{px(y)}" r="{px(r)}" fill="#fff" stroke="{ringc}" stroke-width="{px(ringw)}"/>')
     if inter and waiting == 0:
         svg.append(f'<circle cx="{px(x)}" cy="{px(y)}" r="{px(INT_INNER_R)}" fill="none" stroke="{INK}" stroke-width="{px(INT_INNER_RING)}"/>')
     if waiting > 0:
@@ -134,6 +150,11 @@ for sid, (x, y, name, ldx, ldy, waiting) in stations.items():
     svg.append(f'<text x="{px(x+ldx)}" y="{px(ty)}" text-anchor="middle" font-size="{px(LABEL_F)}" '
                f'font-weight="700" fill="{INK}" stroke="#fff" stroke-width="4" paint-order="stroke">{name}</text>')
 
+# terminal bullets at the line 1 ends (extended past the last station)
+for bx_, by_ in [(12.4, 87.6), (84.6, 10.4)]:
+    svg.append(f'<circle cx="{px(bx_)}" cy="{px(by_)}" r="{px(1.7)}" fill="#EE352E"/>')
+    svg.append(f'<text x="{px(bx_)}" y="{px(by_+0.72)}" text-anchor="middle" fill="#fff" '
+               f'font-size="{px(2.0)}" font-weight="900">1</text>')
 # train at grand with bullet
 tx, ty = 60, 60
 svg.append(f'<circle cx="{px(tx)}" cy="{px(ty)}" r="{px(TRAIN_R)}" fill="#EE352E" stroke="#fff" stroke-width="{px(0.5)}"/>')
