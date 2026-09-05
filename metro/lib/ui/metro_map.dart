@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../data/cities.dart';
 import '../state/game_state.dart';
+import 'transit_style.dart';
 
 /// The classic paper transit map: cream ground, one bold colored line through
 /// white-ringed station dots, a little train capsule sliding along it, waiting
@@ -62,22 +64,24 @@ class _MetroMapState extends State<MetroMap> {
                 ),
               ),
             ),
-            // The paper-map corner plate.
+            // The paper-map corner plate, in signage voice.
             Positioned(
               left: 10,
               top: 10,
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                color: const Color(0xFF1A1A1A),
-                child: Text(
-                  '${g.city.name} Transit',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                color: TransitStyle.ink,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RouteBullet(label: '1', color: g.line.color, size: 15),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${g.city.name} Transit',
+                      style: TransitStyle.signage(size: 11, spacing: 1.1),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -165,7 +169,7 @@ class _MapPainter extends CustomPainter {
       final label = TextPainter(
         text: TextSpan(
           text: st.name,
-          style: TextStyle(
+          style: GoogleFonts.inter(
             color: _ink,
             fontSize: (3.4 * s).clamp(9.0, 14.0),
             fontWeight: FontWeight.w700,

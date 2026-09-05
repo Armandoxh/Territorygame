@@ -7,6 +7,7 @@ import '../state/game_state.dart';
 import '../state/save_service.dart';
 import '../version.dart';
 import 'metro_map.dart';
+import 'transit_style.dart';
 
 /// v0.1: one screen. Cash on top, the living map in the middle, three
 /// upgrades below. The game ticks at frame rate while open; a periodic timer
@@ -192,30 +193,41 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
+/// The header is a station sign: black bar, white rule, route bullet, cash in
+/// signage type.
 class _Header extends StatelessWidget {
   const _Header({required this.game});
   final GameState game;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        Text('METRO MAGNATE',
-            style: theme.textTheme.labelLarge?.copyWith(
-                letterSpacing: 4, color: theme.colorScheme.primary)),
-        const SizedBox(height: 6),
-        Text('\$${game.cash.toStringAsFixed(0)}',
-            style: theme.textTheme.displaySmall
-                ?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 4),
-        Text(
-          '≈ \$${game.avgRate.toStringAsFixed(1)}/sec · '
-          '${game.totalRiders.toStringAsFixed(0)} riders served',
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-        ),
-      ],
+    return StationSign(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              RouteBullet(label: '1', color: game.line.color, size: 22),
+              const SizedBox(width: 8),
+              Text('METRO MAGNATE',
+                  style: TransitStyle.signage(size: 13, spacing: 3)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('\$${game.cash.toStringAsFixed(0)}',
+              style: TransitStyle.signage(
+                  size: 40, weight: FontWeight.w900)),
+          const SizedBox(height: 2),
+          Text(
+            '≈ \$${game.avgRate.toStringAsFixed(1)}/sec · '
+            '${game.totalRiders.toStringAsFixed(0)} riders served',
+            style: TransitStyle.signage(
+                size: 12,
+                color: Colors.white70,
+                weight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }
