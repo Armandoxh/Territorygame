@@ -195,9 +195,9 @@ class _MapPainter extends CustomPainter {
     // The landmass: near-white, 45-degree corners softened by a fat
     // round-join stroke in the same color.
     const landColor = Color(0xFFFAF9F6);
-    if (city.land.isNotEmpty) {
-      final lp = Path()..moveTo(m(city.land.first).dx, m(city.land.first).dy);
-      for (final pt in city.land.skip(1)) {
+    for (final land in city.lands) {
+      final lp = Path()..moveTo(m(land.first).dx, m(land.first).dy);
+      for (final pt in land.skip(1)) {
         lp.lineTo(m(pt).dx, m(pt).dy);
       }
       lp.close();
@@ -225,18 +225,13 @@ class _MapPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       final c = m(Offset(d.x, d.y));
-      tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(d.rotDeg * pi / 180);
+      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      canvas.restore();
     }
 
-    final waterPaint = Paint()..color = const Color(0xFFBDD3E8);
-    for (final poly in city.waters) {
-      final wp = Path()..moveTo(m(poly.first).dx, m(poly.first).dy);
-      for (final p in poly.skip(1)) {
-        wp.lineTo(m(p).dx, m(p).dy);
-      }
-      wp.close();
-      canvas.drawPath(wp, waterPaint);
-    }
     for (final wl in city.waterLabels) {
       final tp = TextPainter(
         text: TextSpan(
@@ -271,27 +266,17 @@ class _MapPainter extends CustomPainter {
       canvas.restore();
     }
 
-    // Locked lines first (under everything): dashed "planned routes".
+    // Lines, segment by segment on their reserved lanes: shared corridors
+    // render side-by-side (the approved look). Locked routes draw first,
+    // dashed gray, with a price plate; unlocked routes solid on top.
     for (final line in city.lines) {
       if (game.isUnlocked(line.id)) continue;
-      _drawDashedLine(canvas, m, s, line);
+      _drawLineSegments(canvas, m, s, line, locked: true);
+      _drawPlate(canvas, m, s, line);
     }
-    // Unlocked lines: solid and proud.
     for (final line in city.lines) {
       if (!game.isUnlocked(line.id)) continue;
-      final route = Paint()
-        ..color = line.color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2 * s
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-      final path = game.paths[line.id]!;
-      final routePath = Path()
-        ..moveTo(m(path.points.first).dx, m(path.points.first).dy);
-      for (final p in path.points.skip(1)) {
-        routePath.lineTo(m(p).dx, m(p).dy);
-      }
-      canvas.drawPath(routePath, route);
+      _drawLineSegments(canvas, m, s, line, locked: false);
     }
 
     // How many unlocked lines touch each station (2+ = interchange).
@@ -379,20 +364,22 @@ class _MapPainter extends CustomPainter {
         fontSize: fontSize,
         fontWeight: FontWeight.w700,
       ));
-      double top;
-      if (st.labelDy > 0) {
-        top = c.dy + st.labelDy * s;
-      } else if (st.labelDy < 0) {
-        top = c.dy + st.labelDy * s - label.height;
+      Offset labelPos;
+      if (st.labelSide != 0) {
+        final lx = st.labelSide > 0
+            ? c.dx + 3.4 * s
+            : c.dx - 3.4 * s - label.width;
+        labelPos = Offset(lx, c.dy - label.height / 2);
       } else {
-        final above = st.y > city.size * 0.88;
-        top = above ? c.dy - 3.2 * s - label.height : c.dy + 3.2 * s;
+        final above = st.y > city.size * 0.94;
+        final top =
+            above ? c.dy - 3.2 * s - label.height : c.dy + 3.2 * s;
+        labelPos = Offset(
+          (c.dx - label.width / 2)
+              .clamp(2.0, size.width - label.width - 2.0),
+          top,
+        );
       }
-      final labelPos = Offset(
-        (c.dx + st.labelDx * s - label.width / 2)
-            .clamp(2.0, size.width - label.width - 2.0),
-        top,
-      );
       halo.paint(canvas, labelPos);
       label.paint(canvas, labelPos);
 
@@ -459,7 +446,16 @@ class _MapPainter extends CustomPainter {
     for (final t in game.trains) {
       final line = city.lineById(t.lineId);
       final path = game.paths[t.lineId]!;
-      final tPos = m(path.posAt(t.distance));
+      final segIdx = path.segmentAt(t.distance);
+      final a = path.points[segIdx];
+      final b = path.points[segIdx + 1];
+      final seg = b - a;
+      final segLen = seg.distance;
+      final lane = game.segLane[t.lineId]![segIdx];
+      final laneOff = segLen < 0.001
+          ? Offset.zero
+          : Offset(-seg.dy, seg.dx) / segLen * lane;
+      final tPos = m(path.posAt(t.distance) + laneOff);
       final r = 2.6 * s;
       canvas.drawCircle(tPos, r, Paint()..color = line.color);
       canvas.drawCircle(
@@ -515,35 +511,72 @@ class _MapPainter extends CustomPainter {
     }
   }
 
-  /// A locked line (STYLE.md): a semi-transparent light-gray dashed stroke —
-  /// the route you're saving for — with a data-overlay price plate at its
-  /// midpoint.
-  void _drawDashedLine(
-      Canvas canvas, Offset Function(Offset) m, double s, LineDef line) {
-    final path = game.paths[line.id]!;
+  /// Draw a line's segments on their lane offsets — solid in the line color,
+  /// or the locked treatment (light-gray PathMetrics dashes).
+  void _drawLineSegments(Canvas canvas, Offset Function(Offset) m, double s,
+      LineDef line, {required bool locked}) {
+    final pts = game.paths[line.id]!.points;
+    final lanes = game.segLane[line.id]!;
     final paint = Paint()
-      ..color = const Color(0xFFD2D2D2)
+      ..color = locked ? const Color(0xFFD2D2D2) : line.color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.15 * s
-      ..strokeCap = StrokeCap.butt;
-    // Long, uniform dashes cut from the real path with PathMetrics — clean
-    // through bends, no stubby round blobs.
-    final full = Path()..moveTo(m(path.points.first).dx, m(path.points.first).dy);
-    for (final p in path.points.skip(1)) {
-      full.lineTo(m(p).dx, m(p).dy);
-    }
-    final dash = 3.8 * s, gap = 2.4 * s;
-    for (final metric in full.computeMetrics()) {
-      var d = 0.0;
-      while (d < metric.length) {
-        final end = (d + dash) < metric.length ? d + dash : metric.length;
-        canvas.drawPath(metric.extractPath(d, end), paint);
-        d = end + gap;
+      ..strokeWidth = (locked ? 1.15 : 2.2) * s
+      ..strokeCap = locked ? StrokeCap.butt : StrokeCap.round;
+    for (var i = 0; i < pts.length - 1; i++) {
+      final a = pts[i];
+      final b = pts[i + 1];
+      final seg = b - a;
+      final len = seg.distance;
+      if (len < 0.001) continue;
+      final off = Offset(-seg.dy, seg.dx) / len * lanes[i];
+      final pa = m(a + off);
+      final pb = m(b + off);
+      if (!locked) {
+        canvas.drawLine(pa, pb, paint);
+        continue;
+      }
+      final segPath = Path()
+        ..moveTo(pa.dx, pa.dy)
+        ..lineTo(pb.dx, pb.dy);
+      final dash = 3.8 * s, gap = 2.4 * s;
+      for (final metric in segPath.computeMetrics()) {
+        var d = 0.0;
+        while (d < metric.length) {
+          final end = (d + dash) < metric.length ? d + dash : metric.length;
+          canvas.drawPath(metric.extractPath(d, end), paint);
+          d = end + gap;
+        }
       }
     }
+    // Terminal route bullets past both ends (unlocked lines only).
+    if (locked) return;
+    for (final end in [0, pts.length - 1]) {
+      final terminal = pts[end];
+      final prev = pts[end == 0 ? 1 : pts.length - 2];
+      final dir = terminal - prev;
+      final len = dir.distance;
+      if (len < 0.001) continue;
+      final pos = m(terminal + dir / len * 4.5);
+      canvas.drawCircle(pos, 1.6 * s, Paint()..color = line.color);
+      final darkTxt = line.color.computeLuminance() > 0.5;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: line.bullet,
+          style: GoogleFonts.inter(
+            color: darkTxt ? _ink : Colors.white,
+            fontSize: 1.8 * s,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
+    }
+  }
 
-    // Hand-placed in open land (see LineDef.plateX/plateY) — the midpoint
-    // landed on interchanges and collided with labels.
+  /// The locked line's price plate, hand-placed in open land.
+  void _drawPlate(
+      Canvas canvas, Offset Function(Offset) m, double s, LineDef line) {
     final mid = m(Offset(line.plateX, line.plateY));
     final tp = TextPainter(
       text: TextSpan(
@@ -556,7 +589,6 @@ class _MapPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    // Square-cornered white plate with a 1px ink hairline — a data overlay.
     final plate = Rect.fromCenter(
         center: mid, width: tp.width + 6 * s, height: tp.height + 2.4 * s);
     canvas.drawRect(plate, Paint()..color = Colors.white);

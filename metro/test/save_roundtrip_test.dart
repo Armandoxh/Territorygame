@@ -3,17 +3,17 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:metro_magnate/state/game_state.dart';
 
-/// Save guard (pure encode→decode, no storage plugin): a running multi-line
-/// system must come back mid-lap — money, lines, every train's position,
-/// platforms, and food courts.
+/// Save guard (pure encode→decode): the running multi-line system must come
+/// back mid-lap; pre-approval saves (v1/v2, different network) must migrate
+/// their money and upgrades onto the new map without crashing.
 void main() {
   test('save round-trips a played-in system', () {
     final g = GameState();
     g.cash = 60000;
-    g.buyLine('lineA');
-    g.buyTrain('line1');
-    g.buyFood('union');
-    g.buyFood('union');
+    g.buyLine(g.city.lines[1].id);
+    g.buyTrain('1');
+    g.buyFood('s114_172');
+    g.buyFood('s114_172');
     for (var i = 0; i < 2000; i++) {
       g.tick(0.1);
       g.buySpeed();
@@ -34,7 +34,7 @@ void main() {
       expect(r.trains[i].direction, g.trains[i].direction);
       expect(r.trains[i].target, g.trains[i].target);
     }
-    expect(r.foodLevel['union'], 2);
+    expect(r.foodLevel['s114_172'], 2);
     expect(r.speedLevel, g.speedLevel);
     expect(r.accessLevel, g.accessLevel);
     expect(r.avgRate, closeTo(g.avgRate, 0.001));
@@ -50,36 +50,62 @@ void main() {
     expect(r.totalEarned, greaterThan(before));
   });
 
-  test('a v1 save migrates: money & upgrades survive, world starts fresh', () {
-    final v1 = {
-      'v': 1,
-      'cash': 1234.5,
-      'totalEarned': 9999.0,
-      'totalRiders': 4000.0,
-      'waiting': [1.0, 2.0, 3.0, 4.0, 5.0],
-      'trainDistance': 50.0,
-      'direction': -1,
-      'dwellRemaining': 0.2,
-      'targetStation': 2,
-      'speedLevel': 4,
-      'capacityLevel': 3,
-      'accessLevel': 2,
-      'avgRate': 5.5,
-      'lastSeenMs': 1000,
-    };
-    final g = GameState.fromJson(v1);
-    expect(g.cash, closeTo(1234.5, 0.001));
-    expect(g.speedLevel, 4);
-    expect(g.capacityLevel, 3);
-    expect(g.accessLevel, 2);
-    expect(g.avgRate, closeTo(5.5, 0.001));
-    expect(g.unlockedLineIds, {'line1'});
-    expect(g.trains.length, 1);
-    // Migrated worlds must run.
-    for (var i = 0; i < 600; i++) {
-      g.tick(0.1);
+  test('pre-approval saves (v1/v2) migrate: money survives, world restarts',
+      () {
+    for (final old in [
+      {
+        'v': 1,
+        'cash': 1234.5,
+        'totalEarned': 9999.0,
+        'totalRiders': 4000.0,
+        'waiting': [1.0, 2.0, 3.0],
+        'trainDistance': 50.0,
+        'direction': -1,
+        'dwellRemaining': 0.2,
+        'targetStation': 2,
+        'speedLevel': 4,
+        'capacityLevel': 3,
+        'accessLevel': 2,
+        'avgRate': 5.5,
+        'lastSeenMs': 1000,
+      },
+      {
+        'v': 2,
+        'cash': 777.0,
+        'totalEarned': 5000.0,
+        'totalRiders': 2000.0,
+        'unlockedLineIds': ['line1', 'lineA'],
+        'trains': [
+          {
+            'lineId': 'line1',
+            'distance': 10.0,
+            'direction': 1,
+            'dwell': 0.0,
+            'target': 1
+          }
+        ],
+        'waiting': {'union': 3.0},
+        'foodLevel': {'union': 2},
+        'speedLevel': 1,
+        'capacityLevel': 0,
+        'accessLevel': 1,
+        'avgRate': 4.0,
+        'lastSeenMs': 1000,
+      },
+    ]) {
+      final g = GameState.fromJson(old);
+      expect(g.cash, closeTo((old['cash'] as num).toDouble(), 0.001));
+      expect(g.speedLevel, old['speedLevel']);
+      expect(g.avgRate, closeTo((old['avgRate'] as num).toDouble(), 0.001));
+      expect(g.unlockedLineIds, {'1'},
+          reason: 'migrated worlds restart on line 1 of the approved map');
+      expect(g.trains.length, 1);
+      for (var i = 0; i < 600; i++) {
+        g.tick(0.1);
+      }
+      expect(g.totalEarned,
+          greaterThan((old['totalEarned'] as num).toDouble()));
     }
-    expect(g.totalEarned, greaterThan(9999.0));
   });
 
   test('a fresh system serializes cleanly', () {
@@ -87,7 +113,7 @@ void main() {
     final r = GameState.fromJson(
         jsonDecode(jsonEncode(g.toJson(1))) as Map<String, dynamic>);
     expect(r.cash, 0);
-    expect(r.unlockedLineIds, {'line1'});
+    expect(r.unlockedLineIds, {'1'});
     expect(r.trains.length, 1);
   });
 }

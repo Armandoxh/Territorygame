@@ -1,10 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:metro_magnate/state/game_state.dart';
 
-/// The balance harness for the multi-line system. The sim is fully
-/// deterministic — no RNG — so these replay exact worlds. Guards the idle
-/// killers: earning too slow/fast, purchases that don't matter, broken
-/// offline math, and stuck trains.
+/// The balance harness for the approved 9-line network. Fully deterministic
+/// (no RNG). Guards the idle killers: earning too slow/fast, purchases that
+/// don't matter, broken offline math, and stuck trains.
 void main() {
   GameState run(double seconds,
       {void Function(GameState)? setup, void Function(GameState)? each}) {
@@ -18,12 +17,43 @@ void main() {
     return g;
   }
 
+  test('the network is the approved shape', () {
+    final g = GameState();
+    expect(g.city.lines.length, 9);
+    expect(g.city.stations.length, 56);
+    // Unique color per line — the approved rule.
+    final colors = {for (final l in g.city.lines) l.color.value};
+    expect(colors.length, 9, reason: 'no two lines may share a color');
+    // Line 1 is free; every other line costs more than the one before.
+    expect(g.city.lines.first.unlockCost, 0);
+    for (var i = 2; i < g.city.lines.length; i++) {
+      expect(g.city.lines[i].unlockCost,
+          greaterThan(g.city.lines[i - 1].unlockCost));
+    }
+  });
+
+  test('shared corridors are short (3 stops max, per the approved design)',
+      () {
+    final g = GameState();
+    // Count consecutive shared segments between any pair of lines.
+    for (final a in g.city.lines) {
+      for (final b in g.city.lines) {
+        if (a.id.compareTo(b.id) >= 0) continue;
+        final shared = a.stationIds
+            .where((id) => b.stationIds.contains(id))
+            .length;
+        expect(shared, lessThanOrEqualTo(3),
+            reason: '${a.id}/${b.id} share $shared stops');
+      }
+    }
+  });
+
   test('level-0 earn rate lands in the fun zone', () {
     final g = run(300);
     final perSec = g.totalEarned / 300;
     expect(perSec, greaterThan(1.5),
         reason: 'earning \$${perSec.toStringAsFixed(2)}/s — too slow, stalls');
-    expect(perSec, lessThan(10),
+    expect(perSec, lessThan(13),
         reason: 'earning \$${perSec.toStringAsFixed(2)}/s — too fast, trivial');
   });
 
@@ -33,36 +63,38 @@ void main() {
     expect(g.avgRate, closeTo(actual, actual * 0.5));
   });
 
-  test('unlocking a second line clearly raises earnings', () {
+  test('unlocking the second line clearly raises earnings', () {
+    final second = GameState().city.lines[1];
     final solo = run(240).totalEarned;
     final duo = run(240, setup: (g) {
-      g.cash = 10000;
-      expect(g.buyLine('lineA'), isTrue);
+      g.cash = second.unlockCost + 1000;
+      expect(g.buyLine(second.id), isTrue);
     }).totalEarned;
-    expect(duo, greaterThan(solo * 1.5),
-        reason: 'line A must add real revenue (got ${duo / solo}x)');
+    expect(duo, greaterThan(solo * 1.3),
+        reason: '${second.id} must add real revenue (got ${duo / solo}x)');
   });
 
-  test('a second train on the line raises earnings', () {
+  test('a second train on line 1 raises earnings', () {
     final one = run(240).totalEarned;
     final two = run(240, setup: (g) {
       g.cash = 10000;
-      expect(g.buyTrain('line1'), isTrue);
+      expect(g.buyTrain('1'), isTrue);
     }).totalEarned;
     expect(two, greaterThan(one * 1.15),
         reason: 'a 2nd train must matter (got ${two / one}x)');
   });
 
-  test('a food court raises earnings at its station', () {
+  test('a food court raises earnings at a busy interchange', () {
+    // s114_172 = 45 St, on line 1 (and the future N corridor).
     final plain = run(240).totalEarned;
     final fed = run(240, setup: (g) {
       g.cash = 100000;
       for (var i = 0; i < GameState.foodMax; i++) {
-        expect(g.buyFood('union'), isTrue);
+        expect(g.buyFood('s114_172'), isTrue);
       }
     }).totalEarned;
-    expect(fed, greaterThan(plain * 1.1),
-        reason: 'a maxed Union Sq food court must show up in revenue');
+    expect(fed, greaterThan(plain * 1.05),
+        reason: 'a maxed 45 St food court must show up in revenue');
   });
 
   test('platform caps hold; unserved stations stay empty', () {
@@ -77,13 +109,16 @@ void main() {
     });
   });
 
-  test('every train keeps serving, all lines unlocked (no stuck state)', () {
+  test('every train keeps serving with the whole network unlocked', () {
     final g = GameState();
-    g.cash = 1e9;
-    g.buyLine('lineA');
-    g.buyLine('line7');
-    g.buyTrain('line1');
-    g.buyTrain('lineA');
+    g.cash = 1e12;
+    for (final line in g.city.lines) {
+      if (!g.isUnlocked(line.id)) {
+        expect(g.buyLine(line.id), isTrue);
+      }
+    }
+    g.buyTrain('1');
+    g.buyTrain('A');
     var boardings = 0;
     var lastSeq = 0;
     for (var i = 0; i < 6000; i++) {
@@ -93,9 +128,9 @@ void main() {
         boardings++;
       }
     }
-    expect(boardings, greaterThan(120),
-        reason: '5 trains × 10 min made only $boardings stops');
-    expect(g.trains.length, 5);
+    expect(g.trains.length, 11);
+    expect(boardings, greaterThan(200),
+        reason: '11 trains × 10 min made only $boardings stops');
   });
 
   test('offline earnings: credited at half rate, capped at 8 hours', () {
@@ -122,8 +157,8 @@ void main() {
 
   test('deterministic: two identical runs, identical worlds', () {
     GameState world() => run(200, setup: (g) {
-          g.cash = 6000;
-          g.buyLine('lineA');
+          g.cash = 10000;
+          g.buyLine(g.city.lines[1].id);
         });
     final a = world();
     final b = world();

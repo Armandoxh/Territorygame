@@ -46,6 +46,7 @@ class GameState extends ChangeNotifier {
     for (final line in city.lines) {
       paths[line.id] = LinePath(city, line);
     }
+    _buildSegmentLanes();
     for (final s in city.stations) {
       waiting[s.id] = 0;
       foodLevel[s.id] = 0;
@@ -68,6 +69,39 @@ class GameState extends ChangeNotifier {
 
   final CityDef city = Cities.newMeridian;
   final Map<String, LinePath> paths = {};
+
+  /// Per line, per path segment: the perpendicular lane offset (map units)
+  /// used where lines share a corridor — the side-by-side rendering the map
+  /// was approved with. Precomputed once; lanes are reserved by ALL lines
+  /// (locked included) so geometry never shifts when a line unlocks.
+  final Map<String, List<double>> segLane = {};
+  static const double laneGap = 3.2;
+
+  String _segKey(Offset a, Offset b) {
+    final swap = (a.dx > b.dx) || (a.dx == b.dx && a.dy > b.dy);
+    final p = swap ? b : a;
+    final q = swap ? a : b;
+    return '${p.dx},${p.dy}|${q.dx},${q.dy}';
+  }
+
+  void _buildSegmentLanes() {
+    final users = <String, List<String>>{};
+    for (final line in city.lines) {
+      final pts = paths[line.id]!.points;
+      for (var i = 0; i < pts.length - 1; i++) {
+        users.putIfAbsent(_segKey(pts[i], pts[i + 1]), () => []).add(line.id);
+      }
+    }
+    for (final line in city.lines) {
+      final pts = paths[line.id]!.points;
+      final lanes = <double>[];
+      for (var i = 0; i < pts.length - 1; i++) {
+        final u = users[_segKey(pts[i], pts[i + 1])]!..sort();
+        lanes.add((u.indexOf(line.id) - (u.length - 1) / 2) * laneGap);
+      }
+      segLane[line.id] = lanes;
+    }
+  }
 
   // ---- Money & lifetime stats ----
   double cash = 0;
@@ -96,12 +130,12 @@ class GameState extends ChangeNotifier {
   int accessLevel = 0;
 
   double get trainSpeed => baseSpeed * (1 + 0.12 * speedLevel);
-  double get trainCapacity => 10 + 6.0 * capacityLevel;
+  double get trainCapacity => 8 + 5.0 * capacityLevel;
   double get demandMult => 1 + 0.10 * accessLevel;
 
-  double speedCost(int level) => 150 * pow(1.9, level).toDouble();
-  double capacityCost(int level) => 200 * pow(2.0, level).toDouble();
-  double accessCost(int level) => 250 * pow(2.1, level).toDouble();
+  double speedCost(int level) => 400 * pow(1.9, level).toDouble();
+  double capacityCost(int level) => 500 * pow(2.0, level).toDouble();
+  double accessCost(int level) => 600 * pow(2.1, level).toDouble();
 
   double get nextSpeedCost => speedCost(speedLevel);
   double get nextCapacityCost => capacityCost(capacityLevel);
@@ -290,7 +324,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 2;
+  static const int saveVersion = 3;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -320,9 +354,10 @@ class GameState extends ChangeNotifier {
     g._loadedLastSeenMs = j['lastSeenMs'] as int?;
 
     final version = (j['v'] as int?) ?? 1;
-    if (version < 2) {
-      // v1 saves predate multiple lines: money, upgrades, and the earn rate
-      // carry over; the world itself starts fresh on line 1.
+    if (version < 3) {
+      // Older saves reference the pre-approval network (different stations
+      // and line ids): money, upgrades, and the earn rate carry over; the
+      // world restarts on line 1 of the approved map.
       return g;
     }
 
