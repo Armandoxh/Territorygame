@@ -24,6 +24,14 @@ class MetroMap extends StatefulWidget {
 class _MetroMapState extends State<MetroMap> {
   int _seenSeq = 0;
   final List<_FarePop> _pops = [];
+  final TransformationController _viewer = TransformationController();
+  bool _centered = false;
+
+  @override
+  void dispose() {
+    _viewer.dispose();
+    super.dispose();
+  }
 
   void _handleTap(Offset local, Size size) {
     final g = widget.game;
@@ -62,7 +70,8 @@ class _MetroMapState extends State<MetroMap> {
     _pops.removeWhere((p) => now - p.bornMs > _FarePop.lifeMs);
 
     return AspectRatio(
-      aspectRatio: 1.05,
+      // Taller than wide: the map dominates the screen.
+      aspectRatio: 0.82,
       child: Container(
         // STYLE.md: flat ultra-light landmass, 1px hairline, square corners.
         decoration: BoxDecoration(
@@ -72,17 +81,38 @@ class _MetroMapState extends State<MetroMap> {
         clipBehavior: Clip.hardEdge,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final size = Size(constraints.maxWidth, constraints.maxHeight);
+            // The map square is rendered at viewport-HEIGHT size (bigger than
+            // the frame is wide), so it starts large and pans/zooms like the
+            // real Live Map.
+            final side = constraints.maxHeight;
+            final size = Size(side, side);
+            if (!_centered) {
+              _centered = true;
+              _viewer.value = Matrix4.identity()
+                ..translate((constraints.maxWidth - side) / 2, 0.0);
+            }
             return Stack(
               children: [
                 Positioned.fill(
-                  child: GestureDetector(
-                    onTapUp: (d) => _handleTap(d.localPosition, size),
-                    child: CustomPaint(
-                      painter: _MapPainter(
-                        game: g,
-                        pops: List.of(_pops),
-                        nowMs: now,
+                  child: InteractiveViewer(
+                    transformationController: _viewer,
+                    constrained: false,
+                    minScale: 0.75,
+                    maxScale: 5,
+                    boundaryMargin: const EdgeInsets.all(80),
+                    child: SizedBox(
+                      width: side,
+                      height: side,
+                      child: GestureDetector(
+                        onTapUp: (d) => _handleTap(d.localPosition, size),
+                        child: CustomPaint(
+                          size: size,
+                          painter: _MapPainter(
+                            game: g,
+                            pops: List.of(_pops),
+                            nowMs: now,
+                          ),
+                        ),
                       ),
                     ),
                   ),

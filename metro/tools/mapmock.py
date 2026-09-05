@@ -31,6 +31,13 @@ PARK = '#CBE2C6'
 
 stations = {
   'harbor':   (15, 85, 'Harbor Yards', 2.5, 4.2,  3),
+  'brookside':(27, 73, 'Brookside',    0,  0,   2),
+  'cityhall': (60, 47, 'City Hall',   -8.5, 4.5, 5),
+  'highridge':(70, 25, 'High Ridge',  -3,  0,   1),
+  'ferryst':  (40, 75, 'Ferry St',    -7,  0,   0),
+  'westgate': (32, 52, 'Westgate',    -7,  0,   0),
+  'riverbend':(82.5, 67.5, 'Riverbend', 0, 0,   0),
+  'garment':  (45, 30, 'Garment Dist', -8, 0,   0),
   'union':    (40, 60, 'Union Square', -9,  4.5, 15),
   'grand':    (60, 60, 'Grand Terminal', 13, -6.5, 4),
   'museum':   (60, 35, 'Museum Mile', -9.5, 0,  2),
@@ -45,9 +52,9 @@ stations = {
   'stadium':  (45, 20, 'Stadium',      0,  0,   0),
 }
 lines = [
-  ('1', '#EE352E', ['harbor','union','grand','museum','northgate'], True,  None),
-  ('A', '#0039A6', ['southport','union','midwest','cathedral','airport'], False, (13, 35, 'A · $4,000')),
-  ('7', '#B933AD', ['eastdocks','gaslight','grand','oldtown','stadium'], False, (69, 76.5, '7 · $40,000')),
+  ('1', '#EE352E', ['harbor','brookside','union','grand','cityhall','museum','highridge','northgate'], True,  None),
+  ('A', '#0039A6', ['southport','ferryst','union','westgate','midwest','cathedral','airport'], False, (13, 35, 'A · $4,000')),
+  ('7', '#B933AD', ['eastdocks','riverbend','gaslight','grand','oldtown','garment','stadium'], False, (69, 76.5, '7 · $40,000')),
 ]
 waters = [
   [(0,60),(6,66),(10,76),(12,86),(13,96),(13,100),(0,100)],
@@ -102,7 +109,7 @@ for bullet, color, ids, unlocked, plate in lines:
     svg.append(f'<text x="{px(x)}" y="{px(y)+px(PLATE_F)*0.36}" fill="{INK}" text-anchor="middle" '
                f'font-size="{px(PLATE_F)}" font-weight="800">{label}</text>')
 # stations, labels, badges
-served = {'harbor','union','grand','museum','northgate'}
+served = {'harbor','brookside','union','grand','cityhall','museum','highridge','northgate'}
 for sid, (x, y, name, ldx, ldy, waiting) in stations.items():
     if sid not in served:
         continue

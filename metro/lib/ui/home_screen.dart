@@ -151,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen>
                     const SizedBox(height: 12),
                     MetroMap(game: game, onStationTap: _openStation),
                     const SizedBox(height: 4),
-                    Text('Tap a station for platform details & concessions.',
+                    Text('Pinch to zoom · drag to pan · tap a station for details.',
                         style: TransitStyle.signage(
                             size: 10,
                             color: const Color(0x99000000),
