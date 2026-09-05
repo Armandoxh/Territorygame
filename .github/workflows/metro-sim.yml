@@ -1,0 +1,36 @@
+name: MetroMagnate Sim
+
+# Runs the economy balance harness + save round-trip tests on every change —
+# separate from the deploy workflow, so a red test never blocks shipping but
+# always shows in the checks.
+
+on:
+  push:
+    branches: [claude/investment-game-9xxLw]
+    paths:
+      - 'metro/**'
+      - '.github/workflows/metro-sim.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: metro-sim
+  cancel-in-progress: true
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Run balance harness
+        working-directory: metro
+        run: |
+          flutter --version
+          flutter pub get
+          flutter test --reporter expanded

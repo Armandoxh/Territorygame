@@ -1,0 +1,53 @@
+name: MetroMagnate Web
+
+# Builds the Metro Magnate Flutter app for the web and publishes it to the
+# GitHub Pages branch under docs/metro, so it shows up at
+# https://armandoxh.github.io/Territorygame/metro/ — alongside v1 (/),
+# v2 (/swarm/), WealthQuest (/wealthquest/), and Scratch Empire (/scratch/).
+
+on:
+  push:
+    branches: [claude/investment-game-9xxLw]
+    paths:
+      - 'metro/**'
+      - '.github/workflows/metro-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: metro-web
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build web
+        working-directory: metro
+        run: |
+          flutter --version
+          flutter create . --platforms=web
+          flutter pub get
+          flutter build web --release --base-href /Territorygame/metro/ --pwa-strategy=none
+
+      - name: Deploy to Pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./metro/build/web
+          publish_branch: claude/territorial-game-mobile-xXdYn
+          destination_dir: docs/metro
+          keep_files: true
+          commit_message: 'Deploy metro web build [skip ci]'
+          user_name: 'github-actions[bot]'
+          user_email: '41898282+github-actions[bot]@users.noreply.github.com'

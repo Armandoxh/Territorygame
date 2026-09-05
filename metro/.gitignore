@@ -1,0 +1,12 @@
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+# Platform scaffolding is generated in CI by `flutter create` — only lib/,
+# test/, and pubspec live in git.
+android/
+ios/
+linux/
+macos/
+windows/
+web/
