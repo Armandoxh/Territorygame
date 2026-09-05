@@ -66533,7 +66533,7 @@ for(s=k.z,s=A.cl(s,s.r,A.l(s).c),r=k.x,q=s.$ti.c;s.n();){p=s.d
 if(p==null)p=q.a(p)
 o=r.i(0,p)
 o.toString
-n=o+B.aA.qv(p).e*k.L4(p)*a
+n=o+B.aA.qv(p).e*0.75*k.L4(p)*a
 r.l(0,p,n>60?60:n)}for(s=k.w,r=s.length,m=0;m<s.length;s.length===r||(0,A.t)(s),++m)k.a1h(s[m],a)
 s=k.dx+=a
 if(s>=5){l=k.db/s
@@ -66775,7 +66775,7 @@ q=s.ok.ax
 if(q==null)s=o
 else{s=s.ax
 p=s.rx
-s=q.t6(p==null?s.k3:p)}k=A.c([new A.Ja(m,o),B.j6,new A.uB(m,n.ga_c(),o),B.w_,l,B.vY,B.HA,B.j7,new A.ls(j,B.aU,o),B.vY,A.PM(A.aiG(A.ci("v0.4.0 \xb7 build 12 \xb7 restart",s),n.gV1()),o,o)],k)
+s=q.t6(p==null?s.k3:p)}k=A.c([new A.Ja(m,o),B.j6,new A.uB(m,n.ga_c(),o),B.w_,l,B.vY,B.HA,B.j7,new A.ls(j,B.aU,o),B.vY,A.PM(A.aiG(A.ci("v0.4.1 \xb7 build 13 \xb7 restart",s),n.gV1()),o,o)],k)
 n=A.aq([null,0],t.LO,t.S)
 return A.PM(new A.hr(B.xf,new A.DF(new A.a24(!0,!0,!0,k,n),B.Ag,B.b4,!1,o,o,B.wY,!1,o,o,11,B.b6,o,o,B.ar,B.aW,o),o),o,o)},
 $S:441}
