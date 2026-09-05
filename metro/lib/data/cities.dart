@@ -13,15 +13,45 @@ class StationDef {
   /// Riders per second who want to board here (before upgrades).
   final double demand;
 
+  /// Hand-tuned label placement (map units). labelDy > 0: label sits below
+  /// the dot at that offset; labelDy < 0: label sits above with its bottom at
+  /// that offset; 0 = automatic (below, or above near the map's bottom edge).
+  /// Dense corridors NEED these — three stations on one row will otherwise
+  /// stack their labels.
+  final double labelDx;
+  final double labelDy;
+
   const StationDef({
     required this.id,
     required this.name,
     required this.x,
     required this.y,
     required this.demand,
+    this.labelDx = 0,
+    this.labelDy = 0,
   });
 
   Offset get pos => Offset(x, y);
+}
+
+/// A park block: flat green, each with its own size and slight rotation
+/// (STYLE.md: asymmetrical variation — no two alike).
+class ParkDef {
+  final double cx;
+  final double cy;
+  final double w;
+  final double h;
+  final double rotDeg;
+  const ParkDef(this.cx, this.cy, this.w, this.h, this.rotDeg);
+}
+
+/// A water-body label ("MERIDIAN HARBOR"), optionally rotated for rivers.
+class WaterLabel {
+  final String text;
+  final double x;
+  final double y;
+  final double rotDeg;
+  const WaterLabel(this.text, this.x, this.y, {this.rotDeg = 0});
 }
 
 /// A subway line: a colored path through station ids. Trains ping-pong end to
@@ -63,12 +93,21 @@ class CityDef {
   final List<StationDef> stations;
   final List<LineDef> lines;
 
+  /// Flat water polygons (closed), drawn under everything — the geography
+  /// that makes the landmass read as a city.
+  final List<List<Offset>> waters;
+  final List<ParkDef> parks;
+  final List<WaterLabel> waterLabels;
+
   const CityDef({
     required this.id,
     required this.name,
     required this.tagline,
     required this.stations,
     required this.lines,
+    this.waters = const [],
+    this.parks = const [],
+    this.waterLabels = const [],
   });
 
   StationDef stationById(String id) =>
@@ -85,18 +124,45 @@ class Cities {
     name: 'New Meridian',
     tagline: 'The city that never stops riding.',
     stations: [
-      // Line 1 corridor.
+      // Line 1 corridor. Label offsets are hand-tuned: three stations share
+      // the y=60 row, so their labels fan out instead of stacking.
       StationDef(id: 'harbor', name: 'Harbor Yards', x: 15, y: 85, demand: 0.5),
-      StationDef(id: 'union', name: 'Union Square', x: 40, y: 60, demand: 1.0),
-      StationDef(id: 'grand', name: 'Grand Terminal', x: 60, y: 60, demand: 0.8),
+      StationDef(
+          id: 'union',
+          name: 'Union Square',
+          x: 40,
+          y: 60,
+          demand: 1.0,
+          labelDx: -9,
+          labelDy: 4.5),
+      StationDef(
+          id: 'grand',
+          name: 'Grand Terminal',
+          x: 60,
+          y: 60,
+          demand: 0.8,
+          labelDx: 11,
+          labelDy: -6),
       StationDef(id: 'museum', name: 'Museum Mile', x: 60, y: 35, demand: 0.6),
       StationDef(
           id: 'northgate', name: 'Northgate', x: 80, y: 15, demand: 0.4),
       // Line A corridor (interchange at Union Square).
       StationDef(
-          id: 'southport', name: 'Southport', x: 40, y: 90, demand: 0.5),
+          id: 'southport',
+          name: 'Southport',
+          x: 40,
+          y: 90,
+          demand: 0.5,
+          labelDx: 10,
+          labelDy: -4.5),
       StationDef(
-          id: 'midwest', name: 'Midtown West', x: 25, y: 45, demand: 0.7),
+          id: 'midwest',
+          name: 'Midtown West',
+          x: 25,
+          y: 45,
+          demand: 0.7,
+          labelDx: -8,
+          labelDy: 4.5),
       StationDef(
           id: 'cathedral', name: 'Cathedral', x: 25, y: 25, demand: 0.5),
       StationDef(id: 'airport', name: 'Airport', x: 40, y: 10, demand: 0.9),
@@ -104,9 +170,50 @@ class Cities {
       StationDef(
           id: 'eastdocks', name: 'East Docks', x: 90, y: 75, demand: 0.6),
       StationDef(
-          id: 'gaslight', name: 'Gaslight Qtr', x: 75, y: 60, demand: 0.7),
+          id: 'gaslight',
+          name: 'Gaslight Qtr',
+          x: 75,
+          y: 60,
+          demand: 0.7,
+          labelDx: 3,
+          labelDy: 4.5),
       StationDef(id: 'oldtown', name: 'Old Town', x: 45, y: 45, demand: 0.6),
       StationDef(id: 'stadium', name: 'Stadium', x: 45, y: 20, demand: 1.1),
+    ],
+    // Geography: a harbor along the south-west shore, the East River on the
+    // right, a corner inlet up north — flat, textureless water — plus park
+    // blocks, each its own size and tilt.
+    waters: [
+      [
+        Offset(0, 68),
+        Offset(6, 74),
+        Offset(10, 84),
+        Offset(13, 94),
+        Offset(14, 100),
+        Offset(0, 100),
+      ],
+      [
+        Offset(100, 58),
+        Offset(95, 64),
+        Offset(93, 76),
+        Offset(96, 90),
+        Offset(100, 94),
+      ],
+      [
+        Offset(86, 0),
+        Offset(100, 0),
+        Offset(100, 14),
+      ],
+    ],
+    parks: [
+      ParkDef(50, 73, 15, 8, 7),
+      ParkDef(14, 16, 8, 11, 5),
+      ParkDef(34, 30, 10, 6, -4),
+      ParkDef(83, 42, 9, 7, 11),
+    ],
+    waterLabels: [
+      WaterLabel('MERIDIAN\nHARBOR', 6.5, 86),
+      WaterLabel('EAST RIVER', 96.5, 76, rotDeg: -90),
     ],
     lines: [
       LineDef(

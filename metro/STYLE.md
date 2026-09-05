@@ -18,7 +18,8 @@ before implementation. This file wins over taste, defaults, and old code.
   #FF6319 (B/D/F/M), #B933AD (7), #FCCC0A (N/Q/R/W, ink text), #00933C
   (4/5/6), #6CBE45 (G), #A7A9AC (S).
 - **Background landmass:** flat ultra-light off-white **#F4F4F4** (dark mode:
-  flat #1A1A1A). Water: one solid, textureless flat color. No textures, no
+  flat #1A1A1A). Water: one solid, textureless flat color — **#BFD7E4**, with
+  water labels in **#6E93AC**. Parks: flat **#CBE2C6**. No textures, no
   gradients, no grid overlays.
 - **Typography:** heavy Swiss neo-grotesque only. Inter (via google_fonts) is
   the free Helvetica stand-in. Station labels sharp, highly legible, adjacent

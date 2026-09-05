@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -86,8 +88,8 @@ class _MetroMapState extends State<MetroMap> {
                   ),
                 ),
                 Positioned(
-                  left: 10,
-                  top: 10,
+                  right: 10,
+                  bottom: 10,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 5),
@@ -149,8 +151,53 @@ class _MapPainter extends CustomPainter {
         p.dx * s + (size.width - 100 * s) / 2,
         p.dy * s + (size.height - 100 * s) / 2);
 
-    // STYLE.md: the landmass is one flat color — no grid, no texture.
+    // STYLE.md: the landmass is one flat color — no grid, no texture. The
+    // city comes from geography: flat water bodies with map labels, and
+    // asymmetric park blocks.
     final city = game.city;
+
+    final waterPaint = Paint()..color = const Color(0xFFBFD7E4);
+    for (final poly in city.waters) {
+      final wp = Path()..moveTo(m(poly.first).dx, m(poly.first).dy);
+      for (final p in poly.skip(1)) {
+        wp.lineTo(m(p).dx, m(p).dy);
+      }
+      wp.close();
+      canvas.drawPath(wp, waterPaint);
+    }
+    for (final wl in city.waterLabels) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: wl.text,
+          style: GoogleFonts.inter(
+            color: const Color(0xFF6E93AC),
+            fontSize: (2.4 * s).clamp(7.0, 10.0),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          ),
+        ),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final c = m(Offset(wl.x, wl.y));
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(wl.rotDeg * pi / 180);
+      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      canvas.restore();
+    }
+    final parkPaint = Paint()..color = const Color(0xFFCBE2C6);
+    for (final park in city.parks) {
+      final c = m(Offset(park.cx, park.cy));
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(park.rotDeg * pi / 180);
+      canvas.drawRect(
+          Rect.fromCenter(
+              center: Offset.zero, width: park.w * s, height: park.h * s),
+          parkPaint);
+      canvas.restore();
+    }
 
     // Locked lines first (under everything): dashed "planned routes".
     for (final line in city.lines) {
@@ -220,26 +267,42 @@ class _MapPainter extends CustomPainter {
               ..strokeWidth = 0.9 * s);
       }
 
-      final label = TextPainter(
-        text: TextSpan(
-          text: st.name,
-          style: GoogleFonts.inter(
-            color: _ink,
-            fontSize: (3.4 * s).clamp(9.0, 14.0),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final above = st.y > 75;
-      label.paint(
-        canvas,
-        Offset(
-          (c.dx - label.width / 2)
-              .clamp(2.0, size.width - label.width - 2.0),
-          above ? c.dy - 5 * s - label.height : c.dy + 4.5 * s,
-        ),
+      // Label with a white halo (like real map labels) at its hand-tuned
+      // offset — dense corridors fan their labels out via StationDef data.
+      final fontSize = (3.3 * s).clamp(9.0, 13.0);
+      TextPainter mkLabel(TextStyle style) => TextPainter(
+            text: TextSpan(text: st.name, style: style),
+            textDirection: TextDirection.ltr,
+          )..layout();
+      final halo = mkLabel(GoogleFonts.inter(
+        fontSize: fontSize,
+        fontWeight: FontWeight.w700,
+        foreground: Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = Colors.white,
+      ));
+      final label = mkLabel(GoogleFonts.inter(
+        color: _ink,
+        fontSize: fontSize,
+        fontWeight: FontWeight.w700,
+      ));
+      double top;
+      if (st.labelDy > 0) {
+        top = c.dy + st.labelDy * s;
+      } else if (st.labelDy < 0) {
+        top = c.dy + st.labelDy * s - label.height;
+      } else {
+        final above = st.y > 75;
+        top = above ? c.dy - 5 * s - label.height : c.dy + 4.5 * s;
+      }
+      final labelPos = Offset(
+        (c.dx + st.labelDx * s - label.width / 2)
+            .clamp(2.0, size.width - label.width - 2.0),
+        top,
       );
+      halo.paint(canvas, labelPos);
+      label.paint(canvas, labelPos);
 
       // Waiting riders badge; full platforms flash red (demand being lost).
       final count = game.waiting[st.id]!.floor();
@@ -366,24 +429,24 @@ class _MapPainter extends CustomPainter {
       Canvas canvas, Offset Function(Offset) m, double s, LineDef line) {
     final path = game.paths[line.id]!;
     final paint = Paint()
-      ..color = const Color(0xFFBDBDBD).withOpacity(0.75)
+      ..color = const Color(0xFFB9B9B9).withOpacity(0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0 * s
-      ..strokeCap = StrokeCap.round;
-    const dash = 2.2, gap = 2.2;
-    var carried = 0.0;
-    for (var i = 1; i < path.points.length; i++) {
-      final a = path.points[i - 1];
-      final b = path.points[i];
-      final segLen = (b - a).distance;
-      var d = carried;
-      while (d < segLen) {
-        final end = (d + dash) < segLen ? d + dash : segLen;
-        canvas.drawLine(m(Offset.lerp(a, b, d / segLen)!),
-            m(Offset.lerp(a, b, end / segLen)!), paint);
+      ..strokeCap = StrokeCap.butt;
+    // Long, uniform dashes cut from the real path with PathMetrics — clean
+    // through bends, no stubby round blobs.
+    final full = Path()..moveTo(m(path.points.first).dx, m(path.points.first).dy);
+    for (final p in path.points.skip(1)) {
+      full.lineTo(m(p).dx, m(p).dy);
+    }
+    final dash = 5.0 * s, gap = 3.0 * s;
+    for (final metric in full.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        final end = (d + dash) < metric.length ? d + dash : metric.length;
+        canvas.drawPath(metric.extractPath(d, end), paint);
         d = end + gap;
       }
-      carried = (d - segLen).clamp(0.0, dash + gap);
     }
 
     final mid = m(path.posAt(path.length / 2));
