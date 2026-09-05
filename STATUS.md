@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.3.0 · build 11 | **Active** — approved 9-line network shipping (build 11 CI running at time of writing; fixes build 10's missing `dart:ui` import) |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.3.0 · build 11 | **Active** — approved 9-line network LIVE (build 11 green: full harness + deploy verified) |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -80,8 +80,6 @@ dedupe cancels superseded runs (a rapid second push replaces the first).
 
 ## Known issues / open threads
 
-- **Metro build 11**: the Offset-import fix for build 10's compile failure —
-  verify CI green, then confirm the approved network is live.
 - **Scratch Empire iPhone haptics**: Safari has no vibration API; shipped
   the toggle-switch trick + a 🔧 test panel — awaiting a device report
   (needs iOS 17.4+ and System Haptics ON). Native app would solve it.
