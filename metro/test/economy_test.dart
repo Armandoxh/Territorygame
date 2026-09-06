@@ -53,7 +53,7 @@ void main() {
     final perSec = g.totalEarned / 300;
     expect(perSec, greaterThan(1.5),
         reason: 'earning \$${perSec.toStringAsFixed(2)}/s — too slow, stalls');
-    expect(perSec, lessThan(13),
+    expect(perSec, lessThan(18),
         reason: 'earning \$${perSec.toStringAsFixed(2)}/s — too fast, trivial');
   });
 
@@ -95,31 +95,90 @@ void main() {
     final accessible = run(240, setup: (g) {
       g.accessLevels['1'] = 5;
     }).totalEarned;
+    final newCars = run(240, setup: (g) {
+      g.trainsetLevels['1'] = 5;
+    }).totalEarned;
     expect(faster, greaterThan(base * 1.08),
         reason: 'speed L5 must show up (got ${faster / base}x)');
     expect(bigger, greaterThan(base * 1.15),
         reason: 'cars L5 must show up (got ${bigger / base}x)');
     expect(accessible, greaterThan(base * 1.05),
         reason: 'access L5 must show up (got ${accessible / base}x)');
+    expect(newCars, greaterThan(base * 1.08),
+        reason: 'new subway cars L5 must show up (got ${newCars / base}x)');
   });
 
   test('NETWORK upgrades work: each global upgrade measurably pays', () {
     final base = run(240).totalEarned;
-    // Measured L5 effects: signal 1.057x, doors 1.079x, marketing 1.105x,
-    // fare 1.625x — thresholds leave margin but prove each lever is real.
+    // Measured L5 effects: signal 1.058x, doors 1.075x, marketing 1.109x,
+    // fare 1.6x, billboards 1.15x — thresholds leave margin but prove each
+    // revenue lever is real. Night/crowd/yards act outside the 4-minute
+    // earn window and get their own functional tests below.
     final mustBeat = {
       'signal': 1.03,
       'doors': 1.04,
       'marketing': 1.05,
       'fare': 1.4,
+      'billboards': 1.10,
     };
-    for (final def in GameState.globalUpgrades) {
+    for (final e in mustBeat.entries) {
       final boosted = run(240, setup: (g) {
-        g.globalLevels[def.id] = 5;
+        g.globalLevels[e.key] = 5;
       }).totalEarned;
-      expect(boosted, greaterThan(base * mustBeat[def.id]!),
-          reason: '${def.id} L5 must show up (got ${boosted / base}x)');
+      expect(boosted, greaterThan(base * e.value),
+          reason: '${e.key} L5 must show up (got ${boosted / base}x)');
     }
+  });
+
+  test('NETWORK utility upgrades change what they claim', () {
+    final g = GameState();
+    expect(g.stationCapNow, GameState.stationCapBase);
+    g.globalLevels['crowd'] = 5;
+    expect(g.stationCapNow, GameState.stationCapBase + 40);
+
+    expect(g.offlineEfficiencyNow, closeTo(0.5, 1e-9));
+    g.globalLevels['night'] = 5;
+    expect(g.offlineEfficiencyNow, closeTo(0.8, 1e-9));
+
+    final line = g.city.lineById('1');
+    final fullPrice = g.nextTrainCost(line);
+    g.globalLevels['yards'] = 10;
+    expect(g.nextTrainCost(line), closeTo(fullPrice * 0.6, 0.001),
+        reason: 'rail yards L10 = 40% off new trains');
+  });
+
+  test('shared stations COMPOUND every serving line\'s upgrades', () {
+    final g = GameState();
+    g.cash = 1e12;
+    // 45 St sits on lines 1 and N.
+    for (final id in ['A', 'L', 'M', 'N']) {
+      if (!g.isUnlocked(id)) expect(g.buyLine(id), isTrue);
+    }
+    final base = g.demandMultAt('s114_172');
+    g.accessLevels['1'] = 5; // ×1.5
+    g.trainsetLevels['1'] = 5; // ×1.4
+    g.accessLevels['N'] = 5; // ×1.5
+    g.foodLevel['s114_172'] = 5; // ×1.5
+    expect(g.demandMultAt('s114_172'),
+        closeTo(base * 1.5 * 1.4 * 1.5 * 1.5, 1e-9),
+        reason: 'both lines + the food court multiply together');
+    // And the UI demand stat reads from the same function, so it reflects
+    // the compounding automatically.
+  });
+
+  test('station works pay: fare gates and platform works', () {
+    // s114_172 = 45 St, a line 1 / N corridor stop.
+    final plain = run(240).totalEarned;
+    final gated = run(240, setup: (g) {
+      g.gateLevel['s114_172'] = 5;
+    }).totalEarned;
+    final rebuilt = run(240, setup: (g) {
+      g.platformLevel['s114_172'] = 5;
+    }).totalEarned;
+    expect(gated, greaterThan(plain * 1.04),
+        reason: 'gates L5 must show up (got ${gated / plain}x)');
+    expect(rebuilt, greaterThan(plain * 1.01),
+        reason: 'platform works L5 must show up (got ${rebuilt / plain}x)');
   });
 
   test('NETWORK upgrades respect their caps and escalate in price', () {
@@ -151,6 +210,7 @@ void main() {
       g.speedLevels['A'] = 8;
       g.carLevels['A'] = 8;
       g.accessLevels['A'] = 8;
+      g.trainsetLevels['A'] = 8;
     }).totalEarned;
     expect(other, closeTo(base, base * 0.001),
         reason: "another line's upgrades must not blanket across");
@@ -188,8 +248,7 @@ void main() {
   test('platform caps hold; unserved stations stay empty', () {
     run(600, each: (g) {
       for (final id in g.waitingUp.keys) {
-        expect(g.waitingAt(id),
-            lessThanOrEqualTo(GameState.stationCap + 0.001));
+        expect(g.waitingAt(id), lessThanOrEqualTo(g.stationCapNow + 0.001));
         if (!g.isServed(id)) {
           expect(g.waitingAt(id), 0,
               reason: 'riders must not queue at unbought $id');

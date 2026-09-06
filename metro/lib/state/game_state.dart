@@ -73,6 +73,8 @@ class GameState extends ChangeNotifier {
       waitingUp[s.id] = 0;
       waitingDown[s.id] = 0;
       foodLevel[s.id] = 0;
+      gateLevel[s.id] = 0;
+      platformLevel[s.id] = 0;
     }
     unlockedLineIds.add(city.lines.first.id);
     _recomputeServed();
@@ -89,11 +91,13 @@ class GameState extends ChangeNotifier {
   /// and quieter stops get cleared (access/marketing pay off). Raising
   /// demand without capacity re-saturates everything and kills the
   /// demand-side upgrades — the harness's "must show up" guards pin both.
-  static const double demandScale = 1.15;
+  static const double demandScale = 1.3;
   static const double baseSpeed = 24;
   static const double dwellTime = 0.9; // seconds stopped at a station
-  static const double stationCap = 60; // waiting riders cap per station
+  static const double stationCapBase = 80; // waiting riders cap per station
   static const int levelMax = 10;
+
+  /// Max level for every per-station upgrade (food, gates, platform).
   static const int foodMax = 5;
   static const double foodBonusPerLevel = 0.4; // extra $ per rider boarding
   static const double offlineEfficiency = 0.5; // idle pays 50% of live rate
@@ -151,6 +155,8 @@ class GameState extends ChangeNotifier {
   final Map<String, double> waitingUp = {};
   final Map<String, double> waitingDown = {};
   final Map<String, int> foodLevel = {};
+  final Map<String, int> gateLevel = {};
+  final Map<String, int> platformLevel = {};
 
   /// Stations touched by at least one unlocked line — the only ones riders
   /// show up at — and which unlocked lines serve each.
@@ -199,6 +205,34 @@ class GameState extends ChangeNotifier {
         baseCost: 5000,
         growth: 2.5,
         maxLevel: 8),
+    GlobalUpgradeDef(
+        id: 'billboards',
+        name: 'AD BILLBOARDS',
+        blurb: '+3% income on every fare',
+        baseCost: 3500,
+        growth: 2.15,
+        maxLevel: 10),
+    GlobalUpgradeDef(
+        id: 'crowd',
+        name: 'CROWD CONTROL',
+        blurb: '+8 platform capacity, every station',
+        baseCost: 4000,
+        growth: 2.2,
+        maxLevel: 10),
+    GlobalUpgradeDef(
+        id: 'yards',
+        name: 'RAIL YARDS',
+        blurb: 'New trains 4% cheaper',
+        baseCost: 6000,
+        growth: 2.4,
+        maxLevel: 10),
+    GlobalUpgradeDef(
+        id: 'night',
+        name: 'NIGHT SERVICE',
+        blurb: '+6% offline earning rate',
+        baseCost: 8000,
+        growth: 2.6,
+        maxLevel: 5),
   ];
 
   final Map<String, int> globalLevels = {};
@@ -228,10 +262,12 @@ class GameState extends ChangeNotifier {
   final Map<String, int> speedLevels = {};
   final Map<String, int> carLevels = {};
   final Map<String, int> accessLevels = {};
+  final Map<String, int> trainsetLevels = {};
 
   int speedLevelOf(String lineId) => speedLevels[lineId] ?? 0;
   int carLevelOf(String lineId) => carLevels[lineId] ?? 0;
   int accessLevelOf(String lineId) => accessLevels[lineId] ?? 0;
+  int trainsetLevelOf(String lineId) => trainsetLevels[lineId] ?? 0;
 
   /// This line's trains: +15% speed per level, times network signals.
   double trainSpeedFor(String lineId) =>
@@ -241,18 +277,37 @@ class GameState extends ChangeNotifier {
 
   /// This line's cars: riders boarded per stop (base pinned with
   /// [demandScale] — see above).
-  double capacityFor(String lineId) => 12 + 6.0 * carLevelOf(lineId);
+  double capacityFor(String lineId) => 14 + 6.0 * carLevelOf(lineId);
 
-  /// Step-free access on a line lifts ridership at the stations it serves;
-  /// interchanges take the best level among their unlocked lines.
+  /// Ridership multiplier at one station. Every unlocked line serving it
+  /// COMPOUNDS its own upgrades (step-free ×, new subway cars ×), then the
+  /// station's food court and city-wide marketing multiply on top — so an
+  /// interchange rewards investing in each of its lines.
   double demandMultAt(String stationId) {
-    var best = 0;
+    var m = 1.0;
     for (final lineId in _linesServing[stationId] ?? const <String>[]) {
-      final lvl = accessLevelOf(lineId);
-      if (lvl > best) best = lvl;
+      m *= (1 + 0.10 * accessLevelOf(lineId)) *
+          (1 + 0.08 * trainsetLevelOf(lineId));
     }
-    return (1 + 0.10 * best) * (1 + 0.05 * globalLevelOf('marketing'));
+    m *= 1 + 0.10 * (foodLevel[stationId] ?? 0);
+    return m * (1 + 0.05 * globalLevelOf('marketing'));
   }
+
+  /// What one rider pays boarding here: live fare + concessions + fare
+  /// gates recovering evaded fares, all lifted by ad billboards. The pop
+  /// you see is riders × this.
+  double incomePerRiderAt(String stationId) =>
+      (currentFare +
+          foodBonusPerLevel * (foodLevel[stationId] ?? 0) +
+          0.25 * (gateLevel[stationId] ?? 0)) *
+      (1 + 0.03 * globalLevelOf('billboards'));
+
+  /// Waiting riders cap per station, grown by CROWD CONTROL.
+  double get stationCapNow => stationCapBase + 8.0 * globalLevelOf('crowd');
+
+  /// Offline pay rate, grown by NIGHT SERVICE (50% → 80% at max).
+  double get offlineEfficiencyNow =>
+      offlineEfficiency + 0.06 * globalLevelOf('night');
 
   /// Upgrade prices scale with the line's tier, so late lines cost more to
   /// tune but earn more too.
@@ -263,12 +318,16 @@ class GameState extends ChangeNotifier {
       _upgradeBase(city.lineById(lineId)) * 1.2 * pow(2.0, level).toDouble();
   double accessCost(String lineId, int level) =>
       _upgradeBase(city.lineById(lineId)) * 1.5 * pow(2.1, level).toDouble();
+  double trainsetCost(String lineId, int level) =>
+      _upgradeBase(city.lineById(lineId)) * 1.4 * pow(2.05, level).toDouble();
 
   double nextSpeedCost(String lineId) =>
       speedCost(lineId, speedLevelOf(lineId));
   double nextCarCost(String lineId) => carCost(lineId, carLevelOf(lineId));
   double nextAccessCost(String lineId) =>
       accessCost(lineId, accessLevelOf(lineId));
+  double nextTrainsetCost(String lineId) =>
+      trainsetCost(lineId, trainsetLevelOf(lineId));
 
   // ---- Earn-rate estimate (drives the header and offline earnings) ----
   double avgRate = 0;
@@ -303,9 +362,11 @@ class GameState extends ChangeNotifier {
       trains.where((t) => t.lineId == lineId).length;
 
   /// Cost of the NEXT train on a line (2nd costs the line's base, ×2.5 each
-  /// after).
+  /// after), discounted by RAIL YARDS.
   double nextTrainCost(LineDef line) =>
-      line.trainCost * pow(2.5, trainCount(line.id) - 1).toDouble();
+      line.trainCost *
+      pow(2.5, trainCount(line.id) - 1).toDouble() *
+      (1 - 0.04 * globalLevelOf('yards'));
 
   /// Advance the world by [dt] seconds. Deterministic; safe for any small
   /// positive step (the UI uses frame deltas, tests use 0.1s loops).
@@ -321,7 +382,7 @@ class GameState extends ChangeNotifier {
       final both = _upServed.contains(id) && _downServed.contains(id);
       var dUp = both ? add / 2 : (_upServed.contains(id) ? add : 0.0);
       var dDown = both ? add / 2 : (_downServed.contains(id) ? add : 0.0);
-      final room = stationCap - waitingUp[id]! - waitingDown[id]!;
+      final room = stationCapNow - waitingUp[id]! - waitingDown[id]!;
       if (room <= 0) continue;
       final want = dUp + dDown;
       if (want > room) {
@@ -379,8 +440,11 @@ class GameState extends ChangeNotifier {
     } else {
       nextDir = t.direction;
     }
-    _board(t.lineId, line.stationIds[t.target], nextDir);
-    t.dwell = effectiveDwell;
+    final stationId = line.stationIds[t.target];
+    _board(t.lineId, stationId, nextDir);
+    // Platform works speed this station's boarding on top of city doors.
+    t.dwell =
+        effectiveDwell * (1 - 0.15 * (platformLevel[stationId] ?? 0));
     t.direction = nextDir;
     t.target += nextDir;
   }
@@ -392,10 +456,7 @@ class GameState extends ChangeNotifier {
     final take = w < cap ? w : cap;
     if (take <= 0) return;
     bucket[stationId] = w - take;
-    // Food courts turn boardings into concession money too.
-    final perRider =
-        currentFare + foodBonusPerLevel * (foodLevel[stationId] ?? 0);
-    final earned = take * perRider;
+    final earned = take * incomePerRiderAt(stationId);
     cash += earned;
     totalEarned += earned;
     totalRiders += take;
@@ -421,6 +482,11 @@ class GameState extends ChangeNotifier {
       isUnlocked(lineId) && accessLevelOf(lineId) < levelMax,
       nextAccessCost(lineId), () {
         accessLevels[lineId] = accessLevelOf(lineId) + 1;
+      });
+  bool buyTrainset(String lineId) => _buy(
+      isUnlocked(lineId) && trainsetLevelOf(lineId) < levelMax,
+      nextTrainsetCost(lineId), () {
+        trainsetLevels[lineId] = trainsetLevelOf(lineId) + 1;
       });
 
   bool buyLine(String lineId) {
@@ -493,7 +559,24 @@ class GameState extends ChangeNotifier {
     });
   }
 
+  bool buyGates(String stationId) {
+    final level = gateLevel[stationId] ?? 0;
+    return _buy(isServed(stationId) && level < foodMax, gateCost(level), () {
+      gateLevel[stationId] = level + 1;
+    });
+  }
+
+  bool buyPlatform(String stationId) {
+    final level = platformLevel[stationId] ?? 0;
+    return _buy(
+        isServed(stationId) && level < foodMax, platformCost(level), () {
+      platformLevel[stationId] = level + 1;
+    });
+  }
+
   double foodCost(int level) => 300 * pow(2.2, level).toDouble();
+  double gateCost(int level) => 400 * pow(2.2, level).toDouble();
+  double platformCost(int level) => 500 * pow(2.3, level).toDouble();
 
   bool _buy(bool allowed, double cost, VoidCallback apply) {
     if (!allowed || cash < cost) return false;
@@ -511,7 +594,7 @@ class GameState extends ChangeNotifier {
     if (last == null || avgRate <= 0) return 0;
     final seconds =
         ((nowMs - last) / 1000).clamp(0, maxOfflineSeconds).toDouble();
-    final credit = seconds * avgRate * offlineEfficiency;
+    final credit = seconds * avgRate * offlineEfficiencyNow;
     if (credit < 1) return 0;
     cash += credit;
     totalEarned += credit;
@@ -531,7 +614,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 6;
+  static const int saveVersion = 7;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -543,9 +626,12 @@ class GameState extends ChangeNotifier {
         'waitingUp': waitingUp,
         'waitingDown': waitingDown,
         'foodLevel': foodLevel,
+        'gateLevel': gateLevel,
+        'platformLevel': platformLevel,
         'speedLevels': speedLevels,
         'carLevels': carLevels,
         'accessLevels': accessLevels,
+        'trainsetLevels': trainsetLevels,
         'globalLevels': globalLevels,
         'avgRate': avgRate,
         'lastSeenMs': nowMs,
@@ -570,6 +656,9 @@ class GameState extends ChangeNotifier {
     }
     for (final e in ((j['accessLevels'] as Map?) ?? {}).entries) {
       g.accessLevels[e.key as String] = e.value as int;
+    }
+    for (final e in ((j['trainsetLevels'] as Map?) ?? {}).entries) {
+      g.trainsetLevels[e.key as String] = e.value as int;
     }
     for (final e in ((j['globalLevels'] as Map?) ?? {}).entries) {
       g.globalLevels[e.key as String] = e.value as int;
@@ -629,6 +718,17 @@ class GameState extends ChangeNotifier {
     for (final e in (j['foodLevel'] as Map).entries) {
       if (g.foodLevel.containsKey(e.key)) {
         g.foodLevel[e.key as String] = e.value as int;
+      }
+    }
+    // Per-station upgrades added in v7 — absent from older saves.
+    for (final e in ((j['gateLevel'] as Map?) ?? {}).entries) {
+      if (g.gateLevel.containsKey(e.key)) {
+        g.gateLevel[e.key as String] = e.value as int;
+      }
+    }
+    for (final e in ((j['platformLevel'] as Map?) ?? {}).entries) {
+      if (g.platformLevel.containsKey(e.key)) {
+        g.platformLevel[e.key as String] = e.value as int;
       }
     }
     return g;

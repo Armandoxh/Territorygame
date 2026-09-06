@@ -62,3 +62,21 @@ original 1.0), fatter scoops (12 x $2 = $24 base pops), level-0 earn
 cars 1.29x, access 1.10x, marketing 1.09x, signal 1.06x, doors 1.07x).
 Rule of thumb now written into the engine comment: demand and base
 capacity move together or demand upgrades die.
+
+Metro Magnate build 18 (v0.6.0): the big upgrade expansion (player batch
+request). (1) Shared stations now COMPOUND: demandMultAt multiplies every
+serving line's (1+.10 access)(1+.08 trainset) instead of taking the max
+access level -- interchanges reward investing in each line; UI stats read
+the same function. (2) Food courts also +10% ridership/level. (3) New
+per-station upgrades: Fare Gates (+$0.25/rider/lv) and Platform Works
+(-15% dwell at that station/lv); station sheet rebuilt with three
+upgrade rows + live $/RIDER stat via new incomePerRiderAt (single source
+of truth for boarding income). (4) New per-line upgrade: New Subway Cars
+(+8% ridership/lv). (5) Four new globals: Ad Billboards (+3% income/lv),
+Crowd Control (+8 station cap/lv), Rail Yards (-4% train cost/lv), Night
+Service (+6% offline rate/lv, 50->80%). (6) Pace-up: demandScale 1.3,
+base capacity 14, station cap 80, level 0 ~= $12.4/s; fun-zone ceiling
+raised to 18. Save v7. All effect sizes measured in metro_sim_b18.py
+first (gates 1.073x, food 1.118x, trainset 1.115x, billboards 1.15x,
+platform 1.017x) and pinned as tests; night/crowd/yards get functional
+tests (they act outside the earn window).

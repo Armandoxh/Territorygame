@@ -14,6 +14,9 @@ void main() {
     g.buyTrain('1');
     g.buyFood('s114_172');
     g.buyFood('s114_172');
+    g.buyGates('s114_172');
+    g.buyPlatform('s114_172');
+    g.buyTrainset('1');
     for (var i = 0; i < 2000; i++) {
       g.tick(0.1);
       g.buySpeed('1');
@@ -37,6 +40,9 @@ void main() {
       expect(r.trains[i].target, g.trains[i].target);
     }
     expect(r.foodLevel['s114_172'], 2);
+    expect(r.gateLevel['s114_172'], 1);
+    expect(r.platformLevel['s114_172'], 1);
+    expect(r.trainsetLevelOf('1'), g.trainsetLevelOf('1'));
     expect(r.speedLevelOf('1'), g.speedLevelOf('1'));
     expect(r.accessLevelOf('1'), g.accessLevelOf('1'));
     expect(r.globalLevelOf('signal'), g.globalLevelOf('signal'));

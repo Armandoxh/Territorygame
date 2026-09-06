@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.5.1 · build 17 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.6.0 · build 18 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -43,19 +43,25 @@ build food courts. Offline earnings (50% rate, 8h cap) with a
   upgrades, world restarts on ①), balance harness enforces the approved
   rules as tests (unique colors, escalating ladder, shares ≤ 3 stops,
   fun-zone earn rate, offline math, determinism)
-- **Upgrades are scoped per line** (tap a line → its trains, motors,
-  cars, step-free), fare is a checkable \$2/rider (pops show `N× +$`),
-  platform cap 60. `demandScale = 1.15` + base capacity 12 (build 17 —
-  player found 0.75 too slow) keep level 0 just past the supply/demand
-  balance point so every upgrade type measurably pays; the harness pins
-  it (speed 1.16×, cars 1.29×, access 1.10× at L5) — demand-side
-  upgrades die if demand is raised without capacity (build 12's lesson)
-- **NETWORK tab** (build 14): four city-wide upgrades on four distinct
-  levers — Signal Modernization (+4% speed/level), Platform Doors (−5%
-  dwell/level), City Marketing (+5% ridership/level), Fare Review
-  (+$0.25 fare/level, shown live in the header so income stays
-  checkable). Each lever harness-pinned (measured L5: 1.06×, 1.08×,
-  1.11×, 1.63×)
+- **Upgrades at three scopes, all harness-pinned** (build 18):
+  - *Per line* (tap a line): add trains, Express Motors (+15% speed/lv),
+    Bigger Cars (+6 riders/stop/lv), Step-Free (+10% ridership/lv), New
+    Subway Cars (+8% ridership/lv)
+  - *Per station* (tap a station): Food Court (+$0.40/rider AND +10%
+    ridership/lv), Fare Gates (+$0.25/rider/lv), Platform Works (−15%
+    dwell here/lv). Sheet shows live DEMAND, WAITING up/down, $/RIDER
+  - *Network* (NETWORK tab, 8): Signals (+4% speed/lv), Platform Doors
+    (−5% dwell/lv), City Marketing (+5% ridership/lv), Fare Review
+    (+$0.25 fare/lv), Ad Billboards (+3% income/lv), Crowd Control
+    (+8 station cap/lv), Rail Yards (−4% train cost/lv), Night Service
+    (+6% offline rate/lv)
+- **Shared stations COMPOUND**: every serving line's ridership upgrades
+  multiply together at an interchange (×food ×marketing on top) — pinned
+  by a unit test on demandMultAt, and the UI stats read the same function
+- Pace (build 18): `demandScale = 1.3`, base capacity 14, station cap 80
+  (+crowd control), fare pops `14× +$28`, level 0 ≈ $12.4/s — demand and
+  base capacity move together or demand-side upgrades die (build 12's
+  lesson)
 - **Directional platforms + smart spawns** (build 16): waiting queues are
   per-direction (uptown/downtown); a train boards only the platform for
   the direction it departs with; arrivals fill only platforms a line

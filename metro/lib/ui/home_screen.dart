@@ -496,6 +496,15 @@ class _LineSheet extends StatelessWidget {
                     canAfford: game.cash >= game.nextAccessCost(id),
                     onBuy: () => game.buyAccess(id),
                   ),
+                  Container(height: 1, color: TransitStyle.hairline),
+                  _UpgradeRow(
+                    name: 'NEW SUBWAY CARS',
+                    level: game.trainsetLevelOf(id),
+                    blurb: "+8% ridership on this line's stations",
+                    cost: game.nextTrainsetCost(id),
+                    canAfford: game.cash >= game.nextTrainsetCost(id),
+                    onBuy: () => game.buyTrainset(id),
+                  ),
                 ],
               ),
             ),
@@ -571,7 +580,9 @@ class _UpgradeRow extends StatelessWidget {
   }
 }
 
-/// The per-station sheet: platform data + the food-court concession upgrade.
+/// The per-station sheet: platform data + this station's own works —
+/// food court (concessions + ridership), fare gates (income per rider),
+/// platform works (faster boarding here).
 class _StationSheet extends StatelessWidget {
   const _StationSheet({required this.game, required this.station});
 
@@ -580,9 +591,10 @@ class _StationSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final level = game.foodLevel[station.id] ?? 0;
-    final maxed = level >= GameState.foodMax;
-    final cost = game.foodCost(level);
+    final id = station.id;
+    final food = game.foodLevel[id] ?? 0;
+    final gates = game.gateLevel[id] ?? 0;
+    final platform = game.platformLevel[id] ?? 0;
     final servingLines = [
       for (final line in game.city.lines)
         if (game.isUnlocked(line.id) &&
@@ -621,59 +633,55 @@ class _StationSheet extends StatelessWidget {
                   _Stat(
                       label: 'DEMAND',
                       value:
-                          '${(station.demand * GameState.demandScale * game.demandMultAt(station.id) * 60).toStringAsFixed(0)}/min'),
+                          '${(station.demand * GameState.demandScale * game.demandMultAt(id) * 60).toStringAsFixed(0)}/min'),
                   _Stat(
                       label: 'WAITING',
-                      value: game.upServed(station.id) &&
-                              game.downServed(station.id)
-                          ? '${game.waitingUp[station.id]!.floor()}/'
-                              '${game.waitingDown[station.id]!.floor()}'
-                          : game.waitingAt(station.id).floor().toString()),
+                      value: game.upServed(id) && game.downServed(id)
+                          ? '${game.waitingUp[id]!.floor()}/'
+                              '${game.waitingDown[id]!.floor()}'
+                          : game.waitingAt(id).floor().toString()),
                   _Stat(
-                      label: 'FOOD COURT',
-                      value: level == 0 ? '—' : 'LV $level'),
+                      label: '\$/RIDER',
+                      value:
+                          '\$${game.incomePerRiderAt(id).toStringAsFixed(2)}'),
                 ],
               ),
             ),
             const SizedBox(height: 8),
             DataPanel(
-              child: Row(
+              padding: EdgeInsets.zero,
+              child: Column(
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('FOOD COURT',
-                            style: TransitStyle.signage(
-                                size: 12,
-                                color: TransitStyle.ink,
-                                weight: FontWeight.w900,
-                                spacing: 0.5)),
-                        Text(
-                          'Concessions: +\$${GameState.foodBonusPerLevel.toStringAsFixed(2)} '
-                          'per boarding rider, per level.',
-                          style: TransitStyle.signage(
-                              size: 11,
-                              color: const Color(0x99000000),
-                              weight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
+                  _UpgradeRow(
+                    name: 'FOOD COURT',
+                    level: food,
+                    maxLevel: GameState.foodMax,
+                    blurb:
+                        '+\$${GameState.foodBonusPerLevel.toStringAsFixed(2)}/rider · +10% ridership here',
+                    cost: game.foodCost(food),
+                    canAfford: game.cash >= game.foodCost(food),
+                    onBuy: () => game.buyFood(id),
                   ),
-                  const SizedBox(width: 8),
-                  maxed
-                      ? Text('MAX',
-                          style: TransitStyle.signage(
-                              size: 12,
-                              color: TransitStyle.ink,
-                              weight: FontWeight.w900))
-                      : FilledButton(
-                          onPressed: game.cash >= cost
-                              ? () => game.buyFood(station.id)
-                              : null,
-                          child: Text(
-                              'BUILD \$${cost.toStringAsFixed(0)}'),
-                        ),
+                  Container(height: 1, color: TransitStyle.hairline),
+                  _UpgradeRow(
+                    name: 'FARE GATES',
+                    level: gates,
+                    maxLevel: GameState.foodMax,
+                    blurb: 'Stops fare evasion: +\$0.25/rider here',
+                    cost: game.gateCost(gates),
+                    canAfford: game.cash >= game.gateCost(gates),
+                    onBuy: () => game.buyGates(id),
+                  ),
+                  Container(height: 1, color: TransitStyle.hairline),
+                  _UpgradeRow(
+                    name: 'PLATFORM WORKS',
+                    level: platform,
+                    maxLevel: GameState.foodMax,
+                    blurb: 'Trains get in & out 15% faster here',
+                    cost: game.platformCost(platform),
+                    canAfford: game.cash >= game.platformCost(platform),
+                    onBuy: () => game.buyPlatform(id),
+                  ),
                 ],
               ),
             ),
