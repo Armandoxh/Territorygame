@@ -34,3 +34,18 @@ the approved SVG exactly. Also removed the unused SectionLabel widget
 Cities.all (never referenced); fixed _LineRow's broken indentation and
 three stale doc comments (home screen still described the deleted
 SERVICE panel, map doc described the pre-water-frame look).
+
+Metro Magnate build 16 (v0.5.0): directional platforms + smart train
+spawns (player request). Waiting queues split into up/down buckets per
+station; a train boards only the platform matching its DEPARTING
+direction (terminal arrivals scoop the outbound side), arrivals fill
+only platforms an unlocked line actually leaves from (50/50 at middle
+stops, 100% at line ends), station circles show "up/down" counts (single
+number at line ends), total cap still 60. New trains alternate direction
+per spawn and same-direction trains enter phase-offset by van der Corput
+fractions (0, 1/2, 1/4, 3/4...) so they never trail each other. Verified
+first in the python port (metro_sim_dir.py): all harness bounds hold
+almost unchanged -- each platform is scooped once per round trip instead
+of the pooled queue twice, which nets out. Save v6 (old single queues
+split onto served platforms, none stranded). Also fixed the station
+sheet's DEMAND stat which omitted demandScale and overstated arrivals.

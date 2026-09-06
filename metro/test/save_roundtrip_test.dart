@@ -43,8 +43,9 @@ void main() {
     expect(r.globalLevelOf('fare'), g.globalLevelOf('fare'));
     expect(r.currentFare, closeTo(g.currentFare, 0.001));
     expect(r.avgRate, closeTo(g.avgRate, 0.001));
-    for (final e in g.waiting.entries) {
-      expect(r.waiting[e.key], closeTo(e.value, 0.001));
+    for (final e in g.waitingUp.entries) {
+      expect(r.waitingUp[e.key], closeTo(e.value, 0.001));
+      expect(r.waitingDown[e.key], closeTo(g.waitingDown[e.key]!, 0.001));
     }
 
     // And the restored world must keep running.
@@ -113,6 +114,31 @@ void main() {
       }
       expect(g.totalEarned,
           greaterThan((old['totalEarned'] as num).toDouble()));
+    }
+  });
+
+  test('v5 saves split their single queue onto the served platforms', () {
+    final played = GameState();
+    played.cash = 100000;
+    played.buyTrain('1');
+    for (var i = 0; i < 1200; i++) {
+      played.tick(0.1);
+    }
+    final j = jsonDecode(jsonEncode(played.toJson(1))) as Map<String, dynamic>;
+    final combined = {
+      for (final id in played.waitingUp.keys) id: played.waitingAt(id),
+    };
+    j['v'] = 5;
+    j.remove('waitingUp');
+    j.remove('waitingDown');
+    j['waiting'] = combined;
+
+    final g = GameState.fromJson(j);
+    for (final e in combined.entries) {
+      expect(g.waitingAt(e.key), closeTo(e.value, 0.001),
+          reason: 'no rider lost migrating ${e.key}');
+      if (!g.upServed(e.key)) expect(g.waitingUp[e.key], 0);
+      if (!g.downServed(e.key)) expect(g.waitingDown[e.key], 0);
     }
   });
 

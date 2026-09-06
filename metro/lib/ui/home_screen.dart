@@ -621,11 +621,14 @@ class _StationSheet extends StatelessWidget {
                   _Stat(
                       label: 'DEMAND',
                       value:
-                          '${(station.demand * game.demandMultAt(station.id) * 60).toStringAsFixed(0)}/min'),
+                          '${(station.demand * GameState.demandScale * game.demandMultAt(station.id) * 60).toStringAsFixed(0)}/min'),
                   _Stat(
                       label: 'WAITING',
-                      value:
-                          (game.waiting[station.id] ?? 0).floor().toString()),
+                      value: game.upServed(station.id) &&
+                              game.downServed(station.id)
+                          ? '${game.waitingUp[station.id]!.floor()}/'
+                              '${game.waitingDown[station.id]!.floor()}'
+                          : game.waitingAt(station.id).floor().toString()),
                   _Stat(
                       label: 'FOOD COURT',
                       value: level == 0 ? '—' : 'LV $level'),

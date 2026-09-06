@@ -1,7 +1,7 @@
 name: metro_magnate
 description: "Metro Magnate — an idle game about building a subway empire, one line at a time."
 publish_to: 'none'
-version: 0.4.3+15
+version: 0.5.0+16
 
 environment:
   sdk: '>=3.4.0 <4.0.0'

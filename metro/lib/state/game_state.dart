@@ -70,12 +70,13 @@ class GameState extends ChangeNotifier {
     }
     _buildSegmentLanes();
     for (final s in city.stations) {
-      waiting[s.id] = 0;
+      waitingUp[s.id] = 0;
+      waitingDown[s.id] = 0;
       foodLevel[s.id] = 0;
     }
     unlockedLineIds.add(city.lines.first.id);
-    trains.add(_freshTrain(city.lines.first));
     _recomputeServed();
+    trains.add(_spawnTrain(city.lines.first));
   }
 
   // ---- Static tuning (the balance harness pins the outcomes) ----
@@ -141,13 +142,24 @@ class GameState extends ChangeNotifier {
   // ---- Live world ----
   final Set<String> unlockedLineIds = {};
   final List<TrainState> trains = [];
-  final Map<String, double> waiting = {};
+
+  /// Waiting riders per station, split by DEPARTING direction — the uptown
+  /// and downtown platforms. A train boards only the bucket matching the
+  /// direction it leaves the station with; arrivals fill only platforms an
+  /// unlocked line actually departs from.
+  final Map<String, double> waitingUp = {};
+  final Map<String, double> waitingDown = {};
   final Map<String, int> foodLevel = {};
 
   /// Stations touched by at least one unlocked line — the only ones riders
   /// show up at — and which unlocked lines serve each.
   Set<String> _served = {};
   Map<String, List<String>> _linesServing = {};
+
+  /// Stations some unlocked line DEPARTS with direction +1 / −1 — the
+  /// platforms riders can actually be picked up from.
+  Set<String> _upServed = {};
+  Set<String> _downServed = {};
 
   /// Bumped on every boarding so the map can spawn a floating "+$" exactly
   /// once per stop.
@@ -262,24 +274,28 @@ class GameState extends ChangeNotifier {
   double _windowTime = 0;
   int? _loadedLastSeenMs;
 
-  TrainState _freshTrain(LineDef line) => TrainState(
-      lineId: line.id, distance: 0, direction: 1, dwell: 0, target: 1);
-
   void _recomputeServed() {
-    _served = {
-      for (final id in unlockedLineIds)
-        ...city.lineById(id).stationIds,
-    };
+    _served = {};
     _linesServing = {};
+    _upServed = {};
+    _downServed = {};
     for (final lineId in unlockedLineIds) {
-      for (final sid in city.lineById(lineId).stationIds) {
-        _linesServing.putIfAbsent(sid, () => []).add(lineId);
+      final ids = city.lineById(lineId).stationIds;
+      for (var i = 0; i < ids.length; i++) {
+        _served.add(ids[i]);
+        _linesServing.putIfAbsent(ids[i], () => []).add(lineId);
+        if (i < ids.length - 1) _upServed.add(ids[i]);
+        if (i > 0) _downServed.add(ids[i]);
       }
     }
   }
 
   bool isUnlocked(String lineId) => unlockedLineIds.contains(lineId);
   bool isServed(String stationId) => _served.contains(stationId);
+  bool upServed(String stationId) => _upServed.contains(stationId);
+  bool downServed(String stationId) => _downServed.contains(stationId);
+  double waitingAt(String stationId) =>
+      waitingUp[stationId]! + waitingDown[stationId]!;
 
   int trainCount(String lineId) =>
       trains.where((t) => t.lineId == lineId).length;
@@ -294,11 +310,25 @@ class GameState extends ChangeNotifier {
   void tick(double dt) {
     if (dt <= 0) return;
 
-    // Riders arrive at every served station, up to each platform's cap.
+    // Riders arrive at every served station, choosing the platform for
+    // their direction — 50/50 where both are served, everyone to the one
+    // platform at a line's end — up to the station's total cap.
     for (final id in _served) {
-      final w = waiting[id]! +
+      final add =
           city.stationById(id).demand * demandScale * demandMultAt(id) * dt;
-      waiting[id] = w > stationCap ? stationCap : w;
+      final both = _upServed.contains(id) && _downServed.contains(id);
+      var dUp = both ? add / 2 : (_upServed.contains(id) ? add : 0.0);
+      var dDown = both ? add / 2 : (_downServed.contains(id) ? add : 0.0);
+      final room = stationCap - waitingUp[id]! - waitingDown[id]!;
+      if (room <= 0) continue;
+      final want = dUp + dDown;
+      if (want > room) {
+        final f = room / want;
+        dUp *= f;
+        dDown *= f;
+      }
+      waitingUp[id] = waitingUp[id]! + dUp;
+      waitingDown[id] = waitingDown[id]! + dDown;
     }
 
     for (final t in trains) {
@@ -337,25 +367,29 @@ class GameState extends ChangeNotifier {
       return;
     }
     t.distance = targetD;
-    _board(t.lineId, line.stationIds[t.target]);
-    t.dwell = effectiveDwell;
+    // Riders board for where the train goes NEXT — at a terminal that's
+    // the turned-around direction, so the outbound platform gets scooped.
+    final int nextDir;
     if (t.target == line.stationIds.length - 1) {
-      t.direction = -1;
-      t.target -= 1;
+      nextDir = -1;
     } else if (t.target == 0) {
-      t.direction = 1;
-      t.target += 1;
+      nextDir = 1;
     } else {
-      t.target += t.direction;
+      nextDir = t.direction;
     }
+    _board(t.lineId, line.stationIds[t.target], nextDir);
+    t.dwell = effectiveDwell;
+    t.direction = nextDir;
+    t.target += nextDir;
   }
 
-  void _board(String lineId, String stationId) {
-    final w = waiting[stationId]!;
+  void _board(String lineId, String stationId, int direction) {
+    final bucket = direction > 0 ? waitingUp : waitingDown;
+    final w = bucket[stationId]!;
     final cap = capacityFor(lineId);
     final take = w < cap ? w : cap;
     if (take <= 0) return;
-    waiting[stationId] = w - take;
+    bucket[stationId] = w - take;
     // Food courts turn boardings into concession money too.
     final perRider =
         currentFare + foodBonusPerLevel * (foodLevel[stationId] ?? 0);
@@ -391,24 +425,63 @@ class GameState extends ChangeNotifier {
     final line = city.lineById(lineId);
     return _buy(!isUnlocked(lineId), line.unlockCost, () {
       unlockedLineIds.add(lineId);
-      trains.add(_freshTrain(line));
       _recomputeServed();
+      trains.add(_spawnTrain(line));
     });
   }
 
   bool buyTrain(String lineId) {
     final line = city.lineById(lineId);
-    final path = paths[lineId]!;
     return _buy(isUnlocked(lineId), nextTrainCost(line), () {
-      // New trains enter from the far terminal, naturally out of phase.
-      trains.add(TrainState(
-        lineId: lineId,
-        distance: path.length,
-        direction: -1,
-        dwell: 0,
-        target: line.stationIds.length - 2,
-      ));
+      trains.add(_spawnTrain(line));
     });
+  }
+
+  /// Where the line's k-th train enters service: opposite direction from
+  /// the previous spawn (1st up, 2nd down, 3rd up …), and trains sharing a
+  /// direction are phase-offset along the line by van der Corput fractions
+  /// (0, ½, ¼, ¾ …) so a new train never trails an old one scooping
+  /// platforms it just emptied.
+  TrainState _spawnTrain(LineDef line) {
+    final path = paths[line.id]!;
+    final k = trainCount(line.id);
+    final direction = k.isEven ? 1 : -1;
+    final f = _vdc(k >> 1);
+    final d = direction > 0 ? path.length * f : path.length * (1 - f);
+    var target = direction > 0 ? line.stationIds.length - 1 : 0;
+    if (direction > 0) {
+      for (var i = 0; i < path.stationDistance.length; i++) {
+        if (path.stationDistance[i] > d + 1e-9) {
+          target = i;
+          break;
+        }
+      }
+    } else {
+      for (var i = path.stationDistance.length - 1; i >= 0; i--) {
+        if (path.stationDistance[i] < d - 1e-9) {
+          target = i;
+          break;
+        }
+      }
+    }
+    return TrainState(
+        lineId: line.id,
+        distance: d,
+        direction: direction,
+        dwell: 0,
+        target: target);
+  }
+
+  /// Van der Corput base-2: 0, ½, ¼, ¾, ⅛, ⅝ … — evenly self-spacing.
+  static double _vdc(int j) {
+    var f = 0.0;
+    var base = 0.5;
+    while (j > 0) {
+      if (j.isOdd) f += base;
+      j >>= 1;
+      base /= 2;
+    }
+    return f;
   }
 
   bool buyFood(String stationId) {
@@ -456,7 +529,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 5;
+  static const int saveVersion = 6;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -465,7 +538,8 @@ class GameState extends ChangeNotifier {
         'totalRiders': totalRiders,
         'unlockedLineIds': unlockedLineIds.toList(),
         'trains': [for (final t in trains) t.toJson()],
-        'waiting': waiting,
+        'waitingUp': waitingUp,
+        'waitingDown': waitingDown,
         'foodLevel': foodLevel,
         'speedLevels': speedLevels,
         'carLevels': carLevels,
@@ -518,9 +592,36 @@ class GameState extends ChangeNotifier {
         for (final t in (j['trains'] as List))
           TrainState.fromJson(t as Map<String, dynamic>)
       ]);
-    for (final e in (j['waiting'] as Map).entries) {
-      if (g.waiting.containsKey(e.key)) {
-        g.waiting[e.key as String] = (e.value as num).toDouble();
+    // Served-direction flags must exist before queues are restored — the
+    // pre-v6 migration splits by them.
+    g._recomputeServed();
+    if (version >= 6) {
+      for (final e in (j['waitingUp'] as Map).entries) {
+        if (g.waitingUp.containsKey(e.key)) {
+          g.waitingUp[e.key as String] = (e.value as num).toDouble();
+        }
+      }
+      for (final e in (j['waitingDown'] as Map).entries) {
+        if (g.waitingDown.containsKey(e.key)) {
+          g.waitingDown[e.key as String] = (e.value as num).toDouble();
+        }
+      }
+    } else {
+      // v3–v5 kept one queue per station: split it onto the platforms an
+      // unlocked line actually departs from (never strand riders on a
+      // platform no train will ever leave).
+      for (final e in (j['waiting'] as Map).entries) {
+        final id = e.key as String;
+        if (!g.waitingUp.containsKey(id)) continue;
+        final w = (e.value as num).toDouble();
+        if (g.upServed(id) && g.downServed(id)) {
+          g.waitingUp[id] = w / 2;
+          g.waitingDown[id] = w / 2;
+        } else if (g.upServed(id)) {
+          g.waitingUp[id] = w;
+        } else if (g.downServed(id)) {
+          g.waitingDown[id] = w;
+        }
       }
     }
     for (final e in (j['foodLevel'] as Map).entries) {
@@ -528,7 +629,6 @@ class GameState extends ChangeNotifier {
         g.foodLevel[e.key as String] = e.value as int;
       }
     }
-    g._recomputeServed();
     return g;
   }
 }

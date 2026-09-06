@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.4.3 · build 15 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.5.0 · build 16 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -32,13 +32,14 @@ build food courts. Offline earnings (50% rate, 8h cap) with a
 - **Shared corridors ≤ 3 stops**, drawn side-by-side on lane offsets;
   trains ride their own lane (Ⓐ and Ⓝ run visibly abreast Union Sq → 34 St)
 - Quiet stations = tiny black dots; waiting riders inflate the dot into a
-  white circle with the count inside; full platform = red ring + red number
+  white circle showing `up/down` counts (one per departing direction; a
+  single number at a line's end); full station = red ring + red numbers
 - Map opens scale-to-fit (whole city, top-down tiny) and pinch-zooms to 10×
 
 **Engineering state:**
 - `lib/data/cities.dart` is **generated** from the design rig — never
   hand-edit coordinates
-- Deterministic engine (no RNG), save v5 (older saves migrate money/
+- Deterministic engine (no RNG), save v6 (older saves migrate money/
   upgrades, world restarts on ①), balance harness enforces the approved
   rules as tests (unique colors, escalating ladder, shares ≤ 3 stops,
   fun-zone earn rate, offline math, determinism)
@@ -52,8 +53,15 @@ build food courts. Offline earnings (50% rate, 8h cap) with a
   levers — Signal Modernization (+4% speed/level), Platform Doors (−5%
   dwell/level), City Marketing (+5% ridership/level), Fare Review
   (+$0.25 fare/level, shown live in the header so income stays
-  checkable). Save v5; each lever harness-pinned (measured L5: 1.06×,
-  1.08×, 1.11×, 1.63×)
+  checkable). Each lever harness-pinned (measured L5: 1.06×, 1.08×,
+  1.11×, 1.63×)
+- **Directional platforms + smart spawns** (build 16): waiting queues are
+  per-direction (uptown/downtown); a train boards only the platform for
+  the direction it departs with; arrivals fill only platforms a line
+  actually leaves from. New trains alternate direction (up, down, up…)
+  and same-direction trains enter phase-offset along the line (van der
+  Corput ½, ¼, ¾…) so they never trail each other. Save v6 splits old
+  single queues onto the served platforms
 
 **Next up (discussed, not committed):** make unlocks feel bigger
 (district-reveal moment, per-line ridership stats), then the city ladder

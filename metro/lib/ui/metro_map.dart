@@ -305,13 +305,21 @@ class _MapPainter extends CustomPainter {
         continue;
       }
       // STYLE.md markers: white dot + thin ring, sized to hold the waiting
-      // count INSIDE it (saves space vs a floating badge). A full platform
-      // turns the ring + number red — demand is being lost. Solid-color
-      // circles are trains only, so the two can never be confused.
+      // counts INSIDE it (saves space vs a floating badge) — "up/down", one
+      // number per departing direction, or a single number at a line's end.
+      // A full station turns the ring + numbers red — demand is being
+      // lost. Solid-color circles are trains only, so the two can never be
+      // confused.
       final interchange = (linesAt[st.id] ?? 0) > 1;
-      final count = game.waiting[st.id]!.floor();
-      final full = game.waiting[st.id]! >= GameState.stationCap - 0.001;
-      final r = (interchange ? 2.4 : 1.9) * s;
+      final upC = game.waitingUp[st.id]!.floor();
+      final downC = game.waitingDown[st.id]!.floor();
+      final count = upC + downC;
+      final full = game.waitingAt(st.id) >= GameState.stationCap - 0.001;
+      final txt = game.upServed(st.id) && game.downServed(st.id)
+          ? '$upC/$downC'
+          : '$count';
+      final r = ((interchange ? 2.4 : 1.9) + (txt.length >= 4 ? 0.5 : 0.0)) *
+          s;
       if (count == 0 && !interchange) {
         // Quiet local stop: the real diagram's tiny solid dot.
         canvas.drawCircle(c, 0.85 * s, Paint()..color = _ink);
@@ -336,12 +344,14 @@ class _MapPainter extends CustomPainter {
               ..strokeWidth = 0.5 * s);
       }
       if (count > 0) {
+        // Longer texts ("28/31") step the type down to stay inside the ring.
+        const sizes = [2.1, 2.1, 1.9, 1.7, 1.45, 1.25];
         final countPainter = TextPainter(
           text: TextSpan(
-            text: '$count',
+            text: txt,
             style: GoogleFonts.inter(
               color: full ? const Color(0xFFC62828) : _ink,
-              fontSize: (count < 10 ? 2.1 : 1.7) * s,
+              fontSize: sizes[txt.length > 5 ? 5 : txt.length] * s,
               fontWeight: FontWeight.w900,
             ),
           ),

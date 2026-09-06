@@ -187,14 +187,59 @@ void main() {
 
   test('platform caps hold; unserved stations stay empty', () {
     run(600, each: (g) {
-      for (final e in g.waiting.entries) {
-        expect(e.value, lessThanOrEqualTo(GameState.stationCap + 0.001));
-        if (!g.isServed(e.key)) {
-          expect(e.value, 0,
-              reason: 'riders must not queue at unbought ${e.key}');
+      for (final id in g.waitingUp.keys) {
+        expect(g.waitingAt(id),
+            lessThanOrEqualTo(GameState.stationCap + 0.001));
+        if (!g.isServed(id)) {
+          expect(g.waitingAt(id), 0,
+              reason: 'riders must not queue at unbought $id');
         }
       }
     });
+  });
+
+  test('waiting riders split by departing direction', () {
+    var midUp = false;
+    var midDown = false;
+    final g = run(600, each: (g) {
+      // Line 1's terminals depart one way only — the other platform must
+      // stay empty forever (no rider waits for a train that never comes).
+      expect(g.waitingDown['s96_238'], 0);
+      expect(g.waitingUp['s114_22'], 0);
+      if (g.waitingUp['s114_150']! > 0) midUp = true;
+      if (g.waitingDown['s114_150']! > 0) midDown = true;
+    });
+    expect(midUp && midDown, isTrue,
+        reason: 'a middle station must fill both platforms');
+    expect(g.waitingAt('s96_238'), greaterThan(0),
+        reason: 'the terminal still collects outbound riders');
+  });
+
+  test('new trains alternate direction and spread along the line', () {
+    final g = GameState();
+    g.cash = 1e12;
+    final len = g.paths['1']!.length;
+    for (var i = 0; i < 4; i++) {
+      expect(g.buyTrain('1'), isTrue);
+    }
+    expect([for (final t in g.trains) t.direction], [1, -1, 1, -1, 1],
+        reason: 'each spawn runs opposite the previous one');
+    expect(g.trains[1].distance, closeTo(len, 0.001));
+    expect(g.trains[2].distance, closeTo(len / 2, 0.001),
+        reason: 'same-direction trains enter half a line apart');
+    expect(g.trains[3].distance, closeTo(len / 2, 0.001));
+    expect(g.trains[4].distance, closeTo(len / 4, 0.001));
+    // And the whole fleet keeps serving.
+    var boardings = 0;
+    var lastSeq = 0;
+    for (var i = 0; i < 1200; i++) {
+      g.tick(0.1);
+      if (g.boardSeq != lastSeq) {
+        lastSeq = g.boardSeq;
+        boardings++;
+      }
+    }
+    expect(boardings, greaterThan(50));
   });
 
   test('every train keeps serving with the whole network unlocked', () {
