@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.5.0 · build 16 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.5.1 · build 17 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -45,10 +45,11 @@ build food courts. Offline earnings (50% rate, 8h cap) with a
   fun-zone earn rate, offline math, determinism)
 - **Upgrades are scoped per line** (tap a line → its trains, motors,
   cars, step-free), fare is a checkable \$2/rider (pops show `N× +$`),
-  platform cap 60. `demandScale = 0.75` keeps level 0 just past the
-  supply/demand balance point so all three upgrade types measurably pay —
-  the harness proved access was dead weight at 1.0 (build 12's red Sim)
-  and now pins it (speed 1.16×, cars 1.28×, access 1.12× at L5)
+  platform cap 60. `demandScale = 1.15` + base capacity 12 (build 17 —
+  player found 0.75 too slow) keep level 0 just past the supply/demand
+  balance point so every upgrade type measurably pays; the harness pins
+  it (speed 1.16×, cars 1.29×, access 1.10× at L5) — demand-side
+  upgrades die if demand is raised without capacity (build 12's lesson)
 - **NETWORK tab** (build 14): four city-wide upgrades on four distinct
   levers — Signal Modernization (+4% speed/level), Platform Doors (−5%
   dwell/level), City Marketing (+5% ridership/level), Fare Review

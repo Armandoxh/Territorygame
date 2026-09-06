@@ -49,3 +49,16 @@ almost unchanged -- each platform is scooped once per round trip instead
 of the pooled queue twice, which nets out. Save v6 (old single queues
 split onto served platforms, none stranded). Also fixed the station
 sheet's DEMAND stat which omitted demandScale and overstated arrivals.
+
+Metro Magnate build 17 (v0.5.1): pace-up rebalance (player: "you've
+slowed down the ridership demand... it's too slow now"). demandScale
+0.75 -> 1.15 WITH base car capacity 8 -> 12, tuned as a pair via a
+ds x cap0 sweep in the directional python port: demand alone can't rise
+past ~0.85 before saturating the system and killing the demand-side
+upgrades again, but raising base capacity alongside keeps the balance
+point. Result: arrivals 53% faster than build 13-16 (15% faster than the
+original 1.0), fatter scoops (12 x $2 = $24 base pops), level-0 earn
+~$10.3/s, and all ten harness bounds pass with real margin (speed 1.16x,
+cars 1.29x, access 1.10x, marketing 1.09x, signal 1.06x, doors 1.07x).
+Rule of thumb now written into the engine comment: demand and base
+capacity move together or demand upgrades die.

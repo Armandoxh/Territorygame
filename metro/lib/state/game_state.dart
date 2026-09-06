@@ -83,12 +83,13 @@ class GameState extends ChangeNotifier {
   /// A clean, player-checkable number: riders boarded × \$2 = the pop you see.
   static const double fare = 2.0;
 
-  /// Scales raw station demand so a level-0 line sits just past the
-  /// supply/demand balance point: busy stops saturate (cars/speed/trains
-  /// pay off) while quieter stops get fully cleared (access pays off).
-  /// At 1.0 the whole line saturated and demand upgrades did nothing —
-  /// the harness's "access L5 must show up" guard is what pins this.
-  static const double demandScale = 0.75;
+  /// Scales raw station demand. Tuned TOGETHER with the base car capacity
+  /// below: the pair keeps a level-0 line just past the supply/demand
+  /// balance point, where busy stops saturate (cars/speed/trains pay off)
+  /// and quieter stops get cleared (access/marketing pay off). Raising
+  /// demand without capacity re-saturates everything and kills the
+  /// demand-side upgrades — the harness's "must show up" guards pin both.
+  static const double demandScale = 1.15;
   static const double baseSpeed = 24;
   static const double dwellTime = 0.9; // seconds stopped at a station
   static const double stationCap = 60; // waiting riders cap per station
@@ -238,8 +239,9 @@ class GameState extends ChangeNotifier {
       (1 + 0.15 * speedLevelOf(lineId)) *
       (1 + 0.04 * globalLevelOf('signal'));
 
-  /// This line's cars: riders boarded per stop.
-  double capacityFor(String lineId) => 8 + 6.0 * carLevelOf(lineId);
+  /// This line's cars: riders boarded per stop (base pinned with
+  /// [demandScale] — see above).
+  double capacityFor(String lineId) => 12 + 6.0 * carLevelOf(lineId);
 
   /// Step-free access on a line lifts ridership at the stations it serves;
   /// interchanges take the best level among their unlocked lines.
