@@ -66595,7 +66595,7 @@ aaa(a){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c=this
 if(a<=0)return
 for(s=c.Q,s=A.cs(s,s.r,A.l(s).c),r=c.x,q=c.y,p=s.$ti.c;s.n();){o=s.d
 if(o==null)o=p.a(o)
-n=B.aH.qw(o).e*0.75*c.L6(o)*a
+n=B.aH.qw(o).e*1.15*c.L6(o)*a
 m=c.at.t(0,o)&&c.ax.t(0,o)
 if(m)l=n/2
 else l=c.at.t(0,o)?n:0
@@ -66648,7 +66648,7 @@ a.c=m
 a.e+=m},
 Ui(a,b,c){var s,r,q,p,o=this,n=c>0?o.x:o.y,m=n.i(0,b)
 m.toString
-s=8+6*o.jq(a)
+s=12+6*o.jq(a)
 if(m<s)r=m
 else r=s
 if(r<=0)return
@@ -66890,7 +66890,7 @@ s=l.ok.ax
 if(s==null)l=o
 else{l=l.ax
 r=l.rx
-l=s.t7(r==null?l.k3:r)}m.push(A.PP(A.aiP(A.ci("v0.5.0 \xb7 build 16 \xb7 restart",l),n.gV3()),o,o))
+l=s.t7(r==null?l.k3:r)}m.push(A.PP(A.aiP(A.ci("v0.5.1 \xb7 build 17 \xb7 restart",l),n.gV3()),o,o))
 n=A.aq([null,0],t.LO,t.S)
 l=m.length
 return A.PP(new A.hr(B.xf,new A.DI(new A.a2a(!0,!0,!0,m,n),B.Ah,B.b5,!1,o,o,B.wY,!1,o,o,l,B.aW,o,o,B.ar,B.aY,o),o),o,o)},
@@ -66979,7 +66979,7 @@ s=i.vC(l,i.k8(l))
 m=A.aa9("+15% speed for "+k+" trains",i.d>=i.vC(l,i.k8(l)),s,m,10,"EXPRESS MOTORS",new A.a7q(o,l))
 s=A.eZ(n,n,B.A,B.bR,n,1,n,n,n)
 k=i.jq(l)
-r=B.h.L(8+6*i.jq(l),0)
+r=B.h.L(12+6*i.jq(l),0)
 q=i.ze(l,i.jq(l))
 k=A.aa9("Riders per stop: "+r+" (+6 per level)",i.d>=i.ze(l,i.jq(l)),q,k,10,"BIGGER CARS",new A.a7r(o,l))
 q=A.eZ(n,n,B.A,B.bR,n,1,n,n,n)
@@ -67018,7 +67018,7 @@ for(m=r.length,p=0;p<r.length;r.length===m||(0,A.t)(r),++p){o=r[p]
 n.push(new A.cV(B.kV,new A.k9(o.c,o.d,20,!1,l),l))}n.push(B.vY)
 n.push(A.CN(A.ci(i.b.toUpperCase(),A.bP().$4$color$fontSize$fontWeight$letterSpacing(B.j,16,B.aM,1))))
 r=A.kb(n,B.ay,B.a8)
-i=B.c.L(i.e*0.75*j.L6(h)*60,0)
+i=B.c.L(i.e*1.15*j.L6(h)*60,0)
 if(j.at.t(0,h)&&j.ax.t(0,h)){n=j.x.i(0,h)
 n.toString
 n=B.c.eC(n)
