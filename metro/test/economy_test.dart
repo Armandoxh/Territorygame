@@ -204,6 +204,41 @@ void main() {
             0.001));
   });
 
+  test('CITY GOALS: commendations compound income to the ladder top', () {
+    final g = GameState();
+    expect(GameState.goals.length, 12);
+    expect(g.currentGoal!.name, 'OPENING DAY');
+    expect(g.goalMult, 1);
+    // Drive every counter past the final rung and tick once.
+    g.cash = 1e12;
+    for (final line in g.city.lines) {
+      if (!g.isUnlocked(line.id)) {
+        expect(g.buyLine(line.id), isTrue);
+      }
+    }
+    g.totalRiders = 1000000;
+    g.totalEarned = 25000000;
+    g.tick(0.1);
+    expect(g.currentGoal, isNull, reason: 'the whole ladder completes');
+    var expected = 1.0;
+    for (final goal in GameState.goals) {
+      expected *= goal.reward;
+    }
+    expect(g.goalMult, closeTo(expected, 1e-9),
+        reason: 'rewards multiply, never add');
+    expect(g.incomePerRiderAt('s96_238'),
+        closeTo(GameState.fare * expected, 1e-6),
+        reason: 'the bonus reaches every boarding');
+    expect(g.goalProgress, 1);
+  });
+
+  test('the first commendation fires by itself in normal play', () {
+    final g = run(300);
+    expect(g.goalsDone, greaterThanOrEqualTo(1),
+        reason: '1000 riders should ride within five minutes');
+    expect(g.goalMult, greaterThan(1));
+  });
+
   test('upgrades are SCOPED: line-A levels do nothing while only 1 runs', () {
     final base = run(240).totalEarned;
     final other = run(240, setup: (g) {

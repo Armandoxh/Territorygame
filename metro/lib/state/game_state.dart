@@ -59,6 +59,22 @@ class GlobalUpgradeDef {
   final int maxLevel;
 }
 
+/// What a city goal measures.
+enum GoalKind { riders, earned, lines, trains }
+
+/// One rung of the CITY GOALS ladder — the game's "point". Completing a
+/// goal earns a commendation: a PERMANENT multiplicative income bonus.
+/// The compounding rewards are the counterweight to exponential upgrade
+/// costs: levels are linear, but the goal lane multiplies.
+class GoalDef {
+  const GoalDef(this.name, this.kind, this.target, this.reward);
+
+  final String name;
+  final GoalKind kind;
+  final double target;
+  final double reward; // income ×reward, forever
+}
+
 /// The whole simulation: one city, unlockable lines, any number of trains,
 /// per-station food courts. Pure and deterministic — [tick] advances the
 /// world by dt seconds with no RNG, so the balance harness replays it
@@ -174,6 +190,61 @@ class GameState extends ChangeNotifier {
   String lastBoardStationId = '';
   double lastBoardAmount = 0;
   int lastBoardCount = 0;
+
+  // ---- City goals (sequential; each completion compounds income) ----
+  static const List<GoalDef> goals = [
+    GoalDef('OPENING DAY', GoalKind.riders, 1000, 1.25),
+    GoalDef('SECOND LINE', GoalKind.lines, 2, 1.25),
+    GoalDef('ROLLING STOCK', GoalKind.trains, 4, 1.25),
+    GoalDef('CROSSTOWN', GoalKind.lines, 3, 1.3),
+    GoalDef('BUSY MORNING', GoalKind.riders, 25000, 1.3),
+    GoalDef('FIVE ROUTES', GoalKind.lines, 5, 1.4),
+    GoalDef('HALF MILLION', GoalKind.earned, 500000, 1.4),
+    GoalDef('SEVEN ROUTES', GoalKind.lines, 7, 1.5),
+    GoalDef('TWO MILLION', GoalKind.earned, 2000000, 1.5),
+    GoalDef('EVERY LINE', GoalKind.lines, 9, 1.75),
+    GoalDef('MILLION RIDERS', GoalKind.riders, 1000000, 1.75),
+    GoalDef('NEW MERIDIAN COMPLETE', GoalKind.earned, 25000000, 2.0),
+  ];
+
+  int goalsDone = 0;
+  double _goalMult = 1;
+
+  /// Bumped when a goal completes so the UI can celebrate exactly once.
+  int goalSeq = 0;
+  String lastGoalName = '';
+  double lastGoalReward = 1;
+
+  /// The permanent income multiplier from every commendation earned.
+  double get goalMult => _goalMult;
+
+  GoalDef? get currentGoal => goalsDone < goals.length ? goals[goalsDone] : null;
+
+  double goalValue(GoalKind kind) => switch (kind) {
+        GoalKind.riders => totalRiders,
+        GoalKind.earned => totalEarned,
+        GoalKind.lines => unlockedLineIds.length.toDouble(),
+        GoalKind.trains => trains.length.toDouble(),
+      };
+
+  /// 0–1 progress toward the current goal (1 when the ladder is finished).
+  double get goalProgress {
+    final goal = currentGoal;
+    if (goal == null) return 1;
+    return (goalValue(goal.kind) / goal.target).clamp(0.0, 1.0);
+  }
+
+  void _checkGoals() {
+    while (true) {
+      final goal = currentGoal;
+      if (goal == null || goalValue(goal.kind) < goal.target) return;
+      goalsDone += 1;
+      _goalMult *= goal.reward;
+      goalSeq += 1;
+      lastGoalName = goal.name;
+      lastGoalReward = goal.reward;
+    }
+  }
 
   // ---- Network-wide upgrades (the NETWORK tab) ----
   static const List<GlobalUpgradeDef> globalUpgrades = [
@@ -300,7 +371,8 @@ class GameState extends ChangeNotifier {
       (currentFare +
           foodBonusPerLevel * (foodLevel[stationId] ?? 0) +
           0.25 * (gateLevel[stationId] ?? 0)) *
-      (1 + 0.03 * globalLevelOf('billboards'));
+      (1 + 0.03 * globalLevelOf('billboards')) *
+      _goalMult;
 
   /// Waiting riders cap per station, grown by CROWD CONTROL.
   double get stationCapNow => stationCapBase + 8.0 * globalLevelOf('crowd');
@@ -397,6 +469,8 @@ class GameState extends ChangeNotifier {
     for (final t in trains) {
       _tickTrain(t, dt);
     }
+
+    _checkGoals();
 
     // Keep the rolling $/sec estimate fresh.
     _windowTime += dt;
@@ -614,7 +688,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 7;
+  static const int saveVersion = 8;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -633,6 +707,7 @@ class GameState extends ChangeNotifier {
         'accessLevels': accessLevels,
         'trainsetLevels': trainsetLevels,
         'globalLevels': globalLevels,
+        'goalsDone': goalsDone,
         'avgRate': avgRate,
         'lastSeenMs': nowMs,
       };
@@ -662,6 +737,12 @@ class GameState extends ChangeNotifier {
     }
     for (final e in ((j['globalLevels'] as Map?) ?? {}).entries) {
       g.globalLevels[e.key as String] = e.value as int;
+    }
+    // Pre-v8 saves have no goal state: their counters simply re-complete
+    // the ladder on the first tick (an instant commendation cascade).
+    g.goalsDone = (j['goalsDone'] as int?) ?? 0;
+    for (var i = 0; i < g.goalsDone && i < goals.length; i++) {
+      g._goalMult *= goals[i].reward;
     }
     g.avgRate = (j['avgRate'] as num).toDouble();
     g._loadedLastSeenMs = j['lastSeenMs'] as int?;

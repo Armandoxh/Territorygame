@@ -80,3 +80,19 @@ raised to 18. Save v7. All effect sizes measured in metro_sim_b18.py
 first (gates 1.073x, food 1.118x, trainset 1.115x, billboards 1.15x,
 platform 1.017x) and pinned as tests; night/crowd/yards get functional
 tests (they act outside the earn window).
+
+Metro Magnate build 19 (v0.7.0): CITY GOALS -- the game's first "point"
+layer (player: "missing the what's-the-point aspect... linear growth vs
+exponential costs"). Diagnosis quantified with a greedy-bot playthrough
+in the sim port: buying everything affordable, income goes $20/s at
+10min -> $134/s at 2h -- roughly LINEAR in play time while the unlock
+ladder costs x750. Fix shipped: a sequential 12-rung goal ladder (riders
+carried / lines unlocked / total earned / trains) shown in a CITY GOAL
+bar under the header with progress; each completion = a COMMENDATION,
+a permanent multiplicative income bonus (x1.25 -> x2 per rung, x89
+compounded at the top: NEW MERIDIAN COMPLETE, $25M earned). SnackBar
+celebration on completion. Save v8 (goalsDone; older saves re-complete
+instantly on first tick -- a commendation cascade welcome-back). Tests:
+full-ladder compounding math, first goal fires in normal play, save
+round-trip. Next layers designed but not built: city ladder (goal-gated),
+prestige, rush hours -- see chat rundown.

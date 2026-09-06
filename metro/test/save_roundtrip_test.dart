@@ -43,6 +43,10 @@ void main() {
     expect(r.gateLevel['s114_172'], 1);
     expect(r.platformLevel['s114_172'], 1);
     expect(r.trainsetLevelOf('1'), g.trainsetLevelOf('1'));
+    expect(r.goalsDone, g.goalsDone);
+    expect(r.goalMult, closeTo(g.goalMult, 1e-9));
+    expect(g.goalsDone, greaterThanOrEqualTo(1),
+        reason: 'the played-in system should have earned a commendation');
     expect(r.speedLevelOf('1'), g.speedLevelOf('1'));
     expect(r.accessLevelOf('1'), g.accessLevelOf('1'));
     expect(r.globalLevelOf('signal'), g.globalLevelOf('signal'));

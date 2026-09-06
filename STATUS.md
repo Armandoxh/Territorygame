@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.6.0 · build 18 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.7.0 · build 19 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -21,6 +21,16 @@ tests, and deploys each game to GitHub Pages on every push.
 map; riders queue at stations; you collect fares, buy trains, unlock lines,
 build food courts. Offline earnings (50% rate, 8h cap) with a
 "while you were away" return moment.
+
+**The point (build 19): the CITY GOALS ladder.** A goal bar above the map
+shows the current target (12 rungs: riders carried, lines unlocked, money
+earned … ending in NEW MERIDIAN COMPLETE at $25M). Each completion is a
+COMMENDATION: a permanent ×1.25–×2 income multiplier that COMPOUNDS (×89
+by the ladder top). This is the anti-bottleneck lane — upgrade levels are
+linear against exponential costs, but the goal lane multiplies (the
+greedy-bot probe measured income going merely linear in play time without
+it). Ladder completion is the hook for the next layer: the city ladder,
+then prestige.
 
 **The approved network (player-signed SVG, this session):**
 - 9 lines, each a **unique MTA color** and its own territory — the unlock

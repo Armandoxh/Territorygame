@@ -27,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   GameState game = GameState();
   int _tab = 0; // 0 = LINES, 1 = NETWORK
+  int _seenGoalSeq = 0;
   late final Ticker _ticker = createTicker(_onTick);
   Duration _lastElapsed = Duration.zero;
   Timer? _savePulse;
@@ -49,6 +50,21 @@ class _HomeScreenState extends State<HomeScreen>
     // Clamp big gaps (backgrounded tab) — long absences are the offline
     // system's job, not one giant frame's.
     game.tick(dt.clamp(0.0, 0.25));
+    if (game.goalSeq != _seenGoalSeq) {
+      _seenGoalSeq = game.goalSeq;
+      if (mounted && game.lastGoalName.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: TransitStyle.ink,
+          shape: const RoundedRectangleBorder(),
+          duration: const Duration(seconds: 3),
+          content: Text(
+            'COMMENDATION — ${game.lastGoalName} · income '
+            '×${game.lastGoalReward.toStringAsFixed(2)}',
+            style: TransitStyle.signage(size: 12, spacing: 1),
+          ),
+        ));
+      }
+    }
   }
 
   Future<void> _restore() async {
@@ -162,6 +178,8 @@ class _HomeScreenState extends State<HomeScreen>
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                   children: [
                     _Header(game: game),
+                    const SizedBox(height: 8),
+                    _GoalBar(game: game),
                     const SizedBox(height: 12),
                     MetroMap(game: game, onStationTap: _openStation),
                     const SizedBox(height: 4),
@@ -217,6 +235,90 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
+  }
+}
+
+/// The CITY GOAL strip: the game's current target, its progress, and the
+/// compounding commendation bonus already earned — the "why" above the map.
+class _GoalBar extends StatelessWidget {
+  const _GoalBar({required this.game});
+  final GameState game;
+
+  @override
+  Widget build(BuildContext context) {
+    final goal = game.currentGoal;
+    return DataPanel(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('CITY GOAL',
+                  style: TransitStyle.signage(
+                      size: 10,
+                      color: const Color(0x99000000),
+                      weight: FontWeight.w800,
+                      spacing: 1.5)),
+              const Spacer(),
+              if (game.goalMult > 1)
+                Text('commendations ×${game.goalMult.toStringAsFixed(2)}',
+                    style: TransitStyle.signage(
+                        size: 10,
+                        color: const Color(0x99000000),
+                        weight: FontWeight.w800)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (goal == null)
+            Text('NEW MERIDIAN COMPLETE — new cities are on the way.',
+                style: TransitStyle.signage(
+                    size: 12,
+                    color: TransitStyle.ink,
+                    weight: FontWeight.w900,
+                    spacing: 0.5))
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(goal.name,
+                      style: TransitStyle.signage(
+                          size: 12,
+                          color: TransitStyle.ink,
+                          weight: FontWeight.w900,
+                          spacing: 0.5)),
+                ),
+                Text(
+                  '${_fmt(game.goalValue(goal.kind))} / ${_fmt(goal.target)}'
+                  ' · ×${goal.reward.toStringAsFixed(2)}',
+                  style: TransitStyle.signage(
+                      size: 11,
+                      color: const Color(0x99000000),
+                      weight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            LinearProgressIndicator(
+              value: game.goalProgress,
+              minHeight: 4,
+              color: TransitStyle.ink,
+              backgroundColor: const Color(0x1A000000),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _fmt(double v) {
+    if (v >= 1e6) {
+      return '${(v / 1e6).toStringAsFixed(v % 1e6 == 0 ? 0 : 1)}M';
+    }
+    if (v >= 1000) {
+      return '${(v / 1000).toStringAsFixed(v % 1000 == 0 ? 0 : 1)}K';
+    }
+    return v.floor().toString();
   }
 }
 
