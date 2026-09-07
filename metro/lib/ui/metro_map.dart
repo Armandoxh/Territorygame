@@ -322,7 +322,7 @@ class _MapPainter extends CustomPainter {
       final upC = game.waitingUp[st.id]!.floor();
       final downC = game.waitingDown[st.id]!.floor();
       final count = upC + downC;
-      final full = game.waitingAt(st.id) >= game.stationCapNow - 0.001;
+      final full = game.waitingAt(st.id) >= game.stationCapAt(st.id) - 0.001;
       final txt = game.upServed(st.id) && game.downServed(st.id)
           ? '$upC/$downC'
           : '$count';

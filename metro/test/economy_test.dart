@@ -180,6 +180,71 @@ void main() {
     // the compounding automatically.
   });
 
+  test('STATION WORKS bulk buy levels the lowest stations first', () {
+    final g = GameState();
+    g.cash = 1e12;
+    final stops = g.city.lineById('1').stationIds;
+    // Hand one station a head start; the bulk buy must not touch it
+    // until every other station catches up (the 8/9 rule).
+    g.foodLevel[stops[3]] = 2;
+    expect(g.buyStationTier('1', 'food'), stops.length - 1,
+        reason: 'only the lowest-tier stations rise');
+    expect(g.foodLevel[stops[3]], 2, reason: 'the leader waits');
+    expect(g.minStationLevel('1', 'food'), 1);
+    expect(g.buyStationTier('1', 'food'), stops.length - 1);
+    // Everyone is at 2 now — the next tier includes the old leader.
+    expect(g.minStationLevel('1', 'food'), 2);
+    expect(g.buyStationTier('1', 'food'), stops.length);
+    for (final sid in stops) {
+      expect(g.foodLevel[sid], 3);
+    }
+  });
+
+  test('STATION WORKS respects cash: raises what it can, lowest first', () {
+    final g = GameState();
+    g.cash = g.stationWorkCost('gates', 0) * 3 + 1;
+    expect(g.buyStationTier('1', 'gates'), 3);
+    final stops = g.city.lineById('1').stationIds;
+    expect(g.gateLevel[stops[0]], 1);
+    expect(g.gateLevel[stops[2]], 1);
+    expect(g.gateLevel[stops[3]], 0, reason: 'line order, money ran out');
+  });
+
+  test('the works priority is mine to reorder, and drives the plan', () {
+    final g = GameState();
+    expect(g.nextPlannedType('1'), 'food');
+    g.raisePriority('platform');
+    expect(g.stationPriority.indexOf('platform'),
+        lessThan(g.stationPriority.indexOf('gates')));
+    g.raisePriority('platform');
+    expect(g.stationPriority.first, 'platform');
+    expect(g.nextPlannedType('1'), 'platform');
+    // Max the top priority out: the plan moves down the list.
+    g.cash = 1e12;
+    for (var i = 0; i < GameState.foodMax; i++) {
+      g.buyStationTier('1', 'platform');
+    }
+    expect(g.minStationLevel('1', 'platform'), GameState.foodMax);
+    expect(g.nextPlannedType('1'), 'food');
+  });
+
+  test('the new station works change what they claim', () {
+    final g = GameState();
+    const sid = 's224_282';
+    final baseDemand = g.demandMultAt(sid);
+    g.parkingLevel[sid] = 5;
+    expect(g.demandMultAt(sid), closeTo(baseDemand * 1.3, 1e-9),
+        reason: 'park & ride L5 = +30% ridership');
+    final baseIncome = g.incomePerRiderAt(sid);
+    g.securityLevel[sid] = 5;
+    expect(g.incomePerRiderAt(sid), closeTo(baseIncome * 1.2, 1e-9),
+        reason: 'security L5 = +20% income here');
+    expect(g.stationCapAt(sid), GameState.stationCapBase);
+    g.escalatorLevel[sid] = 5;
+    expect(g.stationCapAt(sid), GameState.stationCapBase + 40,
+        reason: 'escalators L5 = +40 platform capacity');
+  });
+
   test('station works pay: fare gates and platform works', () {
     // s224_282 = 45 St, a line 1 / N corridor stop (XL id).
     final plain = run(240).totalEarned;
@@ -404,7 +469,7 @@ void main() {
   test('platform caps hold; unserved stations stay empty', () {
     run(600, each: (g) {
       for (final id in g.waitingUp.keys) {
-        expect(g.waitingAt(id), lessThanOrEqualTo(g.stationCapNow + 0.001));
+        expect(g.waitingAt(id), lessThanOrEqualTo(g.stationCapAt(id) + 0.001));
         if (!g.isServed(id)) {
           expect(g.waitingAt(id), 0,
               reason: 'riders must not queue at unbought $id');

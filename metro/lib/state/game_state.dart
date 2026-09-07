@@ -59,6 +59,19 @@ class GlobalUpgradeDef {
   final int maxLevel;
 }
 
+/// One kind of per-station work (food court, fare gates …): the catalog
+/// entry the station sheet and the per-line bulk planner both read.
+class StationUpgradeDef {
+  const StationUpgradeDef(
+      this.id, this.name, this.blurb, this.baseCost, this.growth);
+
+  final String id;
+  final String name;
+  final String blurb;
+  final double baseCost;
+  final double growth;
+}
+
 /// What a city goal measures.
 enum GoalKind { riders, earned, lines, trains }
 
@@ -92,6 +105,9 @@ class GameState extends ChangeNotifier {
       foodLevel[s.id] = 0;
       gateLevel[s.id] = 0;
       platformLevel[s.id] = 0;
+      parkingLevel[s.id] = 0;
+      escalatorLevel[s.id] = 0;
+      securityLevel[s.id] = 0;
     }
     unlockedLineIds.add(c.lines.first.id);
     _recomputeServed();
@@ -174,6 +190,129 @@ class GameState extends ChangeNotifier {
   final Map<String, int> foodLevel = {};
   final Map<String, int> gateLevel = {};
   final Map<String, int> platformLevel = {};
+  final Map<String, int> parkingLevel = {};
+  final Map<String, int> escalatorLevel = {};
+  final Map<String, int> securityLevel = {};
+
+  // ---- Station works: the catalog + the player's build priority ----
+  static const List<StationUpgradeDef> stationUpgrades = [
+    StationUpgradeDef('food', 'FOOD COURT',
+        '+\$0.40/rider · +10% ridership here', 300, 2.2),
+    StationUpgradeDef('gates', 'FARE GATES',
+        'Stops fare evasion: +\$0.25/rider here', 400, 2.2),
+    StationUpgradeDef('platform', 'PLATFORM WORKS',
+        'Trains get in & out 15% faster here', 500, 2.3),
+    StationUpgradeDef('parking', 'PARK & RIDE',
+        '+6% ridership here', 450, 2.2),
+    StationUpgradeDef('escalators', 'ESCALATORS',
+        '+8 platform capacity here', 350, 2.15),
+    StationUpgradeDef('security', 'SECURITY DESK',
+        '+4% income on every fare here', 600, 2.3),
+  ];
+
+  static StationUpgradeDef stationUpgradeById(String id) =>
+      stationUpgrades.firstWhere((u) => u.id == id);
+
+  /// The order the bulk planner attacks upgrade types in — the player
+  /// reorders this from any line sheet; it persists.
+  final List<String> stationPriority = [
+    for (final u in stationUpgrades) u.id
+  ];
+
+  Map<String, int> _stationMapFor(String type) => switch (type) {
+        'food' => foodLevel,
+        'gates' => gateLevel,
+        'platform' => platformLevel,
+        'parking' => parkingLevel,
+        'escalators' => escalatorLevel,
+        _ => securityLevel,
+      };
+
+  int stationWorkLevel(String type, String stationId) =>
+      _stationMapFor(type)[stationId] ?? 0;
+
+  double stationWorkCost(String type, int level) {
+    final def = stationUpgradeById(type);
+    return def.baseCost * city.costScale * pow(def.growth, level).toDouble();
+  }
+
+  bool buyStationWork(String type, String stationId) {
+    final level = stationWorkLevel(type, stationId);
+    return _buy(isServed(stationId) && level < foodMax,
+        stationWorkCost(type, level), () {
+      _stationMapFor(type)[stationId] = level + 1;
+    });
+  }
+
+  /// Move a work type one slot up the priority list.
+  void raisePriority(String type) {
+    final i = stationPriority.indexOf(type);
+    if (i <= 0) return;
+    stationPriority.removeAt(i);
+    stationPriority.insert(i - 1, type);
+    notifyListeners();
+  }
+
+  /// The line's lowest tier of one work type — the tier the bulk buy
+  /// levels up. No station advances past it until every station has it.
+  int minStationLevel(String lineId, String type) {
+    var minL = foodMax;
+    final m = _stationMapFor(type);
+    for (final sid in city.lineById(lineId).stationIds) {
+      final l = m[sid] ?? 0;
+      if (l < minL) minL = l;
+    }
+    return minL;
+  }
+
+  /// How many of the line's stations sit at that lowest tier.
+  int stationsAtMin(String lineId, String type) {
+    final minL = minStationLevel(lineId, type);
+    final m = _stationMapFor(type);
+    return city
+        .lineById(lineId)
+        .stationIds
+        .where((sid) => (m[sid] ?? 0) == minL)
+        .length;
+  }
+
+  /// Full price of bringing every lowest-tier station up one level.
+  double stationTierCost(String lineId, String type) {
+    final minL = minStationLevel(lineId, type);
+    if (minL >= foodMax) return 0;
+    return stationsAtMin(lineId, type) * stationWorkCost(type, minL);
+  }
+
+  /// The bulk buy: raise the line's LOWEST-tier stations of [type] one
+  /// level each, in line order, while cash lasts. Never touches a station
+  /// above the minimum tier — 8/9 stations at tier 2 means nobody reaches
+  /// tier 3 until the 9th catches up. Returns how many stations upgraded.
+  int buyStationTier(String lineId, String type) {
+    if (!isUnlocked(lineId)) return 0;
+    final minL = minStationLevel(lineId, type);
+    if (minL >= foodMax) return 0;
+    final m = _stationMapFor(type);
+    final cost = stationWorkCost(type, minL);
+    var bought = 0;
+    for (final sid in city.lineById(lineId).stationIds) {
+      if ((m[sid] ?? 0) != minL) continue;
+      if (cash < cost) break;
+      cash -= cost;
+      m[sid] = minL + 1;
+      bought++;
+    }
+    if (bought > 0) notifyListeners();
+    return bought;
+  }
+
+  /// The first work type in the player's priority order that isn't maxed
+  /// across this line — what the planner marks NEXT.
+  String? nextPlannedType(String lineId) {
+    for (final type in stationPriority) {
+      if (minStationLevel(lineId, type) < foodMax) return type;
+    }
+    return null;
+  }
 
   /// Stations touched by at least one unlocked line — the only ones riders
   /// show up at — and which unlocked lines serve each.
@@ -433,6 +572,7 @@ class GameState extends ChangeNotifier {
           (1 + 0.08 * trainsetLevelOf(lineId));
     }
     m *= 1 + 0.10 * (foodLevel[stationId] ?? 0);
+    m *= 1 + 0.06 * (parkingLevel[stationId] ?? 0);
     return m * (1 + 0.05 * globalLevelOf('marketing'));
   }
 
@@ -444,11 +584,15 @@ class GameState extends ChangeNotifier {
           (foodBonusPerLevel * (foodLevel[stationId] ?? 0) +
                   0.25 * (gateLevel[stationId] ?? 0)) *
               city.fareScale) *
+      (1 + 0.04 * (securityLevel[stationId] ?? 0)) *
       (1 + 0.03 * globalLevelOf('billboards')) *
       _goalMult;
 
-  /// Waiting riders cap per station, grown by CROWD CONTROL.
+  /// Waiting riders cap per station: CROWD CONTROL city-wide, plus this
+  /// station's escalators.
   double get stationCapNow => stationCapBase + 8.0 * globalLevelOf('crowd');
+  double stationCapAt(String stationId) =>
+      stationCapNow + 8.0 * (escalatorLevel[stationId] ?? 0);
 
   /// Offline pay rate, grown by NIGHT SERVICE (50% → 80% at max).
   double get offlineEfficiencyNow =>
@@ -528,7 +672,7 @@ class GameState extends ChangeNotifier {
       final both = _upServed.contains(id) && _downServed.contains(id);
       var dUp = both ? add / 2 : (_upServed.contains(id) ? add : 0.0);
       var dDown = both ? add / 2 : (_downServed.contains(id) ? add : 0.0);
-      final room = stationCapNow - waitingUp[id]! - waitingDown[id]!;
+      final room = stationCapAt(id) - waitingUp[id]! - waitingDown[id]!;
       if (room <= 0) continue;
       final want = dUp + dDown;
       if (want > room) {
@@ -712,34 +856,13 @@ class GameState extends ChangeNotifier {
         target: target);
   }
 
-  bool buyFood(String stationId) {
-    final level = foodLevel[stationId] ?? 0;
-    return _buy(isServed(stationId) && level < foodMax, foodCost(level), () {
-      foodLevel[stationId] = level + 1;
-    });
-  }
+  bool buyFood(String stationId) => buyStationWork('food', stationId);
+  bool buyGates(String stationId) => buyStationWork('gates', stationId);
+  bool buyPlatform(String stationId) => buyStationWork('platform', stationId);
 
-  bool buyGates(String stationId) {
-    final level = gateLevel[stationId] ?? 0;
-    return _buy(isServed(stationId) && level < foodMax, gateCost(level), () {
-      gateLevel[stationId] = level + 1;
-    });
-  }
-
-  bool buyPlatform(String stationId) {
-    final level = platformLevel[stationId] ?? 0;
-    return _buy(
-        isServed(stationId) && level < foodMax, platformCost(level), () {
-      platformLevel[stationId] = level + 1;
-    });
-  }
-
-  double foodCost(int level) =>
-      300 * city.costScale * pow(2.2, level).toDouble();
-  double gateCost(int level) =>
-      400 * city.costScale * pow(2.2, level).toDouble();
-  double platformCost(int level) =>
-      500 * city.costScale * pow(2.3, level).toDouble();
+  double foodCost(int level) => stationWorkCost('food', level);
+  double gateCost(int level) => stationWorkCost('gates', level);
+  double platformCost(int level) => stationWorkCost('platform', level);
 
   bool _buy(bool allowed, double cost, VoidCallback apply) {
     if (!allowed || cash < cost) return false;
@@ -777,7 +900,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 10;
+  static const int saveVersion = 11;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -792,6 +915,10 @@ class GameState extends ChangeNotifier {
         'foodLevel': foodLevel,
         'gateLevel': gateLevel,
         'platformLevel': platformLevel,
+        'parkingLevel': parkingLevel,
+        'escalatorLevel': escalatorLevel,
+        'securityLevel': securityLevel,
+        'stationPriority': stationPriority,
         'speedLevels': speedLevels,
         'carLevels': carLevels,
         'accessLevels': accessLevels,
@@ -920,16 +1047,36 @@ class GameState extends ChangeNotifier {
         g.foodLevel[e.key as String] = e.value as int;
       }
     }
-    // Per-station upgrades added in v7 — absent from older saves.
-    for (final e in ((j['gateLevel'] as Map?) ?? {}).entries) {
-      if (g.gateLevel.containsKey(e.key)) {
-        g.gateLevel[e.key as String] = e.value as int;
+    // Per-station upgrades (v7 added gates/platform, v11 the rest) —
+    // absent keys default to zero, unknown station ids drop.
+    for (final entry in {
+      'gateLevel': g.gateLevel,
+      'platformLevel': g.platformLevel,
+      'parkingLevel': g.parkingLevel,
+      'escalatorLevel': g.escalatorLevel,
+      'securityLevel': g.securityLevel,
+    }.entries) {
+      for (final e in ((j[entry.key] as Map?) ?? {}).entries) {
+        if (entry.value.containsKey(e.key)) {
+          entry.value[e.key as String] = e.value as int;
+        }
       }
     }
-    for (final e in ((j['platformLevel'] as Map?) ?? {}).entries) {
-      if (g.platformLevel.containsKey(e.key)) {
-        g.platformLevel[e.key as String] = e.value as int;
-      }
+    // The player's build priority: keep saved order for known types,
+    // append any types added since in catalog order.
+    if (j['stationPriority'] is List) {
+      final known = {for (final u in stationUpgrades) u.id};
+      final saved = [
+        for (final id in (j['stationPriority'] as List))
+          if (known.contains(id as String)) id
+      ];
+      final missing = [
+        for (final u in stationUpgrades)
+          if (!saved.contains(u.id)) u.id
+      ];
+      g.stationPriority
+        ..clear()
+        ..addAll([...saved, ...missing]);
     }
     return g;
   }

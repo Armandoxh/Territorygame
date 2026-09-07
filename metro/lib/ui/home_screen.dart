@@ -721,61 +721,176 @@ class _LineSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            DataPanel(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _UpgradeRow(
-                    name: 'ADD TRAIN',
-                    level: game.trainCount(id),
-                    maxLevel: 99,
-                    blurb: 'Another ${line.bullet} train in service',
-                    cost: game.nextTrainCost(line),
-                    canAfford: game.cash >= game.nextTrainCost(line),
-                    onBuy: () => game.buyTrain(id),
-                  ),
-                  Container(height: 1, color: TransitStyle.hairline),
-                  _UpgradeRow(
-                    name: 'EXPRESS MOTORS',
-                    level: game.speedLevelOf(id),
-                    blurb: '+15% speed for ${line.bullet} trains',
-                    cost: game.nextSpeedCost(id),
-                    canAfford: game.cash >= game.nextSpeedCost(id),
-                    onBuy: () => game.buySpeed(id),
-                  ),
-                  Container(height: 1, color: TransitStyle.hairline),
-                  _UpgradeRow(
-                    name: 'BIGGER CARS',
-                    level: game.carLevelOf(id),
-                    blurb:
-                        'Riders per stop: ${game.capacityFor(id).toStringAsFixed(0)} (+6 per level)',
-                    cost: game.nextCarCost(id),
-                    canAfford: game.cash >= game.nextCarCost(id),
-                    onBuy: () => game.buyCars(id),
-                  ),
-                  Container(height: 1, color: TransitStyle.hairline),
-                  _UpgradeRow(
-                    name: 'STEP-FREE STATIONS',
-                    level: game.accessLevelOf(id),
-                    blurb: "+10% ridership on this line's stations",
-                    cost: game.nextAccessCost(id),
-                    canAfford: game.cash >= game.nextAccessCost(id),
-                    onBuy: () => game.buyAccess(id),
-                  ),
-                  Container(height: 1, color: TransitStyle.hairline),
-                  _UpgradeRow(
-                    name: 'NEW SUBWAY CARS',
-                    level: game.trainsetLevelOf(id),
-                    blurb: "+8% ridership on this line's stations",
-                    cost: game.nextTrainsetCost(id),
-                    canAfford: game.cash >= game.nextTrainsetCost(id),
-                    onBuy: () => game.buyTrainset(id),
-                  ),
-                ],
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DataPanel(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          _UpgradeRow(
+                            name: 'ADD TRAIN',
+                            level: game.trainCount(id),
+                            maxLevel: 99,
+                            blurb: 'Another ${line.bullet} train in service',
+                            cost: game.nextTrainCost(line),
+                            canAfford: game.cash >= game.nextTrainCost(line),
+                            onBuy: () => game.buyTrain(id),
+                          ),
+                          Container(height: 1, color: TransitStyle.hairline),
+                          _UpgradeRow(
+                            name: 'EXPRESS MOTORS',
+                            level: game.speedLevelOf(id),
+                            blurb: '+15% speed for ${line.bullet} trains',
+                            cost: game.nextSpeedCost(id),
+                            canAfford: game.cash >= game.nextSpeedCost(id),
+                            onBuy: () => game.buySpeed(id),
+                          ),
+                          Container(height: 1, color: TransitStyle.hairline),
+                          _UpgradeRow(
+                            name: 'BIGGER CARS',
+                            level: game.carLevelOf(id),
+                            blurb:
+                                'Riders per stop: ${game.capacityFor(id).toStringAsFixed(0)} (+6 per level)',
+                            cost: game.nextCarCost(id),
+                            canAfford: game.cash >= game.nextCarCost(id),
+                            onBuy: () => game.buyCars(id),
+                          ),
+                          Container(height: 1, color: TransitStyle.hairline),
+                          _UpgradeRow(
+                            name: 'STEP-FREE STATIONS',
+                            level: game.accessLevelOf(id),
+                            blurb: "+10% ridership on this line's stations",
+                            cost: game.nextAccessCost(id),
+                            canAfford: game.cash >= game.nextAccessCost(id),
+                            onBuy: () => game.buyAccess(id),
+                          ),
+                          Container(height: 1, color: TransitStyle.hairline),
+                          _UpgradeRow(
+                            name: 'NEW SUBWAY CARS',
+                            level: game.trainsetLevelOf(id),
+                            blurb: "+8% ridership on this line's stations",
+                            cost: game.nextTrainsetCost(id),
+                            canAfford: game.cash >= game.nextTrainsetCost(id),
+                            onBuy: () => game.buyTrainset(id),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'STATION WORKS · ALL ${line.stationIds.length} STOPS — '
+                      'levels the LOWEST stations first; ▲ sets your priority.',
+                      style: TransitStyle.signage(
+                          size: 10,
+                          color: const Color(0x99000000),
+                          weight: FontWeight.w800,
+                          spacing: 1),
+                    ),
+                    const SizedBox(height: 6),
+                    DataPanel(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (var i = 0;
+                              i < game.stationPriority.length;
+                              i++) ...[
+                            if (i > 0)
+                              Container(
+                                  height: 1, color: TransitStyle.hairline),
+                            _BulkRow(
+                                game: game,
+                                lineId: id,
+                                type: game.stationPriority[i],
+                                isFirst: i == 0),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// One bulk STATION WORKS row: brings the line's lowest-tier stations of
+/// this work up one level (never past the pack — the tier rule), shows
+/// what that costs, and carries the priority ▲.
+class _BulkRow extends StatelessWidget {
+  const _BulkRow(
+      {required this.game,
+      required this.lineId,
+      required this.type,
+      required this.isFirst});
+
+  final GameState game;
+  final String lineId;
+  final String type;
+  final bool isFirst;
+
+  @override
+  Widget build(BuildContext context) {
+    final def = GameState.stationUpgradeById(type);
+    final minL = game.minStationLevel(lineId, type);
+    final maxed = minL >= GameState.foodMax;
+    final count = maxed ? 0 : game.stationsAtMin(lineId, type);
+    final cost = game.stationTierCost(lineId, type);
+    final isNext = game.nextPlannedType(lineId) == type;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 6, 10, 6),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: isFirst ? null : () => game.raisePriority(type),
+            icon: const Icon(Icons.arrow_upward, size: 16),
+            color: TransitStyle.ink,
+            disabledColor: const Color(0x33000000),
+            visualDensity: VisualDensity.compact,
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(isNext ? '${def.name} · NEXT' : def.name,
+                    style: TransitStyle.signage(
+                        size: 12,
+                        color: TransitStyle.ink,
+                        weight: FontWeight.w900,
+                        spacing: 0.5)),
+                Text(
+                  maxed
+                      ? 'every stop maxed'
+                      : 'tier $minL → ${minL + 1} · $count stop'
+                          '${count == 1 ? '' : 's'} to raise',
+                  style: TransitStyle.signage(
+                      size: 11,
+                      color: const Color(0x99000000),
+                      weight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          maxed
+              ? Text('MAX',
+                  style: TransitStyle.signage(
+                      size: 12,
+                      color: TransitStyle.ink,
+                      weight: FontWeight.w900))
+              : OutlinedButton(
+                  onPressed: game.cash >= game.stationWorkCost(type, minL)
+                      ? () => game.buyStationTier(lineId, type)
+                      : null,
+                  child: Text('\$${cost.toStringAsFixed(0)}'),
+                ),
+        ],
       ),
     );
   }
@@ -858,9 +973,6 @@ class _StationSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final id = station.id;
-    final food = game.foodLevel[id] ?? 0;
-    final gates = game.gateLevel[id] ?? 0;
-    final platform = game.platformLevel[id] ?? 0;
     final servingLines = [
       for (final line in game.city.lines)
         if (game.isUnlocked(line.id) &&
@@ -915,41 +1027,35 @@ class _StationSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            DataPanel(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _UpgradeRow(
-                    name: 'FOOD COURT',
-                    level: food,
-                    maxLevel: GameState.foodMax,
-                    blurb:
-                        '+\$${GameState.foodBonusPerLevel.toStringAsFixed(2)}/rider · +10% ridership here',
-                    cost: game.foodCost(food),
-                    canAfford: game.cash >= game.foodCost(food),
-                    onBuy: () => game.buyFood(id),
+            Flexible(
+              child: SingleChildScrollView(
+                child: DataPanel(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      for (var i = 0;
+                          i < GameState.stationUpgrades.length;
+                          i++) ...[
+                        if (i > 0)
+                          Container(height: 1, color: TransitStyle.hairline),
+                        Builder(builder: (context) {
+                          final def = GameState.stationUpgrades[i];
+                          final level = game.stationWorkLevel(def.id, id);
+                          final cost = game.stationWorkCost(def.id, level);
+                          return _UpgradeRow(
+                            name: def.name,
+                            level: level,
+                            maxLevel: GameState.foodMax,
+                            blurb: def.blurb,
+                            cost: cost,
+                            canAfford: game.cash >= cost,
+                            onBuy: () => game.buyStationWork(def.id, id),
+                          );
+                        }),
+                      ],
+                    ],
                   ),
-                  Container(height: 1, color: TransitStyle.hairline),
-                  _UpgradeRow(
-                    name: 'FARE GATES',
-                    level: gates,
-                    maxLevel: GameState.foodMax,
-                    blurb: 'Stops fare evasion: +\$0.25/rider here',
-                    cost: game.gateCost(gates),
-                    canAfford: game.cash >= game.gateCost(gates),
-                    onBuy: () => game.buyGates(id),
-                  ),
-                  Container(height: 1, color: TransitStyle.hairline),
-                  _UpgradeRow(
-                    name: 'PLATFORM WORKS',
-                    level: platform,
-                    maxLevel: GameState.foodMax,
-                    blurb: 'Trains get in & out 15% faster here',
-                    cost: game.platformCost(platform),
-                    canAfford: game.cash >= game.platformCost(platform),
-                    onBuy: () => game.buyPlatform(id),
-                  ),
-                ],
+                ),
               ),
             ),
           ],

@@ -73,3 +73,20 @@ new geometry); station-keyed maps (food/gates/platform/waiting) drop
 with the old ids. Painter gains a label TextPainter cache (162 stations
 x halo+label per frame would chug). STYLE.md restored (it had been
 clobbered by an old CLAUDE.md copy) with the approval records.
+
+Metro Magnate build 25 (v0.10.0): STATION WORKS bulk planner + 3 new
+station upgrades (player request: bulk per-station upgrades from the
+line sheet, tier-even leveling -- "if 8/9 stations are level 2, none
+goes to 3 until 9/9" -- with a player-set, customizable priority).
+Station catalog unified into a StationUpgradeDef registry and grown to
+6: food, gates, platform + NEW Park & Ride (+6% ridership/lv),
+Escalators (+8 platform cap at that station/lv -- station cap is now
+per-station via stationCapAt), Security Desk (+4% income/lv). Line
+sheets gain a STATION WORKS panel: one bulk row per type, ordered by a
+persisted global priority list (arrow to reorder, NEXT marker on the
+first non-maxed type); buyStationTier raises only min-tier stations, in
+line order, while cash lasts. Station sheet now renders all 6 works
+generically; both sheets scroll. Save v11 (3 maps + stationPriority,
+unknown types filtered, new types appended). Tests: tier rule, partial-
+cash ordering, priority reorder/plan/persistence, new-effect units,
+caps test moved to stationCapAt.

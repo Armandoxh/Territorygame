@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.9.0 · build 24 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.10.0 · build 25 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -71,9 +71,16 @@ own 12-rung ladder (ANGEL BAY COMPLETE at $1.5B lifetime). One-way move;
   - *Per line* (tap a line): add trains, Express Motors (+15% speed/lv),
     Bigger Cars (+6 riders/stop/lv), Step-Free (+10% ridership/lv), New
     Subway Cars (+8% ridership/lv)
-  - *Per station* (tap a station): Food Court (+$0.40/rider AND +10%
-    ridership/lv), Fare Gates (+$0.25/rider/lv), Platform Works (−15%
-    dwell here/lv). Sheet shows live DEMAND, WAITING up/down, $/RIDER
+  - *Per station* (tap a station, 6 works): Food Court (+$0.40/rider
+    AND +10% ridership/lv), Fare Gates (+$0.25/rider/lv), Platform Works
+    (−15% dwell here/lv), Park & Ride (+6% ridership/lv), Escalators
+    (+8 platform cap here/lv), Security Desk (+4% income here/lv).
+    Sheet shows live DEMAND, WAITING up/down, $/RIDER
+  - *STATION WORKS bulk planner* (build 25, in every line sheet): one
+    row per work type in a player-reorderable PRIORITY order (▲); each
+    buy raises only the line's LOWEST-tier stations — nobody reaches
+    tier N+1 until every stop has tier N — and buys as many as cash
+    allows, in line order. NEXT marker shows where the priority points
   - *Network* (NETWORK tab, 8): Signals (+4% speed/lv), Platform Doors
     (−5% dwell/lv), City Marketing (+5% ridership/lv), Fare Review
     (+$0.25 fare/lv), Ad Billboards (+3% income/lv), Crowd Control

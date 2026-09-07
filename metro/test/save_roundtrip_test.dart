@@ -16,6 +16,10 @@ void main() {
     g.buyFood('s224_282');
     g.buyGates('s224_282');
     g.buyPlatform('s224_282');
+    g.buyStationWork('parking', 's224_282');
+    g.buyStationWork('escalators', 's224_282');
+    g.buyStationWork('security', 's224_282');
+    g.raisePriority('security');
     g.buyTrainset('1');
     for (var i = 0; i < 2000; i++) {
       g.tick(0.1);
@@ -42,6 +46,11 @@ void main() {
     expect(r.foodLevel['s224_282'], 2);
     expect(r.gateLevel['s224_282'], 1);
     expect(r.platformLevel['s224_282'], 1);
+    expect(r.parkingLevel['s224_282'], 1);
+    expect(r.escalatorLevel['s224_282'], 1);
+    expect(r.securityLevel['s224_282'], 1);
+    expect(r.stationPriority, orderedEquals(g.stationPriority),
+        reason: 'my works priority order survives the reload');
     expect(r.trainsetLevelOf('1'), g.trainsetLevelOf('1'));
     expect(r.goalsDone, g.goalsDone);
     expect(r.goalMult, closeTo(g.goalMult, 1e-9));
