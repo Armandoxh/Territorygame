@@ -429,20 +429,36 @@ void main() {
         reason: 'the terminal still collects outbound riders');
   });
 
-  test('new trains alternate direction and spread along the line', () {
+  test('new trains keep the fleet equidistant at every size', () {
+    double phaseOf(TrainState t, double len) =>
+        t.direction > 0 ? t.distance : 2 * len - t.distance;
+    double minGap(GameState g, double len) {
+      final p = [for (final t in g.trains) phaseOf(t, len)]..sort();
+      var best = double.infinity;
+      for (var i = 0; i < p.length; i++) {
+        final next = i + 1 < p.length ? p[i + 1] : p[0] + 2 * len;
+        if (next - p[i] < best) best = next - p[i];
+      }
+      return best;
+    }
+
     final g = GameState();
     g.cash = 1e12;
     final len = g.paths['1']!.length;
-    for (var i = 0; i < 4; i++) {
-      expect(g.buyTrain('1'), isTrue);
-    }
-    expect([for (final t in g.trains) t.direction], [1, -1, 1, -1, 1],
-        reason: 'each spawn runs opposite the previous one');
+    // Bought back-to-back, each train bisects the widest phase gap: the
+    // guaranteed minimum spacing after each purchase is exact.
+    expect(g.buyTrain('1'), isTrue);
+    expect(g.trains[1].direction, -1,
+        reason: 'the 2nd train runs opposite the 1st');
     expect(g.trains[1].distance, closeTo(len, 0.001));
-    expect(g.trains[2].distance, closeTo(len / 2, 0.001),
-        reason: 'same-direction trains enter half a line apart');
-    expect(g.trains[3].distance, closeTo(len / 2, 0.001));
-    expect(g.trains[4].distance, closeTo(len / 4, 0.001));
+    expect(minGap(g, len), closeTo(len, 0.01));
+    expect(g.buyTrain('1'), isTrue);
+    expect(minGap(g, len), closeTo(len / 2, 0.01));
+    expect(g.buyTrain('1'), isTrue);
+    expect(minGap(g, len), closeTo(len / 2, 0.01));
+    expect(g.buyTrain('1'), isTrue);
+    expect(minGap(g, len), closeTo(len / 4, 0.01),
+        reason: '5 trains: no pair closer than a quarter round trip');
     // And the whole fleet keeps serving.
     var boardings = 0;
     var lastSeq = 0;

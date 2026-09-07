@@ -27,3 +27,12 @@ persists. At t=0 the scheme reproduces the old vdc pattern exactly, so
 the existing spawn test still pins it; a new test buys at staggered odd
 moments (13.7s, +23.3s, +8.9s) and asserts the diametric entry and a
 quarter-round-trip minimum pairwise gap.
+
+Build 22: build 21's Sim run flagged the OLD spawn test, not the engine
+-- with 4 equal phase gaps the 5th train's slot is a tie, and a 1-ulp
+float difference picked the L/4-heading-DOWN slot over L/4-heading-up
+(same perfect spacing, mirrored). The legacy test asserted the exact
+vdc-era pattern; rewrote it to pin the BEHAVIOR: exact minimum circular
+phase gap after each back-to-back purchase (L, L/2, L/2, L/4) plus the
+deterministic 2nd-train-opposite entry. Lesson: assert invariants, not
+incidental tiebreaks.
