@@ -1,0 +1,14 @@
+Metro Magnate build 20 (v0.8.0): THE CITY LADDER -- Angel Bay ships
+(player approved the rig SVG). New city: bay/peninsula/island silhouette,
+9 lines, 59 stations, emitted to cities.dart via angelbay.py --emit
+(generated data, never hand-edit). Engine goes multi-city: GameState
+takes a CityDef; CityDef gains costScale(10)/fareScale(8); per-city goal
+ladders (goalsDoneByCity -- commendations from every city compound);
+finishing a ladder shows OPEN <city> in the goal bar -> moveOn() carries
+cash/lifetime totals/goalMult, network starts fresh at the new stakes,
+one-way. Save v9 (cityId + goalsDoneByCity; v8's goalsDone int
+migrates). Harness now enforces the approved shape rules on EVERY city
+(9 lines, unique colors, escalating ladder, >=6 stops, 45-degree bends,
+corridors <=3) plus ladder-completion/moveOn/AB-smoke/AB-roundtrip
+tests. AB targets sit above NM's finish since rider/earned goals are
+lifetime totals.

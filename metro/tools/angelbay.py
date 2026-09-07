@@ -220,3 +220,102 @@ r = subprocess.run(['/opt/pw-browsers/chromium-1194/chrome-linux/chrome', '--hea
                    capture_output=True, text=True, timeout=60)
 print(r.returncode, r.stderr[-200:] if r.returncode else 'OK', '| stations:', len(stations),
       '| services:', len(services))
+
+
+# ---- Dart emitter: run after approval to (re)generate the CityDef ----
+def emit_dart():
+    order = ['1', 'B', 'K', '5', 'C', 'T', 'R', 'W', '9']
+    line_names = {'1': 'Bayshore Local', 'B': 'West Shore Line',
+                  'K': 'Narrows Line', '5': 'Uptown Express',
+                  'C': 'Westhill Local', 'T': 'Eastside Flyer',
+                  'R': 'Midtown Arrow', 'W': 'South Shore',
+                  '9': 'Hillside Local'}
+    unlock = {'1': 0, 'B': 40000, 'K': 150000, '5': 450000, 'C': 1200000,
+              'T': 3000000, 'R': 7000000, 'W': 15000000, '9': 30000000}
+    traincost = {'1': 7500, 'B': 15000, 'K': 40000, '5': 120000, 'C': 300000,
+                 'T': 750000, 'R': 1750000, 'W': 4000000, '9': 7500000}
+    plates = {'1': (150, 20), 'B': (24, 24), 'K': (104, 204), '5': (146, 58),
+              'C': (88, 96), 'T': (260, 130), 'R': (166, 118),
+              'W': (226, 266), '9': (48, 142)}
+    hubs = {sid(104, 232), sid(140, 232)}  # Isla Chica, Narrows East
+    terminals = set()
+    for b in order:
+        p = services[b][1]
+        terminals.add(sid(*p[0])); terminals.add(sid(*p[-1]))
+
+    out = []
+    out.append('  static const angelBay = CityDef(')
+    out.append("    id: 'angel_bay',")
+    out.append("    name: 'Angel Bay',")
+    out.append('    size: 300,')
+    out.append('    costScale: 10,')
+    out.append('    fareScale: 8,')
+    out.append('    stations: [')
+    out.append('      // GENERATED from the approved design rig (tools/angelbay.py) —')
+    out.append('      // regenerate there, get approval, then re-emit. Do not hand-edit')
+    out.append('      // coordinates.')
+    for k, (x, y, nm) in stations.items():
+        inter = len(use[k]) >= 2
+        if inter or k in hubs:
+            demand = 0.7
+        elif k in terminals:
+            demand = 0.3
+        else:
+            demand = 0.45
+        if k in label_over:
+            anchor = label_over[k][0]
+        elif x in side_cols:
+            anchor = side_cols[x]
+        else:
+            anchor = 'middle'
+        side = {'start': 1, 'end': -1, 'middle': 0}[anchor]
+        sidestr = f', labelSide: {side}' if side else ''
+        out.append(f"      StationDef(id: '{k}', name: '{nm}', x: {x}, y: {y}, "
+                   f"demand: {demand}{sidestr}),")
+    out.append('    ],')
+    out.append('    lines: [')
+    for b in order:
+        col, path = services[b]
+        ids = ', '.join(f"'{sid(x,y)}'" for x, y in path)
+        px_, py_ = plates[b]
+        out.append('      LineDef(')
+        out.append(f"        id: '{b}',")
+        out.append(f"        name: '{line_names[b]}',")
+        out.append(f"        bullet: '{b}',")
+        out.append(f"        color: Color(0xFF{col[1:]}),")
+        out.append(f'        stationIds: [{ids}],')
+        out.append(f'        unlockCost: {unlock[b]},')
+        out.append(f'        trainCost: {traincost[b]},')
+        out.append(f'        plateX: {px_},')
+        out.append(f'        plateY: {py_},')
+        out.append('      ),')
+    out.append('    ],')
+    out.append('    lands: [')
+    for land in lands:
+        pts = ', '.join(f'Offset({x}, {y})' for x, y in land)
+        out.append('      [')
+        for x, y in land:
+            out.append(f'        Offset({x}, {y}),')
+        out.append('      ],')
+    out.append('    ],')
+    out.append('    districts: [')
+    for name, dx_, dy_, rot in districts:
+        rotstr = f', rotDeg: {rot}' if rot else ''
+        out.append(f"      WaterLabel('{name}', {dx_}, {dy_}{rotstr}),")
+    out.append('    ],')
+    out.append('    waterLabels: [')
+    for text, wx, wy, rot in water_labels:
+        rotstr = f', rotDeg: {rot}' if rot else ''
+        out.append(f"      WaterLabel('{text}', {wx}, {wy}{rotstr}),")
+    out.append('    ],')
+    out.append('    parks: [')
+    for cx, cy, w, h, rot in parks:
+        out.append(f'      ParkDef({cx}, {cy}, {w}, {h}, {rot}),')
+    out.append('    ],')
+    out.append('  );')
+    (pathlib.Path(__file__).parent / 'angelbay_dart.txt').write_text('\n'.join(out) + '\n')
+    print('emitted', len(stations), 'stations to angelbay_dart.txt')
+
+import sys
+if '--emit' in sys.argv:
+    emit_dart()

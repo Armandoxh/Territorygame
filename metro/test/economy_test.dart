@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:metro_magnate/data/cities.dart';
 import 'package:metro_magnate/state/game_state.dart';
 
 /// The balance harness for the approved 9-line network. Fully deterministic
@@ -17,33 +18,45 @@ void main() {
     return g;
   }
 
-  test('the network is the approved shape', () {
-    final g = GameState();
-    expect(g.city.lines.length, 9);
-    expect(g.city.stations.length, 56);
-    // Unique color per line — the approved rule.
-    final colors = {for (final l in g.city.lines) l.color.value};
-    expect(colors.length, 9, reason: 'no two lines may share a color');
-    // Line 1 is free; every other line costs more than the one before.
-    expect(g.city.lines.first.unlockCost, 0);
-    for (var i = 2; i < g.city.lines.length; i++) {
-      expect(g.city.lines[i].unlockCost,
-          greaterThan(g.city.lines[i - 1].unlockCost));
-    }
-  });
-
-  test('shared corridors are short (3 stops max, per the approved design)',
-      () {
-    final g = GameState();
-    // Count consecutive shared segments between any pair of lines.
-    for (final a in g.city.lines) {
-      for (final b in g.city.lines) {
-        if (a.id.compareTo(b.id) >= 0) continue;
-        final shared = a.stationIds
-            .where((id) => b.stationIds.contains(id))
-            .length;
-        expect(shared, lessThanOrEqualTo(3),
-            reason: '${a.id}/${b.id} share $shared stops');
+  test('every city in the ladder keeps the approved shape rules', () {
+    expect(Cities.all.first.id, 'new_meridian');
+    expect(Cities.newMeridian.stations.length, 56);
+    expect(Cities.angelBay.stations.length, 59);
+    for (final city in Cities.all) {
+      expect(city.lines.length, 9, reason: '${city.id}: nine lines');
+      // Unique color per line — the approved rule.
+      final colors = {for (final l in city.lines) l.color.value};
+      expect(colors.length, 9,
+          reason: '${city.id}: no two lines may share a color');
+      // Line 1 is free; every other line costs more than the one before.
+      expect(city.lines.first.unlockCost, 0);
+      for (var i = 2; i < city.lines.length; i++) {
+        expect(city.lines[i].unlockCost,
+            greaterThan(city.lines[i - 1].unlockCost),
+            reason: '${city.id}: escalating unlock ladder');
+      }
+      for (final line in city.lines) {
+        expect(line.stationIds.length, greaterThanOrEqualTo(6),
+            reason: '${city.id}/${line.id}: no short lines');
+        // 45°-bend rule: every segment is horizontal, vertical, or 45°.
+        for (var i = 0; i < line.stationIds.length - 1; i++) {
+          final a = city.stationById(line.stationIds[i]);
+          final b = city.stationById(line.stationIds[i + 1]);
+          final dx = (b.x - a.x).abs();
+          final dy = (b.y - a.y).abs();
+          expect(dx == 0 || dy == 0 || dx == dy, isTrue,
+              reason: '${city.id}/${line.id} seg $i bends off-grid');
+        }
+      }
+      // Shared corridors stay short (3 stops max).
+      for (final a in city.lines) {
+        for (final b in city.lines) {
+          if (a.id.compareTo(b.id) >= 0) continue;
+          final shared =
+              a.stationIds.where((id) => b.stationIds.contains(id)).length;
+          expect(shared, lessThanOrEqualTo(3),
+              reason: '${city.id}: ${a.id}/${b.id} share $shared stops');
+        }
       }
     }
   });
@@ -206,7 +219,7 @@ void main() {
 
   test('CITY GOALS: commendations compound income to the ladder top', () {
     final g = GameState();
-    expect(GameState.goals.length, 12);
+    expect(g.goals.length, 12);
     expect(g.currentGoal!.name, 'OPENING DAY');
     expect(g.goalMult, 1);
     // Drive every counter past the final rung and tick once.
@@ -221,7 +234,7 @@ void main() {
     g.tick(0.1);
     expect(g.currentGoal, isNull, reason: 'the whole ladder completes');
     var expected = 1.0;
-    for (final goal in GameState.goals) {
+    for (final goal in g.goals) {
       expected *= goal.reward;
     }
     expect(g.goalMult, closeTo(expected, 1e-9),
@@ -230,6 +243,69 @@ void main() {
         closeTo(GameState.fare * expected, 1e-6),
         reason: 'the bonus reaches every boarding');
     expect(g.goalProgress, 1);
+  });
+
+  test('THE CITY LADDER: finish New Meridian, open Angel Bay', () {
+    final g = GameState();
+    expect(g.nextCity!.id, 'angel_bay');
+    expect(g.canMoveOn, isFalse, reason: 'not before the ladder is done');
+    // Finish the whole New Meridian ladder.
+    g.cash = 1e12;
+    for (final line in g.city.lines) {
+      if (!g.isUnlocked(line.id)) g.buyLine(line.id);
+    }
+    g.totalRiders = 1000000;
+    g.totalEarned = 25000000;
+    g.tick(0.1);
+    expect(g.canMoveOn, isTrue);
+    final multBefore = g.goalMult;
+    final cashBefore = g.cash;
+
+    final ab = g.moveOn();
+    expect(ab.city.id, 'angel_bay');
+    expect(ab.cash, cashBefore, reason: 'cash moves with you');
+    expect(ab.goalMult, closeTo(multBefore, 1e-9),
+        reason: 'every commendation carries');
+    expect(ab.unlockedLineIds, {'1'}, reason: 'the network starts fresh');
+    expect(ab.trains.length, 1);
+    expect(ab.speedLevelOf('1'), 0);
+    expect(ab.goalsDone, 0, reason: "Angel Bay's own ladder starts at 0");
+    expect(ab.currentGoal!.name, 'WEST SHORE OPENS');
+    expect(ab.nextCity, isNull, reason: 'Angel Bay is the frontier for now');
+    expect(ab.currentFare, GameState.fare * 8,
+        reason: 'Angel Bay riders pay 8× — shown in the header');
+
+    // And the new city earns from its own line 1 immediately.
+    for (var i = 0; i < 2400; i++) {
+      ab.tick(0.1);
+    }
+    expect(ab.totalEarned, greaterThan(25000000),
+        reason: 'lifetime earnings keep climbing in the new city');
+    expect(ab.totalRiders, greaterThan(1000000));
+  });
+
+  test('Angel Bay serves and never sticks with everything unlocked', () {
+    final g = GameState(city: Cities.angelBay);
+    g.cash = 1e15;
+    for (final line in g.city.lines) {
+      if (!g.isUnlocked(line.id)) {
+        expect(g.buyLine(line.id), isTrue);
+      }
+    }
+    g.buyTrain('1');
+    g.buyTrain('B');
+    var boardings = 0;
+    var lastSeq = 0;
+    for (var i = 0; i < 6000; i++) {
+      g.tick(0.1);
+      if (g.boardSeq != lastSeq) {
+        lastSeq = g.boardSeq;
+        boardings++;
+      }
+    }
+    expect(g.trains.length, 11);
+    expect(boardings, greaterThan(200),
+        reason: '11 Angel Bay trains made only $boardings stops');
   });
 
   test('the first commendation fires by itself in normal play', () {

@@ -152,6 +152,32 @@ void main() {
     }
   });
 
+  test('an Angel Bay world round-trips with its city and ladder intact', () {
+    // Arrive the honest way: finish New Meridian and move on.
+    final nm = GameState();
+    nm.cash = 1e12;
+    for (final line in nm.city.lines) {
+      if (!nm.isUnlocked(line.id)) nm.buyLine(line.id);
+    }
+    nm.totalRiders = 1000000;
+    nm.totalEarned = 25000000;
+    nm.tick(0.1);
+    final g = nm.moveOn();
+    expect(g.buyLine('B'), isTrue);
+    for (var i = 0; i < 1200; i++) {
+      g.tick(0.1);
+    }
+    final r = GameState.fromJson(
+        jsonDecode(jsonEncode(g.toJson(99))) as Map<String, dynamic>);
+    expect(r.city.id, 'angel_bay');
+    expect(r.unlockedLineIds, g.unlockedLineIds);
+    expect(r.goalsDoneByCity['new_meridian'], 12);
+    expect(r.goalMult, closeTo(g.goalMult, 1e-6),
+        reason: 'carried commendations survive the reload');
+    expect(r.cash, closeTo(g.cash, 0.001));
+    expect(r.currentFare, GameState.fare * 8);
+  });
+
   test('a fresh system serializes cleanly', () {
     final g = GameState();
     final r = GameState.fromJson(

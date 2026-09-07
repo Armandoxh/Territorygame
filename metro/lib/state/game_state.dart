@@ -80,21 +80,22 @@ class GoalDef {
 /// world by dt seconds with no RNG, so the balance harness replays it
 /// exactly. The UI drives it with a Ticker; the tests drive it with a loop.
 class GameState extends ChangeNotifier {
-  GameState() {
-    for (final line in city.lines) {
-      paths[line.id] = LinePath(city, line);
+  GameState({CityDef? city}) : city = city ?? Cities.newMeridian {
+    final c = this.city;
+    for (final line in c.lines) {
+      paths[line.id] = LinePath(c, line);
     }
     _buildSegmentLanes();
-    for (final s in city.stations) {
+    for (final s in c.stations) {
       waitingUp[s.id] = 0;
       waitingDown[s.id] = 0;
       foodLevel[s.id] = 0;
       gateLevel[s.id] = 0;
       platformLevel[s.id] = 0;
     }
-    unlockedLineIds.add(city.lines.first.id);
+    unlockedLineIds.add(c.lines.first.id);
     _recomputeServed();
-    trains.add(_spawnTrain(city.lines.first));
+    trains.add(_spawnTrain(c.lines.first));
   }
 
   // ---- Static tuning (the balance harness pins the outcomes) ----
@@ -119,7 +120,7 @@ class GameState extends ChangeNotifier {
   static const double offlineEfficiency = 0.5; // idle pays 50% of live rate
   static const int maxOfflineSeconds = 8 * 3600;
 
-  final CityDef city = Cities.newMeridian;
+  final CityDef city;
   final Map<String, LinePath> paths = {};
 
   /// Per line, per path segment: the perpendicular lane offset (map units)
@@ -192,7 +193,9 @@ class GameState extends ChangeNotifier {
   int lastBoardCount = 0;
 
   // ---- City goals (sequential; each completion compounds income) ----
-  static const List<GoalDef> goals = [
+  // Riders/earned targets are LIFETIME totals, so each city's ladder
+  // starts above where the previous city ended.
+  static const List<GoalDef> _newMeridianGoals = [
     GoalDef('OPENING DAY', GoalKind.riders, 1000, 1.25),
     GoalDef('SECOND LINE', GoalKind.lines, 2, 1.25),
     GoalDef('ROLLING STOCK', GoalKind.trains, 4, 1.25),
@@ -206,9 +209,41 @@ class GameState extends ChangeNotifier {
     GoalDef('MILLION RIDERS', GoalKind.riders, 1000000, 1.75),
     GoalDef('NEW MERIDIAN COMPLETE', GoalKind.earned, 25000000, 2.0),
   ];
+  static const List<GoalDef> _angelBayGoals = [
+    GoalDef('WEST SHORE OPENS', GoalKind.lines, 2, 1.25),
+    GoalDef('BAY CROSSING', GoalKind.riders, 1500000, 1.25),
+    GoalDef('SIX TRAINS', GoalKind.trains, 6, 1.25),
+    GoalDef('THE NARROWS', GoalKind.lines, 3, 1.3),
+    GoalDef('75 MILLION', GoalKind.earned, 75000000, 1.3),
+    GoalDef('FIVE ROUTES', GoalKind.lines, 5, 1.4),
+    GoalDef('THREE MILLION RIDERS', GoalKind.riders, 3000000, 1.4),
+    GoalDef('SEVEN ROUTES', GoalKind.lines, 7, 1.5),
+    GoalDef('300 MILLION', GoalKind.earned, 300000000, 1.5),
+    GoalDef('EVERY LINE', GoalKind.lines, 9, 1.75),
+    GoalDef('TEN MILLION RIDERS', GoalKind.riders, 10000000, 1.75),
+    GoalDef('ANGEL BAY COMPLETE', GoalKind.earned, 1500000000, 2.0),
+  ];
 
-  int goalsDone = 0;
+  static List<GoalDef> goalsFor(String cityId) =>
+      cityId == 'angel_bay' ? _angelBayGoals : _newMeridianGoals;
+
+  /// This city's ladder.
+  List<GoalDef> get goals => goalsFor(city.id);
+
+  /// Goals completed, per city — commendations from EVERY city compound.
+  final Map<String, int> goalsDoneByCity = {};
+  int get goalsDone => goalsDoneByCity[city.id] ?? 0;
   double _goalMult = 1;
+
+  void _recomputeGoalMult() {
+    _goalMult = 1;
+    for (final e in goalsDoneByCity.entries) {
+      final ladder = goalsFor(e.key);
+      for (var i = 0; i < e.value && i < ladder.length; i++) {
+        _goalMult *= ladder[i].reward;
+      }
+    }
+  }
 
   /// Bumped when a goal completes so the UI can celebrate exactly once.
   int goalSeq = 0;
@@ -238,12 +273,39 @@ class GameState extends ChangeNotifier {
     while (true) {
       final goal = currentGoal;
       if (goal == null || goalValue(goal.kind) < goal.target) return;
-      goalsDone += 1;
+      goalsDoneByCity[city.id] = goalsDone + 1;
       _goalMult *= goal.reward;
       goalSeq += 1;
       lastGoalName = goal.name;
       lastGoalReward = goal.reward;
     }
+  }
+
+  // ---- The city ladder ----
+  CityDef? get nextCity {
+    final idx = Cities.all.indexWhere((c) => c.id == city.id);
+    return idx >= 0 && idx + 1 < Cities.all.length
+        ? Cities.all[idx + 1]
+        : null;
+  }
+
+  /// True once this city's ladder is finished and another city awaits.
+  bool get canMoveOn => currentGoal == null && nextCity != null;
+
+  /// Hand the keys over and open service in the next city: cash, lifetime
+  /// stats, and every commendation carry; the network itself starts fresh
+  /// at the new city's (higher) stakes. Returns the new world — the caller
+  /// swaps it in and saves.
+  GameState moveOn() {
+    assert(canMoveOn);
+    final g = GameState(city: nextCity);
+    g.cash = cash;
+    g.totalEarned = totalEarned;
+    g.totalRiders = totalRiders;
+    g.goalsDoneByCity.addAll(goalsDoneByCity);
+    g._recomputeGoalMult();
+    g.avgRate = avgRate;
+    return g;
   }
 
   // ---- Network-wide upgrades (the NETWORK tab) ----
@@ -315,6 +377,7 @@ class GameState extends ChangeNotifier {
 
   double nextGlobalCost(String id) =>
       globalById(id).baseCost *
+      city.costScale *
       pow(globalById(id).growth, globalLevelOf(id)).toDouble();
 
   bool buyGlobal(String id) => _buy(
@@ -322,9 +385,10 @@ class GameState extends ChangeNotifier {
         globalLevels[id] = globalLevelOf(id) + 1;
       });
 
-  /// The fare riders actually pay right now (base + fare reviews) — shown
-  /// live in the header so income stays player-checkable.
-  double get currentFare => fare + 0.25 * globalLevelOf('fare');
+  /// The fare riders actually pay right now (base + fare reviews, at this
+  /// city's rates) — shown live in the header so income stays checkable.
+  double get currentFare =>
+      (fare + 0.25 * globalLevelOf('fare')) * city.fareScale;
 
   /// Seconds stopped at each station, after platform doors.
   double get effectiveDwell => dwellTime * (1 - 0.05 * globalLevelOf('doors'));
@@ -369,8 +433,9 @@ class GameState extends ChangeNotifier {
   /// you see is riders × this.
   double incomePerRiderAt(String stationId) =>
       (currentFare +
-          foodBonusPerLevel * (foodLevel[stationId] ?? 0) +
-          0.25 * (gateLevel[stationId] ?? 0)) *
+          (foodBonusPerLevel * (foodLevel[stationId] ?? 0) +
+                  0.25 * (gateLevel[stationId] ?? 0)) *
+              city.fareScale) *
       (1 + 0.03 * globalLevelOf('billboards')) *
       _goalMult;
 
@@ -383,7 +448,8 @@ class GameState extends ChangeNotifier {
 
   /// Upgrade prices scale with the line's tier, so late lines cost more to
   /// tune but earn more too.
-  double _upgradeBase(LineDef line) => 250 + line.unlockCost * 0.05;
+  double _upgradeBase(LineDef line) =>
+      250 * city.costScale + line.unlockCost * 0.05;
   double speedCost(String lineId, int level) =>
       _upgradeBase(city.lineById(lineId)) * pow(1.9, level).toDouble();
   double carCost(String lineId, int level) =>
@@ -648,9 +714,12 @@ class GameState extends ChangeNotifier {
     });
   }
 
-  double foodCost(int level) => 300 * pow(2.2, level).toDouble();
-  double gateCost(int level) => 400 * pow(2.2, level).toDouble();
-  double platformCost(int level) => 500 * pow(2.3, level).toDouble();
+  double foodCost(int level) =>
+      300 * city.costScale * pow(2.2, level).toDouble();
+  double gateCost(int level) =>
+      400 * city.costScale * pow(2.2, level).toDouble();
+  double platformCost(int level) =>
+      500 * city.costScale * pow(2.3, level).toDouble();
 
   bool _buy(bool allowed, double cost, VoidCallback apply) {
     if (!allowed || cash < cost) return false;
@@ -688,10 +757,11 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 8;
+  static const int saveVersion = 9;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
+        'cityId': city.id,
         'cash': cash,
         'totalEarned': totalEarned,
         'totalRiders': totalRiders,
@@ -707,13 +777,14 @@ class GameState extends ChangeNotifier {
         'accessLevels': accessLevels,
         'trainsetLevels': trainsetLevels,
         'globalLevels': globalLevels,
-        'goalsDone': goalsDone,
+        'goalsDoneByCity': goalsDoneByCity,
         'avgRate': avgRate,
         'lastSeenMs': nowMs,
       };
 
   static GameState fromJson(Map<String, dynamic> j) {
-    final g = GameState();
+    final cityId = (j['cityId'] as String?) ?? 'new_meridian';
+    final g = GameState(city: Cities.byId(cityId));
     g.cash = (j['cash'] as num).toDouble();
     g.totalEarned = (j['totalEarned'] as num).toDouble();
     g.totalRiders = (j['totalRiders'] as num).toDouble();
@@ -740,10 +811,15 @@ class GameState extends ChangeNotifier {
     }
     // Pre-v8 saves have no goal state: their counters simply re-complete
     // the ladder on the first tick (an instant commendation cascade).
-    g.goalsDone = (j['goalsDone'] as int?) ?? 0;
-    for (var i = 0; i < g.goalsDone && i < goals.length; i++) {
-      g._goalMult *= goals[i].reward;
+    // v8 saves carried a single goalsDone int (New Meridian only).
+    if (j['goalsDoneByCity'] is Map) {
+      for (final e in (j['goalsDoneByCity'] as Map).entries) {
+        g.goalsDoneByCity[e.key as String] = e.value as int;
+      }
+    } else if (j['goalsDone'] is int) {
+      g.goalsDoneByCity['new_meridian'] = j['goalsDone'] as int;
     }
+    g._recomputeGoalMult();
     g.avgRate = (j['avgRate'] as num).toDouble();
     g._loadedLastSeenMs = j['lastSeenMs'] as int?;
 

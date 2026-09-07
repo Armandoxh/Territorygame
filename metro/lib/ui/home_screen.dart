@@ -128,6 +128,39 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  Future<void> _confirmMoveOn() async {
+    final next = game.nextCity;
+    if (next == null || !game.canMoveOn) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Open ${next.name}?'),
+        content: Text(
+            '${game.city.name} is complete. Move the operation to '
+            '${next.name}: your cash and every commendation come with you, '
+            'and the new network starts fresh at '
+            '${next.costScale.toStringAsFixed(0)}× stakes. '
+            '${game.city.name} stays finished — there is no going back.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Not yet')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('OPEN ${next.name.toUpperCase()}')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() {
+      final old = game;
+      game = old.moveOn();
+      old.dispose();
+      _seenGoalSeq = game.goalSeq;
+    });
+    SaveService.save(game);
+  }
+
   Future<void> _confirmRestart() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -179,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen>
                   children: [
                     _Header(game: game),
                     const SizedBox(height: 8),
-                    _GoalBar(game: game),
+                    _GoalBar(game: game, onMoveOn: _confirmMoveOn),
                     const SizedBox(height: 12),
                     MetroMap(game: game, onStationTap: _openStation),
                     const SizedBox(height: 4),
@@ -241,8 +274,9 @@ class _HomeScreenState extends State<HomeScreen>
 /// The CITY GOAL strip: the game's current target, its progress, and the
 /// compounding commendation bonus already earned — the "why" above the map.
 class _GoalBar extends StatelessWidget {
-  const _GoalBar({required this.game});
+  const _GoalBar({required this.game, required this.onMoveOn});
   final GameState game;
+  final VoidCallback onMoveOn;
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +288,7 @@ class _GoalBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('CITY GOAL',
+              Text('CITY GOAL · ${game.city.name.toUpperCase()}',
                   style: TransitStyle.signage(
                       size: 10,
                       color: const Color(0x99000000),
@@ -270,8 +304,26 @@ class _GoalBar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          if (goal == null)
-            Text('NEW MERIDIAN COMPLETE — new cities are on the way.',
+          if (goal == null && game.canMoveOn)
+            Row(
+              children: [
+                Expanded(
+                  child: Text('${game.city.name.toUpperCase()} COMPLETE',
+                      style: TransitStyle.signage(
+                          size: 12,
+                          color: TransitStyle.ink,
+                          weight: FontWeight.w900,
+                          spacing: 0.5)),
+                ),
+                FilledButton(
+                  onPressed: onMoveOn,
+                  child:
+                      Text('OPEN ${game.nextCity!.name.toUpperCase()}'),
+                ),
+              ],
+            )
+          else if (goal == null)
+            Text('${game.city.name.toUpperCase()} COMPLETE — more cities on the way.',
                 style: TransitStyle.signage(
                     size: 12,
                     color: TransitStyle.ink,

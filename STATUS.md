@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.7.0 · build 19 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.8.0 · build 20 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -31,6 +31,14 @@ linear against exponential costs, but the goal lane multiplies (the
 greedy-bot probe measured income going merely linear in play time without
 it). Ladder completion is the hook for the next layer: the city ladder,
 then prestige.
+
+**The city ladder (build 20): ANGEL BAY is real.** Completing NEW
+MERIDIAN COMPLETE puts an OPEN ANGEL BAY button in the goal bar: cash,
+lifetime totals, and every commendation carry; the network starts fresh
+in a player-approved second map (9 lines, 59 stations — bay, Presidio
+peninsula, Isla Chica island tunnel) at 10× costs and 8× fares, with its
+own 12-rung ladder (ANGEL BAY COMPLETE at $1.5B lifetime). One-way move;
+`tools/angelbay.py` is its generated-data rig. More cities = new rigs.
 
 **The approved network (player-signed SVG, this session):**
 - 9 lines, each a **unique MTA color** and its own territory — the unlock

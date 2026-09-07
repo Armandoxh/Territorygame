@@ -1,6 +1,6 @@
 # Metro Magnate — project rules
 
-## ▶ CURRENT BUILD: v0.7.0 · build 19
+## ▶ CURRENT BUILD: v0.8.0 · build 20
 
 An idle game about building a subway empire, one line at a time, drawn in
 the modern Live Subway Map dashboard style (see STYLE.md). Lives at
@@ -32,8 +32,10 @@ https://armandoxh.github.io/Territorygame/metro/ (deployed by
 - **v0.2 — The System** (this): more lines in New Meridian, more trains,
   per-station upgrades (accessibility, food courts).
 - **v0.3 — The Attractions:** purchasable map POIs with demand halos.
-- **v0.4 — The Cities:** the 4–5 city ladder (Angel Bay, Lakewind, Fogport,
-  Kanto) as data templates + prestige carry-over.
+- **v0.4 — The Cities** (started in build 20): the city ladder — Angel Bay
+  SHIPPED (approved map, 10× costs / 8× fares, own goal ladder, one-way
+  move with cash + commendations carrying). Next: Lakewind, Fogport,
+  Kanto as new rigs, then prestige ("The Charter") on top.
 - **v0.5 — The Hooks:** daily rush hour, ridership share card.
 
 ## Conventions
