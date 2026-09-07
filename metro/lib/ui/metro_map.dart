@@ -73,28 +73,26 @@ class _MetroMapState extends State<MetroMap> {
     }
     _pops.removeWhere((p) => now - p.bornMs > _FarePop.lifeMs);
 
-    return AspectRatio(
-      // Taller than wide: the map dominates the screen.
-      aspectRatio: 0.82,
-      child: Container(
-        // STYLE.md: water frames the city; the landmass is painted on top.
-        decoration: BoxDecoration(
-          color: const Color(0xFFBDD3E8),
-          border: Border.all(color: TransitStyle.hairline, width: 1),
-        ),
-        clipBehavior: Clip.hardEdge,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // The map square is rendered at viewport-HEIGHT size (bigger than
-            // the frame is wide), so it starts large and pans/zooms like the
-            // real Live Map.
-            final side = constraints.maxHeight;
+    return Container(
+      // STYLE.md: water frames the city; the landmass is painted on top.
+      decoration: BoxDecoration(
+        color: const Color(0xFFBDD3E8),
+        border: Border.all(color: TransitStyle.hairline, width: 1),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+            // The map square is rendered at the viewport's LONG side, so it
+            // fills the whole frame and pans/zooms like the real Live Map.
+            final side = constraints.maxHeight > constraints.maxWidth
+                ? constraints.maxHeight
+                : constraints.maxWidth;
             final size = Size(side, side);
+            final fit = constraints.maxWidth / side;
             if (!_centered) {
               _centered = true;
               // Open on the whole metropolis: scale-to-fit the width,
               // vertically centered — the top-down diagram view.
-              final fit = constraints.maxWidth / side;
               _viewer.value = Matrix4.identity()
                 ..translate(0.0, (constraints.maxHeight - side * fit) / 2)
                 ..scale(fit);
@@ -105,7 +103,8 @@ class _MetroMapState extends State<MetroMap> {
                   child: InteractiveViewer(
                     transformationController: _viewer,
                     constrained: false,
-                    minScale: 0.7,
+                    // Always allow pinching back out to the full-city view.
+                    minScale: fit * 0.9,
                     maxScale: 10,
                     boundaryMargin: const EdgeInsets.all(80),
                     child: SizedBox(
@@ -156,8 +155,7 @@ class _MetroMapState extends State<MetroMap> {
                 ),
               ],
             );
-          },
-        ),
+        },
       ),
     );
   }

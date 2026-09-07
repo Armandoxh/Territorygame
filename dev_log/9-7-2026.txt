@@ -36,3 +36,19 @@ vdc-era pattern; rewrote it to pin the BEHAVIOR: exact minimum circular
 phase gap after each back-to-back purchase (L, L/2, L/2, L/4) plus the
 deterministic 2nd-train-opposite entry. Lesson: assert invariants, not
 incidental tiebreaks.
+
+Build 23 (v0.8.2): full-screen map + balance-in-sheets + zoom fix
+(player: can't see balance in line menu; map should fill screen; pinch
+zoom works 50% of the time). Root cause of the flaky zoom: the map
+lived inside a scrolling ListView, so the gesture arena gave vertical
+drags (and often the second finger) to list scrolling. Home screen is
+now a fixed Column -- slim two-row header (cash 26pt, rates right), goal
+strip, Expanded(map), bottom tab strip -- no scrollable ancestor, so
+pinch/pan belongs entirely to the InteractiveViewer. LINES and NETWORK
+open as modal bottom sheets (scrollable, 80% max height); version/
+restart moved into the NETWORK sheet footer. Every sheet header is now
+_SheetSign: title row + live BALANCE line, so affordability is always
+visible while shopping (line sheets, station sheets, panels). Map also
+sizes to the LONG viewport side (fills portrait fully) and minScale is
+computed from the fit scale so pinching back out to the whole city
+always works (was clamped at 0.7 > fit).

@@ -26,7 +26,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   GameState game = GameState();
-  int _tab = 0; // 0 = LINES, 1 = NETWORK
   int _seenGoalSeq = 0;
   late final Ticker _ticker = createTicker(_onTick);
   Duration _lastElapsed = Duration.zero;
@@ -196,75 +195,179 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  /// LINES / NETWORK open as bottom sheets so the map keeps the screen.
+  void _openPanel(int i) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(),
+      isScrollControlled: true,
+      builder: (context) => ConstrainedBox(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8),
+        child: ListenableBuilder(
+          listenable: game,
+          builder: (context, _) => i == 0
+              ? _LinesSheet(game: game, onOpen: _openLine)
+              : _NetworkSheet(game: game, onRestart: _confirmRestart),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // The map IS the screen: a slim sign-bar header and goal strip up top,
+    // the living map filling everything else, and the panel tabs pinned to
+    // the bottom. No scrolling ancestor — pinch/pan belongs to the map.
     return Scaffold(
       body: SafeArea(
         child: ListenableBuilder(
           listenable: game,
           builder: (context, _) {
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  children: [
-                    _Header(game: game),
-                    const SizedBox(height: 8),
-                    _GoalBar(game: game, onMoveOn: _confirmMoveOn),
-                    const SizedBox(height: 12),
-                    MetroMap(game: game, onStationTap: _openStation),
-                    const SizedBox(height: 4),
-                    Text('Tap a line for its trains & upgrades · tap a station for concessions · NETWORK tab for city-wide works.',
-                        style: TransitStyle.signage(
-                            size: 10,
-                            color: const Color(0x99000000),
-                            weight: FontWeight.w600)),
-                    const SizedBox(height: 16),
-                    _TabBar(
-                      tabs: const ['LINES', 'NETWORK'],
-                      selected: _tab,
-                      onSelect: (i) => setState(() => _tab = i),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_tab == 0)
-                      DataPanel(
-                        padding: EdgeInsets.zero,
-                        child: Column(
-                          children: [
-                            for (var i = 0;
-                                i < game.city.lines.length;
-                                i++) ...[
-                              if (i > 0)
-                                Container(
-                                    height: 1, color: TransitStyle.hairline),
-                              _LineRow(
-                                  game: game,
-                                  line: game.city.lines[i],
-                                  onOpen: _openLine),
-                            ],
-                          ],
-                        ),
-                      )
-                    else
-                      _NetworkPanel(game: game),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: TextButton(
-                        onPressed: _confirmRestart,
-                        child: Text(
-                          'v$kAppVersion · build $kBuildNumber · restart',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant),
-                        ),
-                      ),
-                    ),
-                  ],
+            return Column(
+              children: [
+                _Header(game: game),
+                _GoalBar(game: game, onMoveOn: _confirmMoveOn),
+                Expanded(
+                  child: MetroMap(game: game, onStationTap: _openStation),
                 ),
-              ),
+                _TabBar(
+                  tabs: const ['LINES', 'NETWORK'],
+                  selected: -1,
+                  onSelect: _openPanel,
+                ),
+              ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// A sheet's black header: title row plus a live BALANCE line, so what you
+/// can afford is always on screen while you shop.
+class _SheetSign extends StatelessWidget {
+  const _SheetSign({required this.game, required this.title});
+  final GameState game;
+  final Widget title;
+
+  @override
+  Widget build(BuildContext context) {
+    return StationSign(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          title,
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text('BALANCE',
+                  style: TransitStyle.signage(
+                      size: 10,
+                      color: Colors.white70,
+                      weight: FontWeight.w800,
+                      spacing: 1.5)),
+              const Spacer(),
+              Text('\$${game.cash.toStringAsFixed(0)}',
+                  style: TransitStyle.signage(
+                      size: 16, weight: FontWeight.w900)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The LINES bottom sheet: unlock lines, add trains, open per-line sheets.
+class _LinesSheet extends StatelessWidget {
+  const _LinesSheet({required this.game, required this.onOpen});
+  final GameState game;
+  final void Function(LineDef) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SheetSign(
+              game: game,
+              title: Text('LINES',
+                  style: TransitStyle.signage(size: 16, spacing: 1)),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: SingleChildScrollView(
+                child: DataPanel(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < game.city.lines.length; i++) ...[
+                        if (i > 0)
+                          Container(height: 1, color: TransitStyle.hairline),
+                        _LineRow(
+                            game: game,
+                            line: game.city.lines[i],
+                            onOpen: onOpen),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The NETWORK bottom sheet: the city-wide upgrades + the build footer.
+class _NetworkSheet extends StatelessWidget {
+  const _NetworkSheet({required this.game, required this.onRestart});
+  final GameState game;
+  final VoidCallback onRestart;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SheetSign(
+              game: game,
+              title: Text('NETWORK',
+                  style: TransitStyle.signage(size: 16, spacing: 1)),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: SingleChildScrollView(
+                child: _NetworkPanel(game: game),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: onRestart,
+                child: Text(
+                  'v$kAppVersion · build $kBuildNumber · restart',
+                  style: TransitStyle.signage(
+                      size: 10,
+                      color: const Color(0x99000000),
+                      weight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -455,8 +558,8 @@ class _NetworkPanel extends StatelessWidget {
       : def.blurb;
 }
 
-/// The header is a station sign: black bar, white rule, the bullets of every
-/// line you run, cash in signage type.
+/// The header is a slim station sign: the bullets you run, cash, and the
+/// live rates — compact so the map below keeps the screen.
 class _Header extends StatelessWidget {
   const _Header({required this.game});
   final GameState game;
@@ -464,6 +567,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StationSign(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -472,25 +576,32 @@ class _Header extends StatelessWidget {
               for (final line in game.city.lines)
                 if (game.isUnlocked(line.id))
                   Padding(
-                    padding: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.only(right: 5),
                     child: RouteBullet(
-                        label: line.bullet, color: line.color, size: 22),
+                        label: line.bullet, color: line.color, size: 16),
                   ),
-              const SizedBox(width: 2),
+              const Spacer(),
               Text('METRO MAGNATE',
-                  style: TransitStyle.signage(size: 13, spacing: 3)),
+                  style: TransitStyle.signage(size: 11, spacing: 2.5)),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('\$${game.cash.toStringAsFixed(0)}',
-              style: TransitStyle.signage(size: 40, weight: FontWeight.w900)),
-          const SizedBox(height: 2),
-          Text(
-            'fare \$${game.currentFare.toStringAsFixed(2)}/rider · '
-            '≈ \$${game.avgRate.toStringAsFixed(1)}/sec · '
-            '${game.totalRiders.toStringAsFixed(0)} riders served',
-            style: TransitStyle.signage(
-                size: 12, color: Colors.white70, weight: FontWeight.w600),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('\$${game.cash.toStringAsFixed(0)}',
+                  style: TransitStyle.signage(
+                      size: 26, weight: FontWeight.w900)),
+              const Spacer(),
+              Text(
+                '≈ \$${game.avgRate.toStringAsFixed(1)}/sec\n'
+                'fare \$${game.currentFare.toStringAsFixed(2)} · '
+                '${game.totalRiders.toStringAsFixed(0)} riders',
+                textAlign: TextAlign.right,
+                style: TransitStyle.signage(
+                    size: 10, color: Colors.white70, weight: FontWeight.w600),
+              ),
+            ],
           ),
         ],
       ),
@@ -588,8 +699,9 @@ class _LineSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            StationSign(
-              child: Row(
+            _SheetSign(
+              game: game,
+              title: Row(
                 children: [
                   RouteBullet(
                       label: line.bullet, color: line.color, size: 22),
@@ -762,8 +874,9 @@ class _StationSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            StationSign(
-              child: Row(
+            _SheetSign(
+              game: game,
+              title: Row(
                 children: [
                   for (final line in servingLines)
                     Padding(
