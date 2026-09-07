@@ -12,10 +12,10 @@ void main() {
     g.cash = 60000;
     g.buyLine(g.city.lines[1].id);
     g.buyTrain('1');
-    g.buyFood('s114_172');
-    g.buyFood('s114_172');
-    g.buyGates('s114_172');
-    g.buyPlatform('s114_172');
+    g.buyFood('s224_282');
+    g.buyFood('s224_282');
+    g.buyGates('s224_282');
+    g.buyPlatform('s224_282');
     g.buyTrainset('1');
     for (var i = 0; i < 2000; i++) {
       g.tick(0.1);
@@ -39,9 +39,9 @@ void main() {
       expect(r.trains[i].direction, g.trains[i].direction);
       expect(r.trains[i].target, g.trains[i].target);
     }
-    expect(r.foodLevel['s114_172'], 2);
-    expect(r.gateLevel['s114_172'], 1);
-    expect(r.platformLevel['s114_172'], 1);
+    expect(r.foodLevel['s224_282'], 2);
+    expect(r.gateLevel['s224_282'], 1);
+    expect(r.platformLevel['s224_282'], 1);
     expect(r.trainsetLevelOf('1'), g.trainsetLevelOf('1'));
     expect(r.goalsDone, g.goalsDone);
     expect(r.goalMult, closeTo(g.goalMult, 1e-9));
@@ -159,8 +159,8 @@ void main() {
     for (final line in nm.city.lines) {
       if (!nm.isUnlocked(line.id)) nm.buyLine(line.id);
     }
-    nm.totalRiders = 1000000;
-    nm.totalEarned = 25000000;
+    nm.totalRiders = 5000000;
+    nm.totalEarned = 250000000;
     nm.tick(0.1);
     final g = nm.moveOn();
     expect(g.buyLine('B'), isTrue);
@@ -171,11 +171,39 @@ void main() {
         jsonDecode(jsonEncode(g.toJson(99))) as Map<String, dynamic>);
     expect(r.city.id, 'angel_bay');
     expect(r.unlockedLineIds, g.unlockedLineIds);
-    expect(r.goalsDoneByCity['new_meridian'], 12);
+    expect(r.goalsDoneByCity['new_meridian'], 18);
     expect(r.goalMult, closeTo(g.goalMult, 1e-6),
         reason: 'carried commendations survive the reload');
     expect(r.cash, closeTo(g.cash, 0.001));
     expect(r.currentFare, GameState.fare * 8);
+  });
+
+  test('pre-XL saves (v9) keep lines, upgrades, and fleet sizes', () {
+    final played = GameState();
+    played.cash = 1e9;
+    played.buyLine('A');
+    played.buyTrain('1');
+    played.buyTrain('1');
+    played.buySpeed('1');
+    final j = jsonDecode(jsonEncode(played.toJson(1))) as Map<String, dynamic>;
+    j['v'] = 9;
+    // Old saves carry pre-XL station ids; they must drop cleanly.
+    j['waitingUp'] = {'s96_238': 5.0};
+    j['waitingDown'] = {'s96_238': 5.0};
+    j['foodLevel'] = {'s96_238': 2};
+
+    final g = GameState.fromJson(j);
+    expect(g.unlockedLineIds, {'1', 'A'});
+    expect(g.trains.where((t) => t.lineId == '1').length, 3,
+        reason: "the line's fleet SIZE survives the new geometry");
+    expect(g.trains.where((t) => t.lineId == 'A').length, 1);
+    expect(g.speedLevelOf('1'), 1, reason: 'per-line upgrades carry');
+    expect(g.waitingAt('s126_452'), 0,
+        reason: 'unknown old station ids are dropped, not crashed on');
+    for (var i = 0; i < 600; i++) {
+      g.tick(0.1);
+    }
+    expect(g.totalEarned, greaterThan(0));
   });
 
   test('a fresh system serializes cleanly', () {

@@ -326,3 +326,131 @@ if problems:
         print(' ', p)
 else:
     print('ALL RULES PASS')
+
+
+# ---- Dart emitter: run after approval to regenerate the CityDef ----
+def emit_dart():
+    # Unlock ladder: the original nine keep their order and prices; the
+    # fifteen new lines continue the escalation.
+    order = ['1','A','L','M','N','J','G','E','7',
+             '2','C','3','Q','B','8','4','H','D','F','R','V','W','6','Z']
+    unlock = {'1':0,'A':4000,'L':15000,'M':45000,'N':120000,'J':300000,
+              'G':700000,'E':1500000,'7':3000000,
+              '2':6000000,'C':10000000,'3':16000000,'Q':25000000,
+              'B':40000000,'8':60000000,'4':90000000,'H':130000000,
+              'D':190000000,'F':280000000,'R':400000000,'V':550000000,
+              'W':750000000,'6':1000000000,'Z':1400000000}
+    traincost = {'1':750,'A':1500,'L':4000,'M':12000,'N':30000,'J':75000,
+                 'G':175000,'E':400000,'7':750000,
+                 '2':1500000,'C':2500000,'3':4000000,'Q':6000000,
+                 'B':10000000,'8':15000000,'4':22000000,'H':32000000,
+                 'D':47000000,'F':70000000,'R':100000000,'V':140000000,
+                 'W':190000000,'6':250000000,'Z':350000000}
+    line_names = {'1':'Meridian Local','A':'Harbor Runner','L':'South Crosstown',
+      'M':'Bridge Express','N':'Broadway Flyer','J':'Southeast Arrow',
+      'G':'Haven Loop','E':'Westbank Line','7':'North Crosstown',
+      '2':'Northgate Limited','C':'Coke Works Local','3':'Brickyard Branch',
+      'Q':'Sound Ferryway','B':'Westbank Trunk','8':'Haven Heights',
+      '4':'Meadow Crosstown','H':'Freight Harbor','D':'Bay Bridge Express',
+      'F':'Airfield Flyer','R':'Terminal Runner','V':'Eastport Trunk',
+      'W':'South Shoreline','6':'Sound Coast Local','Z':'Eastport Local'}
+    old_plates = {'1':(150,36),'A':(40,256),'L':(150,252),'M':(52,40),
+                  'N':(196,44),'J':(244,254),'G':(214,120),'E':(10,120),
+                  '7':(150,68)}
+    plates = {b: (x+OX, y+OY) for b, (x, y) in old_plates.items()}
+    plates.update({'2':(250,84),'3':(66,32),'C':(30,36),'B':(114,336),
+                   '4':(54,204),'6':(44,286),'Q':(24,380),'8':(344,210),
+                   'H':(350,20),'D':(204,418),'F':(352,332),'R':(232,408),
+                   'V':(430,200),'W':(416,490),'Z':(486,88)})
+    core_demand = {(96,238):0.7,(96,214):0.45,(96,190):0.45,(114,172):0.7,
+      (114,150):0.7,(114,130):0.7,(96,112):0.45,(96,88):0.7,(96,64):0.45,
+      (114,46):0.45,(114,22):0.7,(24,236):0.7,(48,236):0.45,(66,218):0.45,
+      (90,218):0.7,(114,194):0.7,(126,182):0.45,(156,182):0.7,(186,212):0.7,
+      (210,212):0.7,(120,238):0.45,(156,238):0.45,(180,238):0.45,
+      (204,262):0.45,(228,262):0.3,(24,58):0.7,(48,58):0.45,(84,22):0.45,
+      (156,22):0.45,(180,22):0.3,(90,254):0.3,(156,88):0.45,(180,88):0.45,
+      (204,64):0.45,(228,64):0.3,(156,132):0.3,(234,236):0.45,(258,236):0.3,
+      (192,28):0.3,(192,52):0.7,(192,88):0.45,(174,106):0.45,(174,142):0.45,
+      (192,160):0.45,(192,196):0.3,(24,36):0.3,(24,80):0.45,(42,98):0.45,
+      (42,142):0.45,(24,160):0.45,(24,200):0.45,(84,88):0.3,(120,88):0.45,
+      (156,52):0.45,(216,28):0.45,(252,28):0.3}
+    demand_of = {}
+    terminals = set()
+    for b in order:
+        p = services[b][1]
+        terminals.add(p[0]); terminals.add(p[-1])
+    for p in allstops:
+        if (p[0]-OX, p[1]-OY) in core_demand:
+            demand_of[p] = core_demand[(p[0]-OX, p[1]-OY)]
+        elif len(allstops[p]) >= 2:
+            demand_of[p] = 0.7
+        elif p in terminals:
+            demand_of[p] = 0.3
+        else:
+            demand_of[p] = 0.45
+    lab = {(266,198): 'end', (302,198): 'start', (218,360): 'start'}
+    def sid(p): return f's{p[0]}_{p[1]}'
+    out = []
+    out.append('  static const newMeridian = CityDef(')
+    out.append("    id: 'new_meridian',")
+    out.append("    name: 'New Meridian',")
+    out.append('    size: 520,')
+    out.append('    stations: [')
+    out.append('      // GENERATED from the approved design rig (tools/meridian_xl.py) —')
+    out.append('      // regenerate there, get approval, then re-emit. Do not hand-edit')
+    out.append('      // coordinates.')
+    for p, nm in stations.items():
+        if p in lab:
+            side = {'start': 1, 'end': -1}[lab[p]]
+        elif p[0] in side_cols:
+            side = {'start': 1, 'end': -1}[side_cols[p[0]]]
+        else:
+            side = 0
+        sd = f', labelSide: {side}' if side else ''
+        out.append(f"      StationDef(id: '{sid(p)}', name: '{nm}', x: {p[0]}, "
+                   f"y: {p[1]}, demand: {demand_of[p]}{sd}),")
+    out.append('    ],')
+    out.append('    lines: [')
+    for b in order:
+        col, path = services[b]
+        ids = ', '.join(f"'{sid(p)}'" for p in path)
+        px_, py_ = plates[b]
+        out.append('      LineDef(')
+        out.append(f"        id: '{b}',")
+        out.append(f"        name: '{line_names[b]}',")
+        out.append(f"        bullet: '{b}',")
+        out.append(f"        color: Color(0xFF{col[1:]}),")
+        out.append(f'        stationIds: [{ids}],')
+        out.append(f'        unlockCost: {unlock[b]},')
+        out.append(f'        trainCost: {traincost[b]},')
+        out.append(f'        plateX: {px_},')
+        out.append(f'        plateY: {py_},')
+        out.append('      ),')
+    out.append('    ],')
+    out.append('    lands: [')
+    for land in lands:
+        out.append('      [')
+        for x, y in land:
+            out.append(f'        Offset({x}, {y}),')
+        out.append('      ],')
+    out.append('    ],')
+    out.append('    districts: [')
+    for name, dx_, dy_, rot in districts:
+        rs = f', rotDeg: {rot}' if rot else ''
+        out.append(f"      WaterLabel('{name}', {dx_}, {dy_}{rs}),")
+    out.append('    ],')
+    out.append('    waterLabels: [')
+    for text, wx, wy, rot in water_labels:
+        rs = f', rotDeg: {rot}' if rot else ''
+        out.append(f"      WaterLabel('{text}', {wx}, {wy}{rs}),")
+    out.append('    ],')
+    out.append('    parks: [')
+    for cx, cy, w, h, rot in parks:
+        out.append(f'      ParkDef({cx}, {cy}, {w}, {h}, {rot}),')
+    out.append('    ],')
+    out.append('  );')
+    (pathlib.Path(__file__).parent / 'meridian_xl_dart.txt').write_text('\n'.join(out) + '\n')
+    print('emitted', len(stations), 'stations,', len(order), 'lines')
+
+if '--emit' in sys.argv:
+    emit_dart()

@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.8.2 · build 23 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.9.0 · build 24 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -40,12 +40,16 @@ peninsula, Isla Chica island tunnel) at 10× costs and 8× fares, with its
 own 12-rung ladder (ANGEL BAY COMPLETE at $1.5B lifetime). One-way move;
 `tools/angelbay.py` is its generated-data rig. More cities = new rigs.
 
-**The approved network (player-signed SVG, this session):**
-- 9 lines, each a **unique MTA color** and its own territory — the unlock
-  ladder: ① Meridian Local (free) → Ⓐ $4K → Ⓛ $15K → Ⓜ $45K → Ⓝ $120K →
-  Ⓙ $300K → Ⓖ $700K → Ⓔ $1.5M → ⑦ $3M
-- 56 stations, 300-unit world, three land masses (Meridian island,
-  Long Haven, Westbank) across two rivers
+**The approved network — NEW MERIDIAN XL (player-approved 2026-09-07):**
+- **24 lines, 162 stations, 28 interchanges, 520-unit world.** The
+  original 9-line core (approved 2026-09-05) sits verbatim as downtown;
+  ① Ⓜ Ⓛ extended outward; 15 new lines across five boroughs (Westbank,
+  Northgate, Long Haven, Eastport, South Shore) around a bay with the
+  Ⓓ bay-bridge. Unlock ladder: original nine unchanged ($0→$3M), then
+  ② $6M → … → ⑥ $1B → Ⓩ $1.4B
+- Goal ladder extended to 18 rungs (first 12 unchanged for migrated
+  saves; DOWNTOWN COMPLETE at $25M, NEW MERIDIAN COMPLETE at $250M
+  lifetime); Angel Bay unlock now sits atop the full XL arc
 - **No 90° turns** — every bend is 45°, like real track
 - **Shared corridors ≤ 3 stops**, drawn side-by-side on lane offsets;
   trains ride their own lane (Ⓐ and Ⓝ run visibly abreast Union Sq → 34 St)
@@ -78,8 +82,8 @@ own 12-rung ladder (ANGEL BAY COMPLETE at $1.5B lifetime). One-way move;
 - **Shared stations COMPOUND**: every serving line's ridership upgrades
   multiply together at an interchange (×food ×marketing on top) — pinned
   by a unit test on demandMultAt, and the UI stats read the same function
-- Pace (build 18): `demandScale = 1.3`, base capacity 14, station cap 80
-  (+crowd control), fare pops `14× +$28`, level 0 ≈ $12.4/s — demand and
+- Pace (build 24): `demandScale = 1.3`, base capacity 22, station cap 80
+  (+crowd control), fare pops `22× +$44`, level 0 ≈ $17.5/s — demand and
   base capacity move together or demand-side upgrades die (build 12's
   lesson)
 - **Directional platforms + smart spawns** (build 16): waiting queues are

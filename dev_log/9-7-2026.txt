@@ -52,3 +52,24 @@ visible while shopping (line sheets, station sheets, panels). Map also
 sizes to the LONG viewport side (fills portrait fully) and minScale is
 computed from the fit scale so pinching back out to the whole city
 always works (was clamped at 0.7 > fit).
+
+Metro Magnate build 24 (v0.9.0): NEW MERIDIAN XL ships (player approved
+the rig SVG: "add like 15 more lines... map much larger... more
+intersections"). 520-unit world, 24 lines, 162 stations, 28
+interchanges: the approved 300-unit core sits verbatim at offset +110 as
+downtown (grandfathered in the rig's checks), 1/M/L extended, 15 new
+lines across five boroughs + a bay-bridge D line. Rig (meridian_xl.py)
+now mechanically asserts every approved rule INCLUDING point-in-polygon
+land containment and min spacing -- it rejected three drafts before the
+approved render. Balance re-verified in metro_sim_xl.py: the 17-stop
+line 1 re-saturated at cap 14 (access dead again), swept cap0 -> base
+capacity 22, fun ceiling 24 ($17.5/s at L0), thresholds retuned
+(trainset/marketing/gates/platform). Goal ladder 12 -> 18 rungs (first
+12 byte-identical so migrated goalsDone keeps meaning; rung 12 renamed
+DOWNTOWN COMPLETE; NEW MERIDIAN COMPLETE now $250M; Angel Bay gate sits
+atop the XL arc). Save v10: line ids survive -> unlocks + per-line
+upgrades + per-line FLEET COUNTS carry (respawned evenly spaced on the
+new geometry); station-keyed maps (food/gates/platform/waiting) drop
+with the old ids. Painter gains a label TextPainter cache (162 stations
+x halo+label per frame would chug). STYLE.md restored (it had been
+clobbered by an old CLAUDE.md copy) with the approval records.

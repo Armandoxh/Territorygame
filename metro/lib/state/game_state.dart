@@ -205,9 +205,17 @@ class GameState extends ChangeNotifier {
     GoalDef('HALF MILLION', GoalKind.earned, 500000, 1.4),
     GoalDef('SEVEN ROUTES', GoalKind.lines, 7, 1.5),
     GoalDef('TWO MILLION', GoalKind.earned, 2000000, 1.5),
-    GoalDef('EVERY LINE', GoalKind.lines, 9, 1.75),
+    GoalDef('NINE ROUTES', GoalKind.lines, 9, 1.75),
     GoalDef('MILLION RIDERS', GoalKind.riders, 1000000, 1.75),
-    GoalDef('NEW MERIDIAN COMPLETE', GoalKind.earned, 25000000, 2.0),
+    GoalDef('DOWNTOWN COMPLETE', GoalKind.earned, 25000000, 2.0),
+    // The XL boroughs (build 24): the ladder keeps climbing past the
+    // original twelve rungs, so migrated progress keeps its meaning.
+    GoalDef('TWELVE ROUTES', GoalKind.lines, 12, 1.5),
+    GoalDef('FIFTY MILLION', GoalKind.earned, 50000000, 1.5),
+    GoalDef('SIXTEEN ROUTES', GoalKind.lines, 16, 1.75),
+    GoalDef('FIVE MILLION RIDERS', GoalKind.riders, 5000000, 1.75),
+    GoalDef('EVERY LINE', GoalKind.lines, 24, 2.0),
+    GoalDef('NEW MERIDIAN COMPLETE', GoalKind.earned, 250000000, 2.0),
   ];
   static const List<GoalDef> _angelBayGoals = [
     GoalDef('WEST SHORE OPENS', GoalKind.lines, 2, 1.25),
@@ -411,8 +419,8 @@ class GameState extends ChangeNotifier {
       (1 + 0.04 * globalLevelOf('signal'));
 
   /// This line's cars: riders boarded per stop (base pinned with
-  /// [demandScale] — see above).
-  double capacityFor(String lineId) => 14 + 6.0 * carLevelOf(lineId);
+  /// [demandScale] against the XL line-1 geometry — see above).
+  double capacityFor(String lineId) => 22 + 6.0 * carLevelOf(lineId);
 
   /// Ridership multiplier at one station. Every unlocked line serving it
   /// COMPOUNDS its own upgrades (step-free ×, new subway cars ×), then the
@@ -769,7 +777,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 9;
+  static const int saveVersion = 10;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -843,15 +851,38 @@ class GameState extends ChangeNotifier {
       return g;
     }
 
+    final lineIds = {for (final l in g.city.lines) l.id};
     g.unlockedLineIds
       ..clear()
-      ..addAll([for (final id in (j['unlockedLineIds'] as List)) id as String]);
-    g.trains
-      ..clear()
       ..addAll([
+        for (final id in (j['unlockedLineIds'] as List))
+          if (lineIds.contains(id as String)) id
+      ]);
+    if (g.unlockedLineIds.isEmpty) {
+      g.unlockedLineIds.add(g.city.lines.first.id);
+    }
+    g.trains.clear();
+    if (version >= 10) {
+      g.trains.addAll([
         for (final t in (j['trains'] as List))
           TrainState.fromJson(t as Map<String, dynamic>)
       ]);
+    } else {
+      // Pre-XL saves (build <24): line ids survive the bigger map but
+      // path geometry does not. Keep each line's train COUNT and respawn
+      // the fleets evenly spaced on the new tracks.
+      final counts = <String, int>{};
+      for (final t in (j['trains'] as List)) {
+        final id = (t as Map<String, dynamic>)['lineId'] as String;
+        if (lineIds.contains(id)) counts[id] = (counts[id] ?? 0) + 1;
+      }
+      for (final lineId in g.unlockedLineIds) {
+        final n = counts[lineId] ?? 1;
+        for (var i = 0; i < n; i++) {
+          g.trains.add(g._spawnTrain(g.city.lineById(lineId)));
+        }
+      }
+    }
     // Served-direction flags must exist before queues are restored — the
     // pre-v6 migration splits by them.
     g._recomputeServed();

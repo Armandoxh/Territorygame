@@ -20,13 +20,14 @@ void main() {
 
   test('every city in the ladder keeps the approved shape rules', () {
     expect(Cities.all.first.id, 'new_meridian');
-    expect(Cities.newMeridian.stations.length, 56);
+    expect(Cities.newMeridian.stations.length, 162);
     expect(Cities.angelBay.stations.length, 59);
     for (final city in Cities.all) {
-      expect(city.lines.length, 9, reason: '${city.id}: nine lines');
+      final expectLines = city.id == 'new_meridian' ? 24 : 9;
+      expect(city.lines.length, expectLines);
       // Unique color per line — the approved rule.
       final colors = {for (final l in city.lines) l.color.value};
-      expect(colors.length, 9,
+      expect(colors.length, expectLines,
           reason: '${city.id}: no two lines may share a color');
       // Line 1 is free; every other line costs more than the one before.
       expect(city.lines.first.unlockCost, 0);
@@ -66,7 +67,7 @@ void main() {
     final perSec = g.totalEarned / 300;
     expect(perSec, greaterThan(1.5),
         reason: 'earning \$${perSec.toStringAsFixed(2)}/s — too slow, stalls');
-    expect(perSec, lessThan(18),
+    expect(perSec, lessThan(24),
         reason: 'earning \$${perSec.toStringAsFixed(2)}/s — too fast, trivial');
   });
 
@@ -117,7 +118,7 @@ void main() {
         reason: 'cars L5 must show up (got ${bigger / base}x)');
     expect(accessible, greaterThan(base * 1.05),
         reason: 'access L5 must show up (got ${accessible / base}x)');
-    expect(newCars, greaterThan(base * 1.08),
+    expect(newCars, greaterThan(base * 1.05),
         reason: 'new subway cars L5 must show up (got ${newCars / base}x)');
   });
 
@@ -130,7 +131,7 @@ void main() {
     final mustBeat = {
       'signal': 1.03,
       'doors': 1.04,
-      'marketing': 1.05,
+      'marketing': 1.04,
       'fare': 1.4,
       'billboards': 1.10,
     };
@@ -167,12 +168,12 @@ void main() {
     for (final id in ['A', 'L', 'M', 'N']) {
       if (!g.isUnlocked(id)) expect(g.buyLine(id), isTrue);
     }
-    final base = g.demandMultAt('s114_172');
+    final base = g.demandMultAt('s224_282');
     g.accessLevels['1'] = 5; // ×1.5
     g.trainsetLevels['1'] = 5; // ×1.4
     g.accessLevels['N'] = 5; // ×1.5
-    g.foodLevel['s114_172'] = 5; // ×1.5
-    expect(g.demandMultAt('s114_172'),
+    g.foodLevel['s224_282'] = 5; // ×1.5
+    expect(g.demandMultAt('s224_282'),
         closeTo(base * 1.5 * 1.4 * 1.5 * 1.5, 1e-9),
         reason: 'both lines + the food court multiply together');
     // And the UI demand stat reads from the same function, so it reflects
@@ -180,17 +181,17 @@ void main() {
   });
 
   test('station works pay: fare gates and platform works', () {
-    // s114_172 = 45 St, a line 1 / N corridor stop.
+    // s224_282 = 45 St, a line 1 / N corridor stop (XL id).
     final plain = run(240).totalEarned;
     final gated = run(240, setup: (g) {
-      g.gateLevel['s114_172'] = 5;
+      g.gateLevel['s224_282'] = 5;
     }).totalEarned;
     final rebuilt = run(240, setup: (g) {
-      g.platformLevel['s114_172'] = 5;
+      g.platformLevel['s224_282'] = 5;
     }).totalEarned;
-    expect(gated, greaterThan(plain * 1.04),
+    expect(gated, greaterThan(plain * 1.03),
         reason: 'gates L5 must show up (got ${gated / plain}x)');
-    expect(rebuilt, greaterThan(plain * 1.01),
+    expect(rebuilt, greaterThan(plain * 1.005),
         reason: 'platform works L5 must show up (got ${rebuilt / plain}x)');
   });
 
@@ -219,7 +220,7 @@ void main() {
 
   test('CITY GOALS: commendations compound income to the ladder top', () {
     final g = GameState();
-    expect(g.goals.length, 12);
+    expect(g.goals.length, 18);
     expect(g.currentGoal!.name, 'OPENING DAY');
     expect(g.goalMult, 1);
     // Drive every counter past the final rung and tick once.
@@ -229,8 +230,8 @@ void main() {
         expect(g.buyLine(line.id), isTrue);
       }
     }
-    g.totalRiders = 1000000;
-    g.totalEarned = 25000000;
+    g.totalRiders = 5000000;
+    g.totalEarned = 250000000;
     g.tick(0.1);
     expect(g.currentGoal, isNull, reason: 'the whole ladder completes');
     var expected = 1.0;
@@ -239,7 +240,7 @@ void main() {
     }
     expect(g.goalMult, closeTo(expected, 1e-9),
         reason: 'rewards multiply, never add');
-    expect(g.incomePerRiderAt('s96_238'),
+    expect(g.incomePerRiderAt('s126_452'),
         closeTo(GameState.fare * expected, 1e-6),
         reason: 'the bonus reaches every boarding');
     expect(g.goalProgress, 1);
@@ -254,8 +255,8 @@ void main() {
     for (final line in g.city.lines) {
       if (!g.isUnlocked(line.id)) g.buyLine(line.id);
     }
-    g.totalRiders = 1000000;
-    g.totalEarned = 25000000;
+    g.totalRiders = 5000000;
+    g.totalEarned = 250000000;
     g.tick(0.1);
     expect(g.canMoveOn, isTrue);
     final multBefore = g.goalMult;
@@ -279,9 +280,9 @@ void main() {
     for (var i = 0; i < 2400; i++) {
       ab.tick(0.1);
     }
-    expect(ab.totalEarned, greaterThan(25000000),
+    expect(ab.totalEarned, greaterThan(250000000),
         reason: 'lifetime earnings keep climbing in the new city');
-    expect(ab.totalRiders, greaterThan(1000000));
+    expect(ab.totalRiders, greaterThan(5000000));
   });
 
   test('Angel Bay serves and never sticks with everything unlocked', () {
@@ -388,12 +389,12 @@ void main() {
   });
 
   test('a food court raises earnings at a busy interchange', () {
-    // s114_172 = 45 St, a line 1 / N corridor stop.
+    // s224_282 = 45 St, a line 1 / N corridor stop (XL id).
     final plain = run(240).totalEarned;
     final fed = run(240, setup: (g) {
       g.cash = 100000;
       for (var i = 0; i < GameState.foodMax; i++) {
-        expect(g.buyFood('s114_172'), isTrue);
+        expect(g.buyFood('s224_282'), isTrue);
       }
     }).totalEarned;
     expect(fed, greaterThan(plain * 1.05),
@@ -418,14 +419,14 @@ void main() {
     final g = run(600, each: (g) {
       // Line 1's terminals depart one way only — the other platform must
       // stay empty forever (no rider waits for a train that never comes).
-      expect(g.waitingDown['s96_238'], 0);
-      expect(g.waitingUp['s114_22'], 0);
-      if (g.waitingUp['s114_150']! > 0) midUp = true;
-      if (g.waitingDown['s114_150']! > 0) midDown = true;
+      expect(g.waitingDown['s126_452'], 0);
+      expect(g.waitingUp['s224_68'], 0);
+      if (g.waitingUp['s224_260']! > 0) midUp = true;
+      if (g.waitingDown['s224_260']! > 0) midDown = true;
     });
     expect(midUp && midDown, isTrue,
         reason: 'a middle station must fill both platforms');
-    expect(g.waitingAt('s96_238'), greaterThan(0),
+    expect(g.waitingAt('s126_452'), greaterThan(0),
         reason: 'the terminal still collects outbound riders');
   });
 
@@ -491,9 +492,9 @@ void main() {
         boardings++;
       }
     }
-    expect(g.trains.length, 11);
+    expect(g.trains.length, 26);
     expect(boardings, greaterThan(200),
-        reason: '11 trains × 10 min made only $boardings stops');
+        reason: '26 trains × 10 min made only $boardings stops');
   });
 
   test('offline earnings: credited at half rate, capped at 8 hours', () {

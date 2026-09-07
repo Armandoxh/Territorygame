@@ -184,6 +184,16 @@ class _MapPainter extends CustomPainter {
 
   static const _ink = TransitStyle.ink;
 
+  /// Station labels are static per layout scale, but at XL size there are
+  /// hundreds of them — laying them out every frame would chug. Cache the
+  /// laid-out painters across frames.
+  static final Map<String, TextPainter> _labelCache = {};
+  static TextPainter _cached(String key, TextSpan Function() build) =>
+      _labelCache.putIfAbsent(
+          key,
+          () => TextPainter(text: build(), textDirection: TextDirection.ltr)
+            ..layout());
+
   @override
   void paint(Canvas canvas, Size size) {
     final world = game.city.size;
@@ -362,23 +372,29 @@ class _MapPainter extends CustomPainter {
       // Label with a white halo (like real map labels) at its hand-tuned
       // offset — dense corridors fan their labels out via StationDef data.
       final fontSize = 2.9 * s;
-      TextPainter mkLabel(TextStyle style) => TextPainter(
-            text: TextSpan(text: st.name, style: style),
-            textDirection: TextDirection.ltr,
-          )..layout();
-      final halo = mkLabel(GoogleFonts.inter(
-        fontSize: fontSize,
-        fontWeight: FontWeight.w700,
-        foreground: Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = Colors.white,
-      ));
-      final label = mkLabel(GoogleFonts.inter(
-        color: _ink,
-        fontSize: fontSize,
-        fontWeight: FontWeight.w700,
-      ));
+      final halo = _cached(
+          'h:${st.id}:$s',
+          () => TextSpan(
+                text: st.name,
+                style: GoogleFonts.inter(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w700,
+                  foreground: Paint()
+                    ..style = PaintingStyle.stroke
+                    ..strokeWidth = 3
+                    ..color = Colors.white,
+                ),
+              ));
+      final label = _cached(
+          'l:${st.id}:$s',
+          () => TextSpan(
+                text: st.name,
+                style: GoogleFonts.inter(
+                  color: _ink,
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w700,
+                ),
+              ));
       Offset labelPos;
       if (st.labelSide != 0) {
         final lx = st.labelSide > 0
