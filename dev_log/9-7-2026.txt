@@ -12,3 +12,18 @@ migrates). Harness now enforces the approved shape rules on EVERY city
 corridors <=3) plus ladder-completion/moveOn/AB-smoke/AB-roundtrip
 tests. AB targets sit above NM's finish since rider/earned goals are
 lifetime totals.
+
+Metro Magnate build 21 (v0.8.1): live-fleet train placement (player:
+"spacing feels solely dependent on when I click... place them
+bidirectionally equidistant"). Correct: van der Corput slots only
+described spawn-time positions and ignored where the fleet had MOVED by
+purchase time. _spawnTrain now maps each existing train to its circular
+round-trip phase (0..2L; <L = heading up at distance p, >=L = heading
+back) and spawns the new train at the midpoint of the WIDEST phase gap:
+a 2nd train enters exactly half a round trip from the 1st wherever it
+is (same track, opposite direction); every later purchase drops into
+the biggest hole. Same line speed for all trains means the spacing
+persists. At t=0 the scheme reproduces the old vdc pattern exactly, so
+the existing spawn test still pins it; a new test buys at staggered odd
+moments (13.7s, +23.3s, +8.9s) and asserts the diametric entry and a
+quarter-round-trip minimum pairwise gap.

@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.8.0 · build 20 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.8.1 · build 21 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -83,10 +83,12 @@ own 12-rung ladder (ANGEL BAY COMPLETE at $1.5B lifetime). One-way move;
 - **Directional platforms + smart spawns** (build 16): waiting queues are
   per-direction (uptown/downtown); a train boards only the platform for
   the direction it departs with; arrivals fill only platforms a line
-  actually leaves from. New trains alternate direction (up, down, up…)
-  and same-direction trains enter phase-offset along the line (van der
-  Corput ½, ¼, ¾…) so they never trail each other. Save v6 splits old
-  single queues onto the served platforms
+  actually leaves from. New trains enter at the midpoint of the WIDEST
+  round-trip-phase gap in the line's live fleet (build 21) — a 2nd train
+  spawns exactly opposite the 1st wherever it is, and any later purchase
+  drops into the biggest hole — bidirectionally equidistant no matter
+  when the button is pressed. Save v6 split old single queues onto the
+  served platforms
 
 **Next up (discussed, not committed):** make unlocks feel bigger
 (district-reveal moment, per-line ridership stats), then the city ladder

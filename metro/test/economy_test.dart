@@ -308,6 +308,50 @@ void main() {
         reason: '11 Angel Bay trains made only $boardings stops');
   });
 
+  test('train spacing is smart about WHEN you buy, not just how many', () {
+    double phaseOf(TrainState t, double len) =>
+        t.direction > 0 ? t.distance : 2 * len - t.distance;
+    double minGap(List<double> phases, double len) {
+      final p = [...phases]..sort();
+      var best = double.infinity;
+      for (var i = 0; i < p.length; i++) {
+        final next = i + 1 < p.length ? p[i + 1] : p[0] + 2 * len;
+        if (next - p[i] < best) best = next - p[i];
+      }
+      return best;
+    }
+
+    final g = GameState();
+    g.cash = 1e9;
+    final len = g.paths['1']!.length;
+    // Let train 1 run to an arbitrary mid-route spot, then buy: the new
+    // train must enter diametrically opposite — same track, other
+    // direction — no matter when the button was pressed.
+    for (var i = 0; i < 137; i++) {
+      g.tick(0.1);
+    }
+    expect(g.buyTrain('1'), isTrue);
+    final p1 = phaseOf(g.trains[0], len);
+    final p2 = phaseOf(g.trains[1], len);
+    expect((p2 - p1).abs() % (2 * len), closeTo(len, 0.001),
+        reason: 'the 2nd train enters half a round trip away');
+    expect(g.trains[1].direction, -g.trains[0].direction);
+
+    // Keep running, buy twice more at odd moments: the fleet must stay
+    // spread — every pair at least a quarter round-trip apart.
+    for (var i = 0; i < 233; i++) {
+      g.tick(0.1);
+    }
+    expect(g.buyTrain('1'), isTrue);
+    for (var i = 0; i < 89; i++) {
+      g.tick(0.1);
+    }
+    expect(g.buyTrain('1'), isTrue);
+    final phases = [for (final t in g.trains) phaseOf(t, len)];
+    expect(minGap(phases, len), greaterThan(2 * len / 8),
+        reason: 'no two trains bunch up after staggered purchases');
+  });
+
   test('the first commendation fires by itself in normal play', () {
     final g = run(300);
     expect(g.goalsDone, greaterThanOrEqualTo(1),

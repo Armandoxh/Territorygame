@@ -645,17 +645,41 @@ class GameState extends ChangeNotifier {
     });
   }
 
-  /// Where the line's k-th train enters service: opposite direction from
-  /// the previous spawn (1st up, 2nd down, 3rd up …), and trains sharing a
-  /// direction are phase-offset along the line by van der Corput fractions
-  /// (0, ½, ¼, ¾ …) so a new train never trails an old one scooping
-  /// platforms it just emptied.
+  /// Where a new train enters service. A ping-pong train is a point on a
+  /// circular ROUND-TRIP phase [0, 2L): phase < L is distance-p heading
+  /// up, phase ≥ L is heading back. The new train spawns at the midpoint
+  /// of the WIDEST phase gap in the line's current fleet — so buying at
+  /// any moment places it bidirectionally equidistant from the trains
+  /// that are already running (a 2nd train enters exactly opposite the
+  /// 1st, wherever it happens to be), never trailing one redundantly.
+  /// All trains on a line run the same speed, so the spacing persists.
   TrainState _spawnTrain(LineDef line) {
     final path = paths[line.id]!;
-    final k = trainCount(line.id);
-    final direction = k.isEven ? 1 : -1;
-    final f = _vdc(k >> 1);
-    final d = direction > 0 ? path.length * f : path.length * (1 - f);
+    final len = path.length;
+    final phases = [
+      for (final t in trains)
+        if (t.lineId == line.id)
+          t.direction > 0 ? t.distance : 2 * len - t.distance,
+    ]..sort();
+    double phase;
+    if (phases.isEmpty) {
+      phase = 0;
+    } else {
+      var bestGap = -1.0;
+      var bestMid = 0.0;
+      for (var i = 0; i < phases.length; i++) {
+        final a = phases[i];
+        final b =
+            i + 1 < phases.length ? phases[i + 1] : phases[0] + 2 * len;
+        if (b - a > bestGap) {
+          bestGap = b - a;
+          bestMid = (a + b) / 2 % (2 * len);
+        }
+      }
+      phase = bestMid;
+    }
+    final direction = phase < len ? 1 : -1;
+    final d = phase < len ? phase : 2 * len - phase;
     var target = direction > 0 ? line.stationIds.length - 1 : 0;
     if (direction > 0) {
       for (var i = 0; i < path.stationDistance.length; i++) {
@@ -678,18 +702,6 @@ class GameState extends ChangeNotifier {
         direction: direction,
         dwell: 0,
         target: target);
-  }
-
-  /// Van der Corput base-2: 0, ½, ¼, ¾, ⅛, ⅝ … — evenly self-spacing.
-  static double _vdc(int j) {
-    var f = 0.0;
-    var base = 0.5;
-    while (j > 0) {
-      if (j.isOdd) f += base;
-      j >>= 1;
-      base /= 2;
-    }
-    return f;
   }
 
   bool buyFood(String stationId) {
