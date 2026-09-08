@@ -184,7 +184,7 @@ void main() {
     }
     final nmStops = nm.city.lineById('1').stationIds;
     for (var i = 0; i < 8; i++) {
-      nm.foodLevel[nmStops[i]] = 5;
+      nm.parkingLevel[nmStops[i]] = 5;
     }
     nm.tick(0.1);
     final g = nm.moveOn();

@@ -758,8 +758,8 @@ class _OpsSheet extends StatelessWidget {
         final sid = g.commissionStationId;
         final name = sid == null ? 'the hub' : g.city.stationById(sid).name;
         return 'Board ${q.floor()} riders at $name within '
-            '${_mmss(g.commissionTimeLimit)} — the hub matters, not '
-            'the rest of the line.';
+            '${_mmss(g.commissionTimeLimit)} — cars and trains on this '
+            'line feed the hub; a built-up hub fills faster.';
       case CommissionType.sweep:
         return 'Get EVERY platform on this line under '
             '${GameState.sweepThreshold.floor()} waiting at the same '

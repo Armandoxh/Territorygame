@@ -312,7 +312,9 @@ void main() {
     }
     final stops1 = g.city.lineById('1').stationIds;
     for (var i = 0; i < 8; i++) {
-      g.foodLevel[stops1[i]] = 5; // 40 station works
+      // Parking: counts as works but has no income term, so the
+      // fare-per-rider assertion below stays exact.
+      g.parkingLevel[stops1[i]] = 5;
     }
     g.tick(0.1);
     expect(g.currentGoal, isNull, reason: 'the whole ladder completes');
@@ -346,7 +348,9 @@ void main() {
     }
     final stops1 = g.city.lineById('1').stationIds;
     for (var i = 0; i < 8; i++) {
-      g.foodLevel[stops1[i]] = 5; // 40 station works
+      // Parking: counts as works but has no income term, so the
+      // fare-per-rider assertion below stays exact.
+      g.parkingLevel[stops1[i]] = 5;
     }
     g.tick(0.1);
     expect(g.canMoveOn, isTrue);
@@ -599,21 +603,38 @@ void main() {
         reason: 'three trains make 6 turnbacks comfortably');
   });
 
-  test('HUB SERVICE counts only the hub', () {
+  test('HUB SERVICE pays for concentrating service on the hub', () {
+    // Bare level-0 service misses the quota (sim-measured 48 vs 61)…
+    final bare = GameState();
+    bare.commissionIndex = 2;
+    expect(bare.commissionType, CommissionType.station);
+    final hub = bare.commissionStationId!;
+    expect(bare.city.lineById('1').stationIds.first, isNot(hub),
+        reason: 'the hub is mid-line — terminals get one call per lap');
+    expect(bare.city.lineById('1').stationIds.last, isNot(hub));
+    bare.acceptCommission();
+    var guard = 0;
+    while (bare.commissionActive && guard < 12000) {
+      bare.tick(0.1);
+      guard++;
+    }
+    expect(bare.lastCommissionWon, isFalse,
+        reason: 'the quota must cost real investment');
+
+    // …but cars on the line plus a built-up hub deliver it.
     final g = GameState();
     g.commissionIndex = 2;
-    expect(g.commissionType, CommissionType.station);
-    final hub = g.commissionStationId!;
-    g.foodLevel[hub] = 5; // invest in the hub — that is the point
+    g.carLevels['1'] = 3;
+    g.foodLevel[hub] = 5;
     g.parkingLevel[hub] = 5;
     g.acceptCommission();
-    var guard = 0;
+    guard = 0;
     while (g.commissionActive && guard < 12000) {
       g.tick(0.1);
       guard++;
     }
     expect(g.lastCommissionWon, isTrue,
-        reason: 'a built-up hub delivers its quota');
+        reason: 'an invested line+hub delivers its quota');
   });
 
   test('CLEAN SWEEP wins the moment every platform is clear', () {

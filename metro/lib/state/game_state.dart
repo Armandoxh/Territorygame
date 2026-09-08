@@ -430,13 +430,16 @@ class GameState extends ChangeNotifier {
   CommissionType get commissionType =>
       CommissionType.values[commissionIndex % CommissionType.values.length];
 
-  /// HUB SERVICE targets the busiest station of the contract line.
+  /// HUB SERVICE targets the busiest MID-LINE station of the contract
+  /// line. Terminals are excluded: a train calls there only once per
+  /// round trip, so no quota could be both fair and interesting.
   String? get commissionStationId {
     if (commissionType != CommissionType.station) return null;
     final lineId = commissionLineId;
     if (lineId == null) return null;
+    final ids = city.lineById(lineId).stationIds;
     StationDef? best;
-    for (final sid in city.lineById(lineId).stationIds) {
+    for (final sid in ids.sublist(1, ids.length - 1)) {
       final s = city.stationById(sid);
       if (best == null || s.demand > best.demand) best = s;
     }
@@ -458,9 +461,11 @@ class GameState extends ChangeNotifier {
         final i = commissionIndex < 20 ? commissionIndex : 20;
         return (4 + 2 * i).toDouble();
       case CommissionType.station:
-        // A hub sees ~a tenth of a line's volume; sized so investment
-        // in the hub (food, parking) makes the difference.
-        return (_haulEquivalent * 0.12).floorToDouble();
+        // Hub boardings are capacity-bound (~22/train visit), so this
+        // pays for cars/trains on the line plus hub works. Sim-measured
+        // on line 1: bare 48 riders/120s, invested line+hub 77-89 —
+        // 0.06 puts the early quota (61) between them.
+        return (_haulEquivalent * 0.06).floorToDouble();
       case CommissionType.sweep:
         final lineId = commissionLineId;
         return lineId == null
