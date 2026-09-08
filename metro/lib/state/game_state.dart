@@ -336,6 +336,43 @@ class GameState extends ChangeNotifier {
   int unlockSeq = 0;
   String lastUnlockedLineId = '';
 
+  // ---- Rush hour: the strategy clock ----
+  /// A deterministic 3-minute cycle; the last 45 seconds are RUSH HOUR
+  /// on one unlocked line (rotating in ladder order): ×2.5 demand at
+  /// every station it serves. Unprepared, a rush pays nothing extra —
+  /// the queues cap and the trains are already full. It pays exactly in
+  /// proportion to the capacity headroom built on that line.
+  static const double rushPeriod = 180;
+  static const double rushWindow = 45;
+  static const double rushMult = 2.5;
+
+  double rushClock = 0;
+
+  double get _rushPhase => rushClock % rushPeriod;
+  bool get rushActive => _rushPhase >= rushPeriod - rushWindow;
+
+  List<String> get _unlockedInOrder =>
+      [for (final l in city.lines) if (isUnlocked(l.id)) l.id];
+
+  /// The line this cycle's rush targets (known during the calm too, so
+  /// the player can prepare).
+  String? get rushLineId {
+    final u = _unlockedInOrder;
+    if (u.isEmpty) return null;
+    return u[(rushClock ~/ rushPeriod) % u.length];
+  }
+
+  /// Seconds until the rush ends (while active) or begins (while calm).
+  double get rushSecondsLeft => rushActive
+      ? rushPeriod - _rushPhase
+      : (rushPeriod - rushWindow) - _rushPhase;
+
+  /// The rush multiplier hitting this station right now (1 when calm).
+  double rushFactorAt(String stationId) => rushActive &&
+          (_linesServing[stationId]?.contains(rushLineId) ?? false)
+      ? rushMult
+      : 1;
+
   /// How far the first-session coach marks have advanced (persisted).
   /// The UI owns the tip texts; each auto-advances when its milestone is
   /// met, so veteran saves skip straight past all of them.
@@ -673,12 +710,17 @@ class GameState extends ChangeNotifier {
   void tick(double dt) {
     if (dt <= 0) return;
 
+    rushClock += dt;
+
     // Riders arrive at every served station, choosing the platform for
     // their direction — 50/50 where both are served, everyone to the one
     // platform at a line's end — up to the station's total cap.
     for (final id in _served) {
-      final add =
-          city.stationById(id).demand * demandScale * demandMultAt(id) * dt;
+      final add = city.stationById(id).demand *
+          demandScale *
+          demandMultAt(id) *
+          rushFactorAt(id) *
+          dt;
       final both = _upServed.contains(id) && _downServed.contains(id);
       var dUp = both ? add / 2 : (_upServed.contains(id) ? add : 0.0);
       var dDown = both ? add / 2 : (_downServed.contains(id) ? add : 0.0);
@@ -913,7 +955,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 12;
+  static const int saveVersion = 13;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -939,6 +981,7 @@ class GameState extends ChangeNotifier {
         'globalLevels': globalLevels,
         'goalsDoneByCity': goalsDoneByCity,
         'coachStep': coachStep,
+        'rushClock': rushClock,
         'avgRate': avgRate,
         'lastSeenMs': nowMs,
       };
@@ -982,6 +1025,7 @@ class GameState extends ChangeNotifier {
     }
     g._recomputeGoalMult();
     g.coachStep = (j['coachStep'] as int?) ?? 0;
+    g.rushClock = ((j['rushClock'] as num?) ?? 0).toDouble();
     g.avgRate = (j['avgRate'] as num).toDouble();
     g._loadedLastSeenMs = j['lastSeenMs'] as int?;
 

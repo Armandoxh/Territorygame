@@ -372,9 +372,12 @@ class _MapPainter extends CustomPainter {
     }
     for (final line in city.lines) {
       if (!game.isUnlocked(line.id)) continue;
+      // The rush line runs hot: a fatter stroke for the whole window.
+      final rushing = game.rushActive && game.rushLineId == line.id;
       _drawLineSegments(canvas, m, s, line,
           locked: false,
-          fraction: line.id == revealLineId ? revealFraction : 1);
+          fraction: line.id == revealLineId ? revealFraction : 1,
+          width: rushing ? 3.2 : 2.2);
     }
 
     // How many unlocked lines touch each station (2+ = interchange).
@@ -606,7 +609,8 @@ class _MapPainter extends CustomPainter {
   /// or the locked treatment (light-gray PathMetrics dashes). [fraction]
   /// < 1 draws only that much of the route: the unlock cinema.
   void _drawLineSegments(Canvas canvas, Offset Function(Offset) m, double s,
-      LineDef line, {required bool locked, double fraction = 1}) {
+      LineDef line,
+      {required bool locked, double fraction = 1, double width = 2.2}) {
     final pts = game.paths[line.id]!.points;
     final lanes = game.segLane[line.id]!;
     final budget = game.paths[line.id]!.length * fraction;
@@ -614,7 +618,7 @@ class _MapPainter extends CustomPainter {
     final paint = Paint()
       ..color = locked ? const Color(0xFFD2D2D2) : line.color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = (locked ? 1.15 : 2.2) * s
+      ..strokeWidth = (locked ? 1.15 : width) * s
       ..strokeCap = locked ? StrokeCap.butt : StrokeCap.round;
     for (var i = 0; i < pts.length - 1; i++) {
       final a = pts[i];

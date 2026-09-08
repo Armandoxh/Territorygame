@@ -9,4 +9,5 @@ class CityAudio {
   static void boarding(int lineIndex, double strength) {}
   static void commendation() {}
   static void unlock() {}
+  static void rush() {}
 }

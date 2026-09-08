@@ -105,4 +105,11 @@ class CityAudio {
     _pluck(330.0, 0.10, 0, 0.7);
     _pluck(494.0, 0.10, 0.18, 0.9);
   }
+
+  /// Rush hour begins: an urgent low double-strike.
+  static void rush() {
+    if (_muted || _ctx == null) return;
+    _pluck(196.0, 0.12, 0, 0.25);
+    _pluck(196.0, 0.12, 0.16, 0.4);
+  }
 }

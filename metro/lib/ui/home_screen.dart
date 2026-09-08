@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// Playtest fast-forward: 1× or 10×. Simulated as many small sub-ticks
   /// so the physics stay exact — just compressed.
   double _timeScale = 1;
+  bool _rushWasActive = false;
   late final Ticker _ticker = createTicker(_onTick);
   Duration _lastElapsed = Duration.zero;
   Timer? _savePulse;
@@ -70,6 +71,10 @@ class _HomeScreenState extends State<HomeScreen>
         CityAudio.boarding(lineIndex,
             game.lastBoardCount / game.capacityFor(game.lastBoardLineId));
       }
+    }
+    if (game.rushActive != _rushWasActive) {
+      _rushWasActive = game.rushActive;
+      if (game.rushActive) CityAudio.rush();
     }
     if (game.unlockedLineIds.length != _seenUnlockCount) {
       if (game.unlockedLineIds.length > _seenUnlockCount) {
@@ -284,6 +289,7 @@ class _HomeScreenState extends State<HomeScreen>
                 _CoachBar(
                     game: game,
                     onDismiss: () => setState(() => game.coachStep += 1)),
+                _RushBar(game: game),
                 Expanded(
                   child: MetroMap(game: game, onStationTap: _openStation),
                 ),
@@ -519,6 +525,70 @@ class _CoachBar extends StatelessWidget {
               child: Icon(Icons.close, size: 14, color: Color(0x66000000)),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The rush-hour strip: loud while a rush is running, a quiet countdown
+/// while the next one approaches — always naming the line so capacity
+/// can be positioned in advance.
+class _RushBar extends StatelessWidget {
+  const _RushBar({required this.game});
+  final GameState game;
+
+  String _mmss(double s) {
+    final t = s.ceil();
+    return '${t ~/ 60}:${(t % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lineId = game.rushLineId;
+    if (lineId == null) return const SizedBox.shrink();
+    final line = game.city.lineById(lineId);
+    if (game.rushActive) {
+      return Container(
+        color: const Color(0xFFC62828),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        child: Row(
+          children: [
+            RouteBullet(label: line.bullet, color: line.color, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                  'RUSH HOUR — ${line.name.toUpperCase()} '
+                  '×${GameState.rushMult.toStringAsFixed(1)} RIDERS',
+                  style: TransitStyle.signage(
+                      size: 11, weight: FontWeight.w900, spacing: 1)),
+            ),
+            Text(_mmss(game.rushSecondsLeft),
+                style: TransitStyle.signage(
+                    size: 11, weight: FontWeight.w900)),
+          ],
+        ),
+      );
+    }
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Row(
+        children: [
+          Text('NEXT RUSH',
+              style: TransitStyle.signage(
+                  size: 9,
+                  color: const Color(0x99000000),
+                  weight: FontWeight.w800,
+                  spacing: 1.5)),
+          const SizedBox(width: 8),
+          RouteBullet(label: line.bullet, color: line.color, size: 13),
+          const Spacer(),
+          Text('in ${_mmss(game.rushSecondsLeft)}',
+              style: TransitStyle.signage(
+                  size: 10,
+                  color: const Color(0x99000000),
+                  weight: FontWeight.w700)),
         ],
       ),
     );

@@ -66,6 +66,8 @@ void main() {
     expect(r.globalLevelOf('fare'), g.globalLevelOf('fare'));
     expect(r.currentFare, closeTo(g.currentFare, 0.001));
     expect(r.avgRate, closeTo(g.avgRate, 0.001));
+    expect(r.rushClock, closeTo(g.rushClock, 0.001),
+        reason: 'the rush schedule continues where it left off');
     for (final e in g.waitingUp.entries) {
       expect(r.waitingUp[e.key], closeTo(e.value, 0.001));
       expect(r.waitingDown[e.key], closeTo(g.waitingDown[e.key]!, 0.001));

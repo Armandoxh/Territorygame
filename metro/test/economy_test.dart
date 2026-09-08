@@ -122,9 +122,11 @@ void main() {
         reason: 'speed L5 must show up (got ${faster / base}x)');
     expect(bigger, greaterThan(base * 1.15),
         reason: 'cars L5 must show up (got ${bigger / base}x)');
-    expect(accessible, greaterThan(base * 1.05),
+    // Rush windows saturate the line, so demand-side upgrades idle
+    // through ~25% of the clock — bounds re-measured with rush active.
+    expect(accessible, greaterThan(base * 1.04),
         reason: 'access L5 must show up (got ${accessible / base}x)');
-    expect(newCars, greaterThan(base * 1.05),
+    expect(newCars, greaterThan(base * 1.03),
         reason: 'new subway cars L5 must show up (got ${newCars / base}x)');
   });
 
@@ -137,7 +139,7 @@ void main() {
     final mustBeat = {
       'signal': 1.03,
       'doors': 1.04,
-      'marketing': 1.04,
+      'marketing': 1.02,
       'fare': 1.4,
       'billboards': 1.10,
     };
@@ -422,6 +424,58 @@ void main() {
     final phases = [for (final t in g.trains) phaseOf(t, len)];
     expect(minGap(phases, len), greaterThan(2 * len / 8),
         reason: 'no two trains bunch up after staggered purchases');
+  });
+
+  test('RUSH HOUR runs on schedule and pays for capacity headroom', () {
+    final g = GameState();
+    expect(g.rushActive, isFalse);
+    expect(g.rushLineId, '1');
+    for (var i = 0; i < 1360; i++) {
+      g.tick(0.1); // to 136s — inside the window
+    }
+    expect(g.rushActive, isTrue);
+    for (var i = 0; i < 460; i++) {
+      g.tick(0.1); // to 182s — next cycle's calm
+    }
+    expect(g.rushActive, isFalse);
+
+    // A capacity-built line earns dramatically more during the rush
+    // window than in the calm window right before it.
+    GameState built() {
+      final s = GameState();
+      s.carLevels['1'] = 5;
+      s.cash = 1e9;
+      s.buyTrain('1');
+      return s;
+    }
+
+    double windowEarn(double from, double to) {
+      final s = built();
+      for (var i = 0; i < (from * 10).round(); i++) {
+        s.tick(0.1);
+      }
+      final before = s.totalEarned;
+      for (var i = 0; i < ((to - from) * 10).round(); i++) {
+        s.tick(0.1);
+      }
+      return s.totalEarned - before;
+    }
+
+    final calm = windowEarn(90, 135);
+    final rush = windowEarn(135, 180);
+    expect(rush, greaterThan(calm * 1.5),
+        reason: 'built capacity cashes the rush (got ${rush / calm}x)');
+  });
+
+  test('rush rotation walks the unlocked lines in ladder order', () {
+    final g = GameState();
+    g.cash = 1e12;
+    g.buyLine('A');
+    expect(g.rushLineId, '1');
+    g.rushClock = GameState.rushPeriod;
+    expect(g.rushLineId, 'A');
+    g.rushClock = GameState.rushPeriod * 2;
+    expect(g.rushLineId, '1', reason: 'two lines alternate');
   });
 
   test('the first commendation fires by itself in normal play', () {

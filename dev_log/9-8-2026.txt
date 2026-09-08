@@ -55,3 +55,20 @@ scale), manifest declares just the two clean 512 entries. Lessons:
 VIEW every generated image at every size before shipping; and a failed
 sed mid-chain silently skipped the version bump (heredoc broke the &&
 chain), hence this follow-up stamp commit.
+
+Build 32 (v0.13.0): RUSH HOUR -- Arc 2 (strategy) begins. Deterministic
+3-minute cycle; the last 45s are rush hour on one unlocked line
+(rotating in ladder order), x2.5 demand at every station it serves.
+The sim probe proved the strategic shape: at base capacity a rush pays
+0.98x (queues cap, trains full -- nothing), cars L5 pays 1.37x, cars L5
++ extra train 1.91x. Rush hour is a dividend on pre-built capacity
+headroom, making per-line investment positional for the first time.
+rushClock persists (save v13) so the schedule continues across reloads;
+offline time doesn't advance it (rushes reward presence). UI: a red
+RUSH HOUR strip with line bullet + countdown while active, a quiet
+NEXT RUSH countdown while calm; the rush line draws fatter on the map;
+a low double-strike sound marks rush start. Thresholds re-measured with
+rush active (access 1.04, trainset 1.03, marketing 1.02 -- demand-side
+upgrades idle through saturated windows by design). New tests: schedule
+timing, ladder-order rotation, capacity-pays-the-rush (>1.5x window
+comparison), rushClock round-trip.
