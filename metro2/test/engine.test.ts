@@ -86,6 +86,47 @@ describe('the ported core', () => {
     expect(g.trains.some((t) => t.lineId === second.id)).toBe(true);
   });
 
+  test('the train cost law: 2nd costs base, then ×2.5 each', () => {
+    const g = new Game(city);
+    const base = city.lines[0].trainCost;
+    expect(g.nextTrainCost('1')).toBeCloseTo(base, 6);
+    g.cash = base * 10;
+    expect(g.buyTrain('1')).toBe(true);
+    expect(g.nextTrainCost('1')).toBeCloseTo(base * 2.5, 6);
+    expect(g.buyTrain('A')).toBe(false); // locked line sells no trains
+  });
+
+  test('saves round-trip and the offline law pays 50%, capped at 8h', () => {
+    const g = run(300, (s) => {
+      s.cash = 1e6;
+      s.buyLine(city.lines[1].id);
+      s.buyTrain('1');
+    });
+    expect(g.avgRate).toBeGreaterThan(0);
+    const j = JSON.parse(JSON.stringify(g.toJson(1_000_000)));
+    const r = Game.fromJson(city, j, 1_000_000);
+    expect(r.offlineEarned).toBe(0);
+    expect(r.game.cash).toBeCloseTo(g.cash, 3);
+    expect(r.game.totalRiders).toBeCloseTo(g.totalRiders, 3);
+    expect([...r.game.unlockedLineIds]).toEqual([...g.unlockedLineIds]);
+    expect(r.game.trains.length).toBe(g.trains.length);
+    expect(r.game.trains[0].distance).toBeCloseTo(g.trains[0].distance, 6);
+    expect(r.game.rushClock).toBeCloseTo(g.rushClock, 6);
+    for (const [id, w] of g.waitingUp) {
+      expect(r.game.waitingUp.get(id)).toBeCloseTo(w, 6);
+    }
+    // Away for an hour: half the live rate.
+    const hour = Game.fromJson(city, j, 1_000_000 + 3600_000);
+    expect(hour.offlineEarned).toBeCloseTo(g.avgRate * 3600 * 0.5, 3);
+    // Away for a week: capped at 8 hours.
+    const week = Game.fromJson(city, j, 1_000_000 + 7 * 24 * 3600_000);
+    expect(week.offlineEarned).toBeCloseTo(g.avgRate * 8 * 3600 * 0.5, 3);
+    // And the restored world keeps running.
+    const before = hour.game.totalEarned;
+    for (let i = 0; i < 600; i++) hour.game.tick(0.1);
+    expect(hour.game.totalEarned).toBeGreaterThan(before);
+  });
+
   test('every train keeps serving with the whole network unlocked', () => {
     const g = Game.showcase(city, 2);
     for (let i = 0; i < 1200; i++) g.tick(0.1);

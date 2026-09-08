@@ -242,6 +242,7 @@ export class CityScene {
         emissive: new THREE.Color(line.color),
         emissiveIntensity: 0,
         roughness: 0.6,
+        transparent: true,
       });
       this.trackMats.push(mat);
       const mesh = new THREE.Mesh(merged, mat);
@@ -323,7 +324,11 @@ export class CityScene {
         if (trackSegs.some((s) => distToSeg(x, y, s) < 2.6)) continue;
         const w = 2.2 + rnd() * 2.6;
         const d = 2.2 + rnd() * 2.6;
-        const h = (2.5 + rnd() * 8) * (0.55 + st.demand) * 1.5;
+        // Downtown rises: a gentle height boost falling off from the
+        // core, so the skyline has a shape, not a uniform buzz.
+        const dc = Math.hypot(x - 220, y - 280);
+        const core = 1 + 0.6 * Math.exp(-(dc * dc) / (2 * 110 * 110));
+        const h = (2.5 + rnd() * 8) * (0.55 + st.demand) * 1.5 * core;
         const rot = (rnd() - 0.5) * 0.14;
         footprints.push({ x, z: y, r: Math.max(w, d) * 0.75 });
         const kind = rnd();
@@ -346,10 +351,30 @@ export class CityScene {
           antennas.push({ x, z: y, y: LAND_H + h + 0.6, h: 1.6 + rnd() * 2.2 });
         }
       }
+      // A LANDMARK tower over every third busy interchange — the
+      // skyline's exclamation points.
+      if (st.demand >= 0.7 && (linesAt.get(st.id) ?? 1) > 1 && si % 3 === 0) {
+        const ang = rnd() * Math.PI * 2;
+        const x = st.x + Math.cos(ang) * 6.5;
+        const y = st.y + Math.sin(ang) * 6.5;
+        if (
+          onLand(city, x, y) &&
+          !trackSegs.some((sg) => distToSeg(x, y, sg) < 2.6) &&
+          !city.stations.some((o) => Math.hypot(o.x - x, o.y - y) < 3.2)
+        ) {
+          const hh = 24 + rnd() * 9;
+          const rot = (rnd() - 0.5) * 0.14;
+          footprints.push({ x, z: y, r: 3.2 });
+          segs.push({ x, z: y, y: LAND_H, w: 4.2, h: hh * 0.16, d: 4.2, rot });
+          segs.push({ x, z: y, y: LAND_H + hh * 0.16, w: 2.9, h: hh * 0.6, d: 2.9, rot });
+          segs.push({ x, z: y, y: LAND_H + hh * 0.76, w: 2.0, h: hh * 0.24, d: 2.0, rot });
+          antennas.push({ x, z: y, y: LAND_H + hh, h: 3.6 });
+        }
+      }
     });
     const winTex = windowTexture();
     this.buildingMat = new THREE.MeshStandardMaterial({
-      color: 0xD9D5CC,
+      color: 0xffffff,
       roughness: 0.85,
       emissive: 0xffffff,
       emissiveMap: winTex,
@@ -366,6 +391,12 @@ export class CityScene {
     const v3p = new THREE.Vector3();
     const v3s = new THREE.Vector3();
     const col = new THREE.Color();
+    // A muted facade palette — warm grays, sand, slate, a little
+    // brick — so the massing reads as many buildings, not one clone.
+    const FACADES = [
+      0xd9d5cc, 0xd9d5cc, 0xcfcbc1, 0xc4bfb4, 0xb9bec6, 0xa9968a, 0x93856f,
+      0x8e9ba6,
+    ];
     segs.forEach((b, i) => {
       quat.setFromAxisAngle(yAxis, b.rot);
       m4.compose(
@@ -374,8 +405,9 @@ export class CityScene {
         v3s.set(b.w, b.h, b.d),
       );
       inst.setMatrixAt(i, m4);
-      const shade = 0.86 + (i % 7) * 0.02;
-      inst.setColorAt(i, col.setRGB(shade, shade, shade * 0.99));
+      col.set(FACADES[i % FACADES.length]);
+      col.multiplyScalar(0.9 + ((i * 7) % 5) * 0.035);
+      inst.setColorAt(i, col);
     });
     inst.castShadow = true;
     inst.receiveShadow = true;
@@ -451,10 +483,26 @@ export class CityScene {
     leafInst.receiveShadow = true;
     this.scene.add(trunkInst, leafInst);
 
-    // ---- Trains ----
-    const beamTex = radialTexture('rgba(255,243,196,0.9)', 'rgba(255,243,196,0)');
-    for (const t of game.trains) {
-      const line = game.city.lines.find((l) => l.id === t.lineId)!;
+    // ---- Trains (visuals are added lazily, so a growing fleet shows
+    // up the moment it is bought) ----
+    this.beamTex = radialTexture('rgba(255,243,196,0.9)', 'rgba(255,243,196,0)');
+
+    if (opts.bloom) {
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.5, 0.85);
+      this.composer.addPass(this.bloom);
+      this.composer.addPass(new OutputPass());
+    }
+    this.resize();
+  }
+
+  private beamTex: THREE.Texture;
+
+  private addTrainVisual(lineId: string): void {
+    {
+      const line = this.game.city.lines.find((l) => l.id === lineId)!;
+      const beamTex = this.beamTex;
       const group = new THREE.Group();
       const mat = new THREE.MeshStandardMaterial({
         color: new THREE.Color(line.color),
@@ -501,15 +549,63 @@ export class CityScene {
       this.trainGroups.push(group);
       this.scene.add(group);
     }
+  }
 
-    if (opts.bloom) {
-      this.composer = new EffectComposer(this.renderer);
-      this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.5, 0.85);
-      this.composer.addPass(this.bloom);
-      this.composer.addPass(new OutputPass());
+  /** The station nearest to a screen tap, via a ray onto the track
+   * plane — no per-station pick meshes needed. */
+  pickStation(clientX: number, clientY: number): string | null {
+    const ndc = new THREE.Vector2(
+      (clientX / window.innerWidth) * 2 - 1,
+      -(clientY / window.innerHeight) * 2 + 1,
+    );
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const o = ray.ray.origin;
+    const d = ray.ray.direction;
+    if (Math.abs(d.y) < 1e-6) return null;
+    const t = (TRACK_Y - o.y) / d.y;
+    if (t <= 0) return null;
+    const px = o.x + d.x * t;
+    const pz = o.z + d.z * t;
+    // Tap tolerance scales with camera height so street-level taps stay
+    // precise and orbit-level taps stay forgiving.
+    const tol = Math.max(4, this.camera.position.distanceTo(this.controls.target) * 0.02);
+    let best: string | null = null;
+    let bestD = tol;
+    for (const st of this.game.city.stations) {
+      const dist = Math.hypot(st.x - px, st.y - pz);
+      if (dist < bestD) {
+        bestD = dist;
+        best = st.id;
+      }
     }
-    this.resize();
+    return best;
+  }
+
+  // Camera glide toward a newly bought line.
+  private focusFrom: { target: THREE.Vector3; pos: THREE.Vector3 } | null = null;
+  private focusTo: { target: THREE.Vector3; pos: THREE.Vector3 } | null = null;
+  private focusT0 = 0;
+
+  focusLine(lineId: string): void {
+    const path = this.game.paths.get(lineId)!;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const p of path.points) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minZ = Math.min(minZ, p.y);
+      maxZ = Math.max(maxZ, p.y);
+    }
+    const target = new THREE.Vector3((minX + maxX) / 2, 0, (minZ + maxZ) / 2);
+    const span = Math.max(maxX - minX, maxZ - minZ, 50);
+    const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+    const pos = target.clone().add(dir.multiplyScalar(span * 1.55 + 70));
+    this.focusFrom = {
+      target: this.controls.target.clone(),
+      pos: this.camera.position.clone(),
+    };
+    this.focusTo = { target, pos };
+    this.focusT0 = performance.now();
   }
 
   resize(): void {
@@ -553,8 +649,29 @@ export class CityScene {
     this.hemi.intensity = 0.55 * (1 - n) + 0.2;
     this.nightAmbient.intensity = 1.25 * n;
 
-    // The city answers the dark with light.
-    for (const mat of this.trackMats) mat.emissiveIntensity = 0.85 * n;
+    // A newly bought train appears the frame after the purchase.
+    while (this.trainGroups.length < g.trains.length) {
+      this.addTrainVisual(g.trains[this.trainGroups.length].lineId);
+    }
+
+    // Camera glide toward a newly bought line.
+    if (this.focusTo && this.focusFrom) {
+      const e = Math.min((performance.now() - this.focusT0) / 1300, 1);
+      const k = e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
+      this.controls.target.lerpVectors(this.focusFrom.target, this.focusTo.target, k);
+      this.camera.position.lerpVectors(this.focusFrom.pos, this.focusTo.pos, k);
+      if (e >= 1) {
+        this.focusTo = null;
+        this.focusFrom = null;
+      }
+    }
+
+    // The city answers the dark with light. Locked routes stay ghosts.
+    this.trackMats.forEach((mat, i) => {
+      const unlocked = g.isUnlocked(g.city.lines[i].id);
+      mat.opacity = unlocked ? 1 : 0.14;
+      mat.emissiveIntensity = unlocked ? 0.85 * n : 0;
+    });
     this.buildingMat.emissiveIntensity = 0.55 * n;
     this.lampMat.opacity = 0.55 * n;
     for (const mat of this.trainMats) mat.emissiveIntensity = 0.7 * n;

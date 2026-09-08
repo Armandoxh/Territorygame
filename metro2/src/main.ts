@@ -1,34 +1,101 @@
-/** Metro Magnate v2 — milestone 1, the render proof.
+/** Metro Magnate v2 — milestone 2: the game, wired onto the 3D city.
  *
- * A showcase world (whole approved network, two trains a line) running on
- * the ported deterministic sim, rendered as a 3D city with the v1 light
- * cycle. URL knobs for testing: ?t=140 starts at night, ?speed=1 runs the
- * clock in real time (default 3× so a full day passes in a minute),
- * ?nobloom disables post-processing, ?fixed parks the camera.
+ * Default mode is the real loop: start with line 1, earn fares, buy
+ * trains, open lines from the LINE DESK, tap stations to inspect.
+ * Saves to localStorage with v1's offline-earnings law (50% rate, 8h
+ * cap). `?showcase` restores the b38 demo world (all lines, camera
+ * orbit). Other knobs: ?t=<sec>, ?speed=<mult>, ?nobloom, ?fixed,
+ * ?reset wipes the save.
  */
 import { CityDef } from './engine/city';
 import { Game } from './engine/game';
 import { CityScene } from './render/scene';
+import { Console } from './ui/console';
 import cityJson from './data/new_meridian.json';
 import { BUILD } from './version';
 
 const params = new URLSearchParams(location.search);
 const city = cityJson as CityDef;
+const showcase = params.has('showcase');
+const SAVE_KEY = 'metro2_save';
 
-const game = Game.showcase(city, 2);
-const t0 = Number(params.get('t') ?? '40');
-if (t0 > 0) game.rushClock = t0;
-const simSpeed = Number(params.get('speed') ?? '3');
+let game: Game;
+let offlineEarned = 0;
+if (showcase) {
+  game = Game.showcase(city, 2);
+  game.rushClock = Number(params.get('t') ?? '40');
+} else {
+  if (params.has('reset')) localStorage.removeItem(SAVE_KEY);
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(SAVE_KEY);
+  } catch {
+    raw = null;
+  }
+  if (raw) {
+    try {
+      const r = Game.fromJson(city, JSON.parse(raw), Date.now());
+      game = r.game;
+      offlineEarned = r.offlineEarned;
+    } catch {
+      game = new Game(city);
+    }
+  } else {
+    game = new Game(city);
+  }
+  if (params.has('t')) game.rushClock = Number(params.get('t'));
+}
+const simSpeed = Number(params.get('speed') ?? (showcase ? '3' : '1'));
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const scene = new CityScene(canvas, game, { bloom: !params.has('nobloom') });
-if (params.has('fixed')) scene.controls.autoRotate = false;
+scene.controls.autoRotate = showcase && !params.has('fixed');
+
+const ui = new Console(game);
+ui.onUnlock = (lineId) => {
+  scene.focusLine(lineId);
+  const line = city.lines.find((l) => l.id === lineId)!;
+  ui.toast(`${line.name} is OPEN — first train entering service`);
+};
+if (offlineEarned >= 1) {
+  ui.toast(
+    `While you were away: +$${Math.floor(offlineEarned).toLocaleString('en-US')}`,
+  );
+}
+document.getElementById('build')!.textContent = BUILD;
+
+// Tap (not drag) picks a station.
+let downX = 0;
+let downY = 0;
+let downT = 0;
+canvas.addEventListener('pointerdown', (e) => {
+  downX = e.clientX;
+  downY = e.clientY;
+  downT = performance.now();
+});
+canvas.addEventListener('pointerup', (e) => {
+  if (showcase) return;
+  const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+  if (moved > 7 || performance.now() - downT > 600) return;
+  const id = scene.pickStation(e.clientX, e.clientY);
+  if (id) ui.showStation(id);
+  else ui.hideStation();
+});
+
+function save(): void {
+  if (showcase) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(game.toJson(Date.now())));
+  } catch {
+    /* storage unavailable — play on without persistence */
+  }
+}
+setInterval(save, 5000);
+window.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') save();
+});
 
 window.addEventListener('resize', () => scene.resize());
-
-const cashEl = document.getElementById('cash')!;
-const phaseEl = document.getElementById('phase')!;
-document.getElementById('build')!.textContent = BUILD;
 
 let last = performance.now();
 let acc = 0;
@@ -41,17 +108,7 @@ function frame(now: number): void {
     acc -= 0.05;
   }
   scene.render();
-  cashEl.textContent = `$${Math.floor(game.totalEarned).toLocaleString('en-US')} · ${Math.floor(game.totalRiders).toLocaleString('en-US')} riders`;
-  const n = game.nightFactor;
-  phaseEl.textContent = game.rushActive
-    ? 'NIGHT RUSH'
-    : n === 0
-      ? 'DAY'
-      : n === 1
-        ? 'NIGHT'
-        : game.rushClock % 180 < 110
-          ? 'DAWN'
-          : 'DUSK';
+  ui.update(now);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

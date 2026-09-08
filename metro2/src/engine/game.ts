@@ -44,6 +44,15 @@ export class Game {
   readonly trains: TrainState[] = [];
   readonly unlockedLineIds = new Set<string>();
 
+  /** $/s estimate over a rolling window (drives HUD + offline pay). */
+  avgRate = 0;
+  private windowEarned = 0;
+  private windowTime = 0;
+
+  /** Bumped on every line unlock — the renderer keys the reveal off it. */
+  unlockSeq = 0;
+  lastUnlockedLineId = '';
+
   /** Bumped on every boarding — the renderer keys effects off it. */
   boardSeq = 0;
   lastBoardStationId = '';
@@ -154,6 +163,16 @@ export class Game {
     if (dt <= 0) return;
     this.rushClock += dt;
 
+    // Rolling earn-rate estimate (v1 idiom: a windowed average the HUD
+    // and offline pay can trust).
+    this.windowTime += dt;
+    if (this.windowTime >= 20) {
+      const rate = this.windowEarned / this.windowTime;
+      this.avgRate = this.avgRate === 0 ? rate : this.avgRate * 0.6 + rate * 0.4;
+      this.windowEarned = 0;
+      this.windowTime = 0;
+    }
+
     for (const id of this.served) {
       const st = this.city.stations.find((s) => s.id === id)!;
       const add = st.demand * Game.demandScale * this.rushFactorAt(id) * dt;
@@ -218,6 +237,7 @@ export class Game {
     this.cash += earned;
     this.totalEarned += earned;
     this.totalRiders += take;
+    this.windowEarned += earned;
     this.boardSeq += 1;
     this.lastBoardStationId = stationId;
     this.lastBoardLineId = lineId;
@@ -283,7 +303,100 @@ export class Game {
     this.unlockedLineIds.add(lineId);
     this.recomputeServed();
     this.trains.push(this.spawnTrain(line));
+    this.unlockSeq += 1;
+    this.lastUnlockedLineId = lineId;
     return true;
+  }
+
+  trainCount(lineId: string): number {
+    return this.trains.filter((t) => t.lineId === lineId).length;
+  }
+
+  /** Cost of the NEXT train (2nd costs the line's base, ×2.5 each after)
+   * — the v1 cost law, rail-yard discounts arrive with the upgrade port. */
+  nextTrainCost(lineId: string): number {
+    const line = this.lineById(lineId);
+    return line.trainCost * Math.pow(2.5, this.trainCount(lineId) - 1);
+  }
+
+  buyTrain(lineId: string): boolean {
+    if (!this.isUnlocked(lineId)) return false;
+    const cost = this.nextTrainCost(lineId);
+    if (this.cash < cost) return false;
+    this.cash -= cost;
+    this.trains.push(this.spawnTrain(this.lineById(lineId)));
+    return true;
+  }
+
+  // ---- Save (v2 format, version s1) + the v1 offline-earnings law ----
+  static readonly offlineEfficiency = 0.5;
+  static readonly maxOfflineSeconds = 8 * 3600;
+
+  toJson(nowMs: number): Record<string, unknown> {
+    return {
+      v2s: 1,
+      cash: this.cash,
+      totalEarned: this.totalEarned,
+      totalRiders: this.totalRiders,
+      rushClock: this.rushClock,
+      avgRate: this.avgRate,
+      unlocked: [...this.unlockedLineIds],
+      trains: this.trains.map((t) => ({ ...t })),
+      waitingUp: Object.fromEntries(this.waitingUp),
+      waitingDown: Object.fromEntries(this.waitingDown),
+      lastSeenMs: nowMs,
+    };
+  }
+
+  /** Restores a save; returns the "while you were away" payout. */
+  static fromJson(
+    city: CityDef,
+    j: Record<string, unknown>,
+    nowMs: number,
+  ): { game: Game; offlineEarned: number } {
+    const g = new Game(city);
+    g.cash = Number(j.cash ?? 0);
+    g.totalEarned = Number(j.totalEarned ?? 0);
+    g.totalRiders = Number(j.totalRiders ?? 0);
+    g.rushClock = Number(j.rushClock ?? 0);
+    g.avgRate = Number(j.avgRate ?? 0);
+    g.unlockedLineIds.clear();
+    for (const id of (j.unlocked as string[]) ?? ['1']) {
+      if (city.lines.some((l) => l.id === id)) g.unlockedLineIds.add(id);
+    }
+    if (g.unlockedLineIds.size === 0) g.unlockedLineIds.add(city.lines[0].id);
+    g.recomputeServed();
+    g.trains.length = 0;
+    for (const t of (j.trains as TrainState[]) ?? []) {
+      if (!g.unlockedLineIds.has(t.lineId)) continue;
+      const path = g.paths.get(t.lineId)!;
+      g.trains.push({
+        lineId: t.lineId,
+        distance: Math.min(Math.max(t.distance, 0), path.length),
+        direction: t.direction > 0 ? 1 : -1,
+        dwell: Math.max(t.dwell, 0),
+        target: Math.min(Math.max(t.target, 0), path.points.length - 1),
+      });
+    }
+    for (const lineId of g.unlockedLineIds) {
+      if (g.trainCount(lineId) === 0) {
+        g.trains.push(g.spawnTrain(g.lineById(lineId)));
+      }
+    }
+    for (const [id, w] of Object.entries((j.waitingUp as Record<string, number>) ?? {})) {
+      if (g.waitingUp.has(id)) g.waitingUp.set(id, Number(w));
+    }
+    for (const [id, w] of Object.entries((j.waitingDown as Record<string, number>) ?? {})) {
+      if (g.waitingDown.has(id)) g.waitingDown.set(id, Number(w));
+    }
+    const away = Math.min(
+      Math.max((nowMs - Number(j.lastSeenMs ?? nowMs)) / 1000, 0),
+      Game.maxOfflineSeconds,
+    );
+    const offlineEarned = away * g.avgRate * Game.offlineEfficiency;
+    g.cash += offlineEarned;
+    g.totalEarned += offlineEarned;
+    return { game: g, offlineEarned };
   }
 
   private recomputeServed(): void {
