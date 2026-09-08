@@ -170,3 +170,18 @@ exposure-tuned BEFORE deploy (v1 was built blind for 37 builds).
 161KB gzipped vs Flutter's multi-MB. Tag push for the trunk was
 blocked (403, token pushes branch only) -- trunk is recorded here and
 in metro/CLAUDE.md instead: v1 final = build 37, commit 81ceac6.
+
+Build 39 (metro2): DE-BOXING PASS (player: "can we get better
+graphics, looks too boxy") + README. metro2/README.md now tells the
+whole story (v1 frozen trunk, v2 pivot, milestone road); root README
+gained a portfolio index. Renderer: buildings are no longer single
+boxes -- three massing archetypes (simple block / tower with setback /
+podium tower) with rooftop mechanicals on 8+ heights, antennas on
+towers, grid jitter, and RoundedBoxGeometry soft edges everywhere.
+Track ribbons sit on a shared dark ballast bed so routes read as
+built rail. Trees: canopies fill every park and street trees scatter
+where the blocks left room (on-land + off-track + off-building
+checks) -- the organic counterweight to a city of extrusions. Trains
+became rolling stock: rounded body, dark glass window band, rounded
+roof. Both day and night screenshots reviewed locally before deploy,
+one green-tuning iteration on the trees.

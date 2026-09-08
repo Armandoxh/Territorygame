@@ -10,6 +10,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CityDef, onLand } from '../engine/city';
 import { Game } from '../engine/game';
@@ -208,8 +209,10 @@ export class CityScene {
       this.scene.add(mesh);
     }
 
-    // ---- Track ribbons, one merged mesh per line ----
+    // ---- Track ribbons, one merged mesh per line, on a shared dark
+    // ballast bed so routes read as built rail, not floating stripes ----
     const trackSegs: { ax: number; ay: number; bx: number; by: number }[] = [];
+    const bedParts: THREE.BufferGeometry[] = [];
     for (const line of city.lines) {
       const path = game.paths.get(line.id)!;
       const parts: THREE.BufferGeometry[] = [];
@@ -228,6 +231,10 @@ export class CityScene {
         g.rotateY(-Math.atan2(dy, dx));
         g.translate((a.x + b.x) / 2 + nx, TRACK_Y, (a.y + b.y) / 2 + ny);
         parts.push(g);
+        const bed = new THREE.BoxGeometry(len + 0.8, 0.28, 2.1);
+        bed.rotateY(-Math.atan2(dy, dx));
+        bed.translate((a.x + b.x) / 2 + nx, TRACK_Y - 0.24, (a.y + b.y) / 2 + ny);
+        bedParts.push(bed);
       }
       const merged = BufferGeometryUtils.mergeGeometries(parts);
       const mat = new THREE.MeshStandardMaterial({
@@ -241,6 +248,13 @@ export class CityScene {
       mesh.castShadow = true;
       this.scene.add(mesh);
     }
+    const bedMesh = new THREE.Mesh(
+      BufferGeometryUtils.mergeGeometries(bedParts),
+      new THREE.MeshStandardMaterial({ color: 0x5b5a58, roughness: 1 }),
+    );
+    bedMesh.castShadow = true;
+    bedMesh.receiveShadow = true;
+    this.scene.add(bedMesh);
 
     // ---- Stations: platform discs + night lamp sprites ----
     const linesAt = new Map<string, number>();
@@ -289,8 +303,13 @@ export class CityScene {
       const t = c2 > 0 ? Math.min(Math.max(c1 / c2, 0), 1) : 0;
       return Math.hypot(px - (s.ax + vx * t), py - (s.ay + vy * t));
     };
-    type Block = { x: number; z: number; w: number; h: number; d: number };
-    const blocks: Block[] = [];
+    // Each accepted spot becomes a BUILDING, not a box: simple blocks,
+    // towers with setbacks, or podium towers — plus rooftop mechanicals
+    // and antennas on the tall ones, all with a little grid-jitter.
+    type Seg = { x: number; z: number; y: number; w: number; h: number; d: number; rot: number };
+    const segs: Seg[] = [];
+    const antennas: { x: number; z: number; y: number; h: number }[] = [];
+    const footprints: { x: number; z: number; r: number }[] = [];
     city.stations.forEach((st, si) => {
       const rnd = mulberry32(si * 2654435761);
       const n = Math.round(8 + st.demand * 14);
@@ -305,7 +324,27 @@ export class CityScene {
         const w = 2.2 + rnd() * 2.6;
         const d = 2.2 + rnd() * 2.6;
         const h = (2.5 + rnd() * 8) * (0.55 + st.demand) * 1.5;
-        blocks.push({ x, z: y, w, h, d });
+        const rot = (rnd() - 0.5) * 0.14;
+        footprints.push({ x, z: y, r: Math.max(w, d) * 0.75 });
+        const kind = rnd();
+        if (kind < 0.5 || h < 5) {
+          segs.push({ x, z: y, y: LAND_H, w, h, d, rot });
+        } else if (kind < 0.82) {
+          // Tower with a setback: wide base, slimmer upper mass.
+          const hb = h * 0.58;
+          segs.push({ x, z: y, y: LAND_H, w, h: hb, d, rot });
+          segs.push({ x, z: y, y: LAND_H + hb, w: w * 0.68, h: h - hb, d: d * 0.68, rot });
+        } else {
+          // Podium tower: low broad podium, tall slender shaft.
+          segs.push({ x, z: y, y: LAND_H, w: w * 1.3, h: 2.2, d: d * 1.3, rot });
+          segs.push({ x, z: y, y: LAND_H + 2.2, w: w * 0.66, h: h - 2.2, d: d * 0.66, rot });
+        }
+        if (h > 8) {
+          segs.push({ x, z: y, y: LAND_H + h, w: w * 0.32, h: 0.6, d: d * 0.32, rot });
+        }
+        if (h > 12 && rnd() < 0.5) {
+          antennas.push({ x, z: y, y: LAND_H + h + 0.6, h: 1.6 + rnd() * 2.2 });
+        }
       }
     });
     const winTex = windowTexture();
@@ -317,15 +356,23 @@ export class CityScene {
       emissiveIntensity: 0,
     });
     const inst = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 1, 1),
+      new RoundedBoxGeometry(1, 1, 1, 2, 0.06),
       this.buildingMat,
-      blocks.length,
+      segs.length,
     );
     const m4 = new THREE.Matrix4();
+    const quat = new THREE.Quaternion();
+    const yAxis = new THREE.Vector3(0, 1, 0);
+    const v3p = new THREE.Vector3();
+    const v3s = new THREE.Vector3();
     const col = new THREE.Color();
-    blocks.forEach((b, i) => {
-      m4.makeScale(b.w, b.h, b.d);
-      m4.setPosition(b.x, LAND_H + b.h / 2, b.z);
+    segs.forEach((b, i) => {
+      quat.setFromAxisAngle(yAxis, b.rot);
+      m4.compose(
+        v3p.set(b.x, b.y + b.h / 2, b.z),
+        quat,
+        v3s.set(b.w, b.h, b.d),
+      );
       inst.setMatrixAt(i, m4);
       const shade = 0.86 + (i % 7) * 0.02;
       inst.setColorAt(i, col.setRGB(shade, shade, shade * 0.99));
@@ -333,6 +380,76 @@ export class CityScene {
     inst.castShadow = true;
     inst.receiveShadow = true;
     this.scene.add(inst);
+    if (antennas.length > 0) {
+      const antInst = new THREE.InstancedMesh(
+        new THREE.CylinderGeometry(0.07, 0.1, 1, 5),
+        new THREE.MeshStandardMaterial({ color: 0x8b8b8b, roughness: 0.7 }),
+        antennas.length,
+      );
+      antennas.forEach((a, i) => {
+        m4.makeScale(1, a.h, 1);
+        m4.setPosition(a.x, a.y + a.h / 2, a.z);
+        antInst.setMatrixAt(i, m4);
+      });
+      this.scene.add(antInst);
+    }
+
+    // ---- Trees: canopies in every park, plus street trees where the
+    // blocks left room. The single biggest organic counterweight to a
+    // city of extrusions. ----
+    const trees: { x: number; z: number; s: number }[] = [];
+    city.parks.forEach((p, pi) => {
+      const rnd = mulberry32(0x9e3779b9 + pi);
+      const count = Math.max(4, Math.round((p.w * p.h) / 20));
+      const th = (-p.rot * Math.PI) / 180;
+      for (let i = 0; i < count; i++) {
+        const lx = (rnd() - 0.5) * (p.w - 2.5);
+        const lz = (rnd() - 0.5) * (p.h - 2.5);
+        trees.push({
+          x: p.cx + lx * Math.cos(th) + lz * Math.sin(th),
+          z: p.cy - lx * Math.sin(th) + lz * Math.cos(th),
+          s: 1.0 + rnd() * 0.8,
+        });
+      }
+    });
+    city.stations.forEach((st, si) => {
+      const rnd = mulberry32(0x85ebca6b ^ (si * 2654435761));
+      for (let k = 0; k < 5; k++) {
+        const ang = rnd() * Math.PI * 2;
+        const dist = 3.5 + rnd() * 12;
+        const x = st.x + Math.cos(ang) * dist;
+        const z = st.y + Math.sin(ang) * dist;
+        if (!onLand(city, x, z)) continue;
+        if (trackSegs.some((s) => distToSeg(x, z, s) < 2.4)) continue;
+        if (footprints.some((f) => Math.hypot(f.x - x, f.z - z) < f.r + 0.7)) continue;
+        trees.push({ x, z, s: 0.7 + rnd() * 0.5 });
+      }
+    });
+    const trunkInst = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.13, 0.18, 1, 5),
+      new THREE.MeshStandardMaterial({ color: 0x6d5236, roughness: 1 }),
+      trees.length,
+    );
+    const leafInst = new THREE.InstancedMesh(
+      new THREE.IcosahedronGeometry(0.85, 1),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }),
+      trees.length,
+    );
+    trees.forEach((t, i) => {
+      const trunkH = 1.1 * t.s;
+      m4.makeScale(t.s, trunkH, t.s);
+      m4.setPosition(t.x, LAND_H + trunkH / 2, t.z);
+      trunkInst.setMatrixAt(i, m4);
+      m4.makeScale(t.s * 1.5, t.s * 1.35, t.s * 1.5);
+      m4.setPosition(t.x, LAND_H + trunkH + t.s * 0.9, t.z);
+      leafInst.setMatrixAt(i, m4);
+      leafInst.setColorAt(
+          i, col.setRGB(0.15 + (i % 3) * 0.03, 0.4 + (i % 5) * 0.045, 0.17));
+    });
+    trunkInst.castShadow = true;
+    leafInst.castShadow = true;
+    leafInst.receiveShadow = true;
+    this.scene.add(trunkInst, leafInst);
 
     // ---- Trains ----
     const beamTex = radialTexture('rgba(255,243,196,0.9)', 'rgba(255,243,196,0)');
@@ -346,15 +463,27 @@ export class CityScene {
         roughness: 0.35,
         metalness: 0.2,
       });
-      const body = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.5, 1.7), mat);
+      // Rounded car body with a dark window band — rolling stock, not a
+      // crate on rails.
+      const body = new THREE.Mesh(new RoundedBoxGeometry(4.4, 1.5, 1.7, 3, 0.45), mat);
       body.position.y = 1.1;
       body.castShadow = true;
       group.add(body);
+      const band = new THREE.Mesh(
+        new RoundedBoxGeometry(4.0, 0.55, 1.74, 2, 0.2),
+        new THREE.MeshStandardMaterial({
+          color: 0x14181f,
+          roughness: 0.25,
+          metalness: 0.4,
+        }),
+      );
+      band.position.y = 1.3;
+      group.add(band);
       const roof = new THREE.Mesh(
-        new THREE.BoxGeometry(3.4, 0.4, 1.3),
+        new RoundedBoxGeometry(3.4, 0.35, 1.3, 2, 0.14),
         new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 }),
       );
-      roof.position.y = 2.0;
+      roof.position.y = 1.95;
       group.add(roof);
       const beamMat = new THREE.MeshBasicMaterial({
         map: beamTex,
