@@ -451,6 +451,8 @@ void main() {
       }
     }
     expect(checked, greaterThan(5));
+    expect(g.lastBoardLineId, '1',
+        reason: 'the soundtrack needs to know whose note to play');
   });
 
   test('a food court raises earnings at a busy interchange', () {

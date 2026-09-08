@@ -90,3 +90,17 @@ generically; both sheets scroll. Save v11 (3 maps + stationPriority,
 unknown types filtered, new types appended). Tests: tier rule, partial-
 cash ordering, priority reorder/plan/persistence, new-effect units,
 caps test moved to stationCapAt.
+
+Metro Magnate build 26 (v0.11.0): THE CITY PLAYS MUSIC -- Arc 1 (design
+craft) begins per the agreed build path. Generative WebAudio soundtrack,
+zero assets: every line owns a pitch on an A-minor pentatonic across
+three octaves (any mix of 24 lines harmonizes); boardings pluck the
+line's note with gain scaled by scoop fullness (engine gained
+lastBoardLineId), commendations play a rising arpeggio, line unlocks a
+root+fifth. Pure oscillators via dart:js_util; conditional-import stub
+keeps the VM test suite silent and compiling. First tap anywhere resumes
+the AudioContext (browser gesture gate); mute toggle in the header
+persists via localStorage (device preference, not game state -- no save
+bump). Rate-limited to one pluck per ~80ms so the city stays musical,
+never noisy. Also fixed a latent XL overflow: the header bullet strip
+(24 bullets wide when everything is unlocked) now scrolls horizontally.

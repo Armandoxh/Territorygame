@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import '../data/cities.dart';
 import '../state/game_state.dart';
 import '../state/save_service.dart';
+import '../util/city_audio.dart';
 import '../version.dart';
 import 'metro_map.dart';
 import 'transit_style.dart';
@@ -27,6 +28,8 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   GameState game = GameState();
   int _seenGoalSeq = 0;
+  int _seenBoardSeqAudio = 0;
+  int _seenUnlockCount = 1;
   late final Ticker _ticker = createTicker(_onTick);
   Duration _lastElapsed = Duration.zero;
   Timer? _savePulse;
@@ -49,8 +52,25 @@ class _HomeScreenState extends State<HomeScreen>
     // Clamp big gaps (backgrounded tab) — long absences are the offline
     // system's job, not one giant frame's.
     game.tick(dt.clamp(0.0, 0.25));
+    // The soundtrack: the sim is the score. One pluck per frame at most.
+    if (game.boardSeq != _seenBoardSeqAudio) {
+      _seenBoardSeqAudio = game.boardSeq;
+      if (game.lastBoardLineId.isNotEmpty) {
+        final lineIndex = game.city.lines
+            .indexWhere((l) => l.id == game.lastBoardLineId);
+        CityAudio.boarding(lineIndex,
+            game.lastBoardCount / game.capacityFor(game.lastBoardLineId));
+      }
+    }
+    if (game.unlockedLineIds.length != _seenUnlockCount) {
+      if (game.unlockedLineIds.length > _seenUnlockCount) {
+        CityAudio.unlock();
+      }
+      _seenUnlockCount = game.unlockedLineIds.length;
+    }
     if (game.goalSeq != _seenGoalSeq) {
       _seenGoalSeq = game.goalSeq;
+      CityAudio.commendation();
       if (mounted && game.lastGoalName.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           backgroundColor: TransitStyle.ink,
@@ -72,6 +92,9 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       game.dispose();
       game = loaded;
+      _seenBoardSeqAudio = loaded.boardSeq;
+      _seenUnlockCount = loaded.unlockedLineIds.length;
+      _seenGoalSeq = loaded.goalSeq;
     });
     final credit =
         loaded.applyOfflineEarnings(DateTime.now().millisecondsSinceEpoch);
@@ -156,6 +179,8 @@ class _HomeScreenState extends State<HomeScreen>
       game = old.moveOn();
       old.dispose();
       _seenGoalSeq = game.goalSeq;
+      _seenBoardSeqAudio = game.boardSeq;
+      _seenUnlockCount = game.unlockedLineIds.length;
     });
     SaveService.save(game);
   }
@@ -182,6 +207,9 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       game.dispose();
       game = GameState();
+      _seenBoardSeqAudio = 0;
+      _seenUnlockCount = 1;
+      _seenGoalSeq = 0;
     });
     SaveService.save(game);
   }
@@ -222,12 +250,23 @@ class _HomeScreenState extends State<HomeScreen>
     // the bottom. No scrolling ancestor — pinch/pan belongs to the map.
     return Scaffold(
       body: SafeArea(
-        child: ListenableBuilder(
+        // Browsers gate audio behind a user gesture — any first tap
+        // anywhere starts the soundtrack.
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => CityAudio.ensureStarted(),
+          child: ListenableBuilder(
           listenable: game,
           builder: (context, _) {
             return Column(
               children: [
-                _Header(game: game),
+                _Header(
+                    game: game,
+                    muted: CityAudio.isMuted,
+                    onToggleMute: () => setState(() {
+                          CityAudio.ensureStarted();
+                          CityAudio.toggleMute();
+                        })),
                 _GoalBar(game: game, onMoveOn: _confirmMoveOn),
                 Expanded(
                   child: MetroMap(game: game, onStationTap: _openStation),
@@ -240,6 +279,7 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             );
           },
+          ),
         ),
       ),
     );
@@ -561,8 +601,11 @@ class _NetworkPanel extends StatelessWidget {
 /// The header is a slim station sign: the bullets you run, cash, and the
 /// live rates — compact so the map below keeps the screen.
 class _Header extends StatelessWidget {
-  const _Header({required this.game});
+  const _Header(
+      {required this.game, required this.muted, required this.onToggleMute});
   final GameState game;
+  final bool muted;
+  final VoidCallback onToggleMute;
 
   @override
   Widget build(BuildContext context) {
@@ -573,16 +616,34 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              for (final line in game.city.lines)
-                if (game.isUnlocked(line.id))
-                  Padding(
-                    padding: const EdgeInsets.only(right: 5),
-                    child: RouteBullet(
-                        label: line.bullet, color: line.color, size: 16),
+              // 24 lines can outgrow the bar — the bullet strip scrolls.
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final line in game.city.lines)
+                        if (game.isUnlocked(line.id))
+                          Padding(
+                            padding: const EdgeInsets.only(right: 5),
+                            child: RouteBullet(
+                                label: line.bullet,
+                                color: line.color,
+                                size: 16),
+                          ),
+                    ],
                   ),
-              const Spacer(),
+                ),
+              ),
+              const SizedBox(width: 8),
               Text('METRO MAGNATE',
                   style: TransitStyle.signage(size: 11, spacing: 2.5)),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: onToggleMute,
+                child: Icon(muted ? Icons.volume_off : Icons.volume_up,
+                    size: 16, color: Colors.white70),
+              ),
             ],
           ),
           const SizedBox(height: 4),

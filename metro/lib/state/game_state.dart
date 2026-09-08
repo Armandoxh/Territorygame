@@ -328,6 +328,7 @@ class GameState extends ChangeNotifier {
   /// once per stop.
   int boardSeq = 0;
   String lastBoardStationId = '';
+  String lastBoardLineId = '';
   double lastBoardAmount = 0;
   int lastBoardCount = 0;
 
@@ -755,6 +756,7 @@ class GameState extends ChangeNotifier {
     _windowEarned += earned;
     boardSeq += 1;
     lastBoardStationId = stationId;
+    lastBoardLineId = lineId;
     lastBoardAmount = earned;
     lastBoardCount = take.floor();
   }
