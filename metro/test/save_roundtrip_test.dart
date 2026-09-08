@@ -68,6 +68,7 @@ void main() {
     expect(r.avgRate, closeTo(g.avgRate, 0.001));
     expect(r.rushClock, closeTo(g.rushClock, 0.001),
         reason: 'the rush schedule continues where it left off');
+    expect(r.rushEarnings, closeTo(g.rushEarnings, 0.001));
     for (final e in g.waitingUp.entries) {
       expect(r.waitingUp[e.key], closeTo(e.value, 0.001));
       expect(r.waitingDown[e.key], closeTo(g.waitingDown[e.key]!, 0.001));
@@ -176,6 +177,15 @@ void main() {
     }
     nm.totalRiders = 5000000;
     nm.totalEarned = 250000000;
+    nm.commissionsDone = 99;
+    nm.rushEarnings = 1e9;
+    for (final l in ['1', 'A', 'L', 'M', 'N', 'J']) {
+      nm.speedLevels[l] = 10;
+    }
+    final nmStops = nm.city.lineById('1').stationIds;
+    for (var i = 0; i < 8; i++) {
+      nm.foodLevel[nmStops[i]] = 5;
+    }
     nm.tick(0.1);
     final g = nm.moveOn();
     expect(g.buyLine('B'), isTrue);
@@ -186,7 +196,7 @@ void main() {
         jsonDecode(jsonEncode(g.toJson(99))) as Map<String, dynamic>);
     expect(r.city.id, 'angel_bay');
     expect(r.unlockedLineIds, g.unlockedLineIds);
-    expect(r.goalsDoneByCity['new_meridian'], 18);
+    expect(r.goalsDoneByCity['new_meridian'], 22);
     expect(r.goalMult, closeTo(g.goalMult, 1e-6),
         reason: 'carried commendations survive the reload');
     expect(r.cash, closeTo(g.cash, 0.001));

@@ -293,7 +293,7 @@ void main() {
 
   test('CITY GOALS: commendations compound income to the ladder top', () {
     final g = GameState();
-    expect(g.goals.length, 18);
+    expect(g.goals.length, 22);
     expect(g.currentGoal!.name, 'OPENING DAY');
     expect(g.goalMult, 1);
     // Drive every counter past the final rung and tick once.
@@ -305,6 +305,15 @@ void main() {
     }
     g.totalRiders = 5000000;
     g.totalEarned = 250000000;
+    g.commissionsDone = 99;
+    g.rushEarnings = 1e9;
+    for (final l in ['1', 'A', 'L', 'M', 'N', 'J']) {
+      g.speedLevels[l] = 10; // 60 line-upgrade levels
+    }
+    final stops1 = g.city.lineById('1').stationIds;
+    for (var i = 0; i < 8; i++) {
+      g.foodLevel[stops1[i]] = 5; // 40 station works
+    }
     g.tick(0.1);
     expect(g.currentGoal, isNull, reason: 'the whole ladder completes');
     var expected = 1.0;
@@ -330,6 +339,15 @@ void main() {
     }
     g.totalRiders = 5000000;
     g.totalEarned = 250000000;
+    g.commissionsDone = 99;
+    g.rushEarnings = 1e9;
+    for (final l in ['1', 'A', 'L', 'M', 'N', 'J']) {
+      g.speedLevels[l] = 10; // 60 line-upgrade levels
+    }
+    final stops1 = g.city.lineById('1').stationIds;
+    for (var i = 0; i < 8; i++) {
+      g.foodLevel[stops1[i]] = 5; // 40 station works
+    }
     g.tick(0.1);
     expect(g.canMoveOn, isTrue);
     final multBefore = g.goalMult;
@@ -504,12 +522,13 @@ void main() {
     expect(g.cash, greaterThan(cashBefore + reward * 0.99),
         reason: 'the bonus lands on top of fares');
     expect(g.commissionIndex, 1);
-    expect(g.commissionQuota, closeTo(400 * 1.6, 0.001),
-        reason: 'the next contract asks for more');
+    expect(g.commissionType, CommissionType.express,
+        reason: 'the next contract is a different job entirely');
 
     // A hopeless contract expires, costs nothing, and moves on.
     final h = GameState();
-    h.commissionIndex = 12; // quota ≈ 112k riders — impossible at level 0
+    h.commissionIndex = 12; // a HUB SERVICE far beyond a level-0 hub
+    expect(h.commissionType, CommissionType.station);
     h.acceptCommission();
     final cashAtAccept = h.cash;
     for (var i = 0; i < 1250 && h.commissionActive; i++) {
@@ -534,6 +553,93 @@ void main() {
     g.skipCommission();
     expect(g.commissionLineId, 'L',
         reason: 'a different stride than the rush rotation');
+  });
+
+  test('contract types rotate through five different jobs', () {
+    final g = GameState();
+    expect(g.commissionType, CommissionType.haul);
+    g.skipCommission();
+    expect(g.commissionType, CommissionType.express);
+    expect(g.commissionQuota, 6);
+    g.skipCommission();
+    expect(g.commissionType, CommissionType.station);
+    expect(g.commissionStationId, isNotNull);
+    g.skipCommission();
+    expect(g.commissionType, CommissionType.sweep);
+    expect(
+        g.commissionQuota,
+        g.city
+            .lineById(g.commissionLineId!)
+            .stationIds
+            .length
+            .toDouble());
+    g.skipCommission();
+    expect(g.commissionType, CommissionType.rushCash);
+    expect(g.commissionTimeLimit, 240,
+        reason: 'a rush contract must be able to contain a rush window');
+    g.skipCommission();
+    expect(g.commissionType, CommissionType.haul, reason: 'and around');
+  });
+
+  test('TURNBACK RUN pays for fleet speed', () {
+    final g = GameState();
+    g.commissionIndex = 1;
+    expect(g.commissionType, CommissionType.express);
+    g.cash = 1e9;
+    g.buyTrain('1');
+    g.buyTrain('1');
+    g.buyTrain('1');
+    g.acceptCommission();
+    var guard = 0;
+    while (g.commissionActive && guard < 12000) {
+      g.tick(0.1);
+      guard++;
+    }
+    expect(g.lastCommissionWon, isTrue,
+        reason: 'three trains make 6 turnbacks comfortably');
+  });
+
+  test('HUB SERVICE counts only the hub', () {
+    final g = GameState();
+    g.commissionIndex = 2;
+    expect(g.commissionType, CommissionType.station);
+    final hub = g.commissionStationId!;
+    g.foodLevel[hub] = 5; // invest in the hub — that is the point
+    g.parkingLevel[hub] = 5;
+    g.acceptCommission();
+    var guard = 0;
+    while (g.commissionActive && guard < 12000) {
+      g.tick(0.1);
+      guard++;
+    }
+    expect(g.lastCommissionWon, isTrue,
+        reason: 'a built-up hub delivers its quota');
+  });
+
+  test('CLEAN SWEEP wins the moment every platform is clear', () {
+    final g = GameState();
+    g.commissionIndex = 3;
+    expect(g.commissionType, CommissionType.sweep);
+    g.acceptCommission();
+    g.tick(0.1); // fresh platforms are all under the threshold
+    expect(g.lastCommissionWon, isTrue);
+  });
+
+  test('RUSH CONTRACT counts only rush-window earnings', () {
+    final g = GameState();
+    g.commissionIndex = 4;
+    expect(g.commissionType, CommissionType.rushCash);
+    g.acceptCommission();
+    for (var i = 0; i < 1340; i++) {
+      g.tick(0.1); // to 134s — still calm
+    }
+    expect(g.commissionProgress, 0,
+        reason: 'calm-hours money does not count');
+    for (var i = 0; i < 300; i++) {
+      g.tick(0.1); // through the 135–180s rush window
+    }
+    expect(g.commissionProgress, greaterThan(0),
+        reason: 'rush-window money does');
   });
 
   test('the first commendation fires by itself in normal play', () {

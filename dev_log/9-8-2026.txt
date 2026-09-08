@@ -111,3 +111,21 @@ map's bottom edge. Old _GoalBar/_RushBar/_CommissionBar deleted.
 Engine gained rushLineIdForCycle/secondsUntilRushStart (tested) for
 the timetable. moveOn now closes any open sheets first (they held
 listeners on the disposed world).
+
+Build 36 (v0.16.0): OPS + GOALS REVAMP (player: "the goals are not as
+dynamic as I thought... Be creative with the ops. And goals at a
+certain point are just about getting new lines. Revamp that too").
+Commissions are now five rotating contract TYPES, not five sizes of
+the same haul: HAUL (carry riders on a line), TURNBACK RUN (terminal
+turnarounds -- speed/fleet pays), HUB SERVICE (board riders at the
+line's busiest hub -- station works pay), CLEAN SWEEP (get every
+platform on the line under 25 waiting -- checked live each tick),
+RUSH CONTRACT (earn during rush windows only, 240s limit so a window
+always fits). Uniform reward 2x haul-equivalent x fare x mult. Goals:
+four new GoalKinds (commissions, works, lineUpgrades, rushEarned) so
+the ladder asks for system mastery, not just line count -- NM ladder
+extended 18 -> 22 rungs (rungs 0-11 untouched for saves), Angel Bay
+rungs 2/7 swapped to BAY CONTRACTOR / BAY RUSH BARON. rushEarnings is
+a persisted lifetime counter (save v15) carried through moveOn. Tests:
+per-type contract tests, rotation test, ladder-completion sites now
+require commissions/works/upgrades/rush cash too.

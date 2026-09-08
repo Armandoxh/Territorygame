@@ -737,6 +737,58 @@ class _OpsSheet extends StatelessWidget {
   const _OpsSheet({required this.game});
   final GameState game;
 
+  static String typeName(CommissionType t) => switch (t) {
+        CommissionType.haul => 'HAUL',
+        CommissionType.express => 'TURNBACK RUN',
+        CommissionType.station => 'HUB SERVICE',
+        CommissionType.sweep => 'CLEAN SWEEP',
+        CommissionType.rushCash => 'RUSH CONTRACT',
+      };
+
+  String _offerText(GameState g) {
+    final q = g.commissionQuota;
+    switch (g.commissionType) {
+      case CommissionType.haul:
+        return 'Carry ${q.floor()} riders on this line within '
+            '${_mmss(g.commissionTimeLimit)}.';
+      case CommissionType.express:
+        return 'Complete ${q.floor()} terminal turnbacks on this line '
+            'within ${_mmss(g.commissionTimeLimit)} — speed pays.';
+      case CommissionType.station:
+        final sid = g.commissionStationId;
+        final name = sid == null ? 'the hub' : g.city.stationById(sid).name;
+        return 'Board ${q.floor()} riders at $name within '
+            '${_mmss(g.commissionTimeLimit)} — the hub matters, not '
+            'the rest of the line.';
+      case CommissionType.sweep:
+        return 'Get EVERY platform on this line under '
+            '${GameState.sweepThreshold.floor()} waiting at the same '
+            'moment, within ${_mmss(g.commissionTimeLimit)}.';
+      case CommissionType.rushCash:
+        return 'Earn \$${q.floor()} during rush-hour windows within '
+            '${_mmss(g.commissionTimeLimit)} — check the timetable '
+            'above before accepting.';
+    }
+  }
+
+  String _progressText(GameState g) {
+    final p = g.commissionProgress;
+    final q = g.commissionQuota;
+    final t = _mmss(g.commissionTimeLeft);
+    switch (g.commissionType) {
+      case CommissionType.haul:
+        return '${p.floor()} / ${q.floor()} riders · $t left';
+      case CommissionType.express:
+        return '${p.floor()} / ${q.floor()} turnbacks · $t left';
+      case CommissionType.station:
+        return '${p.floor()} / ${q.floor()} boarded at the hub · $t left';
+      case CommissionType.sweep:
+        return '${p.floor()} / ${q.floor()} platforms clear · $t left';
+      case CommissionType.rushCash:
+        return '\$${p.floor()} / \$${q.floor()} in rush · $t left';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final commId = game.commissionLineId;
@@ -844,12 +896,26 @@ class _OpsSheet extends StatelessWidget {
                                       size: 22),
                                   const SizedBox(width: 10),
                                   Expanded(
-                                    child: Text(line.name.toUpperCase(),
-                                        style: TransitStyle.signage(
-                                            size: 13,
-                                            color: TransitStyle.ink,
-                                            weight: FontWeight.w900,
-                                            spacing: 0.5)),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                            typeName(game.commissionType),
+                                            style: TransitStyle.signage(
+                                                size: 13,
+                                                color: TransitStyle.ink,
+                                                weight: FontWeight.w900,
+                                                spacing: 1)),
+                                        Text(line.name.toUpperCase(),
+                                            style: TransitStyle.signage(
+                                                size: 10,
+                                                color:
+                                                    const Color(0x99000000),
+                                                weight: FontWeight.w700,
+                                                spacing: 0.5)),
+                                      ],
+                                    ),
                                   ),
                                   Text(
                                       '\$${game.commissionReward.toStringAsFixed(0)}',
@@ -870,18 +936,13 @@ class _OpsSheet extends StatelessWidget {
                                   backgroundColor: const Color(0x1A000000),
                                 ),
                                 const SizedBox(height: 6),
-                                Text(
-                                    '${game.commissionProgress.floor()} / '
-                                    '${game.commissionQuota.floor()} riders · '
-                                    '${_mmss(game.commissionTimeLeft)} left',
+                                Text(_progressText(game),
                                     style: TransitStyle.signage(
                                         size: 11,
                                         color: const Color(0x99000000),
                                         weight: FontWeight.w700)),
                               ] else ...[
-                                Text(
-                                    'Carry ${game.commissionQuota.floor()} riders on this '
-                                    'line within ${_mmss(GameState.commissionLimit)}.',
+                                Text(_offerText(game),
                                     style: TransitStyle.signage(
                                         size: 11,
                                         color: const Color(0x99000000),

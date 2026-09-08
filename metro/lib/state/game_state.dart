@@ -72,8 +72,23 @@ class StationUpgradeDef {
   final double growth;
 }
 
-/// What a city goal measures.
-enum GoalKind { riders, earned, lines, trains }
+/// What a city goal measures. Beyond the basic counters, goals reach
+/// into the game's systems: contracts completed, station works built,
+/// line upgrades installed, money earned during rush hours.
+enum GoalKind {
+  riders,
+  earned,
+  lines,
+  trains,
+  commissions,
+  works,
+  lineUpgrades,
+  rushEarned,
+}
+
+/// The five kinds of city-hall contract. Same pay scale, five different
+/// skills — each rewards a different way of running the railroad.
+enum CommissionType { haul, express, station, sweep, rushCash }
 
 /// One rung of the CITY GOALS ladder — the game's "point". Completing a
 /// goal earns a commendation: a PERMANENT multiplicative income bonus.
@@ -412,18 +427,70 @@ class GameState extends ChangeNotifier {
     return u[(commissionIndex * 2 + 1) % u.length];
   }
 
-  double get commissionQuota =>
+  CommissionType get commissionType =>
+      CommissionType.values[commissionIndex % CommissionType.values.length];
+
+  /// HUB SERVICE targets the busiest station of the contract line.
+  String? get commissionStationId {
+    if (commissionType != CommissionType.station) return null;
+    final lineId = commissionLineId;
+    if (lineId == null) return null;
+    StationDef? best;
+    for (final sid in city.lineById(lineId).stationIds) {
+      final s = city.stationById(sid);
+      if (best == null || s.demand > best.demand) best = s;
+    }
+    return best!.id;
+  }
+
+  /// The escalating difficulty spine every contract type is priced from.
+  double get _haulEquivalent =>
       400 * pow(1.6, commissionIndex < 12 ? commissionIndex : 12).toDouble();
 
-  /// Roughly double what those riders pay at the farebox.
+  /// What "done" means, per type: riders, turnbacks, riders at the hub,
+  /// platforms cleared, or dollars during rush windows.
+  double get commissionQuota {
+    switch (commissionType) {
+      case CommissionType.haul:
+        return _haulEquivalent;
+      case CommissionType.express:
+        // One train turns back ~every 35s; quotas assume a small fleet.
+        final i = commissionIndex < 20 ? commissionIndex : 20;
+        return (4 + 2 * i).toDouble();
+      case CommissionType.station:
+        // A hub sees ~a tenth of a line's volume; sized so investment
+        // in the hub (food, parking) makes the difference.
+        return (_haulEquivalent * 0.12).floorToDouble();
+      case CommissionType.sweep:
+        final lineId = commissionLineId;
+        return lineId == null
+            ? 1
+            : city.lineById(lineId).stationIds.length.toDouble();
+      case CommissionType.rushCash:
+        // Sized to one rush window with capacity invested.
+        return (0.25 * _haulEquivalent * currentFare * goalMult)
+            .floorToDouble();
+    }
+  }
+
+  /// RUSH CONTRACTS get a longer clock — the deadline must be able to
+  /// contain a rush window no matter when the contract is accepted.
+  double get commissionTimeLimit =>
+      commissionType == CommissionType.rushCash ? 240 : commissionLimit;
+
+  /// A platform counts as clear below this many waiting riders.
+  static const double sweepThreshold = 25;
+
+  /// Every contract pays the same scale regardless of type: roughly
+  /// double the haul-equivalent fares.
   double get commissionReward =>
-      2 * commissionQuota * currentFare * goalMult;
+      2 * _haulEquivalent * currentFare * goalMult;
 
   void acceptCommission() {
     if (commissionActive || commissionLineId == null) return;
     commissionActive = true;
     commissionProgress = 0;
-    commissionTimeLeft = commissionLimit;
+    commissionTimeLeft = commissionTimeLimit;
     notifyListeners();
   }
 
@@ -435,6 +502,18 @@ class GameState extends ChangeNotifier {
 
   void _tickCommission(double dt) {
     if (!commissionActive) return;
+    // CLEAN SWEEP is a live condition, not a counter: progress = how
+    // many of the line's platforms are under the threshold right now.
+    if (commissionType == CommissionType.sweep) {
+      final lineId = commissionLineId;
+      if (lineId != null) {
+        var clear = 0;
+        for (final sid in city.lineById(lineId).stationIds) {
+          if (waitingAt(sid) <= sweepThreshold) clear++;
+        }
+        commissionProgress = clear.toDouble();
+      }
+    }
     if (commissionProgress >= commissionQuota) {
       cash += commissionReward;
       totalEarned += commissionReward;
@@ -476,23 +555,28 @@ class GameState extends ChangeNotifier {
     GoalDef('NINE ROUTES', GoalKind.lines, 9, 1.75),
     GoalDef('MILLION RIDERS', GoalKind.riders, 1000000, 1.75),
     GoalDef('DOWNTOWN COMPLETE', GoalKind.earned, 25000000, 2.0),
-    // The XL boroughs (build 24): the ladder keeps climbing past the
-    // original twelve rungs, so migrated progress keeps its meaning.
+    // The XL boroughs: past downtown, the ladder asks for MASTERY of the
+    // systems — contracts, station works, upgrades, rush earnings — not
+    // just more lines. (First twelve rungs stay stable for old saves.)
     GoalDef('TWELVE ROUTES', GoalKind.lines, 12, 1.5),
+    GoalDef('CITY CONTRACTOR', GoalKind.commissions, 5, 1.5),
     GoalDef('FIFTY MILLION', GoalKind.earned, 50000000, 1.5),
+    GoalDef('MASTER BUILDER', GoalKind.works, 40, 1.75),
     GoalDef('SIXTEEN ROUTES', GoalKind.lines, 16, 1.75),
+    GoalDef('RUSH BARON', GoalKind.rushEarned, 5000000, 1.75),
     GoalDef('FIVE MILLION RIDERS', GoalKind.riders, 5000000, 1.75),
+    GoalDef('FULL SERVICE', GoalKind.lineUpgrades, 60, 2.0),
     GoalDef('EVERY LINE', GoalKind.lines, 24, 2.0),
     GoalDef('NEW MERIDIAN COMPLETE', GoalKind.earned, 250000000, 2.0),
   ];
   static const List<GoalDef> _angelBayGoals = [
     GoalDef('WEST SHORE OPENS', GoalKind.lines, 2, 1.25),
-    GoalDef('BAY CROSSING', GoalKind.riders, 1500000, 1.25),
+    GoalDef('BAY CONTRACTOR', GoalKind.commissions, 8, 1.25),
     GoalDef('SIX TRAINS', GoalKind.trains, 6, 1.25),
     GoalDef('THE NARROWS', GoalKind.lines, 3, 1.3),
     GoalDef('75 MILLION', GoalKind.earned, 75000000, 1.3),
     GoalDef('FIVE ROUTES', GoalKind.lines, 5, 1.4),
-    GoalDef('THREE MILLION RIDERS', GoalKind.riders, 3000000, 1.4),
+    GoalDef('BAY RUSH BARON', GoalKind.rushEarned, 25000000, 1.4),
     GoalDef('SEVEN ROUTES', GoalKind.lines, 7, 1.5),
     GoalDef('300 MILLION', GoalKind.earned, 300000000, 1.5),
     GoalDef('EVERY LINE', GoalKind.lines, 9, 1.75),
@@ -531,11 +615,43 @@ class GameState extends ChangeNotifier {
 
   GoalDef? get currentGoal => goalsDone < goals.length ? goals[goalsDone] : null;
 
+  /// Lifetime money earned during rush windows (carried between cities).
+  double rushEarnings = 0;
+
+  /// Every station-work level built in this city, all six types.
+  int get totalStationWorks {
+    var sum = 0;
+    for (final m in [
+      foodLevel, gateLevel, platformLevel,
+      parkingLevel, escalatorLevel, securityLevel,
+    ]) {
+      for (final v in m.values) {
+        sum += v;
+      }
+    }
+    return sum;
+  }
+
+  /// Every per-line upgrade level installed in this city, all four types.
+  int get totalLineUpgradeLevels {
+    var sum = 0;
+    for (final m in [speedLevels, carLevels, accessLevels, trainsetLevels]) {
+      for (final v in m.values) {
+        sum += v;
+      }
+    }
+    return sum;
+  }
+
   double goalValue(GoalKind kind) => switch (kind) {
         GoalKind.riders => totalRiders,
         GoalKind.earned => totalEarned,
         GoalKind.lines => unlockedLineIds.length.toDouble(),
         GoalKind.trains => trains.length.toDouble(),
+        GoalKind.commissions => commissionsDone.toDouble(),
+        GoalKind.works => totalStationWorks.toDouble(),
+        GoalKind.lineUpgrades => totalLineUpgradeLevels.toDouble(),
+        GoalKind.rushEarned => rushEarnings,
       };
 
   /// 0–1 progress toward the current goal (1 when the ladder is finished).
@@ -581,6 +697,7 @@ class GameState extends ChangeNotifier {
     g.goalsDoneByCity.addAll(goalsDoneByCity);
     g._recomputeGoalMult();
     g.avgRate = avgRate;
+    g.rushEarnings = rushEarnings;
     return g;
   }
 
@@ -869,6 +986,13 @@ class GameState extends ChangeNotifier {
     }
     final stationId = line.stationIds[t.target];
     _board(t.lineId, stationId, nextDir);
+    // TURNBACK RUN counts terminal turnarounds on the contract line.
+    if (commissionActive &&
+        commissionType == CommissionType.express &&
+        t.lineId == commissionLineId &&
+        (t.target == 0 || t.target == line.stationIds.length - 1)) {
+      commissionProgress += 1;
+    }
     // Platform works speed this station's boarding on top of city doors.
     t.dwell =
         effectiveDwell * (1 - 0.15 * (platformLevel[stationId] ?? 0));
@@ -893,8 +1017,19 @@ class GameState extends ChangeNotifier {
     lastBoardLineId = lineId;
     lastBoardAmount = earned;
     lastBoardCount = take.floor();
-    if (commissionActive && lineId == commissionLineId) {
-      commissionProgress += take;
+    if (rushActive) rushEarnings += earned;
+    if (commissionActive) {
+      switch (commissionType) {
+        case CommissionType.haul:
+          if (lineId == commissionLineId) commissionProgress += take;
+        case CommissionType.station:
+          if (stationId == commissionStationId) commissionProgress += take;
+        case CommissionType.rushCash:
+          if (rushActive) commissionProgress += earned;
+        case CommissionType.express:
+        case CommissionType.sweep:
+          break; // tracked elsewhere
+      }
     }
   }
 
@@ -1041,7 +1176,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 14;
+  static const int saveVersion = 15;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -1073,6 +1208,7 @@ class GameState extends ChangeNotifier {
         'commissionActive': commissionActive,
         'commissionProgress': commissionProgress,
         'commissionTimeLeft': commissionTimeLeft,
+        'rushEarnings': rushEarnings,
         'avgRate': avgRate,
         'lastSeenMs': nowMs,
       };
@@ -1124,6 +1260,7 @@ class GameState extends ChangeNotifier {
         ((j['commissionProgress'] as num?) ?? 0).toDouble();
     g.commissionTimeLeft =
         ((j['commissionTimeLeft'] as num?) ?? 0).toDouble();
+    g.rushEarnings = ((j['rushEarnings'] as num?) ?? 0).toDouble();
     g.avgRate = (j['avgRate'] as num).toDouble();
     g._loadedLastSeenMs = j['lastSeenMs'] as int?;
 
