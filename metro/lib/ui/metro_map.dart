@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -105,8 +106,11 @@ class _MetroMapState extends State<MetroMap> {
 
     return Container(
       // STYLE.md: water frames the city; the landmass is painted on top.
+      // The water darkens with the city's light cycle so pinch-out never
+      // shows daylit sea around a night city.
       decoration: BoxDecoration(
-        color: const Color(0xFFBDD3E8),
+        color: Color.lerp(const Color(0xFFBDD3E8), const Color(0xFF1B2534),
+            g.nightFactor)!,
         border: Border.all(color: TransitStyle.hairline, width: 1),
       ),
       clipBehavior: Clip.hardEdge,
@@ -529,6 +533,94 @@ class _MapPainter extends CustomPainter {
       }
     }
 
+    // ── The light cycle ────────────────────────────────────────────────
+    // The approved daylight diagram above is the base coat. As the rush
+    // approaches, dusk multiplies a warm then deep-blue tint over
+    // everything; the city answers with light: glowing route ribbons,
+    // station lamps sized by the works built there, window speckles in
+    // the blocks around served stations. Trains draw ABOVE the tint —
+    // they are lit vehicles moving through the dark.
+    final night = game.nightFactor;
+    if (night > 0.001) {
+      final warm = Color.lerp(Colors.white, const Color(0xFFE8C7A2),
+          (night * 2).clamp(0.0, 1.0))!;
+      final tint = Color.lerp(warm, const Color(0xFF404A63),
+          ((night - 0.35) / 0.65).clamp(0.0, 1.0))!;
+      canvas.drawRect(
+          Offset.zero & size,
+          Paint()
+            ..color = tint
+            ..blendMode = BlendMode.multiply);
+
+      // Route ribbons glow — the rushing line hottest of all.
+      for (final line in city.lines) {
+        if (!game.isUnlocked(line.id)) continue;
+        if (line.id == revealLineId && revealFraction < 1) continue;
+        final rushing = game.rushActive && game.rushLineId == line.id;
+        final glow = Path();
+        final pts = game.paths[line.id]!.points;
+        final lanes = game.segLane[line.id]!;
+        for (var i = 0; i < pts.length - 1; i++) {
+          final seg = pts[i + 1] - pts[i];
+          final len = seg.distance;
+          if (len < 0.001) continue;
+          final off = Offset(-seg.dy, seg.dx) / len * lanes[i];
+          final pa = m(pts[i] + off);
+          final pb = m(pts[i + 1] + off);
+          glow.moveTo(pa.dx, pa.dy);
+          glow.lineTo(pb.dx, pb.dy);
+        }
+        canvas.drawPath(
+            glow,
+            Paint()
+              ..color = line.color
+                  .withOpacity((rushing ? 0.55 : 0.28) * night)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = (rushing ? 8.0 : 5.5) * s
+              ..strokeCap = StrokeCap.round
+              ..maskFilter =
+                  MaskFilter.blur(BlurStyle.normal, 2.2 * s));
+      }
+
+      // Station lamps + city windows around every served stop. Lamp
+      // size grows with the works built there — investment you can see
+      // from orbit. Windows twinkle on a slow, hash-seeded cycle.
+      for (final st in city.stations) {
+        if (!game.isServed(st.id)) continue;
+        final c = m(st.pos);
+        final works = (game.foodLevel[st.id] ?? 0) +
+            (game.gateLevel[st.id] ?? 0) +
+            (game.platformLevel[st.id] ?? 0) +
+            (game.parkingLevel[st.id] ?? 0) +
+            (game.escalatorLevel[st.id] ?? 0) +
+            (game.securityLevel[st.id] ?? 0);
+        final lampR = (2.6 + 0.3 * (works > 15 ? 15 : works)) * s;
+        canvas.drawCircle(
+            c,
+            lampR,
+            Paint()
+              ..shader = ui.Gradient.radial(c, lampR, [
+                const Color(0xFFFFDFA0).withOpacity(0.5 * night),
+                const Color(0x00FFDFA0),
+              ]));
+        var h = st.id.hashCode & 0x7fffffff;
+        for (var i = 0; i < 7; i++) {
+          h = (h * 1103515245 + 12345) & 0x7fffffff;
+          final ang = (h % 360) * pi / 180;
+          h = (h * 1103515245 + 12345) & 0x7fffffff;
+          final dist = (4.0 + (h % 100) * 0.09) * s;
+          final p = c + Offset(cos(ang), sin(ang)) * dist;
+          final twinkle =
+              0.7 + 0.3 * sin(nowMs / 900 + h % 628 / 100);
+          canvas.drawRect(
+              Rect.fromCenter(center: p, width: 0.55 * s, height: 0.55 * s),
+              Paint()
+                ..color = const Color(0xFFFFE9B8)
+                    .withOpacity(0.5 * night * twinkle));
+        }
+      }
+    }
+
     // Trains, live-tracker style (STYLE.md): a solid circle in the line
     // color carrying the bold route letter, sliding along the vector path.
     for (final t in game.trains) {
@@ -551,6 +643,34 @@ class _MapPainter extends CustomPainter {
           : Offset(-seg.dy, seg.dx) / segLen * lane;
       final tPos = m(path.posAt(t.distance) + laneOff);
       final r = 2.6 * s;
+      // At night a train throws a headlight beam down the track and a
+      // soft halo in its line color.
+      final nf = game.nightFactor;
+      if (nf > 0.05 && segLen >= 0.001) {
+        final dirV = seg / segLen * t.direction.toDouble();
+        final tip = tPos + dirV * 8.5 * s;
+        final wing = Offset(-dirV.dy, dirV.dx) * 2.6 * s;
+        canvas.drawPath(
+            Path()
+              ..moveTo(tPos.dx, tPos.dy)
+              ..lineTo(tip.dx + wing.dx, tip.dy + wing.dy)
+              ..lineTo(tip.dx - wing.dx, tip.dy - wing.dy)
+              ..close(),
+            Paint()
+              ..shader = ui.Gradient.linear(tPos, tip, [
+                const Color(0xFFFFF3C4).withOpacity(0.55 * nf),
+                const Color(0x00FFF3C4),
+              ]));
+        final haloR = r * 2.1;
+        canvas.drawCircle(
+            tPos,
+            haloR,
+            Paint()
+              ..shader = ui.Gradient.radial(tPos, haloR, [
+                line.color.withOpacity(0.5 * nf),
+                line.color.withOpacity(0),
+              ]));
+      }
       canvas.drawCircle(tPos, r, Paint()..color = line.color);
       canvas.drawCircle(
           tPos,
@@ -594,7 +714,10 @@ class _MapPainter extends CustomPainter {
         text: TextSpan(
           text: '${p.riders}× +\$${p.amount.toStringAsFixed(0)}',
           style: GoogleFonts.inter(
-            color: const Color(0xFF1B5E20).withOpacity(1 - t),
+            // Deep green by day, mint by night — legible on both grounds.
+            color: Color.lerp(const Color(0xFF1B5E20),
+                    const Color(0xFFA5D6A7), game.nightFactor)!
+                .withOpacity(1 - t),
             fontSize: 3.0 * s,
             fontWeight: FontWeight.w900,
           ),

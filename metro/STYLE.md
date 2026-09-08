@@ -56,6 +56,21 @@ wait for explicit approval → emit to Dart. No exceptions.
   top rule, flat white DataPanels with 1px hairline borders, square
   corners everywhere, no shadows. Route bullets are the only circles.
 - **Ink:** #1A1A1A. Ground behind HUD: #F4F4F4.
+- **The light cycle (build 37, player-requested craft pass):** the
+  daylight diagram above is the base coat, always painted first. A
+  deterministic `nightFactor` (0 day → 1 night, derived from the rush
+  clock) multiplies a tint over the whole map — warm #E8C7A2 at dusk
+  deepening to blue-gray #404A63 — while water lerps #BDD3E8→#1B2534.
+  Every rush window IS the night rush: dusk over the 25s before it,
+  dark throughout, dawn over the 20s after (a fresh game's first day
+  skips the opening dawn). Above the tint the city lights up: route
+  ribbons glow (blurred line-color strokes, hottest on the rushing
+  line), served stations get warm radial lamps whose radius grows with
+  the station works built there, hash-seeded window speckles twinkle in
+  the surrounding blocks, and trains draw fully lit with a headlight
+  beam down the track and a line-color halo. Fare pops shift deep green
+  → mint so they read on both grounds. Still no bounce, no sparkle, no
+  cartoon effects — light, not decoration.
 
 ## Process
 

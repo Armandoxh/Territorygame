@@ -129,3 +129,21 @@ rungs 2/7 swapped to BAY CONTRACTOR / BAY RUSH BARON. rushEarnings is
 a persisted lifetime counter (save v15) carried through moveOn. Tests:
 per-type contract tests, rotation test, ladder-completion sites now
 require commissions/works/upgrades/rush cash too.
+
+Build 37 (v0.17.0): THE LIGHT CYCLE (player: "I still want AAA
+graphics... prove out #1" -- step 1 of the graphics path: max out the
+current stack before considering a Three.js renderer). The map now
+runs a deterministic day/night cycle off the rush clock, so every
+rush window IS the night rush: dusk falls over the 25s before the
+window (warm tint), the window runs dark (blue-gray multiply tint +
+water lerps to near-black), dawn breaks over the 20s after. A fresh
+game's first day skips the opening dawn so new players see the
+approved daylight look first. At night the city lights up ABOVE the
+tint: route ribbons glow in their line colors (rushing line hottest),
+served stations get warm radial lamps that grow with station works
+(investment visible from orbit), hash-seeded window speckles twinkle
+around served stops, trains throw headlight beams down the track with
+line-color halos, fare pops shift green->mint for legibility.
+Engine: nightFactor getter (pure, derived from rushClock, tested).
+No fragment-shader toolchain risk taken -- gradients + MaskFilter
+blur only, all CanvasKit-safe. STYLE.md records the light-cycle law.

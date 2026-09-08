@@ -397,6 +397,20 @@ class GameState extends ChangeNotifier {
       (rushPeriod - rushWindow) -
       rushClock;
 
+  /// City light, 0 = full day … 1 = full night. Derived from the same
+  /// deterministic clock as rush hour, so every rush window IS the night
+  /// rush: dusk falls over the 25s before the window opens, the whole
+  /// window runs dark, and dawn breaks over the 20s after it closes.
+  double get nightFactor {
+    final t = _rushPhase;
+    // A brand-new city opens in daylight — dawn only exists once a
+    // night has actually happened (the clock has wrapped once).
+    if (rushClock >= rushPeriod && t < 20) return 1 - t / 20; // dawn
+    if (t < 110) return 0; // day
+    if (t < 135) return (t - 110) / 25; // dusk
+    return 1; // the night rush
+  }
+
   /// The rush multiplier hitting this station right now (1 when calm).
   double rushFactorAt(String stationId) => rushActive &&
           (_linesServing[stationId]?.contains(rushLineId) ?? false)

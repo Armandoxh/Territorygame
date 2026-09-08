@@ -559,6 +559,24 @@ void main() {
         reason: 'a different stride than the rush rotation');
   });
 
+  test('the light cycle: day, dusk into the rush, dawn after', () {
+    final g = GameState();
+    expect(g.nightFactor, 0, reason: 'a new city opens in daylight');
+    g.rushClock = 60;
+    expect(g.nightFactor, 0);
+    g.rushClock = 122.5;
+    expect(g.nightFactor, closeTo(0.5, 1e-9), reason: 'dusk falls');
+    g.rushClock = 140;
+    expect(g.nightFactor, 1);
+    expect(g.rushActive, isTrue, reason: 'the rush IS the night rush');
+    g.rushClock = 179.9;
+    expect(g.nightFactor, 1);
+    g.rushClock = 190;
+    expect(g.nightFactor, closeTo(0.5, 1e-9), reason: 'dawn breaks');
+    g.rushClock = 200;
+    expect(g.nightFactor, 0);
+  });
+
   test('contract types rotate through five different jobs', () {
     final g = GameState();
     expect(g.commissionType, CommissionType.haul);
