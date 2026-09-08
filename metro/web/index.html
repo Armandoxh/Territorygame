@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html style="background:#1A1A1A">
+<head>
+  <!--
+    Hand-authored shell (flutter create skips existing files): app
+    identity, install metadata, and a station-sign splash that holds the
+    screen until Flutter's first frame.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="An idle subway empire on a living transit map.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1A1A1A">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Metro Magnate">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="manifest" href="manifest.json">
+  <title>Metro Magnate</title>
+
+  <style>
+    html, body { margin: 0; height: 100%; background: #1A1A1A; }
+    #mm-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #1A1A1A; color: #fff;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-family: Inter, Helvetica, Arial, sans-serif;
+      transition: opacity .3s ease;
+    }
+    #mm-splash .rule { width: 180px; height: 4px; background: #fff; margin-bottom: 28px; }
+    #mm-splash .bullet {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #EE352E; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 34px; font-weight: 900; margin-bottom: 22px;
+    }
+    #mm-splash .word { font-size: 15px; font-weight: 800; letter-spacing: 4px; }
+    #mm-splash .sub { font-size: 10px; font-weight: 600; letter-spacing: 2px;
+                      color: rgba(255,255,255,.55); margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div id="mm-splash">
+    <div class="rule"></div>
+    <div class="bullet">M</div>
+    <div class="word">METRO MAGNATE</div>
+    <div class="sub">NOW ARRIVING</div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('mm-splash');
+      if (s) { s.style.opacity = '0'; setTimeout(function () { s.remove(); }, 320); }
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

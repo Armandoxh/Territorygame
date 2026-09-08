@@ -34,3 +34,13 @@ goal ladder), each auto-dismissing when its milestone is met and
 manually dismissible; coachStep persists (save v12) and veteran saves
 skip all of them instantly. Arc 1 (craft) done: sound, cinema,
 onboarding, identity. Next: Arc 2 strategy (rush hour build 30).
+
+Build 30 (v0.12.1): build 29's app-identity files never shipped --
+metro/.gitignore ignored web/ (platform-scaffolding-in-CI era), so the
+hand-authored index.html/manifest/icons were silently excluded from the
+commit and CI deployed Flutter's default icons (player: "I don't see
+the icon"). Diagnosed by listing docs/metro/icons on the Pages branch:
+default Flutter logo sizes, no apple-touch-icon. Fix: web/ un-ignored
+(it is hand-authored now; flutter create skips existing files), all 8
+web files committed. Lesson: after adding files in a previously-ignored
+path, verify they LANDED in the commit stat.
