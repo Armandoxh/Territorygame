@@ -35,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// so the physics stay exact — just compressed.
   double _timeScale = 1;
   bool _rushWasActive = false;
+  int _seenCommissionSeq = 0;
   late final Ticker _ticker = createTicker(_onTick);
   Duration _lastElapsed = Duration.zero;
   Timer? _savePulse;
@@ -70,6 +71,28 @@ class _HomeScreenState extends State<HomeScreen>
             .indexWhere((l) => l.id == game.lastBoardLineId);
         CityAudio.boarding(lineIndex,
             game.lastBoardCount / game.capacityFor(game.lastBoardLineId));
+      }
+    }
+    if (game.commissionSeq != _seenCommissionSeq) {
+      _seenCommissionSeq = game.commissionSeq;
+      if (game.lastCommissionWon) {
+        CityAudio.commendation();
+      } else {
+        CityAudio.rush();
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor:
+              game.lastCommissionWon ? TransitStyle.ink : const Color(0xFFC62828),
+          shape: const RoundedRectangleBorder(),
+          duration: const Duration(seconds: 3),
+          content: Text(
+            game.lastCommissionWon
+                ? 'COMMISSION COMPLETE — bonus paid'
+                : 'COMMISSION EXPIRED — city hall moves on',
+            style: TransitStyle.signage(size: 12, spacing: 1),
+          ),
+        ));
       }
     }
     if (game.rushActive != _rushWasActive) {
@@ -290,6 +313,7 @@ class _HomeScreenState extends State<HomeScreen>
                     game: game,
                     onDismiss: () => setState(() => game.coachStep += 1)),
                 _RushBar(game: game),
+                _CommissionBar(game: game),
                 Expanded(
                   child: MetroMap(game: game, onStationTap: _openStation),
                 ),
@@ -589,6 +613,81 @@ class _RushBar extends StatelessWidget {
                   size: 10,
                   color: const Color(0x99000000),
                   weight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+/// The commission strip: city hall's standing offer, or the live
+/// contract's progress and countdown.
+class _CommissionBar extends StatelessWidget {
+  const _CommissionBar({required this.game});
+  final GameState game;
+
+  String _mmss(double s) {
+    final t = s.ceil();
+    return '${t ~/ 60}:${(t % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lineId = game.commissionLineId;
+    if (lineId == null) return const SizedBox.shrink();
+    final line = game.city.lineById(lineId);
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Row(
+        children: [
+          Text('COMMISSION',
+              style: TransitStyle.signage(
+                  size: 9,
+                  color: const Color(0x99000000),
+                  weight: FontWeight.w800,
+                  spacing: 1.5)),
+          const SizedBox(width: 8),
+          RouteBullet(label: line.bullet, color: line.color, size: 13),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              game.commissionActive
+                  ? '${game.commissionProgress.floor()}/'
+                      '${game.commissionQuota.floor()} riders · '
+                      '${_mmss(game.commissionTimeLeft)}'
+                  : 'carry ${game.commissionQuota.floor()} riders in '
+                      '${_mmss(GameState.commissionLimit)} → '
+                      '\$${game.commissionReward.toStringAsFixed(0)}',
+              style: TransitStyle.signage(
+                  size: 10,
+                  color: TransitStyle.ink,
+                  weight: FontWeight.w700),
+            ),
+          ),
+          if (!game.commissionActive) ...[
+            GestureDetector(
+              onTap: game.skipCommission,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text('SKIP',
+                    style: TransitStyle.signage(
+                        size: 10,
+                        color: const Color(0x99000000),
+                        weight: FontWeight.w900)),
+              ),
+            ),
+            GestureDetector(
+              onTap: game.acceptCommission,
+              child: Container(
+                color: TransitStyle.ink,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                child: Text('GO',
+                    style: TransitStyle.signage(
+                        size: 10, weight: FontWeight.w900)),
+              ),
+            ),
+          ],
         ],
       ),
     );

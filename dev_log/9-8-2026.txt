@@ -72,3 +72,17 @@ rush active (access 1.04, trainset 1.03, marketing 1.02 -- demand-side
 upgrades idle through saturated windows by design). New tests: schedule
 timing, ladder-order rotation, capacity-pays-the-rush (>1.5x window
 comparison), rushClock round-trip.
+
+Build 33 (v0.14.0): CITY COMMISSIONS -- Arc 2 continues. Opt-in
+contracts in a slim strip: "carry N riders on line L within 2:00 ->
+$reward" with GO/SKIP; while active it shows live progress + countdown.
+Targets rotate on stride 2 (different from rush's stride 1) so
+commissions pull investment toward lines the rush isn't favoring;
+quotas escalate 400 x 1.6^n (capped exponent 12), reward = 2x those
+riders' fares x goalMult so it stays relevant at any ladder height.
+Failure costs nothing but the offer moves on; success pays through
+_windowEarned so avgRate/offline see it. Save v14 persists the full
+contract state (mid-flight contracts survive reloads -- pinned).
+Resolve toast + sound (commendation arpeggio on win, low strike on
+expiry). Tests: deliver-and-get-paid, hopeless-contract expiry,
+stride rotation, mid-flight round-trip.

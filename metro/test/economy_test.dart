@@ -478,6 +478,57 @@ void main() {
     expect(g.rushLineId, '1', reason: 'two lines alternate');
   });
 
+  test('CITY COMMISSIONS: accept, deliver, get paid — or expire', () {
+    final g = GameState();
+    expect(g.commissionLineId, '1');
+    expect(g.commissionQuota, 400);
+    final reward = g.commissionReward;
+    g.acceptCommission();
+    expect(g.commissionActive, isTrue);
+    final cashBefore = g.cash;
+    var guard = 0;
+    while (g.commissionActive && guard < 12000) {
+      g.tick(0.1);
+      guard++;
+    }
+    expect(g.commissionsDone, 1,
+        reason: 'line 1 carries 400 riders well inside two minutes');
+    expect(g.lastCommissionWon, isTrue);
+    expect(g.cash, greaterThan(cashBefore + reward * 0.99),
+        reason: 'the bonus lands on top of fares');
+    expect(g.commissionIndex, 1);
+    expect(g.commissionQuota, closeTo(400 * 1.6, 0.001),
+        reason: 'the next contract asks for more');
+
+    // A hopeless contract expires, costs nothing, and moves on.
+    final h = GameState();
+    h.commissionIndex = 12; // quota ≈ 112k riders — impossible at level 0
+    h.acceptCommission();
+    final cashAtAccept = h.cash;
+    for (var i = 0; i < 1250 && h.commissionActive; i++) {
+      h.tick(0.1);
+    }
+    expect(h.commissionActive, isFalse);
+    expect(h.lastCommissionWon, isFalse);
+    expect(h.commissionsDone, 0);
+    expect(h.cash, greaterThanOrEqualTo(cashAtAccept),
+        reason: 'failure carries no penalty');
+    expect(h.commissionIndex, 13);
+  });
+
+  test('commission targets rotate on their own stride', () {
+    final g = GameState();
+    g.cash = 1e12;
+    g.buyLine('A');
+    g.buyLine('L');
+    expect(g.commissionLineId, 'A');
+    g.skipCommission();
+    expect(g.commissionLineId, '1');
+    g.skipCommission();
+    expect(g.commissionLineId, 'L',
+        reason: 'a different stride than the rush rotation');
+  });
+
   test('the first commendation fires by itself in normal play', () {
     final g = run(300);
     expect(g.goalsDone, greaterThanOrEqualTo(1),

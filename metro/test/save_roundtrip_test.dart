@@ -221,6 +221,20 @@ void main() {
     expect(g.totalEarned, greaterThan(0));
   });
 
+  test('a mid-flight commission survives a reload', () {
+    final m = GameState();
+    m.acceptCommission();
+    for (var i = 0; i < 100; i++) {
+      m.tick(0.1);
+    }
+    final mr = GameState.fromJson(
+        jsonDecode(jsonEncode(m.toJson(1))) as Map<String, dynamic>);
+    expect(mr.commissionActive, isTrue);
+    expect(mr.commissionLineId, m.commissionLineId);
+    expect(mr.commissionProgress, closeTo(m.commissionProgress, 0.001));
+    expect(mr.commissionTimeLeft, closeTo(m.commissionTimeLeft, 0.001));
+  });
+
   test('a fresh system serializes cleanly', () {
     final g = GameState();
     final r = GameState.fromJson(

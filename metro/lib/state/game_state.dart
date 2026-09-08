@@ -373,6 +373,73 @@ class GameState extends ChangeNotifier {
       ? rushMult
       : 1;
 
+  // ---- City commissions: opt-in directed contracts ----
+  /// City hall offers a contract: carry [commissionQuota] riders on ONE
+  /// line within [commissionLimit] seconds for a cash bonus. The target
+  /// line rotates on a different stride than rush hour, so commissions
+  /// pull investment toward lines the rush isn't already favoring. Fully
+  /// opt-in: an unaccepted offer does nothing; SKIP shows the next one.
+  static const double commissionLimit = 120;
+
+  int commissionIndex = 0;
+  int commissionsDone = 0;
+  bool commissionActive = false;
+  double commissionProgress = 0;
+  double commissionTimeLeft = 0;
+
+  /// Bumped when a commission resolves so the UI can celebrate/console.
+  int commissionSeq = 0;
+  bool lastCommissionWon = false;
+
+  String? get commissionLineId {
+    final u = _unlockedInOrder;
+    if (u.isEmpty) return null;
+    return u[(commissionIndex * 2 + 1) % u.length];
+  }
+
+  double get commissionQuota =>
+      400 * pow(1.6, commissionIndex < 12 ? commissionIndex : 12).toDouble();
+
+  /// Roughly double what those riders pay at the farebox.
+  double get commissionReward =>
+      2 * commissionQuota * currentFare * goalMult;
+
+  void acceptCommission() {
+    if (commissionActive || commissionLineId == null) return;
+    commissionActive = true;
+    commissionProgress = 0;
+    commissionTimeLeft = commissionLimit;
+    notifyListeners();
+  }
+
+  void skipCommission() {
+    if (commissionActive) return;
+    commissionIndex += 1;
+    notifyListeners();
+  }
+
+  void _tickCommission(double dt) {
+    if (!commissionActive) return;
+    if (commissionProgress >= commissionQuota) {
+      cash += commissionReward;
+      totalEarned += commissionReward;
+      _windowEarned += commissionReward;
+      commissionsDone += 1;
+      lastCommissionWon = true;
+      commissionSeq += 1;
+      commissionActive = false;
+      commissionIndex += 1;
+      return;
+    }
+    commissionTimeLeft -= dt;
+    if (commissionTimeLeft <= 0) {
+      lastCommissionWon = false;
+      commissionSeq += 1;
+      commissionActive = false;
+      commissionIndex += 1;
+    }
+  }
+
   /// How far the first-session coach marks have advanced (persisted).
   /// The UI owns the tip texts; each auto-advances when its milestone is
   /// met, so veteran saves skip straight past all of them.
@@ -740,6 +807,7 @@ class GameState extends ChangeNotifier {
       _tickTrain(t, dt);
     }
 
+    _tickCommission(dt);
     _checkGoals();
 
     // Keep the rolling $/sec estimate fresh.
@@ -810,6 +878,9 @@ class GameState extends ChangeNotifier {
     lastBoardLineId = lineId;
     lastBoardAmount = earned;
     lastBoardCount = take.floor();
+    if (commissionActive && lineId == commissionLineId) {
+      commissionProgress += take;
+    }
   }
 
   // ---- Purchases ----
@@ -955,7 +1026,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 13;
+  static const int saveVersion = 14;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -982,6 +1053,11 @@ class GameState extends ChangeNotifier {
         'goalsDoneByCity': goalsDoneByCity,
         'coachStep': coachStep,
         'rushClock': rushClock,
+        'commissionIndex': commissionIndex,
+        'commissionsDone': commissionsDone,
+        'commissionActive': commissionActive,
+        'commissionProgress': commissionProgress,
+        'commissionTimeLeft': commissionTimeLeft,
         'avgRate': avgRate,
         'lastSeenMs': nowMs,
       };
@@ -1026,6 +1102,13 @@ class GameState extends ChangeNotifier {
     g._recomputeGoalMult();
     g.coachStep = (j['coachStep'] as int?) ?? 0;
     g.rushClock = ((j['rushClock'] as num?) ?? 0).toDouble();
+    g.commissionIndex = (j['commissionIndex'] as int?) ?? 0;
+    g.commissionsDone = (j['commissionsDone'] as int?) ?? 0;
+    g.commissionActive = (j['commissionActive'] as bool?) ?? false;
+    g.commissionProgress =
+        ((j['commissionProgress'] as num?) ?? 0).toDouble();
+    g.commissionTimeLeft =
+        ((j['commissionTimeLeft'] as num?) ?? 0).toDouble();
     g.avgRate = (j['avgRate'] as num).toDouble();
     g._loadedLastSeenMs = j['lastSeenMs'] as int?;
 
