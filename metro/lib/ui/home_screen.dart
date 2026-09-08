@@ -11,12 +11,12 @@ import '../version.dart';
 import 'metro_map.dart';
 import 'transit_style.dart';
 
-/// One screen, dashboard voice (STYLE.md): the sign-bar header, the living
-/// map, and a LINES / NETWORK tab strip — LINES unlocks routes and opens
-/// per-line sheets (trains + scoped upgrades), NETWORK sells the city-wide
-/// levers. Stations tap open for per-station work (food courts). The game
-/// ticks at frame rate while open; a periodic timer persists it; time away
-/// is credited on return.
+/// One screen, dashboard voice (STYLE.md): slim sign-bar header, a single
+/// GOAL status line, the living map with live-state chips floating in its
+/// corner, and a four-tab console — LINES (routes + per-line sheets),
+/// OPS (rush timetable + commission desk), GOALS (the full ladder),
+/// NETWORK (city-wide upgrades). The game ticks at frame rate while open;
+/// a periodic timer persists it; time away is credited on return.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -211,6 +211,8 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
     if (ok != true || !mounted) return;
+    // Close any open sheets — they hold listeners on the old world.
+    Navigator.of(context).popUntil((r) => r.isFirst);
     setState(() {
       final old = game;
       game = old.moveOn();
@@ -260,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  /// LINES / NETWORK open as bottom sheets so the map keeps the screen.
+  /// Every panel opens as a bottom sheet so the map keeps the screen.
   void _openPanel(int i) {
     showModalBottomSheet<void>(
       context: context,
@@ -272,9 +274,12 @@ class _HomeScreenState extends State<HomeScreen>
             maxHeight: MediaQuery.of(context).size.height * 0.8),
         child: ListenableBuilder(
           listenable: game,
-          builder: (context, _) => i == 0
-              ? _LinesSheet(game: game, onOpen: _openLine)
-              : _NetworkSheet(game: game, onRestart: _confirmRestart),
+          builder: (context, _) => switch (i) {
+            0 => _LinesSheet(game: game, onOpen: _openLine),
+            1 => _OpsSheet(game: game),
+            2 => _GoalsSheet(game: game, onMoveOn: _confirmMoveOn),
+            _ => _NetworkSheet(game: game, onRestart: _confirmRestart),
+          },
         ),
       ),
     );
@@ -308,19 +313,44 @@ class _HomeScreenState extends State<HomeScreen>
                     onToggleSpeed: () => setState(() {
                           _timeScale = _timeScale == 1 ? 10 : 1;
                         })),
-                _GoalBar(game: game, onMoveOn: _confirmMoveOn),
-                _CoachBar(
-                    game: game,
-                    onDismiss: () => setState(() => game.coachStep += 1)),
-                _RushBar(game: game),
-                _CommissionBar(game: game),
+                _StatusStrip(game: game, onTap: () => _openPanel(2)),
                 Expanded(
-                  child: MetroMap(game: game, onStationTap: _openStation),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child:
+                            MetroMap(game: game, onStationTap: _openStation),
+                      ),
+                      // Live state floats OVER the map instead of
+                      // stacking layout bands above it.
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child:
+                            _LiveChips(game: game, onTap: () => _openPanel(1)),
+                      ),
+                      Positioned(
+                        left: 8,
+                        right: 8,
+                        bottom: 8,
+                        child: _CoachBar(
+                            game: game,
+                            onDismiss: () =>
+                                setState(() => game.coachStep += 1)),
+                      ),
+                    ],
+                  ),
                 ),
                 _TabBar(
-                  tabs: const ['LINES', 'NETWORK'],
+                  tabs: const ['LINES', 'OPS', 'GOALS', 'NETWORK'],
                   selected: -1,
                   onSelect: _openPanel,
+                  badges: [
+                    false,
+                    !game.commissionActive && game.commissionLineId != null,
+                    game.canMoveOn,
+                    false,
+                  ],
                 ),
               ],
             );
@@ -489,7 +519,7 @@ const _coachTips = [
       'for every stop at once.',
       _anyStationWork),
   _CoachTip(
-      'The CITY GOAL bar above is the long game — every goal you '
+      'The GOALS tab below is the long game — every goal you '
       'complete is a permanent income multiplier, and finishing the '
       'ladder opens the next city.',
       _twoGoals),
@@ -555,257 +585,473 @@ class _CoachBar extends StatelessWidget {
   }
 }
 
-/// The rush-hour strip: loud while a rush is running, a quiet countdown
-/// while the next one approaches — always naming the line so capacity
-/// can be positioned in advance.
-class _RushBar extends StatelessWidget {
-  const _RushBar({required this.game});
-  final GameState game;
 
-  String _mmss(double s) {
-    final t = s.ceil();
-    return '${t ~/ 60}:${(t % 60).toString().padLeft(2, '0')}';
-  }
+String _mmss(double s) {
+  final t = s.ceil();
+  return '${t ~/ 60}:${(t % 60).toString().padLeft(2, '0')}';
+}
+
+/// One thin line under the header: the current goal and the commendation
+/// bonus. Tap → the full GOALS board. This is the ONLY layout band
+/// between the header and the map.
+class _StatusStrip extends StatelessWidget {
+  const _StatusStrip({required this.game, required this.onTap});
+  final GameState game;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final lineId = game.rushLineId;
-    if (lineId == null) return const SizedBox.shrink();
-    final line = game.city.lineById(lineId);
-    if (game.rushActive) {
-      return Container(
-        color: const Color(0xFFC62828),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+    final goal = game.currentGoal;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 5),
         child: Row(
           children: [
-            RouteBullet(label: line.bullet, color: line.color, size: 16),
+            Text('GOAL',
+                style: TransitStyle.signage(
+                    size: 9,
+                    color: const Color(0xFFEE352E),
+                    weight: FontWeight.w900,
+                    spacing: 1.5)),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                  'RUSH HOUR — ${line.name.toUpperCase()} '
-                  '×${GameState.rushMult.toStringAsFixed(1)} RIDERS',
-                  style: TransitStyle.signage(
-                      size: 11, weight: FontWeight.w900, spacing: 1)),
+              child: goal == null
+                  ? Text(
+                      game.canMoveOn
+                          ? '${game.city.name.toUpperCase()} COMPLETE — tap to move on'
+                          : '${game.city.name.toUpperCase()} COMPLETE',
+                      style: TransitStyle.signage(
+                          size: 11,
+                          color: TransitStyle.ink,
+                          weight: FontWeight.w900))
+                  : Row(
+                      children: [
+                        Text(goal.name,
+                            style: TransitStyle.signage(
+                                size: 11,
+                                color: TransitStyle.ink,
+                                weight: FontWeight.w900,
+                                spacing: 0.5)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: LinearProgressIndicator(
+                            value: game.goalProgress,
+                            minHeight: 3,
+                            color: TransitStyle.ink,
+                            backgroundColor: const Color(0x1A000000),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
-            Text(_mmss(game.rushSecondsLeft),
-                style: TransitStyle.signage(
-                    size: 11, weight: FontWeight.w900)),
+            if (game.goalMult > 1) ...[
+              const SizedBox(width: 10),
+              Text('×${game.goalMult.toStringAsFixed(1)}',
+                  style: TransitStyle.signage(
+                      size: 10,
+                      color: const Color(0x99000000),
+                      weight: FontWeight.w800)),
+            ],
           ],
         ),
-      );
-    }
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      child: Row(
-        children: [
-          Text('NEXT RUSH',
-              style: TransitStyle.signage(
-                  size: 9,
-                  color: const Color(0x99000000),
-                  weight: FontWeight.w800,
-                  spacing: 1.5)),
-          const SizedBox(width: 8),
-          RouteBullet(label: line.bullet, color: line.color, size: 13),
-          const Spacer(),
-          Text('in ${_mmss(game.rushSecondsLeft)}',
-              style: TransitStyle.signage(
-                  size: 10,
-                  color: const Color(0x99000000),
-                  weight: FontWeight.w700)),
-        ],
       ),
     );
   }
 }
 
-/// The commission strip: city hall's standing offer, or the live
-/// contract's progress and countdown.
-class _CommissionBar extends StatelessWidget {
-  const _CommissionBar({required this.game});
+/// Floating live-state chips over the map's corner: rush now/next, and
+/// the running commission. Tap → the OPS board.
+class _LiveChips extends StatelessWidget {
+  const _LiveChips({required this.game, required this.onTap});
   final GameState game;
+  final VoidCallback onTap;
 
-  String _mmss(double s) {
-    final t = s.ceil();
-    return '${t ~/ 60}:${(t % 60).toString().padLeft(2, '0')}';
+  Widget _chip(
+      {required Color bg,
+      Color? border,
+      required List<Widget> children}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        border: border == null ? null : Border.all(color: border),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: children),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final lineId = game.commissionLineId;
-    if (lineId == null) return const SizedBox.shrink();
-    final line = game.city.lineById(lineId);
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      child: Row(
-        children: [
-          Text('COMMISSION',
-              style: TransitStyle.signage(
-                  size: 9,
-                  color: const Color(0x99000000),
-                  weight: FontWeight.w800,
-                  spacing: 1.5)),
-          const SizedBox(width: 8),
-          RouteBullet(label: line.bullet, color: line.color, size: 13),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              game.commissionActive
-                  ? '${game.commissionProgress.floor()}/'
-                      '${game.commissionQuota.floor()} riders · '
-                      '${_mmss(game.commissionTimeLeft)}'
-                  : 'carry ${game.commissionQuota.floor()} riders in '
-                      '${_mmss(GameState.commissionLimit)} → '
-                      '\$${game.commissionReward.toStringAsFixed(0)}',
-              style: TransitStyle.signage(
-                  size: 10,
-                  color: TransitStyle.ink,
-                  weight: FontWeight.w700),
-            ),
-          ),
-          if (!game.commissionActive) ...[
-            GestureDetector(
-              onTap: game.skipCommission,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Text('SKIP',
+    final rushId = game.rushLineId;
+    final chips = <Widget>[];
+    if (rushId != null) {
+      final line = game.city.lineById(rushId);
+      chips.add(game.rushActive
+          ? _chip(bg: const Color(0xFFC62828), children: [
+              RouteBullet(label: line.bullet, color: line.color, size: 14),
+              const SizedBox(width: 6),
+              Text('RUSH ${_mmss(game.rushSecondsLeft)}',
+                  style: TransitStyle.signage(
+                      size: 10, weight: FontWeight.w900, spacing: 0.5)),
+            ])
+          : _chip(
+              bg: Colors.white,
+              border: TransitStyle.hairline,
+              children: [
+                RouteBullet(label: line.bullet, color: line.color, size: 14),
+                const SizedBox(width: 6),
+                Text('rush in ${_mmss(game.rushSecondsLeft)}',
                     style: TransitStyle.signage(
                         size: 10,
                         color: const Color(0x99000000),
-                        weight: FontWeight.w900)),
-              ),
+                        weight: FontWeight.w700)),
+              ]));
+    }
+    final commId = game.commissionLineId;
+    if (game.commissionActive && commId != null) {
+      final line = game.city.lineById(commId);
+      chips.add(_chip(bg: TransitStyle.ink, children: [
+        RouteBullet(label: line.bullet, color: line.color, size: 14),
+        const SizedBox(width: 6),
+        Text(
+            '${game.commissionProgress.floor()}/'
+            '${game.commissionQuota.floor()} · '
+            '${_mmss(game.commissionTimeLeft)}',
+            style: TransitStyle.signage(
+                size: 10, weight: FontWeight.w900)),
+      ]));
+    }
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: chips),
+    );
+  }
+}
+
+/// The OPS board: the rush timetable and the commission desk, expanded.
+class _OpsSheet extends StatelessWidget {
+  const _OpsSheet({required this.game});
+  final GameState game;
+
+  @override
+  Widget build(BuildContext context) {
+    final commId = game.commissionLineId;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SheetSign(
+              game: game,
+              title: Text('OPERATIONS',
+                  style: TransitStyle.signage(size: 16, spacing: 1)),
             ),
-            GestureDetector(
-              onTap: game.acceptCommission,
-              child: Container(
-                color: TransitStyle.ink,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                child: Text('GO',
-                    style: TransitStyle.signage(
-                        size: 10, weight: FontWeight.w900)),
+            const SizedBox(height: 12),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'RUSH HOUR — ×${GameState.rushMult.toStringAsFixed(1)} riders for '
+                      '${GameState.rushWindow.toStringAsFixed(0)}s. Pays in proportion '
+                      'to the spare capacity you have built on the line.',
+                      style: TransitStyle.signage(
+                          size: 10,
+                          color: const Color(0x99000000),
+                          weight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    DataPanel(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (var k = 0; k < 4; k++) ...[
+                            if (k > 0)
+                              Container(
+                                  height: 1, color: TransitStyle.hairline),
+                            Builder(builder: (context) {
+                              final id = game.rushLineIdForCycle(k);
+                              if (id == null) return const SizedBox.shrink();
+                              final line = game.city.lineById(id);
+                              final active = k == 0 && game.rushActive;
+                              final when = game.secondsUntilRushStart(k);
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                    12, 8, 12, 8),
+                                child: Row(
+                                  children: [
+                                    RouteBullet(
+                                        label: line.bullet,
+                                        color: line.color,
+                                        size: 20),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(line.name.toUpperCase(),
+                                          style: TransitStyle.signage(
+                                              size: 12,
+                                              color: TransitStyle.ink,
+                                              weight: FontWeight.w900,
+                                              spacing: 0.5)),
+                                    ),
+                                    Text(
+                                        active
+                                            ? 'RUNNING · ${_mmss(game.rushSecondsLeft)}'
+                                            : 'in ${_mmss(when)}',
+                                        style: TransitStyle.signage(
+                                            size: 11,
+                                            color: active
+                                                ? const Color(0xFFC62828)
+                                                : const Color(0x99000000),
+                                            weight: FontWeight.w800)),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'COMMISSIONS — city hall pays about double the fares for '
+                      'directed work. No penalty for passing or failing. '
+                      'Completed: ${game.commissionsDone}.',
+                      style: TransitStyle.signage(
+                          size: 10,
+                          color: const Color(0x99000000),
+                          weight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    if (commId != null)
+                      DataPanel(
+                        child: Builder(builder: (context) {
+                          final line = game.city.lineById(commId);
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  RouteBullet(
+                                      label: line.bullet,
+                                      color: line.color,
+                                      size: 22),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(line.name.toUpperCase(),
+                                        style: TransitStyle.signage(
+                                            size: 13,
+                                            color: TransitStyle.ink,
+                                            weight: FontWeight.w900,
+                                            spacing: 0.5)),
+                                  ),
+                                  Text(
+                                      '\$${game.commissionReward.toStringAsFixed(0)}',
+                                      style: TransitStyle.signage(
+                                          size: 13,
+                                          color: TransitStyle.ink,
+                                          weight: FontWeight.w900)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              if (game.commissionActive) ...[
+                                LinearProgressIndicator(
+                                  value: (game.commissionProgress /
+                                          game.commissionQuota)
+                                      .clamp(0.0, 1.0),
+                                  minHeight: 5,
+                                  color: TransitStyle.ink,
+                                  backgroundColor: const Color(0x1A000000),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                    '${game.commissionProgress.floor()} / '
+                                    '${game.commissionQuota.floor()} riders · '
+                                    '${_mmss(game.commissionTimeLeft)} left',
+                                    style: TransitStyle.signage(
+                                        size: 11,
+                                        color: const Color(0x99000000),
+                                        weight: FontWeight.w700)),
+                              ] else ...[
+                                Text(
+                                    'Carry ${game.commissionQuota.floor()} riders on this '
+                                    'line within ${_mmss(GameState.commissionLimit)}.',
+                                    style: TransitStyle.signage(
+                                        size: 11,
+                                        color: const Color(0x99000000),
+                                        weight: FontWeight.w700)),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton(
+                                        onPressed: game.acceptCommission,
+                                        child: const Text('ACCEPT'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    OutlinedButton(
+                                      onPressed: game.skipCommission,
+                                      child: const Text('SKIP'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          );
+                        }),
+                      ),
+                  ],
+                ),
               ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
 }
 
-/// The CITY GOAL strip: the game's current target, its progress, and the
-/// compounding commendation bonus already earned — the "why" above the map.
-class _GoalBar extends StatelessWidget {
-  const _GoalBar({required this.game, required this.onMoveOn});
+/// The GOALS board: the whole ladder, done → current → ahead, the
+/// commendation bank, and the move-on button when a city completes.
+class _GoalsSheet extends StatelessWidget {
+  const _GoalsSheet({required this.game, required this.onMoveOn});
   final GameState game;
   final VoidCallback onMoveOn;
 
   @override
   Widget build(BuildContext context) {
-    final goal = game.currentGoal;
-    return DataPanel(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('CITY GOAL · ${game.city.name.toUpperCase()}',
-                  style: TransitStyle.signage(
-                      size: 10,
-                      color: const Color(0x99000000),
-                      weight: FontWeight.w800,
-                      spacing: 1.5)),
-              const Spacer(),
-              if (game.goalMult > 1)
-                Text('commendations ×${game.goalMult.toStringAsFixed(2)}',
-                    style: TransitStyle.signage(
-                        size: 10,
-                        color: const Color(0x99000000),
-                        weight: FontWeight.w800)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          if (goal == null && game.canMoveOn)
-            Row(
-              children: [
-                Expanded(
-                  child: Text('${game.city.name.toUpperCase()} COMPLETE',
+    final goals = game.goals;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SheetSign(
+              game: game,
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text('CITY GOALS · ${game.city.name.toUpperCase()}',
+                        style: TransitStyle.signage(size: 15, spacing: 1)),
+                  ),
+                  Text('×${game.goalMult.toStringAsFixed(1)}',
                       style: TransitStyle.signage(
-                          size: 12,
-                          color: TransitStyle.ink,
-                          weight: FontWeight.w900,
-                          spacing: 0.5)),
-                ),
-                FilledButton(
-                  onPressed: onMoveOn,
-                  child:
-                      Text('OPEN ${game.nextCity!.name.toUpperCase()}'),
-                ),
-              ],
-            )
-          else if (goal == null)
-            Text('${game.city.name.toUpperCase()} COMPLETE — more cities on the way.',
-                style: TransitStyle.signage(
-                    size: 12,
-                    color: TransitStyle.ink,
-                    weight: FontWeight.w900,
-                    spacing: 0.5))
-          else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: Text(goal.name,
-                      style: TransitStyle.signage(
-                          size: 12,
-                          color: TransitStyle.ink,
-                          weight: FontWeight.w900,
-                          spacing: 0.5)),
-                ),
-                Text(
-                  '${_fmt(game.goalValue(goal.kind))} / ${_fmt(goal.target)}'
-                  ' · ×${goal.reward.toStringAsFixed(2)}',
-                  style: TransitStyle.signage(
-                      size: 11,
-                      color: const Color(0x99000000),
-                      weight: FontWeight.w600),
-                ),
-              ],
+                          size: 13,
+                          color: Colors.white70,
+                          weight: FontWeight.w800)),
+                ],
+              ),
             ),
-            const SizedBox(height: 6),
-            LinearProgressIndicator(
-              value: game.goalProgress,
-              minHeight: 4,
-              color: TransitStyle.ink,
-              backgroundColor: const Color(0x1A000000),
+            const SizedBox(height: 12),
+            if (game.canMoveOn) ...[
+              FilledButton(
+                onPressed: onMoveOn,
+                child: Text('OPEN ${game.nextCity!.name.toUpperCase()}'),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Flexible(
+              child: SingleChildScrollView(
+                child: DataPanel(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < goals.length; i++) ...[
+                        if (i > 0)
+                          Container(height: 1, color: TransitStyle.hairline),
+                        Builder(builder: (context) {
+                          final goal = goals[i];
+                          final done = i < game.goalsDone;
+                          final current = i == game.goalsDone;
+                          return Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                        done
+                                            ? Icons.check_box
+                                            : (current
+                                                ? Icons.indeterminate_check_box
+                                                : Icons
+                                                    .check_box_outline_blank),
+                                        size: 14,
+                                        color: done || current
+                                            ? TransitStyle.ink
+                                            : const Color(0x44000000)),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(goal.name,
+                                          style: TransitStyle.signage(
+                                              size: 12,
+                                              color: done || current
+                                                  ? TransitStyle.ink
+                                                  : const Color(0x66000000),
+                                              weight: FontWeight.w900,
+                                              spacing: 0.5)),
+                                    ),
+                                    Text('×${goal.reward.toStringAsFixed(2)}',
+                                        style: TransitStyle.signage(
+                                            size: 11,
+                                            color: const Color(0x99000000),
+                                            weight: FontWeight.w700)),
+                                  ],
+                                ),
+                                if (current) ...[
+                                  const SizedBox(height: 6),
+                                  LinearProgressIndicator(
+                                    value: game.goalProgress,
+                                    minHeight: 4,
+                                    color: TransitStyle.ink,
+                                    backgroundColor: const Color(0x1A000000),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
-
-  static String _fmt(double v) {
-    if (v >= 1e6) {
-      return '${(v / 1e6).toStringAsFixed(v % 1e6 == 0 ? 0 : 1)}M';
-    }
-    if (v >= 1000) {
-      return '${(v / 1000).toStringAsFixed(v % 1000 == 0 ? 0 : 1)}K';
-    }
-    return v.floor().toString();
-  }
 }
+
 
 /// Square-cornered dashboard tab strip: 1px ink border, active tab inverts
 /// to the sign-bar black — same visual language as the data panels.
 class _TabBar extends StatelessWidget {
   const _TabBar(
-      {required this.tabs, required this.selected, required this.onSelect});
+      {required this.tabs,
+      required this.selected,
+      required this.onSelect,
+      this.badges});
 
   final List<String> tabs;
   final int selected;
   final void Function(int) onSelect;
+
+  /// One flag per tab: true draws an attention dot (an offer waiting, a
+  /// city ready to open).
+  final List<bool>? badges;
 
   @override
   Widget build(BuildContext context) {
@@ -824,13 +1070,29 @@ class _TabBar extends StatelessWidget {
                   color: i == selected ? TransitStyle.ink : Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 9),
                   alignment: Alignment.center,
-                  child: Text(
-                    tabs[i],
-                    style: TransitStyle.signage(
-                        size: 12,
-                        color: i == selected ? Colors.white : TransitStyle.ink,
-                        weight: FontWeight.w900,
-                        spacing: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        tabs[i],
+                        style: TransitStyle.signage(
+                            size: 11,
+                            color:
+                                i == selected ? Colors.white : TransitStyle.ink,
+                            weight: FontWeight.w900,
+                            spacing: 1.5),
+                      ),
+                      if (badges != null && i < badges!.length && badges![i])
+                        Container(
+                          margin: const EdgeInsets.only(left: 5),
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEE352E),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),

@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.14.1 · build 34 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
+| **Metro Magnate** | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.15.0 · build 35 | **Active** — approved 9-line network LIVE with per-line upgrades + NETWORK tab (signals, doors, marketing, fare reviews), rebalanced demand |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
 | Territory v1 / Swarm v2 | `client/`+`shared/` / `swarm/` | root / `/swarm/` | — | Legacy/reference, untouched this era |
@@ -56,9 +56,12 @@ own 12-rung ladder (ANGEL BAY COMPLETE at $1.5B lifetime). One-way move;
 - Quiet stations = tiny black dots; waiting riders inflate the dot into a
   white circle showing `up/down` counts (one per departing direction; a
   single number at a line's end); full station = red ring + red numbers
-- Map fills the whole screen (build 23): slim header + goal strip above,
-  LINES/NETWORK as bottom sheets with a live BALANCE readout; opens
-  scale-to-fit and pinch-zooms to 10× with no scroll-gesture conflicts
+- Map fills the whole screen (build 23; console redesign build 35): slim
+  header + ONE goal status line, live rush/commission chips floating over
+  the map corner, and a four-tab console — LINES · OPS (rush timetable +
+  commission desk) · GOALS (full ladder board) · NETWORK — all as bottom
+  sheets with a live BALANCE readout. Attention dots on tabs when an
+  offer waits or a city is ready to open
 
 **Engineering state:**
 - `lib/data/cities.dart` is **generated** from the design rig — never

@@ -367,6 +367,21 @@ class GameState extends ChangeNotifier {
       ? rushPeriod - _rushPhase
       : (rushPeriod - rushWindow) - _rushPhase;
 
+  /// The line cycle [offset] cycles from now will rush (0 = current) —
+  /// the clock is deterministic, so the OPS board can print a timetable.
+  String? rushLineIdForCycle(int offset) {
+    final u = _unlockedInOrder;
+    if (u.isEmpty) return null;
+    return u[((rushClock ~/ rushPeriod) + offset) % u.length];
+  }
+
+  /// Seconds until that cycle's rush window opens (negative = already
+  /// open, for offset 0 while a rush runs).
+  double secondsUntilRushStart(int offset) =>
+      ((rushClock ~/ rushPeriod) + offset) * rushPeriod +
+      (rushPeriod - rushWindow) -
+      rushClock;
+
   /// The rush multiplier hitting this station right now (1 when calm).
   double rushFactorAt(String stationId) => rushActive &&
           (_linesServing[stationId]?.contains(rushLineId) ?? false)

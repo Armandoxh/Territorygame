@@ -476,6 +476,13 @@ void main() {
     expect(g.rushLineId, 'A');
     g.rushClock = GameState.rushPeriod * 2;
     expect(g.rushLineId, '1', reason: 'two lines alternate');
+    // The OPS timetable reads the future off the same clock.
+    g.rushClock = 10;
+    expect(g.rushLineIdForCycle(0), '1');
+    expect(g.rushLineIdForCycle(1), 'A');
+    expect(g.secondsUntilRushStart(0), closeTo(125, 0.001));
+    expect(g.secondsUntilRushStart(1),
+        closeTo(125 + GameState.rushPeriod, 0.001));
   });
 
   test('CITY COMMISSIONS: accept, deliver, get paid — or expire', () {
