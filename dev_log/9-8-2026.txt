@@ -9,3 +9,13 @@ lastUnlockedLineId (pinned in the second-line test: fires on buy, not
 on a failed buy). Camera writes happen via post-frame callbacks so the
 InteractiveViewer is never mutated mid-build; the player regains the
 camera the moment the glide ends.
+
+Build 28 (v0.11.2): 10x playtest fast-forward (player request: "add a
+10x speed I can possibly sit through a play thru"). Header gains a
+fast-forward toggle next to the mute (amber + '10x' while engaged). The
+ticker multiplies frame dt by the scale but simulates it as sub-ticks
+of <=0.05s, so train physics/dwells/boardings are byte-identical to
+real time, just compressed (~200 exact ticks/sec at 10x -- cheap, tick
+is O(stations+trains)). Not persisted -- a session testing tool, resets
+to 1x on reload. Audio rate limiter naturally keeps 10x musical. The
+planned onboarding build shifts to 29.

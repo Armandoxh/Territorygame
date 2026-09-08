@@ -30,6 +30,10 @@ class _HomeScreenState extends State<HomeScreen>
   int _seenGoalSeq = 0;
   int _seenBoardSeqAudio = 0;
   int _seenUnlockCount = 1;
+
+  /// Playtest fast-forward: 1× or 10×. Simulated as many small sub-ticks
+  /// so the physics stay exact — just compressed.
+  double _timeScale = 1;
   late final Ticker _ticker = createTicker(_onTick);
   Duration _lastElapsed = Duration.zero;
   Timer? _savePulse;
@@ -51,7 +55,12 @@ class _HomeScreenState extends State<HomeScreen>
     _lastElapsed = elapsed;
     // Clamp big gaps (backgrounded tab) — long absences are the offline
     // system's job, not one giant frame's.
-    game.tick(dt.clamp(0.0, 0.25));
+    var remaining = dt.clamp(0.0, 0.25) * _timeScale;
+    while (remaining > 0) {
+      final step = remaining < 0.05 ? remaining : 0.05;
+      game.tick(step);
+      remaining -= step;
+    }
     // The soundtrack: the sim is the score. One pluck per frame at most.
     if (game.boardSeq != _seenBoardSeqAudio) {
       _seenBoardSeqAudio = game.boardSeq;
@@ -266,6 +275,10 @@ class _HomeScreenState extends State<HomeScreen>
                     onToggleMute: () => setState(() {
                           CityAudio.ensureStarted();
                           CityAudio.toggleMute();
+                        }),
+                    timeScale: _timeScale,
+                    onToggleSpeed: () => setState(() {
+                          _timeScale = _timeScale == 1 ? 10 : 1;
                         })),
                 _GoalBar(game: game, onMoveOn: _confirmMoveOn),
                 Expanded(
@@ -602,10 +615,16 @@ class _NetworkPanel extends StatelessWidget {
 /// live rates — compact so the map below keeps the screen.
 class _Header extends StatelessWidget {
   const _Header(
-      {required this.game, required this.muted, required this.onToggleMute});
+      {required this.game,
+      required this.muted,
+      required this.onToggleMute,
+      required this.timeScale,
+      required this.onToggleSpeed});
   final GameState game;
   final bool muted;
   final VoidCallback onToggleMute;
+  final double timeScale;
+  final VoidCallback onToggleSpeed;
 
   @override
   Widget build(BuildContext context) {
@@ -643,6 +662,26 @@ class _Header extends StatelessWidget {
                 onTap: onToggleMute,
                 child: Icon(muted ? Icons.volume_off : Icons.volume_up,
                     size: 16, color: Colors.white70),
+              ),
+              const SizedBox(width: 8),
+              // Playtest fast-forward — amber while engaged.
+              GestureDetector(
+                onTap: onToggleSpeed,
+                child: Row(
+                  children: [
+                    Icon(Icons.fast_forward,
+                        size: 16,
+                        color: timeScale > 1
+                            ? const Color(0xFFFCCC0A)
+                            : Colors.white70),
+                    if (timeScale > 1)
+                      Text('10×',
+                          style: TransitStyle.signage(
+                              size: 10,
+                              color: const Color(0xFFFCCC0A),
+                              weight: FontWeight.w900)),
+                  ],
+                ),
               ),
             ],
           ),
