@@ -730,7 +730,12 @@ class _LineRow extends StatelessWidget {
             else
               FilledButton(
                 onPressed: game.cash >= line.unlockCost
-                    ? () => game.buyLine(line.id)
+                    ? () {
+                        // Close the sheet so the opening cinema is visible.
+                        if (game.buyLine(line.id)) {
+                          Navigator.of(context).maybePop();
+                        }
+                      }
                     : null,
                 child:
                     Text('UNLOCK \$${line.unlockCost.toStringAsFixed(0)}'),

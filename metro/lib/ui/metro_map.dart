@@ -29,6 +29,16 @@ class _MetroMapState extends State<MetroMap> {
   final TransformationController _viewer = TransformationController();
   bool _centered = false;
 
+  // Unlock cinema: the newly bought line draws itself in while the
+  // camera glides to it.
+  int _seenUnlockSeq = 0;
+  String? _revealLineId;
+  int _revealStartMs = 0;
+  double _glideFromScale = 1;
+  Offset _glideFromT = Offset.zero;
+  static const int _revealMs = 2200;
+  static const int _glideMs = 1400;
+
   @override
   void dispose() {
     _viewer.dispose();
@@ -73,6 +83,26 @@ class _MetroMapState extends State<MetroMap> {
     }
     _pops.removeWhere((p) => now - p.bornMs > _FarePop.lifeMs);
 
+    if (g.unlockSeq != _seenUnlockSeq) {
+      _seenUnlockSeq = g.unlockSeq;
+      if (g.lastUnlockedLineId.isNotEmpty) {
+        _revealLineId = g.lastUnlockedLineId;
+        _revealStartMs = now;
+        _glideFromScale = _viewer.value.storage[0];
+        _glideFromT =
+            Offset(_viewer.value.storage[12], _viewer.value.storage[13]);
+      }
+    }
+    var revealF = 1.0;
+    if (_revealLineId != null) {
+      final t = (now - _revealStartMs) / _revealMs;
+      if (t >= 1) {
+        _revealLineId = null;
+      } else {
+        revealF = Curves.easeInOut.transform(t.clamp(0.0, 1.0));
+      }
+    }
+
     return Container(
       // STYLE.md: water frames the city; the landmass is painted on top.
       decoration: BoxDecoration(
@@ -97,6 +127,46 @@ class _MetroMapState extends State<MetroMap> {
                 ..translate(0.0, (constraints.maxHeight - side * fit) / 2)
                 ..scale(fit);
             }
+            // Camera glide toward the line being revealed.
+            if (_revealLineId != null) {
+              final lineId = _revealLineId!;
+              final gt = ((now - _revealStartMs) / _glideMs).clamp(0.0, 1.0);
+              final e = Curves.easeInOut.transform(gt);
+              final pts = g.paths[lineId]!.points;
+              var minX = pts.first.dx, maxX = pts.first.dx;
+              var minY = pts.first.dy, maxY = pts.first.dy;
+              for (final p in pts) {
+                if (p.dx < minX) minX = p.dx;
+                if (p.dx > maxX) maxX = p.dx;
+                if (p.dy < minY) minY = p.dy;
+                if (p.dy > maxY) maxY = p.dy;
+              }
+              final sPx = side / g.city.size;
+              final span =
+                  ((maxX - minX) > (maxY - minY) ? (maxX - minX) : (maxY - minY))
+                          .clamp(40.0, g.city.size.toDouble()) *
+                      sPx;
+              final z = (0.72 *
+                      (constraints.maxWidth < constraints.maxHeight
+                          ? constraints.maxWidth
+                          : constraints.maxHeight) /
+                      (span + 40 * sPx))
+                  .clamp(fit, 6.0);
+              final cx = (minX + maxX) / 2 * sPx;
+              final cy = (minY + maxY) / 2 * sPx;
+              final targetT = Offset(constraints.maxWidth / 2 - cx * z,
+                  constraints.maxHeight / 2 - cy * z);
+              if (gt < 1) {
+                final zNow = _glideFromScale + (z - _glideFromScale) * e;
+                final tNow = Offset.lerp(_glideFromT, targetT, e)!;
+                final m = Matrix4.identity()
+                  ..translate(tNow.dx, tNow.dy)
+                  ..scale(zNow);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _revealLineId == lineId) _viewer.value = m;
+                });
+              }
+            }
             return Stack(
               children: [
                 Positioned.fill(
@@ -118,6 +188,8 @@ class _MetroMapState extends State<MetroMap> {
                             game: g,
                             pops: List.of(_pops),
                             nowMs: now,
+                            revealLineId: _revealLineId,
+                            revealFraction: revealF,
                           ),
                         ),
                       ),
@@ -176,11 +248,20 @@ class _FarePop {
 }
 
 class _MapPainter extends CustomPainter {
-  _MapPainter({required this.game, required this.pops, required this.nowMs});
+  _MapPainter(
+      {required this.game,
+      required this.pops,
+      required this.nowMs,
+      this.revealLineId,
+      this.revealFraction = 1});
 
   final GameState game;
   final List<_FarePop> pops;
   final int nowMs;
+
+  /// Unlock cinema: this line draws only [revealFraction] of its length.
+  final String? revealLineId;
+  final double revealFraction;
 
   static const _ink = TransitStyle.ink;
 
@@ -291,7 +372,9 @@ class _MapPainter extends CustomPainter {
     }
     for (final line in city.lines) {
       if (!game.isUnlocked(line.id)) continue;
-      _drawLineSegments(canvas, m, s, line, locked: false);
+      _drawLineSegments(canvas, m, s, line,
+          locked: false,
+          fraction: line.id == revealLineId ? revealFraction : 1);
     }
 
     // How many unlocked lines touch each station (2+ = interchange).
@@ -448,6 +531,12 @@ class _MapPainter extends CustomPainter {
     for (final t in game.trains) {
       final line = city.lineById(t.lineId);
       final path = game.paths[t.lineId]!;
+      // During the cinema a train waits for its track to reach it.
+      if (t.lineId == revealLineId &&
+          revealFraction < 1 &&
+          t.distance > path.length * revealFraction) {
+        continue;
+      }
       final segIdx = path.segmentAt(t.distance);
       final a = path.points[segIdx];
       final b = path.points[segIdx + 1];
@@ -514,11 +603,14 @@ class _MapPainter extends CustomPainter {
   }
 
   /// Draw a line's segments on their lane offsets — solid in the line color,
-  /// or the locked treatment (light-gray PathMetrics dashes).
+  /// or the locked treatment (light-gray PathMetrics dashes). [fraction]
+  /// < 1 draws only that much of the route: the unlock cinema.
   void _drawLineSegments(Canvas canvas, Offset Function(Offset) m, double s,
-      LineDef line, {required bool locked}) {
+      LineDef line, {required bool locked, double fraction = 1}) {
     final pts = game.paths[line.id]!.points;
     final lanes = game.segLane[line.id]!;
+    final budget = game.paths[line.id]!.length * fraction;
+    var drawn = 0.0;
     final paint = Paint()
       ..color = locked ? const Color(0xFFD2D2D2) : line.color
       ..style = PaintingStyle.stroke
@@ -526,10 +618,17 @@ class _MapPainter extends CustomPainter {
       ..strokeCap = locked ? StrokeCap.butt : StrokeCap.round;
     for (var i = 0; i < pts.length - 1; i++) {
       final a = pts[i];
-      final b = pts[i + 1];
+      var b = pts[i + 1];
       final seg = b - a;
       final len = seg.distance;
       if (len < 0.001) continue;
+      if (fraction < 1) {
+        if (drawn >= budget) break;
+        if (drawn + len > budget) {
+          b = a + seg * ((budget - drawn) / len);
+        }
+        drawn += len;
+      }
       final off = Offset(-seg.dy, seg.dx) / len * lanes[i];
       final pa = m(a + off);
       final pb = m(b + off);
@@ -550,8 +649,9 @@ class _MapPainter extends CustomPainter {
         }
       }
     }
-    // Terminal route bullets past both ends (unlocked lines only).
-    if (locked) return;
+    // Terminal route bullets past both ends (unlocked lines only, and
+    // only once the cinema has drawn the whole route).
+    if (locked || fraction < 1) return;
     for (final end in [0, pts.length - 1]) {
       final terminal = pts[end];
       final prev = pts[end == 0 ? 1 : pts.length - 2];

@@ -82,7 +82,13 @@ void main() {
     final solo = run(240).totalEarned;
     final duo = run(240, setup: (g) {
       g.cash = second.unlockCost + 1000;
+      expect(g.unlockSeq, 0);
       expect(g.buyLine(second.id), isTrue);
+      expect(g.unlockSeq, 1,
+          reason: 'the map cinema keys off the unlock event');
+      expect(g.lastUnlockedLineId, second.id);
+      expect(g.buyLine(second.id), isFalse);
+      expect(g.unlockSeq, 1, reason: 'a failed buy fires no cinema');
     }).totalEarned;
     expect(duo, greaterThan(solo * 1.3),
         reason: '${second.id} must add real revenue (got ${duo / solo}x)');

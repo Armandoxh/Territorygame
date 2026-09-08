@@ -1,0 +1,11 @@
+Metro Magnate build 27 (v0.11.1): UNLOCK CINEMA -- Arc 1 continues. When
+a line is bought the LINES sheet closes itself, the camera glides to the
+new route (eased 1.4s, zoom fitted to the line's bounding box, clamped
+to the fit scale), and the line draws itself in along its path over
+2.2s -- partial-segment stroke budget in the painter, terminal bullets
+held until the route completes, and the line's new train waits for its
+track to reach it before appearing. Engine gained unlockSeq +
+lastUnlockedLineId (pinned in the second-line test: fires on buy, not
+on a failed buy). Camera writes happen via post-frame callbacks so the
+InteractiveViewer is never mutated mid-build; the player regains the
+camera the moment the glide ends.

@@ -332,6 +332,10 @@ class GameState extends ChangeNotifier {
   double lastBoardAmount = 0;
   int lastBoardCount = 0;
 
+  /// Bumped when a line unlocks so the map can play its opening cinema.
+  int unlockSeq = 0;
+  String lastUnlockedLineId = '';
+
   // ---- City goals (sequential; each completion compounds income) ----
   // Riders/earned targets are LIFETIME totals, so each city's ladder
   // starts above where the previous city ended.
@@ -789,6 +793,8 @@ class GameState extends ChangeNotifier {
       unlockedLineIds.add(lineId);
       _recomputeServed();
       trains.add(_spawnTrain(line));
+      unlockSeq += 1;
+      lastUnlockedLineId = lineId;
     });
   }
 
