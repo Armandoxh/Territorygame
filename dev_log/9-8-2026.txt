@@ -147,3 +147,26 @@ line-color halos, fare pops shift green->mint for legibility.
 Engine: nightFactor getter (pure, derived from rushClock, tested).
 No fragment-shader toolchain risk taken -- gradients + MaskFilter
 blur only, all CanvasKit-safe. STYLE.md records the light-cycle law.
+
+Build 38 (metro2, v2 render proof): THE ENGINE PIVOT (player: "It's
+not bad. Let's save this trunk. V2 needs to be on a better graphics
+engine"). v1 (Flutter) frozen as the stable trunk at b37, still live
+at /metro/. metro2/ is the new stack: TypeScript + Vite + three.js,
+deployed to /metro2/ by metro2-web.yml. Milestone 1 ships the render
+proof: the approved New Meridian XL geometry (bridged from the
+GENERATED cities.dart via tools/dart2json.py -- rigs + approval gate
+still govern geometry) as a real 3D city: extruded boroughs in the
+bay, ~2000 procedural buildings seeded from station demand (on-land +
+off-track placement checks), track ribbons in official line colors on
+shared-corridor lane offsets, station discs + night lamps, trains as
+lit vehicles with headlight beams, sun/shadows, and the v1 light
+cycle (every rush window is the night rush) with bloom. Engine:
+faithful TS port of the sim core (arrivals, directional platforms,
+ping-pong trains, boarding, rush clock, nightFactor, widest-gap
+spawn, buyLine) with 8 vitest tests mirroring v1 laws. THE BIG
+WORKFLOW WIN: this stack builds locally and headless Chromium
+screenshots the real render -- day and night shots were reviewed and
+exposure-tuned BEFORE deploy (v1 was built blind for 37 builds).
+161KB gzipped vs Flutter's multi-MB. Tag push for the trunk was
+blocked (403, token pushes branch only) -- trunk is recorded here and
+in metro/CLAUDE.md instead: v1 final = build 37, commit 81ceac6.

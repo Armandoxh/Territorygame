@@ -1,6 +1,12 @@
 # Metro Magnate — project rules
 
-## ▶ CURRENT BUILD: v0.17.0 · build 37
+## ▶ FROZEN TRUNK: v0.17.0 · build 37 (v1 final)
+
+**v1 is the saved trunk** — player call 2026-09-08: "Let's save this
+trunk. V2 needs to be on a better graphics engine." v2 lives in
+`metro2/` (TypeScript + three.js, see `metro2/CLAUDE.md`). Fix v1 only
+on explicit request; the balance harness here remains the authority
+while v2 ports systems over.
 
 An idle game about building a subway empire, one line at a time, drawn in
 the modern Live Subway Map dashboard style (see STYLE.md). Lives at

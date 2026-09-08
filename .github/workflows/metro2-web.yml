@@ -1,0 +1,59 @@
+name: MetroMagnate V2 Web
+
+# Builds the Metro Magnate v2 WebGL client (Vite + TypeScript + three.js)
+# and publishes it to the GitHub Pages branch under docs/metro2, so it
+# shows up at https://armandoxh.github.io/Territorygame/metro2/ —
+# alongside v1 at /metro/ (frozen trunk, build 37).
+
+on:
+  push:
+    branches: [claude/investment-game-9xxLw]
+    paths:
+      - 'metro2/**'
+      - '.github/workflows/metro2-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: metro2-web
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: metro2/package-lock.json
+
+      - name: Install
+        working-directory: metro2
+        run: npm ci
+
+      - name: Engine tests
+        working-directory: metro2
+        run: npm test
+
+      - name: Build
+        working-directory: metro2
+        run: npx tsc --noEmit && npx vite build --base=/Territorygame/metro2/
+
+      - name: Deploy to Pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./metro2/dist
+          publish_branch: claude/territorial-game-mobile-xXdYn
+          destination_dir: docs/metro2
+          keep_files: true
+          commit_message: 'Deploy metro2 web build [skip ci]'
+          user_name: 'github-actions[bot]'
+          user_email: '41898282+github-actions[bot]@users.noreply.github.com'
