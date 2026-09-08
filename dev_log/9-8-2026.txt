@@ -185,3 +185,23 @@ checks) -- the organic counterweight to a city of extrusions. Trains
 became rolling stock: rounded body, dark glass window band, rounded
 roof. Both day and night screenshots reviewed locally before deploy,
 one green-tuning iteration on the trees.
+
+Build 40 (metro2): M2 -- THE GAME, WIRED (player: "can we wire the 3D
+UI, add some variance; etc"). Default mode is now the real loop: start
+with line 1, earn fares, open lines and buy trains from the LINE DESK
+(v1 dashboard idiom as a DOM overlay), tap a station for its card
+(waiting up/down, demand, serving bullets), locked routes render as
+pale ghosts until bought, unlocks glide the camera to the new line
+with a toast, fleets grow visually the frame after purchase. Engine:
+buyTrain + the x2.5 cost law, avgRate window, save format v2s1
+(localStorage, autosave 5s + visibilitychange) with v1's offline law
+(50% rate, 8h cap) and a while-you-were-away toast; 10 vitest tests
+incl. save roundtrip + offline cap. Variance: muted facade palette
+(8 tones incl. brick + slate), downtown height falloff so the skyline
+has a shape, landmark towers at busy interchanges. ?showcase keeps
+the b38 orbit demo. THE HEADLESS PLAY TEST CAUGHT A REAL BUG before
+any player: the desk rebuilt its DOM at 4Hz so buttons were
+perpetually detached (taps would misfire) -- panels now rebuild only
+on structural change and mutate in place otherwise. Playwright
+clicked OPEN on South Crosstown and the loop verified in one frame:
+balance down, row flipped to +TRAIN, toast up, camera glided.
