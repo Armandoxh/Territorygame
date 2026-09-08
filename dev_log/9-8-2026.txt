@@ -44,3 +44,14 @@ default Flutter logo sizes, no apple-touch-icon. Fix: web/ un-ignored
 (it is hand-authored now; flutter create skips existing files), all 8
 web files committed. Lesson: after adding files in a previously-ignored
 path, verify they LANDED in the commit stat.
+
+Build 31 (v0.12.2): icon artwork fix (player: "the M is cut off
+halfway"). Root cause found by LOOKING at the generated PNGs: headless
+Chrome clamps windows below ~500px, so the 180/192/32 renders captured
+a cropped corner of a larger canvas -- the apple-touch icon showed half
+a circle, no M. Only the 512 renders were clean. Fix: ship the 512s
+everywhere (apple-touch, favicon, 192 slots get 512 content; browsers
+scale), manifest declares just the two clean 512 entries. Lessons:
+VIEW every generated image at every size before shipping; and a failed
+sed mid-chain silently skipped the version bump (heredoc broke the &&
+chain), hence this follow-up stamp commit.
