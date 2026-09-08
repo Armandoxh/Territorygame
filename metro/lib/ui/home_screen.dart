@@ -925,6 +925,12 @@ class _Header extends StatelessWidget {
               Text('METRO MAGNATE',
                   style: TransitStyle.signage(size: 11, spacing: 2.5)),
               const SizedBox(width: 6),
+              Text('b$kBuildNumber',
+                  style: TransitStyle.signage(
+                      size: 9,
+                      color: Colors.white38,
+                      weight: FontWeight.w700)),
+              const SizedBox(width: 6),
               GestureDetector(
                 onTap: onToggleMute,
                 child: Icon(muted ? Icons.volume_off : Icons.volume_up,

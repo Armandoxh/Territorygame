@@ -86,3 +86,9 @@ contract state (mid-flight contracts survive reloads -- pinned).
 Resolve toast + sound (commendation arpeggio on win, low strike on
 expiry). Tests: deliver-and-get-paid, hopeless-contract expiry,
 stride rotation, mid-flight round-trip.
+
+Build 34 (v0.14.1): build number surfaced in the header (player hasn't
+seen it "since like build 10" -- it lived at the bottom of the old
+scrolling list, then moved into the NETWORK sheet footer in build 23).
+Now a small "b34" sits next to METRO MAGNATE in the sign bar, always
+visible; the full version string stays in the NETWORK sheet footer.
