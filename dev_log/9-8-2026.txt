@@ -19,3 +19,18 @@ real time, just compressed (~200 exact ticks/sec at 10x -- cheap, tick
 is O(stations+trains)). Not persisted -- a session testing tool, resets
 to 1x on reload. Audio rate limiter naturally keeps 10x musical. The
 planned onboarding build shifts to 29.
+
+Build 29 (v0.12.0): THE FIRST FIVE MINUTES -- Arc 1 completes. (1) App
+identity: hand-authored metro/web/ (flutter create skips existing
+files): station-sign app icon (ink square, white rule, red M bullet;
+regular + maskable + apple-touch + favicon, rendered from SVG via
+headless chromium), branded manifest (standalone, portrait, ink theme),
+and a splash in index.html -- ink screen, white rule, M bullet, "METRO
+MAGNATE / NOW ARRIVING" -- removed on flutter-first-frame. The new
+viewport meta (user-scalable=no) also stops Safari page-zoom from
+fighting the map pinch. (2) Coach marks: five state-driven tips in a
+TIP strip under the goal bar (welcome/2nd train/2nd line/station works/
+goal ladder), each auto-dismissing when its milestone is met and
+manually dismissible; coachStep persists (save v12) and veteran saves
+skip all of them instantly. Arc 1 (craft) done: sound, cinema,
+onboarding, identity. Next: Arc 2 strategy (rush hour build 30).

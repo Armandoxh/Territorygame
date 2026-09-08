@@ -336,6 +336,11 @@ class GameState extends ChangeNotifier {
   int unlockSeq = 0;
   String lastUnlockedLineId = '';
 
+  /// How far the first-session coach marks have advanced (persisted).
+  /// The UI owns the tip texts; each auto-advances when its milestone is
+  /// met, so veteran saves skip straight past all of them.
+  int coachStep = 0;
+
   // ---- City goals (sequential; each completion compounds income) ----
   // Riders/earned targets are LIFETIME totals, so each city's ladder
   // starts above where the previous city ended.
@@ -908,7 +913,7 @@ class GameState extends ChangeNotifier {
   }
 
   // ---- Persistence ----
-  static const int saveVersion = 11;
+  static const int saveVersion = 12;
 
   Map<String, dynamic> toJson(int nowMs) => {
         'v': saveVersion,
@@ -933,6 +938,7 @@ class GameState extends ChangeNotifier {
         'trainsetLevels': trainsetLevels,
         'globalLevels': globalLevels,
         'goalsDoneByCity': goalsDoneByCity,
+        'coachStep': coachStep,
         'avgRate': avgRate,
         'lastSeenMs': nowMs,
       };
@@ -975,6 +981,7 @@ class GameState extends ChangeNotifier {
       g.goalsDoneByCity['new_meridian'] = j['goalsDone'] as int;
     }
     g._recomputeGoalMult();
+    g.coachStep = (j['coachStep'] as int?) ?? 0;
     g.avgRate = (j['avgRate'] as num).toDouble();
     g._loadedLastSeenMs = j['lastSeenMs'] as int?;
 

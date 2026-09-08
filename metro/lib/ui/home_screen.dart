@@ -281,6 +281,9 @@ class _HomeScreenState extends State<HomeScreen>
                           _timeScale = _timeScale == 1 ? 10 : 1;
                         })),
                 _GoalBar(game: game, onMoveOn: _confirmMoveOn),
+                _CoachBar(
+                    game: game,
+                    onDismiss: () => setState(() => game.coachStep += 1)),
                 Expanded(
                   child: MetroMap(game: game, onStationTap: _openStation),
                 ),
@@ -422,6 +425,101 @@ class _NetworkSheet extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// One first-session coach mark: the tip text and the milestone that
+/// auto-dismisses it. A veteran save satisfies every milestone at once
+/// and never sees a tip.
+class _CoachTip {
+  const _CoachTip(this.text, this.done);
+  final String text;
+  final bool Function(GameState) done;
+}
+
+const _coachTips = [
+  _CoachTip(
+      'Welcome, Magnate. Your ① train runs itself — riders queue at '
+      'stations and pay \$2 each when it scoops them. Pinch the map to '
+      'look around your city.',
+      _riders300),
+  _CoachTip(
+      'Money buys throughput. Tap LINES below → ① MERIDIAN LOCAL → '
+      'ADD TRAIN. It will enter exactly opposite your first train.',
+      _twoTrains),
+  _CoachTip(
+      'Next stop: a second line. Save up and UNLOCK the Ⓐ HARBOR RUNNER '
+      'from the LINES sheet — watch it draw itself onto the map.',
+      _twoLines),
+  _CoachTip(
+      'Stations have their own works: tap any station dot for food '
+      'courts, fare gates, escalators and more. Line sheets can buy them '
+      'for every stop at once.',
+      _anyStationWork),
+  _CoachTip(
+      'The CITY GOAL bar above is the long game — every goal you '
+      'complete is a permanent income multiplier, and finishing the '
+      'ladder opens the next city.',
+      _twoGoals),
+];
+
+bool _riders300(GameState g) => g.totalRiders >= 300;
+bool _twoTrains(GameState g) => g.trains.length >= 2;
+bool _twoLines(GameState g) => g.unlockedLineIds.length >= 2;
+bool _anyStationWork(GameState g) =>
+    g.foodLevel.values.any((v) => v > 0) ||
+    g.gateLevel.values.any((v) => v > 0) ||
+    g.platformLevel.values.any((v) => v > 0) ||
+    g.parkingLevel.values.any((v) => v > 0) ||
+    g.escalatorLevel.values.any((v) => v > 0) ||
+    g.securityLevel.values.any((v) => v > 0);
+bool _twoGoals(GameState g) => g.goalsDone >= 2;
+
+/// The coach strip under the goal bar: the current tip, dismissible,
+/// gone forever once the first session's milestones are done.
+class _CoachBar extends StatelessWidget {
+  const _CoachBar({required this.game, required this.onDismiss});
+  final GameState game;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    // Auto-advance past every tip whose milestone is already met.
+    while (game.coachStep < _coachTips.length &&
+        _coachTips[game.coachStep].done(game)) {
+      game.coachStep += 1;
+    }
+    if (game.coachStep >= _coachTips.length) return const SizedBox.shrink();
+    final tip = _coachTips[game.coachStep];
+    return DataPanel(
+      padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('TIP',
+              style: TransitStyle.signage(
+                  size: 10,
+                  color: const Color(0xFFEE352E),
+                  weight: FontWeight.w900,
+                  spacing: 1.5)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(tip.text,
+                style: TransitStyle.signage(
+                    size: 11,
+                    color: TransitStyle.ink,
+                    weight: FontWeight.w600)),
+          ),
+          GestureDetector(
+            onTap: onDismiss,
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.close, size: 14, color: Color(0x66000000)),
+            ),
+          ),
+        ],
       ),
     );
   }

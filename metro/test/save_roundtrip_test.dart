@@ -51,6 +51,10 @@ void main() {
     expect(r.securityLevel['s224_282'], 1);
     expect(r.stationPriority, orderedEquals(g.stationPriority),
         reason: 'my works priority order survives the reload');
+    g.coachStep = 3;
+    final r2 = GameState.fromJson(
+        jsonDecode(jsonEncode(g.toJson(1))) as Map<String, dynamic>);
+    expect(r2.coachStep, 3, reason: 'coach marks never repeat themselves');
     expect(r.trainsetLevelOf('1'), g.trainsetLevelOf('1'));
     expect(r.goalsDone, g.goalsDone);
     expect(r.goalMult, closeTo(g.goalMult, 1e-9));
