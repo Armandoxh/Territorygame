@@ -317,3 +317,22 @@ strip, sections, bars, rewards. GOALS: compact rows (~90px vs
 colored chips (no x1.00 no-ops); panel-head titles ellipsize (the
 collision bug class); bottom padding fixes the clipped-fraction bug;
 disclosure triangles gone. Streets darken with the night cycle.
+
+Build 58 (metro2): THE PLAYER-MOCKUP CHROME (player sent two
+metro-redesign.html mockups: "This is what I was thinking").
+index.html rewritten to the mock's dark chrome around the light map:
+HEADER as one composed card -- NEW MERIDIAN small caps + speed
+toggle, HUGE cash figure, mono green +$21.20 / sec, and a NEXT goal
+row with an embedded bar and percentage. BOTTOM NAV: icon+label tabs
+(LINES ▤ / OPS ◈ / GOALS ◎ / NET ⬡) with a red active underline and
+the day/night PHASE as an iconed nav slot (☀/◐/☾/⚡). All panels
+converted to the dark card system (CSS vars: bg/card/edge/dim), buy
+buttons keep the line-color affordance system on dark. GOALS matches
+the mock exactly: multiplier chips all visible but only LIVE ones
+lit, colored square section bullets with n/8 counters, goal cards
+whose PROGRESS IS THE CARD FILL (tinted background width), lock
+icons on next goals, mono numerals with unit words ("5.2K / 10K
+riders"). MAP per mock: building-block footprints fill street cells
+(one merged mesh, off-track), and LOCKED ROUTES NOW DASH IN THEIR
+OWN LINE COLORS instead of anonymous gray -- the network's future is
+legible. Streets/blocks darken with the night cycle.

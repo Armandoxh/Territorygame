@@ -24,6 +24,17 @@ export const TRACK_COLORS: Record<string, string> = {
   mastery: '#8a5fc9',
 };
 
+const KIND_WORDS: Record<string, string> = {
+  riders: 'riders',
+  earned: 'earned',
+  lines: 'lines built',
+  trains: 'trains',
+  commissions: 'contracts',
+  works: 'works built',
+  lineUpgrades: 'upgrade lvls',
+  rushEarned: 'rush earnings',
+};
+
 /** Compact figures with MATCHED units on both sides of a slash. */
 function cfmt(v: number): string {
   if (v >= 1e9) return (v / 1e9).toFixed(v % 1e9 === 0 ? 0 : 1) + 'B';
@@ -124,6 +135,14 @@ export class Console {
     this.mode = mode;
     this.panelEl.hidden = mode === null;
     if (mode) this.hideStation();
+    const active =
+      mode?.kind === 'line' ? 'lines' : mode?.kind === 'network' ? 'network' : mode?.kind;
+    for (const [btn, key] of [
+      ['btn-lines', 'lines'], ['btn-ops', 'ops'],
+      ['btn-goals', 'goals'], ['btn-network', 'network'],
+    ] as const) {
+      document.getElementById(btn)!.classList.toggle('on', active === key);
+    }
     this.structSeq++;
     if (mode) this.renderPanel();
   }
@@ -659,38 +678,34 @@ export class Console {
 
   private goalsHtml(): string {
     const g = this.game;
-    const chips: string[] = [];
-    if (g.goalMult > 1) {
-      chips.push(`<span class="multchip" style="color:#b07714">income ×${g.goalMult.toFixed(2)}</span>`);
-    }
-    if (g.demandGoalMult > 1) {
-      chips.push(`<span class="multchip" style="color:#2f9e63">riders ×${g.demandGoalMult.toFixed(2)}</span>`);
-    }
-    if (g.buildCostMult < 1) {
-      chips.push(`<span class="multchip" style="color:#4a6fd8">costs ×${g.buildCostMult.toFixed(2)}</span>`);
-    }
-    const earned = chips.length
-      ? `<div class="multrow">${chips.join('')}</div>`
-      : '';
+    const chip = (label: string, live: boolean, color: string): string =>
+      `<span class="multchip${live ? ' lit' : ''}"${live ? ` style="color:${color}"` : ''}>${label}</span>`;
+    const earned =
+      `<div class="multrow">` +
+      chip(`riders ×${g.demandGoalMult.toFixed(2)}`, g.demandGoalMult > 1, '#57c785') +
+      chip(`income ×${g.goalMult.toFixed(2)}`, g.goalMult > 1, '#f0a04a') +
+      chip(`costs ×${g.buildCostMult.toFixed(2)}`, g.buildCostMult < 1, '#5b8def') +
+      `</div>`;
     const section = (track: GoalTrack): string => {
       const color = TRACK_COLORS[track.id];
       const done = g.trackDone(track.id);
       const goal = g.trackCurrentGoal(track.id);
       const current = goal
-        ? `<div class="grow" style="--tk:${color}">
-            <div class="growline"><span class="gname">${goal.name}</span>
-              <span class="greward" style="color:${color}">×${goal.reward}</span></div>
-            <div class="growbar"><div class="gfill" id="goal-bar-${track.id}"
-              style="width:${100 * g.trackProgress(track.id)}%"></div></div>
-            <div class="gfrac" id="goal-live-${track.id}">${cfmt(g.goalValue(goal.kind))} / ${cfmt(goal.target)}</div>
+        ? `<div class="gcard" style="--tk:${color}">
+            <div class="gfill2" id="goal-bar-${track.id}"
+              style="width:${100 * g.trackProgress(track.id)}%"></div>
+            <div class="gtitle">${goal.name}</div>
+            <div class="gsub" id="goal-live-${track.id}">${cfmt(g.goalValue(goal.kind))} / ${cfmt(goal.target)} ${KIND_WORDS[goal.kind]}</div>
+            <span class="gr" style="color:${color}">${benefitLabel(track.benefit, goal.reward)}</span>
           </div>`
-        : `<div class="grow"><div class="growline"><span class="gname" style="color:#999">TRACK COMPLETE ✓</span></div></div>`;
+        : `<div class="gcard"><div class="gtitle" style="color:#57c785">TRACK COMPLETE ✓</div></div>`;
       const upNext = track.goals[done + 1];
       const next = upNext
-        ? `<div class="gnext">next · ${upNext.name} · ×${upNext.reward}</div>`
+        ? `<div class="gnext"><span>🔒</span><span>${upNext.name}</span>
+            <span class="gr2">×${upNext.reward}</span></div>`
         : '';
       return (
-        `<div class="sect" style="color:${color}">${track.name} — ${track.blurb} · ${done}/${track.goals.length}</div>` +
+        `<div class="sect" style="color:${color}"><span class="sq" style="background:${color}"></span>${track.name}<span class="cnt">${done}/${track.goals.length}</span></div>` +
         current +
         next
       );
@@ -735,7 +750,7 @@ export class Console {
         const goal = g.trackCurrentGoal(track.id);
         const live = document.getElementById(`goal-live-${track.id}`);
         if (goal && live) {
-          live.textContent = `${cfmt(g.goalValue(goal.kind))} / ${cfmt(goal.target)}`;
+          live.textContent = `${cfmt(g.goalValue(goal.kind))} / ${cfmt(goal.target)} ${KIND_WORDS[goal.kind]}`;
           const bar = document.getElementById(`goal-bar-${track.id}`);
           if (bar) bar.style.width = `${100 * g.trackProgress(track.id)}%`;
         }
@@ -774,26 +789,29 @@ export class Console {
   update(nowMs: number): void {
     const g = this.game;
     this.cashEl.innerHTML =
-      `$${fmt(g.cash)} <span class="cashrate">+$${g.avgRate >= 100 ? fmt(g.avgRate) : g.avgRate.toFixed(1)}/s</span>`;
+      `$${fmt(g.cash)}<span class="cashrate">+$${g.avgRate >= 100 ? fmt(g.avgRate) : g.avgRate.toFixed(2)} / sec</span>`;
     this.rateEl.textContent = `${fmt(g.totalRiders)} riders`;
     const n = g.nightFactor;
-    this.phaseEl.textContent = g.rushActive
-      ? 'NIGHT RUSH'
+    const phase = g.rushActive
+      ? ['⚡', 'RUSH']
       : n === 0
-        ? 'DAY'
+        ? ['☀', 'DAY']
         : n === 1
-          ? 'NIGHT'
+          ? ['☾', 'NIGHT']
           : g.rushClock % 180 < 110
-            ? 'DAWN'
-            : 'DUSK';
+            ? ['◑', 'DAWN']
+            : ['◐', 'DUSK'];
+    this.phaseEl.innerHTML = `<i>${phase[0]}</i>${phase[1]}`;
     const best = g.bestTrack;
     const strip = document.getElementById('goal-strip')!;
     if (best.goal) {
       const color = TRACK_COLORS[best.track.id];
-      strip.innerHTML = `<span>${best.goal.name}</span>
-        <span class="gsbar"><span class="gsfill" style="width:${Math.floor(best.progress * 100)}%;background:${color}"></span></span>`;
+      const pct = Math.floor(best.progress * 100);
+      strip.innerHTML = `<span class="gslabel"><b>NEXT · </b>${best.goal.name}</span>
+        <span class="gsbar"><span class="gsfill" style="width:${pct}%;background:${color}"></span></span>
+        <span class="gspct">${pct}%</span>`;
     } else {
-      strip.textContent = 'ALL TRACKS COMPLETE';
+      strip.innerHTML = '<span class="gslabel">ALL TRACKS COMPLETE</span>';
     }
     document
       .getElementById('btn-ops')!

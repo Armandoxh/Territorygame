@@ -266,6 +266,7 @@ export class CityScene {
   private servedDiscs = new Map<string, THREE.Group>();
   private discMats = new Map<string, THREE.MeshBasicMaterial>();
   private streetMat: THREE.MeshBasicMaterial | null = null;
+  private blockMat: THREE.MeshBasicMaterial | null = null;
   private counts = new Map<string, CountSprite>();
   private labels = new Map<string, THREE.Sprite>();
   private trainGroups: THREE.Group[] = [];
@@ -393,6 +394,41 @@ export class CityScene {
       );
     }
 
+    // Building-block footprints in the street cells (flat, subtle).
+    {
+      const rnd = (() => {
+        let a = 0xbeef;
+        return () => {
+          a = (a * 1103515245 + 12345) & 0x7fffffff;
+          return a / 0x7fffffff;
+        };
+      })();
+      const blockParts: THREE.BufferGeometry[] = [];
+      const step = 13;
+      for (let cx = step; cx < city.size; cx += step) {
+        for (let cy = step; cy < city.size; cy += step) {
+          if (rnd() > 0.34) continue;
+          const x = cx - step / 2 + (rnd() - 0.5) * 3;
+          const y = cy - step / 2 + (rnd() - 0.5) * 3;
+          if (!onLand(city, x, y)) continue;
+          if (city.stations.some((st) => Math.hypot(st.x - x, st.y - y) < 7)) continue;
+          const w = 5 + rnd() * 3.5;
+          const h = 5 + rnd() * 3.5;
+          const g = new THREE.BoxGeometry(w, 0.04, h);
+          g.translate(x, LAND_H + 0.02, y);
+          blockParts.push(g);
+        }
+      }
+      if (blockParts.length > 0) {
+        const blocks = new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(blockParts),
+          new THREE.MeshBasicMaterial({ color: 0xe3e1da }),
+        );
+        this.blockMat = blocks.material as THREE.MeshBasicMaterial;
+        this.scene.add(blocks);
+      }
+    }
+
     const parkMat = new THREE.MeshStandardMaterial({ color: 0xcbe2c6, roughness: 1 });
     for (const p of city.parks) {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.w, 0.25, p.h), parkMat);
@@ -462,9 +498,10 @@ export class CityScene {
       const solid = new THREE.Mesh(BufferGeometryUtils.mergeGeometries(solidParts), mat);
       this.solidMeshes.push(solid);
       this.scene.add(solid);
+      const dashColor = new THREE.Color(line.color).lerp(new THREE.Color(0xffffff), 0.25);
       const dashed = new THREE.Mesh(
         BufferGeometryUtils.mergeGeometries(dashParts),
-        new THREE.MeshStandardMaterial({ color: 0xd2d2d2, roughness: 1 }),
+        new THREE.MeshStandardMaterial({ color: dashColor, roughness: 1 }),
       );
       this.dashedMeshes.push(dashed);
       this.scene.add(dashed);
@@ -685,6 +722,7 @@ export class CityScene {
     this.water.color.set(0xbdd3e8).lerp(new THREE.Color(0x141b29), n);
     this.landMat.color.set(0xfaf9f6).lerp(new THREE.Color(0x2b3040), n);
     this.streetMat?.color.set(0xe9e7e1).lerp(new THREE.Color(0x3a4053), n);
+    this.blockMat?.color.set(0xe3e1da).lerp(new THREE.Color(0x333a4e), n);
     this.hemi.intensity = 1.9 - 1.1 * n;
     this.solidMats.forEach((mat, i) => {
       const unlocked = g.isUnlocked(g.city.lines[i].id);
