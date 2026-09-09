@@ -177,3 +177,16 @@ uptown count top-left, downtown count bottom-right, an ink slash
 between (white-haloed stroke so it stays crisp on any ground), red
 at platform cap, nothing drawn when empty. One square canvas sprite
 per served station, redrawn only when the numbers change.
+
+Build 50 (metro2): COMPACT COUNTS + NIGHT-PROOF MARKERS (player on
+b49 night screenshot: "Nope. numbers too far. Compact. doesn't need
+this big bold font"). Fraction redrawn: digits hug the slash (spread
+halved), font 900/54 -> 700/38, sprite 0.055 -> 0.05 — the whole
+readout sits ON the disc. The clipping in the screenshot was depth:
+count sprites z-fought the disc top (both ~ +0.25); counts and
+labels now render depthTest:false with explicit renderOrder, always
+above the map. And the muddy night discs: station markers were
+MeshStandardMaterial dimmed by the night hemisphere — now unlit
+MeshBasicMaterial, so discs stay paper-white on the dark map like a
+proper glowing diagram (ring softened to #3a3f4c to read on both
+grounds).

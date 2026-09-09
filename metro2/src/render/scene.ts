@@ -22,7 +22,6 @@ import { Game } from '../engine/game';
 const LAND_H = 1.2;
 const TRACK_Y = LAND_H + 0.35;
 const LANE_GAP = 3.2; // v1's approved side-by-side corridor gap
-const INK = 0x1a1a1a;
 
 interface LaneTable {
   laneOf(lineId: string, segIdx: number): number;
@@ -91,11 +90,13 @@ class CountSprite {
       new THREE.SpriteMaterial({
         map: this.tex,
         depthWrite: false,
+        depthTest: false, // never clipped by the disc beneath
         transparent: true,
         sizeAttenuation: false, // constant screen size, always legible
       }),
     );
-    this.sprite.scale.set(0.055, 0.055, 1);
+    this.sprite.renderOrder = 20;
+    this.sprite.scale.set(0.05, 0.05, 1);
     this.sprite.position.set(x, TRACK_Y + 0.25, z); // centered on the dot
   }
 
@@ -112,30 +113,30 @@ class CountSprite {
     const ink = full ? '#C62828' : '#1a1a1a';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
-    // The slash, drawn as a stroke so it stays crisp at any weight.
-    ctx.lineWidth = 9;
+    // A compact fraction hugging the slash — everything stays on the
+    // disc. Halo first, ink second, modest weight.
+    ctx.lineWidth = 6;
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.beginPath();
-    ctx.moveTo(64, 132);
-    ctx.lineTo(112, 44);
+    ctx.moveTo(74, 114);
+    ctx.lineTo(102, 62);
     ctx.stroke();
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 3.5;
     ctx.strokeStyle = ink;
     ctx.beginPath();
-    ctx.moveTo(64, 132);
-    ctx.lineTo(112, 44);
+    ctx.moveTo(74, 114);
+    ctx.lineTo(102, 62);
     ctx.stroke();
-    // Uptown top-left, downtown bottom-right.
-    ctx.font = '900 54px Inter, sans-serif';
-    ctx.lineWidth = 8;
+    ctx.font = '700 38px Inter, sans-serif';
+    ctx.lineWidth = 6;
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'right';
-    ctx.strokeText(String(up), 74, 48);
+    ctx.strokeText(String(up), 82, 66);
     ctx.fillStyle = ink;
-    ctx.fillText(String(up), 74, 48);
+    ctx.fillText(String(up), 82, 66);
     ctx.textAlign = 'left';
-    ctx.strokeText(String(down), 102, 130);
-    ctx.fillText(String(down), 102, 130);
+    ctx.strokeText(String(down), 94, 110);
+    ctx.fillText(String(down), 94, 110);
     this.tex.needsUpdate = true;
   }
 }
@@ -390,7 +391,7 @@ export class CityScene {
     // ---- Stations: v1's marker language. Every stop starts as a tiny
     // gray dot; service upgrades it to the white disc + ink ring with a
     // live count and a name label. ----
-    const dotMat = new THREE.MeshStandardMaterial({ color: 0xbdbdbd, roughness: 1 });
+    const dotMat = new THREE.MeshBasicMaterial({ color: 0xbdbdbd });
     const dotParts: THREE.BufferGeometry[] = [];
     for (const st of city.stations) {
       const g = new THREE.CylinderGeometry(0.6, 0.6, 0.35, 10);
@@ -419,12 +420,12 @@ export class CityScene {
       const r = interchange ? 2.4 : 1.9;
       const ring = new THREE.Mesh(
         new THREE.CylinderGeometry(r + 0.5, r + 0.5, 0.3, 24),
-        new THREE.MeshStandardMaterial({ color: INK, roughness: 1 }),
+        new THREE.MeshBasicMaterial({ color: 0x3a3f4c }),
       );
       ring.position.set(st.x, TRACK_Y + 0.1, st.y);
       const disc = new THREE.Mesh(
         new THREE.CylinderGeometry(r, r, 0.34, 24),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }),
+        new THREE.MeshBasicMaterial({ color: 0xffffff }),
       );
       disc.position.set(st.x, TRACK_Y + 0.14, st.y);
       group.add(ring, disc);
@@ -445,10 +446,12 @@ export class CityScene {
         new THREE.SpriteMaterial({
           map: tex,
           depthWrite: false,
+          depthTest: false,
           transparent: true,
           sizeAttenuation: false,
         }),
       );
+      label.renderOrder = 19;
       label.scale.set(0.15, 0.02625, 1);
       label.center.set(0.5, 1.7);
       label.position.set(st.x, TRACK_Y + 0.2, st.y);
