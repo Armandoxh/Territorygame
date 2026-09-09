@@ -252,6 +252,141 @@ describe('the ported core', () => {
     expect(STATION_WORKS.length).toBe(6);
   });
 
+  test('CITY GOALS: the 22-rung ladder compounds commendations (v1 law)', () => {
+    const g = new Game(city);
+    expect(g.goals.length).toBe(22);
+    expect(g.currentGoal!.name).toBe('OPENING DAY');
+    expect(g.goalMult).toBe(1);
+    g.cash = 1e12;
+    for (const line of city.lines) g.buyLine(line.id);
+    g.totalRiders = 5_000_000;
+    g.totalEarned = 250_000_000;
+    g.commissionsDone = 99;
+    g.rushEarnings = 1e9;
+    for (const l of ['1', 'A', 'L', 'M', 'N', 'J']) g.speedLevels.set(l, 10);
+    const stops = city.lines[0].stationIds;
+    // Parking counts as works but has no income term, so the exact
+    // fare-per-rider assertion below stays checkable.
+    for (let i = 0; i < 8; i++) g.parkingLevel.set(stops[i], 5);
+    g.tick(0.1);
+    expect(g.currentGoal).toBeNull();
+    let expected = 1;
+    for (const goal of g.goals) expected *= goal.reward;
+    expect(g.goalMult).toBeCloseTo(expected, 6);
+    expect(g.incomePerRiderAt('s126_452')).toBeCloseTo(Game.fare * expected, 3);
+    expect(g.goalProgress).toBe(1);
+  });
+
+  test('the first commendation fires by itself in normal play', () => {
+    const g = run(400, (s) => {
+      s.cash = 10000;
+      s.buyTrain('1');
+    });
+    expect(g.goalsDone).toBeGreaterThanOrEqual(1);
+    expect(g.goalMult).toBeGreaterThanOrEqual(1.25);
+  });
+
+  test('contract types rotate through five different jobs', () => {
+    const g = new Game(city);
+    expect(g.commissionType).toBe('haul');
+    g.skipCommission();
+    expect(g.commissionType).toBe('express');
+    expect(g.commissionQuota).toBe(6);
+    g.skipCommission();
+    expect(g.commissionType).toBe('station');
+    expect(g.commissionStationId).not.toBeNull();
+    g.skipCommission();
+    expect(g.commissionType).toBe('sweep');
+    expect(g.commissionQuota).toBe(city.lines[0].stationIds.length);
+    g.skipCommission();
+    expect(g.commissionType).toBe('rushCash');
+    expect(g.commissionTimeLimit).toBe(240);
+    g.skipCommission();
+    expect(g.commissionType).toBe('haul');
+  });
+
+  test('TURNBACK RUN pays for fleet speed', () => {
+    const g = new Game(city);
+    g.commissionIndex = 1;
+    g.cash = 1e9;
+    g.buyTrain('1');
+    g.buyTrain('1');
+    g.buyTrain('1');
+    g.acceptCommission();
+    let guard = 0;
+    while (g.commissionActive && guard++ < 12000) g.tick(0.1);
+    expect(g.lastCommissionWon).toBe(true);
+  });
+
+  test('HUB SERVICE: bare service fails, an invested line+hub wins', () => {
+    const bare = new Game(city);
+    bare.commissionIndex = 2;
+    const hub = bare.commissionStationId!;
+    expect(city.lines[0].stationIds[0]).not.toBe(hub);
+    bare.acceptCommission();
+    let guard = 0;
+    while (bare.commissionActive && guard++ < 12000) bare.tick(0.1);
+    expect(bare.lastCommissionWon).toBe(false);
+
+    const g = new Game(city);
+    g.commissionIndex = 2;
+    g.carLevels.set('1', 3);
+    g.foodLevel.set(hub, 5);
+    g.parkingLevel.set(hub, 5);
+    g.acceptCommission();
+    guard = 0;
+    while (g.commissionActive && guard++ < 12000) g.tick(0.1);
+    expect(g.lastCommissionWon).toBe(true);
+  });
+
+  test('CLEAN SWEEP wins the moment every platform is clear', () => {
+    const g = new Game(city);
+    g.commissionIndex = 3;
+    g.acceptCommission();
+    g.tick(0.1); // fresh platforms are all under the threshold
+    expect(g.lastCommissionWon).toBe(true);
+  });
+
+  test('RUSH CONTRACT counts only rush-window earnings', () => {
+    const g = new Game(city);
+    g.commissionIndex = 4;
+    g.acceptCommission();
+    for (let i = 0; i < 1340; i++) g.tick(0.1); // to 134s — still calm
+    expect(g.commissionProgress).toBe(0);
+    for (let i = 0; i < 300; i++) g.tick(0.1); // through the rush window
+    expect(g.commissionProgress).toBeGreaterThan(0);
+    expect(g.rushEarnings).toBeGreaterThan(0);
+  });
+
+  test('a hopeless contract expires and the desk moves on', () => {
+    const g = new Game(city);
+    g.commissionIndex = 12; // a HUB SERVICE far beyond a level-0 hub
+    expect(g.commissionType).toBe('station');
+    g.acceptCommission();
+    for (let i = 0; i < 1300; i++) g.tick(0.1);
+    expect(g.commissionActive).toBe(false);
+    expect(g.lastCommissionWon).toBe(false);
+    expect(g.commissionIndex).toBe(13);
+  });
+
+  test('mid-flight commissions, goals, and rush earnings survive a save', () => {
+    const m = new Game(city);
+    m.acceptCommission();
+    m.goalsDoneByCity.set('new_meridian', 3);
+    m.rushEarnings = 1234.5;
+    for (let i = 0; i < 100; i++) m.tick(0.1);
+    const r = Game.fromJson(city, JSON.parse(JSON.stringify(m.toJson(1))), 1).game;
+    expect(r.commissionActive).toBe(true);
+    expect(r.commissionLineId).toBe(m.commissionLineId);
+    expect(r.commissionProgress).toBeCloseTo(m.commissionProgress, 3);
+    expect(r.commissionTimeLeft).toBeCloseTo(m.commissionTimeLeft, 3);
+    expect(r.goalsDone).toBe(m.goalsDone);
+    // The restore RECOMPUTES the multiplier from the ladder — the saved
+    // 3 rungs are worth exactly 1.25³.
+    expect(r.goalMult).toBeCloseTo(1.25 * 1.25 * 1.25, 9);
+    expect(r.rushEarnings).toBeCloseTo(m.rushEarnings + 0, 1);
+  });
+
   test('every train keeps serving with the whole network unlocked', () => {
     const g = Game.showcase(city, 2);
     for (let i = 0; i < 1200; i++) g.tick(0.1);

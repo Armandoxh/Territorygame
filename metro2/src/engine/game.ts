@@ -8,7 +8,9 @@
  * widest-gap train spawning, line unlocks, and (M3) the FULL UPGRADE
  * ECONOMY — per-line upgrades, the six station works with tier-even
  * bulk buying and player priority, and the eight network upgrades.
- * Commissions and the goal ladder port next.
+ * (M3b) the OPS layer — rush timetable helpers, the five rotating
+ * commission types — and the CITY GOALS ladder whose commendations
+ * compound income. The Angel Bay city ladder ports next.
  */
 import { CityDef, LineDef, LinePath } from './city';
 
@@ -75,6 +77,27 @@ export class Game {
 
   // ---- Network-wide upgrade levels ----
   readonly globalLevels = new Map<string, number>();
+
+  // ---- City commissions (opt-in directed contracts) ----
+  static readonly commissionLimit = 120;
+  static readonly sweepThreshold = 25;
+  commissionIndex = 0;
+  commissionsDone = 0;
+  commissionActive = false;
+  commissionProgress = 0;
+  commissionTimeLeft = 0;
+  /** Bumped when a commission resolves so the UI celebrates/consoles. */
+  commissionSeq = 0;
+  lastCommissionWon = false;
+
+  // ---- City goals (sequential; each completion compounds income) ----
+  readonly goalsDoneByCity = new Map<string, number>();
+  private _goalMult = 1;
+  goalSeq = 0;
+  lastGoalName = '';
+  lastGoalReward = 1;
+  /** Lifetime money earned during rush windows. */
+  rushEarnings = 0;
 
   /** $/s estimate over a rolling window (drives HUD + offline pay). */
   avgRate = 0;
@@ -199,7 +222,8 @@ export class Game {
           0.25 * (this.gateLevel.get(stationId) ?? 0)) *
           this.fareScale) *
       (1 + 0.04 * (this.securityLevel.get(stationId) ?? 0)) *
-      (1 + 0.03 * this.globalLevelOf('billboards'))
+      (1 + 0.03 * this.globalLevelOf('billboards')) *
+      this._goalMult
     );
   }
 
@@ -368,6 +392,30 @@ export class Game {
     return u[Math.floor(this.rushClock / Game.rushPeriod) % u.length];
   }
 
+  /** Seconds until the rush ends (while active) or begins (while calm). */
+  get rushSecondsLeft(): number {
+    return this.rushActive
+      ? Game.rushPeriod - this.rushPhase
+      : Game.rushPeriod - Game.rushWindow - this.rushPhase;
+  }
+
+  /** The line cycle [offset] cycles from now will rush (0 = current) —
+   * the clock is deterministic, so the OPS board prints a timetable. */
+  rushLineIdForCycle(offset: number): string | null {
+    const u = this.unlockedInOrder;
+    if (u.length === 0) return null;
+    return u[(Math.floor(this.rushClock / Game.rushPeriod) + offset) % u.length];
+  }
+
+  /** Seconds until that cycle's rush window opens (negative = open now). */
+  secondsUntilRushStart(offset: number): number {
+    return (
+      (Math.floor(this.rushClock / Game.rushPeriod) + offset) * Game.rushPeriod +
+      (Game.rushPeriod - Game.rushWindow) -
+      this.rushClock
+    );
+  }
+
   /** 0 = full day … 1 = full night; every rush window is the night rush.
    * A brand-new city opens in daylight (no dawn before the first night). */
   get nightFactor(): number {
@@ -383,6 +431,193 @@ export class Game {
       (this.linesServing.get(stationId) ?? []).includes(this.rushLineId ?? '')
       ? Game.rushMult
       : 1;
+  }
+
+  // ---- Commissions: the five rotating contract types ----
+  get commissionLineId(): string | null {
+    const u = this.unlockedInOrder;
+    if (u.length === 0) return null;
+    return u[(this.commissionIndex * 2 + 1) % u.length];
+  }
+
+  get commissionType(): CommissionType {
+    return COMMISSION_TYPES[this.commissionIndex % COMMISSION_TYPES.length];
+  }
+
+  /** HUB SERVICE targets the busiest MID-LINE station of the contract
+   * line — terminals get one call per lap, so they are excluded. */
+  get commissionStationId(): string | null {
+    if (this.commissionType !== 'station') return null;
+    const lineId = this.commissionLineId;
+    if (!lineId) return null;
+    const ids = this.lineById(lineId).stationIds;
+    let best: string | null = null;
+    let bestDemand = -1;
+    for (const sid of ids.slice(1, -1)) {
+      const st = this.city.stations.find((s) => s.id === sid)!;
+      if (st.demand > bestDemand) {
+        bestDemand = st.demand;
+        best = sid;
+      }
+    }
+    return best;
+  }
+
+  /** The escalating difficulty spine every contract type is priced from. */
+  private get haulEquivalent(): number {
+    return 400 * Math.pow(1.6, Math.min(this.commissionIndex, 12));
+  }
+
+  get commissionQuota(): number {
+    switch (this.commissionType) {
+      case 'haul':
+        return this.haulEquivalent;
+      case 'express':
+        return 4 + 2 * Math.min(this.commissionIndex, 20);
+      case 'station':
+        return Math.floor(this.haulEquivalent * 0.06);
+      case 'sweep': {
+        const lineId = this.commissionLineId;
+        return lineId ? this.lineById(lineId).stationIds.length : 1;
+      }
+      case 'rushCash':
+        return Math.floor(0.25 * this.haulEquivalent * this.currentFare * this.goalMult);
+    }
+  }
+
+  /** Rush contracts get a clock long enough to contain a rush window. */
+  get commissionTimeLimit(): number {
+    return this.commissionType === 'rushCash' ? 240 : Game.commissionLimit;
+  }
+
+  get commissionReward(): number {
+    return 2 * this.haulEquivalent * this.currentFare * this.goalMult;
+  }
+
+  acceptCommission(): void {
+    if (this.commissionActive || this.commissionLineId === null) return;
+    this.commissionActive = true;
+    this.commissionProgress = 0;
+    this.commissionTimeLeft = this.commissionTimeLimit;
+  }
+
+  skipCommission(): void {
+    if (this.commissionActive) return;
+    this.commissionIndex += 1;
+  }
+
+  private tickCommission(dt: number): void {
+    if (!this.commissionActive) return;
+    // CLEAN SWEEP is a live condition, not a counter.
+    if (this.commissionType === 'sweep') {
+      const lineId = this.commissionLineId;
+      if (lineId) {
+        let clear = 0;
+        for (const sid of this.lineById(lineId).stationIds) {
+          if (this.waitingAt(sid) <= Game.sweepThreshold) clear++;
+        }
+        this.commissionProgress = clear;
+      }
+    }
+    if (this.commissionProgress >= this.commissionQuota) {
+      const reward = this.commissionReward;
+      this.cash += reward;
+      this.totalEarned += reward;
+      this.windowEarned += reward;
+      this.commissionsDone += 1;
+      this.lastCommissionWon = true;
+      this.commissionSeq += 1;
+      this.commissionActive = false;
+      this.commissionIndex += 1;
+      return;
+    }
+    this.commissionTimeLeft -= dt;
+    if (this.commissionTimeLeft <= 0) {
+      this.lastCommissionWon = false;
+      this.commissionSeq += 1;
+      this.commissionActive = false;
+      this.commissionIndex += 1;
+    }
+  }
+
+  // ---- Goals: the commendation ladder ----
+  get goals(): GoalDef[] {
+    return goalsFor(this.city.id);
+  }
+
+  get goalsDone(): number {
+    return this.goalsDoneByCity.get(this.city.id) ?? 0;
+  }
+
+  /** The permanent income multiplier from every commendation earned. */
+  get goalMult(): number {
+    return this._goalMult;
+  }
+
+  private recomputeGoalMult(): void {
+    this._goalMult = 1;
+    for (const [cityId, done] of this.goalsDoneByCity) {
+      const ladder = goalsFor(cityId);
+      for (let i = 0; i < done && i < ladder.length; i++) {
+        this._goalMult *= ladder[i].reward;
+      }
+    }
+  }
+
+  get currentGoal(): GoalDef | null {
+    return this.goalsDone < this.goals.length ? this.goals[this.goalsDone] : null;
+  }
+
+  get totalStationWorks(): number {
+    let sum = 0;
+    for (const m of [
+      this.foodLevel, this.gateLevel, this.platformLevel,
+      this.parkingLevel, this.escalatorLevel, this.securityLevel,
+    ]) {
+      for (const v of m.values()) sum += v;
+    }
+    return sum;
+  }
+
+  get totalLineUpgradeLevels(): number {
+    let sum = 0;
+    for (const m of [
+      this.speedLevels, this.carLevels, this.accessLevels, this.trainsetLevels,
+    ]) {
+      for (const v of m.values()) sum += v;
+    }
+    return sum;
+  }
+
+  goalValue(kind: GoalKind): number {
+    switch (kind) {
+      case 'riders': return this.totalRiders;
+      case 'earned': return this.totalEarned;
+      case 'lines': return this.unlockedLineIds.size;
+      case 'trains': return this.trains.length;
+      case 'commissions': return this.commissionsDone;
+      case 'works': return this.totalStationWorks;
+      case 'lineUpgrades': return this.totalLineUpgradeLevels;
+      case 'rushEarned': return this.rushEarnings;
+    }
+  }
+
+  get goalProgress(): number {
+    const goal = this.currentGoal;
+    if (!goal) return 1;
+    return Math.min(this.goalValue(goal.kind) / goal.target, 1);
+  }
+
+  private checkGoals(): void {
+    for (;;) {
+      const goal = this.currentGoal;
+      if (!goal || this.goalValue(goal.kind) < goal.target) return;
+      this.goalsDoneByCity.set(this.city.id, this.goalsDone + 1);
+      this._goalMult *= goal.reward;
+      this.goalSeq += 1;
+      this.lastGoalName = goal.name;
+      this.lastGoalReward = goal.reward;
+    }
   }
 
   // ---- The tick (mirrors Dart _tick order: arrivals, then trains) ----
@@ -426,6 +661,8 @@ export class Game {
     }
 
     for (const t of this.trains) this.tickTrain(t, dt);
+    this.tickCommission(dt);
+    this.checkGoals();
   }
 
   private tickTrain(t: TrainState, dt: number): void {
@@ -453,6 +690,15 @@ export class Game {
       t.target === line.stationIds.length - 1 ? -1 : t.target === 0 ? 1 : t.direction;
     const stationId = line.stationIds[t.target];
     this.board(t.lineId, stationId, nextDir);
+    // TURNBACK RUN counts terminal turnarounds on the contract line.
+    if (
+      this.commissionActive &&
+      this.commissionType === 'express' &&
+      t.lineId === this.commissionLineId &&
+      (t.target === 0 || t.target === line.stationIds.length - 1)
+    ) {
+      this.commissionProgress += 1;
+    }
     t.dwell =
       this.effectiveDwell * (1 - 0.15 * (this.platformLevel.get(stationId) ?? 0));
     t.direction = nextDir;
@@ -476,6 +722,22 @@ export class Game {
     this.lastBoardLineId = lineId;
     this.lastBoardCount = Math.floor(take);
     this.lastBoardAmount = earned;
+    if (this.rushActive) this.rushEarnings += earned;
+    if (this.commissionActive) {
+      switch (this.commissionType) {
+        case 'haul':
+          if (lineId === this.commissionLineId) this.commissionProgress += take;
+          break;
+        case 'station':
+          if (stationId === this.commissionStationId) this.commissionProgress += take;
+          break;
+        case 'rushCash':
+          if (this.rushActive) this.commissionProgress += earned;
+          break;
+        default:
+          break; // express and sweep are tracked elsewhere
+      }
+    }
   }
 
   // ---- Fleet (widest-phase-gap spawn, ported verbatim in spirit) ----
@@ -572,7 +834,7 @@ export class Game {
   toJson(nowMs: number): Record<string, unknown> {
     const dump = (m: Map<string, number>) => Object.fromEntries(m);
     return {
-      v2s: 2,
+      v2s: 3,
       cash: this.cash,
       totalEarned: this.totalEarned,
       totalRiders: this.totalRiders,
@@ -594,6 +856,13 @@ export class Game {
       trainsetLevels: dump(this.trainsetLevels),
       globalLevels: dump(this.globalLevels),
       stationPriority: this.stationPriority,
+      commissionIndex: this.commissionIndex,
+      commissionsDone: this.commissionsDone,
+      commissionActive: this.commissionActive,
+      commissionProgress: this.commissionProgress,
+      commissionTimeLeft: this.commissionTimeLeft,
+      goalsDoneByCity: Object.fromEntries(this.goalsDoneByCity),
+      rushEarnings: this.rushEarnings,
       lastSeenMs: nowMs,
     };
   }
@@ -657,6 +926,18 @@ export class Game {
     load(g.accessLevels, j.accessLevels, lnOk);
     load(g.trainsetLevels, j.trainsetLevels, lnOk);
     load(g.globalLevels, j.globalLevels);
+    g.commissionIndex = Number(j.commissionIndex ?? 0);
+    g.commissionsDone = Number(j.commissionsDone ?? 0);
+    g.commissionActive = Boolean(j.commissionActive ?? false);
+    g.commissionProgress = Number(j.commissionProgress ?? 0);
+    g.commissionTimeLeft = Number(j.commissionTimeLeft ?? 0);
+    for (const [k, v] of Object.entries(
+      (j.goalsDoneByCity as Record<string, number>) ?? {},
+    )) {
+      g.goalsDoneByCity.set(k, Number(v));
+    }
+    g.recomputeGoalMult();
+    g.rushEarnings = Number(j.rushEarnings ?? 0);
     const prio = j.stationPriority as string[] | undefined;
     if (prio && STATION_WORKS.every((w) => prio.includes(w.id))) {
       g.stationPriority = prio.filter((t) => STATION_WORKS.some((w) => w.id === t));
@@ -719,3 +1000,55 @@ export const GLOBALS: GlobalDef[] = [
   { id: 'yards', name: 'RAIL YARDS', blurb: 'New trains 4% cheaper', baseCost: 6000, growth: 2.4, maxLevel: 10 },
   { id: 'night', name: 'NIGHT SERVICE', blurb: '+6% offline earning rate', baseCost: 8000, growth: 2.6, maxLevel: 5 },
 ];
+
+// ---- OPS + GOALS catalogs (v1's registries, verbatim) ----
+export const COMMISSION_TYPES = [
+  'haul', 'express', 'station', 'sweep', 'rushCash',
+] as const;
+export type CommissionType = (typeof COMMISSION_TYPES)[number];
+
+export type GoalKind =
+  | 'riders' | 'earned' | 'lines' | 'trains'
+  | 'commissions' | 'works' | 'lineUpgrades' | 'rushEarned';
+
+export interface GoalDef {
+  name: string;
+  kind: GoalKind;
+  target: number;
+  reward: number;
+}
+
+const g = (name: string, kind: GoalKind, target: number, reward: number): GoalDef =>
+  ({ name, kind, target, reward });
+
+/** New Meridian's 22-rung ladder: downtown, then MASTERY of the
+ * systems — contracts, works, upgrades, rush earnings. */
+export const NEW_MERIDIAN_GOALS: GoalDef[] = [
+  g('OPENING DAY', 'riders', 1000, 1.25),
+  g('SECOND LINE', 'lines', 2, 1.25),
+  g('ROLLING STOCK', 'trains', 4, 1.25),
+  g('CROSSTOWN', 'lines', 3, 1.3),
+  g('BUSY MORNING', 'riders', 25000, 1.3),
+  g('FIVE ROUTES', 'lines', 5, 1.4),
+  g('HALF MILLION', 'earned', 500000, 1.4),
+  g('SEVEN ROUTES', 'lines', 7, 1.5),
+  g('TWO MILLION', 'earned', 2000000, 1.5),
+  g('NINE ROUTES', 'lines', 9, 1.75),
+  g('MILLION RIDERS', 'riders', 1000000, 1.75),
+  g('DOWNTOWN COMPLETE', 'earned', 25000000, 2.0),
+  g('TWELVE ROUTES', 'lines', 12, 1.5),
+  g('CITY CONTRACTOR', 'commissions', 5, 1.5),
+  g('FIFTY MILLION', 'earned', 50000000, 1.5),
+  g('MASTER BUILDER', 'works', 40, 1.75),
+  g('SIXTEEN ROUTES', 'lines', 16, 1.75),
+  g('RUSH BARON', 'rushEarned', 5000000, 1.75),
+  g('FIVE MILLION RIDERS', 'riders', 5000000, 1.75),
+  g('FULL SERVICE', 'lineUpgrades', 60, 2.0),
+  g('EVERY LINE', 'lines', 24, 2.0),
+  g('NEW MERIDIAN COMPLETE', 'earned', 250000000, 2.0),
+];
+
+export function goalsFor(cityId: string): GoalDef[] {
+  void cityId; // Angel Bay's ladder arrives with the city-ladder port.
+  return NEW_MERIDIAN_GOALS;
+}

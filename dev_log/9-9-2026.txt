@@ -35,3 +35,26 @@ the unbuilt network reads. Headless play test drove: buy speed, buy a
 17-station food tier, buy signals, verify the 5s autosave payload,
 true reload -> everything persisted. OPS (rush desk + commissions) and
 GOALS are M3b, next build.
+
+Build 43 (metro2): M3b -- OPS + GOALS + THE 10x (player: "Fix the gap
+and bring back my 10x"). The console is the full v1 four-tab desk
+again: LINES · OPS · GOALS · NETWORK. OPS = the rush timetable (next
+4 cycles off the deterministic clock) + the commission desk with all
+FIVE contract types (haul / turnback run / hub service / clean sweep
+/ rush contract), v1 quotas, per-type clocks, uniform rewards, and
+per-type offer/progress copy. GOALS = the 22-rung New Meridian ladder
+verbatim (incl. the mastery rungs: contracts, works, upgrade levels,
+rush earnings), commendations compounding income exactly as v1, a
+goal status strip under the header (tap -> board), commendation and
+commission toasts, an OPS attention dot while an offer waits. The
+⏩10x fast-forward is back as a header toggle (same fixed-step 0.05s
+sub-ticks -- exact physics, compressed). Save v2s3 adds commissions,
+goalsDoneByCity, rushEarnings; goalMult is RECOMPUTED from the ladder
+on load. 26 vitest tests green -- the b36 v1 suite ported whole
+(rotation, turnback win, hub bare-fails/invested-wins, sweep instant
+win, rush-window-only progress, hopeless expiry, ladder completion
+with exact income product). Headless play test accepted a TURNBACK
+RUN (0/6 · 2:00), read income x3.30 off the goals head (5 rungs =
+1.25^3 x 1.3^2, the 5th auto-completing from the seeded riders), and
+toggled the 10x. Remaining for full parity: Angel Bay + moveOn (M3c),
+v1-save migration (M4).

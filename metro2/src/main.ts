@@ -45,7 +45,13 @@ if (showcase) {
   }
   if (params.has('t')) game.rushClock = Number(params.get('t'));
 }
-const simSpeed = Number(params.get('speed') ?? (showcase ? '3' : '1'));
+let simSpeed = Number(params.get('speed') ?? (showcase ? '3' : '1'));
+// v1's ⏩ fast-forward: exact physics, compressed time.
+const speedBtn = document.getElementById('btn-speed') as HTMLButtonElement;
+speedBtn.addEventListener('click', () => {
+  simSpeed = simSpeed >= 10 ? 1 : 10;
+  speedBtn.textContent = simSpeed >= 10 ? '⏩ 10×' : '⏩ 1×';
+});
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const scene = new CityScene(canvas, game, { bloom: !params.has('nobloom') });
@@ -63,6 +69,26 @@ if (offlineEarned >= 1) {
   );
 }
 document.getElementById('build')!.textContent = BUILD;
+
+// Celebrate goal + commission resolutions exactly once each.
+let seenGoalSeq = game.goalSeq;
+let seenCommSeq = game.commissionSeq;
+function watchSeqs(): void {
+  if (game.goalSeq !== seenGoalSeq) {
+    seenGoalSeq = game.goalSeq;
+    ui.toast(
+      `COMMENDATION · ${game.lastGoalName} — income ×${game.lastGoalReward} forever`,
+    );
+  }
+  if (game.commissionSeq !== seenCommSeq) {
+    seenCommSeq = game.commissionSeq;
+    ui.toast(
+      game.lastCommissionWon
+        ? 'COMMISSION DELIVERED — city hall pays out'
+        : 'Commission expired — the desk moves on',
+    );
+  }
+}
 
 // Tap (not drag) picks a station.
 let downX = 0;
@@ -108,6 +134,7 @@ function frame(now: number): void {
     acc -= 0.05;
   }
   scene.render();
+  watchSeqs();
   ui.update(now);
   requestAnimationFrame(frame);
 }

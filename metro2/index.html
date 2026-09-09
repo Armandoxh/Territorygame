@@ -73,17 +73,76 @@
         right: 10px;
         color: #ffd98a;
       }
-      .deskbtn {
+      #deskbar {
         position: fixed;
         bottom: calc(12px + env(safe-area-inset-bottom));
         left: 10px;
         z-index: 3;
+        display: flex;
+        gap: 6px;
+      }
+      .deskbtn {
+        position: relative;
         background: #14161c;
         color: #fff;
         border: 1px solid rgba(255, 255, 255, 0.35);
-        padding: 10px 14px;
-        font: 800 12px Inter, sans-serif;
-        letter-spacing: 0.14em;
+        padding: 10px 12px;
+        font: 800 11px Inter, sans-serif;
+        letter-spacing: 0.12em;
+      }
+      .deskbtn.dot::after {
+        content: '';
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #e5484d;
+      }
+      #goal-strip {
+        top: calc(42px + env(safe-area-inset-top));
+        left: 10px;
+        font-weight: 700;
+        font-size: 10px;
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      .chipbtn {
+        pointer-events: auto;
+        cursor: pointer;
+        top: calc(42px + env(safe-area-inset-top));
+        right: 10px;
+        background: #14161c;
+      }
+      .pbar {
+        height: 5px;
+        background: #e4e4e4;
+        margin: 0 10px 8px;
+      }
+      .pfill {
+        height: 100%;
+        background: #1a1a1a;
+      }
+      .rushnow {
+        color: #c62828;
+        font-weight: 800;
+      }
+      .row .mark {
+        width: 14px;
+        font-weight: 900;
+        color: #1a1a1a;
+      }
+      .row.goal-done .nm {
+        color: #888;
+        font-weight: 700;
+      }
+      .row.goal-ahead .nm,
+      .row.goal-ahead .mark {
+        color: #b5b5b5;
+      }
+      .row.goal-current {
+        background: #f6f2e4;
       }
       .panel-head {
         display: flex;
@@ -254,8 +313,14 @@
     <div class="chip" id="rate"></div>
     <div class="chip" id="build"></div>
     <div class="chip" id="phase"></div>
-    <button id="btn-lines" class="deskbtn">LINES</button>
-    <button id="btn-network" class="deskbtn" style="left: 86px">NETWORK</button>
+    <div id="goal-strip" class="chip"></div>
+    <div id="deskbar">
+      <button id="btn-lines" class="deskbtn">LINES</button>
+      <button id="btn-ops" class="deskbtn">OPS</button>
+      <button id="btn-goals" class="deskbtn">GOALS</button>
+      <button id="btn-network" class="deskbtn">NETWORK</button>
+    </div>
+    <button id="btn-speed" class="chip chipbtn">⏩ 1×</button>
     <div id="panel" hidden></div>
     <div id="station-card" hidden></div>
     <div id="toasts"></div>

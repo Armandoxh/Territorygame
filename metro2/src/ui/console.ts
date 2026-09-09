@@ -7,7 +7,24 @@
  * DOM rule learned in b40: panels REBUILD only when structure changes
  * (a purchase, a mode switch) and mutate in place otherwise, so no
  * button is ever detached mid-tap. */
-import { Game, GLOBALS, STATION_WORKS } from '../engine/game';
+import {
+  CommissionType, Game, GLOBALS, STATION_WORKS,
+} from '../engine/game';
+
+function mmss(s: number): string {
+  const t = Math.max(0, Math.ceil(s));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+}
+
+export function commissionTypeName(t: CommissionType): string {
+  switch (t) {
+    case 'haul': return 'HAUL';
+    case 'express': return 'TURNBACK RUN';
+    case 'station': return 'HUB SERVICE';
+    case 'sweep': return 'CLEAN SWEEP';
+    case 'rushCash': return 'RUSH CONTRACT';
+  }
+}
 
 function fmt(v: number): string {
   if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
@@ -16,7 +33,12 @@ function fmt(v: number): string {
   return Math.floor(v).toLocaleString('en-US');
 }
 
-type PanelMode = { kind: 'lines' } | { kind: 'line'; id: string } | { kind: 'network' };
+type PanelMode =
+  | { kind: 'lines' }
+  | { kind: 'line'; id: string }
+  | { kind: 'network' }
+  | { kind: 'ops' }
+  | { kind: 'goals' };
 
 export class Console {
   private cashEl = document.getElementById('cash')!;
@@ -40,6 +62,15 @@ export class Console {
     });
     document.getElementById('btn-network')!.addEventListener('click', () => {
       this.setMode(this.mode?.kind === 'network' ? null : { kind: 'network' });
+    });
+    document.getElementById('btn-ops')!.addEventListener('click', () => {
+      this.setMode(this.mode?.kind === 'ops' ? null : { kind: 'ops' });
+    });
+    document.getElementById('btn-goals')!.addEventListener('click', () => {
+      this.setMode(this.mode?.kind === 'goals' ? null : { kind: 'goals' });
+    });
+    document.getElementById('goal-strip')!.addEventListener('click', () => {
+      this.setMode({ kind: 'goals' });
     });
     this.panelEl.addEventListener('click', (e) => this.onPanelClick(e));
     this.stationEl.addEventListener('click', (e) => this.onStationClick(e));
@@ -96,6 +127,12 @@ export class Console {
         break;
       case 'buy-global':
         g.buyGlobal(id);
+        break;
+      case 'accept-commission':
+        g.acceptCommission();
+        break;
+      case 'skip-commission':
+        g.skipCommission();
         break;
     }
     this.structSeq++;
@@ -185,6 +222,8 @@ export class Console {
     this.builtKey = key;
     if (this.mode.kind === 'lines') this.panelEl.innerHTML = this.linesHtml();
     else if (this.mode.kind === 'line') this.panelEl.innerHTML = this.lineHtml(this.mode.id);
+    else if (this.mode.kind === 'ops') this.panelEl.innerHTML = this.opsHtml();
+    else if (this.mode.kind === 'goals') this.panelEl.innerHTML = this.goalsHtml();
     else this.panelEl.innerHTML = this.networkHtml();
     this.refreshLive();
     void g;
@@ -279,12 +318,158 @@ export class Console {
     return this.head('NETWORK UPGRADES') + rows;
   }
 
+  private lineName(id: string | null): string {
+    if (!id) return '—';
+    const l = this.game.city.lines.find((x) => x.id === id)!;
+    return `<span class="bullet" style="background:${l.color}">${l.bullet}</span> ${l.name}`;
+  }
+
+  private offerText(): string {
+    const g = this.game;
+    const q = g.commissionQuota;
+    const t = mmss(g.commissionTimeLimit);
+    switch (g.commissionType) {
+      case 'haul':
+        return `Carry ${Math.floor(q)} riders on this line within ${t}.`;
+      case 'express':
+        return `Complete ${Math.floor(q)} terminal turnbacks on this line within ${t} — speed pays.`;
+      case 'station': {
+        const sid = g.commissionStationId;
+        const name = sid
+          ? g.city.stations.find((s) => s.id === sid)!.name
+          : 'the hub';
+        return `Board ${Math.floor(q)} riders at ${name} within ${t} — cars and trains on this line feed the hub; a built-up hub fills faster.`;
+      }
+      case 'sweep':
+        return `Get EVERY platform on this line under ${Game.sweepThreshold} waiting at the same moment, within ${t}.`;
+      case 'rushCash':
+        return `Earn $${fmt(q)} during rush-hour windows within ${t} — check the timetable above before accepting.`;
+    }
+  }
+
+  private progressText(): string {
+    const g = this.game;
+    const p = g.commissionProgress;
+    const q = g.commissionQuota;
+    const t = mmss(g.commissionTimeLeft);
+    switch (g.commissionType) {
+      case 'haul': return `${Math.floor(p)} / ${Math.floor(q)} riders · ${t} left`;
+      case 'express': return `${Math.floor(p)} / ${Math.floor(q)} turnbacks · ${t} left`;
+      case 'station': return `${Math.floor(p)} / ${Math.floor(q)} boarded at the hub · ${t} left`;
+      case 'sweep': return `${Math.floor(p)} / ${Math.floor(q)} platforms clear · ${t} left`;
+      case 'rushCash': return `$${fmt(p)} / $${fmt(q)} in rush · ${t} left`;
+    }
+  }
+
+  private opsHtml(): string {
+    const g = this.game;
+    const timetable = [0, 1, 2, 3]
+      .map((o) => {
+        const id = g.rushLineIdForCycle(o);
+        const until = g.secondsUntilRushStart(o);
+        const when =
+          o === 0 && g.rushActive
+            ? `<span class="rushnow">RUNNING · <span id="ops-t${o}">${mmss(g.rushSecondsLeft)}</span> left</span>`
+            : `in <span id="ops-t${o}">${mmss(until)}</span>`;
+        return `<div class="row">${this.lineName(id)}<span class="meta"></span><span>${when}</span></div>`;
+      })
+      .join('');
+    let desk: string;
+    if (g.commissionActive) {
+      desk = `<div class="row"><span class="nm">${commissionTypeName(g.commissionType)}</span>
+          <span class="meta">${this.lineName(g.commissionLineId)}</span></div>
+        <div class="card-row" id="ops-progress">${this.progressText()}</div>
+        <div class="pbar"><div class="pfill" id="ops-bar" style="width:${(100 * g.commissionProgress) / g.commissionQuota}%"></div></div>`;
+    } else {
+      desk = `<div class="row"><span class="nm">${commissionTypeName(g.commissionType)}</span>
+          <span class="meta">${this.lineName(g.commissionLineId)}</span>
+          <span class="nm">pays $${fmt(g.commissionReward)}</span></div>
+        <div class="card-row">${this.offerText()}</div>
+        <div class="row"><button data-act="accept-commission">ACCEPT</button>
+          <button data-act="skip-commission">SKIP</button>
+          <span class="meta">${this.game.commissionsDone} delivered</span></div>`;
+    }
+    return (
+      this.head('OPERATIONS') +
+      `<div class="sect">RUSH TIMETABLE · ×${Game.rushMult} demand, ${Game.rushWindow}s window</div>` +
+      timetable +
+      `<div class="sect">COMMISSION DESK</div>` +
+      desk
+    );
+  }
+
+  private goalsHtml(): string {
+    const g = this.game;
+    const done = g.goalsDone;
+    const rows = g.goals
+      .map((goal, i) => {
+        const mark = i < done ? '✓' : i === done ? '►' : '·';
+        const cls = i < done ? 'done' : i === done ? 'current' : 'ahead';
+        const extra =
+          i === done
+            ? `<div class="card-row" id="goal-live">${fmt(g.goalValue(goal.kind))} / ${fmt(goal.target)}</div>
+               <div class="pbar"><div class="pfill" id="goal-bar" style="width:${100 * g.goalProgress}%"></div></div>`
+            : '';
+        return `<div class="row goal-${cls}"><span class="mark">${mark}</span>
+          <span class="nm">${goal.name}</span>
+          <span class="meta"></span><span>×${goal.reward}</span></div>${extra}`;
+      })
+      .join('');
+    return (
+      this.head(`CITY GOALS · income ×${g.goalMult.toFixed(2)}`) +
+      `<div class="sect">${done}/${g.goals.length} COMMENDATIONS · each multiplies income forever</div>` +
+      rows
+    );
+  }
+
   /** In-place refresh: balance text + affordability, nothing detached. */
   private refreshLive(): void {
+    const g = this.game;
     const bal = this.panelEl.querySelector('.bal');
-    if (bal) bal.textContent = fmt(this.game.cash);
+    if (bal) bal.textContent = fmt(g.cash);
+    if (this.mode?.kind === 'ops') {
+      for (const o of [0, 1, 2, 3]) {
+        const el = document.getElementById(`ops-t${o}`);
+        if (!el) continue;
+        el.textContent =
+          o === 0 && g.rushActive
+            ? mmss(g.rushSecondsLeft)
+            : mmss(g.secondsUntilRushStart(o));
+      }
+      const prog = document.getElementById('ops-progress');
+      if (prog && g.commissionActive) {
+        prog.textContent = this.progressText();
+        const bar = document.getElementById('ops-bar');
+        if (bar) {
+          bar.style.width = `${Math.min(100, (100 * g.commissionProgress) / g.commissionQuota)}%`;
+        }
+      }
+      // Resolution (win/expire) changes structure — force a rebuild.
+      if (this.opsSeq !== g.commissionSeq) {
+        this.opsSeq = g.commissionSeq;
+        this.structSeq++;
+        this.renderPanel();
+      }
+    }
+    if (this.mode?.kind === 'goals') {
+      const goal = g.currentGoal;
+      const live = document.getElementById('goal-live');
+      if (goal && live) {
+        live.textContent = `${fmt(g.goalValue(goal.kind))} / ${fmt(goal.target)}`;
+        const bar = document.getElementById('goal-bar');
+        if (bar) bar.style.width = `${100 * g.goalProgress}%`;
+      }
+      if (this.goalsSeqSeen !== g.goalSeq) {
+        this.goalsSeqSeen = g.goalSeq;
+        this.structSeq++;
+        this.renderPanel();
+      }
+    }
     this.refreshDisabled(this.panelEl);
   }
+
+  private opsSeq = 0;
+  private goalsSeqSeen = 0;
 
   private refreshDisabled(root: HTMLElement): void {
     for (const btn of root.querySelectorAll<HTMLButtonElement>('button[data-cost]')) {
@@ -315,6 +500,14 @@ export class Console {
           : g.rushClock % 180 < 110
             ? 'DAWN'
             : 'DUSK';
+    // The one-line goal status (tap → GOALS board), v1 console idiom.
+    const goal = g.currentGoal;
+    document.getElementById('goal-strip')!.textContent = goal
+      ? `GOAL · ${goal.name} · ${Math.floor(g.goalProgress * 100)}% · ×${goal.reward}`
+      : 'ALL COMMENDATIONS EARNED';
+    document
+      .getElementById('btn-ops')!
+      .classList.toggle('dot', !g.commissionActive);
     if (nowMs - this.lastRefresh > 250) {
       this.lastRefresh = nowMs;
       if (this.mode) this.renderPanel();

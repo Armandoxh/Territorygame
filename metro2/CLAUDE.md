@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b42 (M3a: the upgrade economy, ported)
+## ▶ CURRENT BUILD: v2 · b43 (M3b: OPS + GOALS + the 10×)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:
@@ -44,5 +44,7 @@ change unseen.
 - Milestones: M1 render proof ✓ (b38) → M2 interaction ✓ (b40) →
   M3a upgrade economy ✓ (b42: line upgrades, station works with the
   tier-even planner, network upgrades — v1 formulas verbatim, v1
-  harness bounds green in vitest) → M3b OPS + GOALS (rush desk,
-  commissions, the goal ladder) → M4 v1-save migration.
+  harness bounds green in vitest) → M3b OPS + GOALS ✓ (b43:
+  rush timetable, five commission types, the 22-rung ladder with
+  compounding commendations, the ⏩10×) → M3c the city ladder (Angel
+  Bay in 3D + moveOn) → M4 v1-save migration.
