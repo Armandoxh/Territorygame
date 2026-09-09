@@ -172,6 +172,33 @@
         padding: 4px 7px;
         font-size: 10px;
       }
+      .row.up {
+        flex-wrap: wrap;
+        row-gap: 5px;
+      }
+      .row.up .lvl {
+        font-size: 10px;
+        font-weight: 800;
+        color: #888;
+        border: 1px solid #ccc;
+        padding: 1px 4px;
+      }
+      .row.up .stat {
+        flex: 1;
+        font-size: 11px;
+        font-weight: 700;
+        color: #333;
+        white-space: nowrap;
+      }
+      .row.up .buys {
+        display: flex;
+        gap: 4px;
+        margin-left: auto;
+      }
+      .row.up .buys button {
+        padding: 6px 8px;
+        font-size: 10px;
+      }
       .row.next {
         background: #f6f2e4;
       }
@@ -303,6 +330,11 @@
         letter-spacing: 0.1em;
         animation: toastfade 5.2s forwards;
       }
+      @media (max-width: 560px) {
+        #rate {
+          display: none; /* the goal strip owns that band on phones */
+        }
+      }
       @keyframes toastfade {
         0% { opacity: 0; transform: translateY(-6px); }
         6% { opacity: 1; transform: none; }
@@ -310,7 +342,7 @@
         100% { opacity: 0; }
       }
     </style>
-    <script type="module" crossorigin src="/Territorygame/metro2/assets/index-WM-azbG2.js"></script>
+    <script type="module" crossorigin src="/Territorygame/metro2/assets/index-BhdTYvNj.js"></script>
   </head>
   <body>
     <canvas id="scene"></canvas>
