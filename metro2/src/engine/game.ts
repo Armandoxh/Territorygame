@@ -33,7 +33,11 @@ export class Game {
   static readonly rushPeriod = 180;
   static readonly rushWindow = 45;
   static readonly rushMult = 2.5;
-  static readonly levelMax = 10;
+  /** Line upgrades climb to 100 (b54): shallow per-level gains on a
+   * long ×1.14 cost curve, with MILESTONES at 10/25/50/100 that each
+   * DOUBLE the line's income. Deep, slow, rewarding. */
+  static readonly levelMax = 100;
+  static readonly milestoneLevels = [10, 25, 50, 100];
   static readonly foodMax = 5; // max level for every station work
   static readonly foodBonusPerLevel = 0.4;
 
@@ -182,18 +186,19 @@ export class Game {
   trainsetLevelOf(id: string): number { return this.trainsetLevels.get(id) ?? 0; }
   globalLevelOf(id: string): number { return this.globalLevels.get(id) ?? 0; }
 
-  /** This line's trains: +15% speed per level, times network signals. */
+  /** This line's trains: +4% speed per level (×5 at L100), times
+   * network signals. */
   trainSpeedFor(lineId: string): number {
     return (
       Game.baseSpeed *
-      (1 + 0.15 * this.speedLevelOf(lineId)) *
+      (1 + 0.04 * this.speedLevelOf(lineId)) *
       (1 + 0.04 * this.globalLevelOf('signal'))
     );
   }
 
-  /** This line's cars: riders boarded per stop. */
+  /** This line's cars: riders boarded per stop (+2/level). */
   capacityFor(lineId: string): number {
-    return Game.capacityBase + 6.0 * this.carLevelOf(lineId);
+    return Game.capacityBase + 2.0 * this.carLevelOf(lineId);
   }
 
   /** The fare riders actually pay right now. */
@@ -212,8 +217,8 @@ export class Game {
     let m = 1.0;
     for (const lineId of this.linesServing.get(stationId) ?? []) {
       m *=
-        (1 + 0.1 * this.accessLevelOf(lineId)) *
-        (1 + 0.08 * this.trainsetLevelOf(lineId));
+        (1 + 0.03 * this.accessLevelOf(lineId)) *
+        (1 + 0.025 * this.trainsetLevelOf(lineId));
     }
     m *= 1 + 0.1 * (this.foodLevel.get(stationId) ?? 0);
     m *= 1 + 0.06 * (this.parkingLevel.get(stationId) ?? 0);
@@ -314,6 +319,28 @@ export class Game {
     return bought;
   }
 
+  /** How many milestone levels (10/25/50/100) this kind has reached. */
+  milestonesFor(kind: LineUpgradeKind, id: string): number {
+    const lvl = this.lineUpgradeLevel(kind, id);
+    return Game.milestoneLevels.filter((m) => lvl >= m).length;
+  }
+
+  /** The next milestone level ahead for this kind (null at the top). */
+  nextMilestone(kind: LineUpgradeKind, id: string): number | null {
+    const lvl = this.lineUpgradeLevel(kind, id);
+    return Game.milestoneLevels.find((m) => lvl < m) ?? null;
+  }
+
+  /** Total milestones on this line, all four kinds. */
+  lineMilestoneCount(id: string): number {
+    return LINE_UPGRADE_KINDS.reduce((n, k) => n + this.milestonesFor(k, id), 0);
+  }
+
+  /** Every milestone DOUBLES this line's income at the fare gate. */
+  lineMilestoneMult(id: string): number {
+    return Math.pow(2, this.lineMilestoneCount(id));
+  }
+
   lineUpgradeLevel(kind: LineUpgradeKind, id: string): number {
     switch (kind) {
       case 'speed': return this.speedLevelOf(id);
@@ -325,12 +352,11 @@ export class Game {
 
   lineUpgradeCostAt(kind: LineUpgradeKind, id: string, level: number): number {
     const base = this.upgradeBase(this.lineById(id));
-    switch (kind) {
-      case 'speed': return base * Math.pow(1.9, level);
-      case 'cars': return base * 1.2 * Math.pow(2.0, level);
-      case 'access': return base * 1.5 * Math.pow(2.1, level);
-      case 'trainset': return base * 1.4 * Math.pow(2.05, level);
-    }
+    const factor =
+      kind === 'speed' ? 1 : kind === 'cars' ? 1.2 : kind === 'access' ? 1.5 : 1.4;
+    // A long, steady climb (~×3.7 by L10, ~×700 by L50, ~×500K by
+    // L100) — the slow burn the milestones pay off.
+    return base * factor * Math.pow(1.14, level);
   }
 
   lineUpgradeBundle(kind: LineUpgradeKind, id: string, n: number) {
@@ -882,7 +908,8 @@ export class Game {
     const take = Math.min(w, cap);
     if (take <= 0) return;
     bucket.set(stationId, w - take);
-    const earned = take * this.incomePerRiderAt(stationId);
+    const earned =
+      take * this.incomePerRiderAt(stationId) * this.lineMilestoneMult(lineId);
     this.cash += earned;
     this.totalEarned += earned;
     this.totalRiders += take;

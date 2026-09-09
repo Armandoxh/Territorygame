@@ -463,24 +463,47 @@ export class CityScene {
     }
   }
 
+  /** Consists GROW with progress: one car per line milestone (b54),
+   * up to five — rolling stock as a visible trophy. */
+  private fillTrainGroup(
+    group: THREE.Group,
+    mat: THREE.MeshStandardMaterial,
+    cars: number,
+  ): void {
+    group.clear();
+    const len = 4.6;
+    const gap = 0.5;
+    const total = cars * len + (cars - 1) * gap;
+    for (let i = 0; i < cars; i++) {
+      const x = -total / 2 + len / 2 + i * (len + gap);
+      const body = new THREE.Mesh(new RoundedBoxGeometry(len, 0.8, 2.3, 2, 0.55), mat);
+      body.position.set(x, 0.5, 0);
+      group.add(body);
+      const roof = new THREE.Mesh(
+        new RoundedBoxGeometry(len - 1.4, 0.3, 1.5, 2, 0.3),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
+      );
+      roof.position.set(x, 1.0, 0);
+      group.add(roof);
+    }
+    group.userData.cars = cars;
+  }
+
+  private trainCars(lineId: string): number {
+    return Math.min(5, 1 + this.game.lineMilestoneCount(lineId));
+  }
+
   private addTrainVisual(lineId: string): void {
     const line = this.game.city.lines.find((l) => l.id === lineId)!;
     const group = new THREE.Group();
+    group.userData.lineId = lineId;
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(line.color),
       emissive: new THREE.Color(line.color),
       emissiveIntensity: 0,
       roughness: 0.6,
     });
-    const body = new THREE.Mesh(new RoundedBoxGeometry(5.2, 0.8, 2.3, 2, 0.6), mat);
-    body.position.y = 0.5;
-    group.add(body);
-    const roof = new THREE.Mesh(
-      new RoundedBoxGeometry(3.6, 0.3, 1.5, 2, 0.3),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
-    );
-    roof.position.y = 1.0;
-    group.add(roof);
+    this.fillTrainGroup(group, mat, this.trainCars(lineId));
     this.trainMats.push(mat);
     this.trainGroups.push(group);
     this.scene.add(group);
@@ -617,10 +640,14 @@ export class CityScene {
       }
     }
 
-    // Trains ride their lanes.
+    // Trains ride their lanes — and grow a car at each milestone.
     g.trains.forEach((t, i) => {
       const group = this.trainGroups[i];
       if (!group) return;
+      const wantCars = this.trainCars(t.lineId);
+      if (group.userData.cars !== wantCars) {
+        this.fillTrainGroup(group, this.trainMats[i], wantCars);
+      }
       const path = g.paths.get(t.lineId)!;
       const segIdx = path.segmentAt(t.distance);
       const a = path.points[segIdx];

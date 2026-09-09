@@ -1,12 +1,17 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b53 (station info dashboard)
+## ▶ CURRENT BUILD: v2 · b54 (L100 progression + milestone doubling)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:
 **TypeScript + Vite + three.js**, deployed by
 `.github/workflows/metro2-web.yml` to
 https://armandoxh.github.io/Territorygame/metro2/.
+
+**DESIGN DIVERGENCE (b54, player-directed):** line-upgrade
+progression is v2's own: L100 caps, ×1.14 cost curve, shallow
+per-level effects, and milestones at 10/25/50/100 that each DOUBLE
+the line's income (+1 visible train car, max 5). v1 curves retired.
 
 **DESIGN DIVERGENCE (b51, player-directed):** v2's goals are FOUR
 PARALLEL TRACKS with typed benefits (GROWTH→ridership mult,

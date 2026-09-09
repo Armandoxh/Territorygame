@@ -127,16 +127,39 @@ describe('the ported core', () => {
     expect(hour.game.totalEarned).toBeGreaterThan(before);
   });
 
-  test('UPGRADES WORK: each line-1 upgrade measurably raises earnings (v1 bounds)', () => {
+  test('UPGRADES WORK: each line-1 upgrade measurably raises earnings', () => {
+    // b54 scale: shallow per-level gains — measured at L24 (below the
+    // L25 milestone so the income doubling cannot mask a dead stat).
     const base = run(240).totalEarned;
-    const faster = run(240, (g) => g.speedLevels.set('1', 5)).totalEarned;
-    const bigger = run(240, (g) => g.carLevels.set('1', 5)).totalEarned;
-    const access = run(240, (g) => g.accessLevels.set('1', 5)).totalEarned;
-    const sets = run(240, (g) => g.trainsetLevels.set('1', 5)).totalEarned;
-    expect(faster).toBeGreaterThan(base * 1.08);
-    expect(bigger).toBeGreaterThan(base * 1.15);
-    expect(access).toBeGreaterThan(base * 1.04);
-    expect(sets).toBeGreaterThan(base * 1.03);
+    const faster = run(240, (g) => g.speedLevels.set('1', 24)).totalEarned;
+    const bigger = run(240, (g) => g.carLevels.set('1', 24)).totalEarned;
+    const access = run(240, (g) => g.accessLevels.set('1', 24)).totalEarned;
+    const sets = run(240, (g) => g.trainsetLevels.set('1', 24)).totalEarned;
+    // One L10 milestone is inside all runs, so compare against that
+    // shared floor: strip it by requiring margins above ×2.
+    expect(faster).toBeGreaterThan(base * 2 * 1.08);
+    expect(bigger).toBeGreaterThan(base * 2 * 1.1);
+    expect(access).toBeGreaterThan(base * 2 * 1.04);
+    expect(sets).toBeGreaterThan(base * 2 * 1.03);
+  });
+
+  test('MILESTONES: every 10/25/50/100 doubles the line income', () => {
+    const g = new Game(city);
+    expect(g.lineMilestoneMult('1')).toBe(1);
+    g.speedLevels.set('1', 10);
+    expect(g.milestonesFor('speed', '1')).toBe(1);
+    expect(g.nextMilestone('speed', '1')).toBe(25);
+    expect(g.lineMilestoneMult('1')).toBe(2);
+    g.carLevels.set('1', 25);
+    expect(g.lineMilestoneMult('1')).toBe(8); // 1 + 2 milestones -> 2^3
+    g.accessLevels.set('1', 100);
+    expect(g.milestonesFor('access', '1')).toBe(4);
+    expect(g.nextMilestone('access', '1')).toBeNull();
+    expect(g.lineMilestoneMult('1')).toBe(Math.pow(2, 7));
+    // And it lands at the fare gate: same physics, doubled money.
+    const plain = run(120).totalEarned;
+    const stoned = run(120, (s) => s.trainsetLevels.set('1', 10)).totalEarned;
+    expect(stoned).toBeGreaterThan(plain * 1.9);
   });
 
   test('NETWORK upgrades pay (v1 bounds), utilities change what they claim', () => {
@@ -191,7 +214,8 @@ describe('the ported core', () => {
     g.trainsetLevels.set('1', 5);
     g.accessLevels.set('N', 5);
     g.foodLevel.set('s224_282', 5);
-    expect(g.demandMultAt('s224_282')).toBeCloseTo(base * 1.5 * 1.4 * 1.5 * 1.5, 9);
+    expect(g.demandMultAt('s224_282')).toBeCloseTo(
+      base * 1.15 * 1.125 * 1.15 * 1.5, 9);
   });
 
   test('income is checkable: one boarding pays riders × income model', () => {
@@ -374,7 +398,7 @@ describe('the ported core', () => {
 
     const g = new Game(city);
     g.commissionIndex = 2;
-    g.carLevels.set('1', 3);
+    g.carLevels.set('1', 9); // +18/stop, matching the sim-sized quota
     g.foodLevel.set(hub, 5);
     g.parkingLevel.set(hub, 5);
     g.acceptCommission();

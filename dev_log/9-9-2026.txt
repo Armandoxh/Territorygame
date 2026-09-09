@@ -242,3 +242,23 @@ TRAINS SERVING THIS STOP, and STATION WORKS BUILT n/30. The works
 shop didn't die -- it demoted behind a WORKS > button on the card
 head (and remains in every line sheet's STATION WORKS tab). Tiles
 update live at 4Hz in place.
+
+Build 54 (metro2): L100 PROGRESSION + MILESTONE DOUBLING (player:
+"maxing out my network too quickly. Slower burn, more rewarding.
+Trains to level 100. Every 10/25/50/100 give a 100% boost. Maybe
+after level 10... something creative"). Line upgrades now climb to
+L100 on a long x1.14 cost curve (~x3.7 by L10, ~x700 by L50, ~x500K
+by L100) with shallow per-level effects that stay sane at the top:
+speed +4%/lvl (x5 at 100), cars +2/stop (222 at 100), access +3%,
+trainsets +2.5%. THE REWARD ENGINE: milestones at L10/25/50/100 on
+each of the four kinds EACH DOUBLE that line's income at the fare
+gate -- 16 possible x2s per line (x65,536 fully mastered; the idle
+end-game lane). The creative bit: each milestone adds a CAR to the
+line's trains on the map (1->5 visible cars, rebuilt live when a
+milestone lands) -- rolling stock as the trophy. Line sheet shows
+LINE INCOME BONUS xN + next-milestone hints per row. Tests: 28 green
+-- effect guards re-measured at L24 (below the L25 milestone so
+doubling can't mask a dead stat), milestone math + fare-gate
+doubling pinned, hub-service test re-equivalenced (cars 9 = the old
++18 capacity). Probe verified: line-1 consist grew to 4 cars from 3
+milestones while line A stayed at 1.

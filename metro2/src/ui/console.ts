@@ -424,33 +424,37 @@ export class Console {
     </div>`;
     let body: string;
     if (tab === 'up') {
-      const up = (kind: LineUpgradeKind, name: string, stat: string, maxStat: string) =>
-        this.upRow(
+      const up = (kind: LineUpgradeKind, name: string, stat: string, maxStat: string) => {
+        const next = g.nextMilestone(kind, id);
+        return this.upRow(
           name,
           g.lineUpgradeLevel(kind, id),
           Game.levelMax,
           stat,
-          maxStat,
+          `${maxStat}${next ? ` · ⚡×2 @L${next}` : ''}`,
           { act: 'buy-up', attrs: `data-kind="${kind}"` },
           (n) => g.lineUpgradeBundle(kind, id, n),
         );
+      };
       const sig = 1 + 0.04 * g.globalLevelOf('signal');
       const arrow = (kind: LineUpgradeKind, now: string, next: string) =>
         g.lineUpgradeLevel(kind, id) >= Game.levelMax ? now : `${now} → ${next}`;
       const spd = g.trainSpeedFor(id);
-      const spdNext = spd + Game.baseSpeed * 0.15 * sig;
+      const spdNext = spd + Game.baseSpeed * 0.04 * sig;
       const cap = g.capacityFor(id);
-      const acc = 10 * g.accessLevelOf(id);
-      const tset = 8 * g.trainsetLevelOf(id);
+      const acc = 3 * g.accessLevelOf(id);
+      const tset = 2.5 * g.trainsetLevelOf(id);
+      const bonus = g.lineMilestoneMult(id);
       body =
         `<div class="row"><span class="meta">${l.stationIds.length} stops · ${g.trainCount(id)} train${g.trainCount(id) === 1 ? '' : 's'}</span>
           <button data-act="buy-train" data-cost="${trainCost}">+TRAIN · $${fmt(trainCost)}</button></div>` +
+        `<div class="sect">LINE INCOME BONUS ×${bonus} · every ⚡ milestone (L10·25·50·100) doubles it · +1 car</div>` +
         up('speed', 'SPEED', arrow('speed', spd.toFixed(1), spdNext.toFixed(1)),
-          (Game.baseSpeed * 2.5 * sig).toFixed(1)) +
-        up('cars', 'CARS', arrow('cars', `${cap.toFixed(0)}/stop`, `${(cap + 6).toFixed(0)}/stop`),
-          '82/stop') +
-        up('access', 'ACCESS', arrow('access', `+${acc}%`, `${acc + 10}% riders`), '+100%') +
-        up('trainset', 'TRAINSETS', arrow('trainset', `+${tset}%`, `${tset + 8}% riders`), '+80%');
+          (Game.baseSpeed * 5 * sig).toFixed(1)) +
+        up('cars', 'CARS', arrow('cars', `${cap.toFixed(0)}/stop`, `${(cap + 2).toFixed(0)}/stop`),
+          '222/stop') +
+        up('access', 'ACCESS', arrow('access', `+${acc}%`, `${acc + 3}% riders`), '+300%') +
+        up('trainset', 'TRAINSETS', arrow('trainset', `+${tset.toFixed(1)}%`, `${(tset + 2.5).toFixed(1)}% riders`), '+250%');
     } else {
       const next = g.nextPlannedType(id);
       body = STATION_WORKS
