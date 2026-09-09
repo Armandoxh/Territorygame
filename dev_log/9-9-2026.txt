@@ -76,3 +76,19 @@ raised (min 4->5.5 world units, zoom scale 0.02->0.028) so stops
 sitting against a neighboring line's ribbon are comfortably
 tappable. 26 tests green; headless regression re-ran the buy +
 persistence flow with the guards active.
+
+Build 45 (metro2): STAT ROWS + BUNDLE BUYS (player: "menus feel very
+AI... too much text summary. Just show current stat and what the
+upgrade gets you, and buy 1/5/max"). Every upgrade row across the
+line sheets, NETWORK desk, and station cards is now NAME · Ln ·
+stat-now -> stat-next with a +1 / +5 / MAX buy strip (MAX buys as
+many levels as cash allows; +5 caps at remaining and shows its true
+bundle price). Blurb sentences deleted everywhere. Stats are live
+computed values, not descriptions: SPEED 51.2->54.9, CARS 82->88/
+stop, fare $2.50->2.75, -15%->30% dwell, 96->104 cap, etc. Maxed
+rows show only what you have. Engine grew generic bundle helpers
+(lineUpgradeBundle/globalBundle/workBundle + buyMany). Phone-width
+(430px) play test: +5 SPEED took L2->L7 for the shown bundle price,
+MAX finished CARS, rows hold one line each. Also fixed: goal strip vs
+rate chip overlap on narrow screens (rate hides under 560px),
+remaining '1 trains' plural.

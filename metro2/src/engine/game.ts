@@ -282,6 +282,97 @@ export class Game {
     return this.buyLineLevel(this.trainsetLevels, id, this.nextTrainsetCost(id));
   }
 
+  // ---- Bundle buying (+1 / +5 / MAX rows in the console) ----
+  /** Total cost of the next [n] levels (capped at what remains). */
+  private bundle(
+    level: number,
+    max: number,
+    costAt: (l: number) => number,
+    n: number,
+  ): { count: number; cost: number } {
+    let cost = 0;
+    let count = 0;
+    for (let l = level; l < Math.min(level + n, max); l++) {
+      cost += costAt(l);
+      count++;
+    }
+    return { count, cost };
+  }
+
+  private buyMany(
+    n: number,
+    tryBuy: () => boolean,
+  ): number {
+    let bought = 0;
+    while (bought < n && tryBuy()) bought++;
+    return bought;
+  }
+
+  lineUpgradeLevel(kind: LineUpgradeKind, id: string): number {
+    switch (kind) {
+      case 'speed': return this.speedLevelOf(id);
+      case 'cars': return this.carLevelOf(id);
+      case 'access': return this.accessLevelOf(id);
+      case 'trainset': return this.trainsetLevelOf(id);
+    }
+  }
+
+  lineUpgradeCostAt(kind: LineUpgradeKind, id: string, level: number): number {
+    const base = this.upgradeBase(this.lineById(id));
+    switch (kind) {
+      case 'speed': return base * Math.pow(1.9, level);
+      case 'cars': return base * 1.2 * Math.pow(2.0, level);
+      case 'access': return base * 1.5 * Math.pow(2.1, level);
+      case 'trainset': return base * 1.4 * Math.pow(2.05, level);
+    }
+  }
+
+  lineUpgradeBundle(kind: LineUpgradeKind, id: string, n: number) {
+    return this.bundle(
+      this.lineUpgradeLevel(kind, id),
+      Game.levelMax,
+      (l) => this.lineUpgradeCostAt(kind, id, l),
+      n,
+    );
+  }
+
+  buyLineUpgrades(kind: LineUpgradeKind, id: string, n: number): number {
+    const buyOne = {
+      speed: () => this.buySpeed(id),
+      cars: () => this.buyCars(id),
+      access: () => this.buyAccess(id),
+      trainset: () => this.buyTrainset(id),
+    }[kind];
+    return this.buyMany(n, buyOne);
+  }
+
+  globalBundle(id: string, n: number) {
+    const def = GLOBALS.find((g) => g.id === id)!;
+    return this.bundle(
+      this.globalLevelOf(id),
+      def.maxLevel,
+      (l) => def.baseCost * this.costScale * Math.pow(def.growth, l),
+      n,
+    );
+  }
+
+  buyGlobals(id: string, n: number): number {
+    return this.buyMany(n, () => this.buyGlobal(id));
+  }
+
+  workBundle(type: string, stationId: string, n: number) {
+    return this.bundle(
+      this.stationWorkLevel(type, stationId),
+      Game.foodMax,
+      (l) => this.stationWorkCost(type, l),
+      n,
+    );
+  }
+
+  buyWorks(type: string, stationId: string, n: number): number {
+    return this.buyMany(n, () => this.buyStationWork(type, stationId));
+  }
+
   // ---- Network upgrades ----
   nextGlobalCost(id: string): number {
     const def = GLOBALS.find((g) => g.id === id)!;
@@ -1052,3 +1143,8 @@ export function goalsFor(cityId: string): GoalDef[] {
   void cityId; // Angel Bay's ladder arrives with the city-ladder port.
   return NEW_MERIDIAN_GOALS;
 }
+
+export type LineUpgradeKind = 'speed' | 'cars' | 'access' | 'trainset';
+export const LINE_UPGRADE_KINDS: LineUpgradeKind[] = [
+  'speed', 'cars', 'access', 'trainset',
+];
