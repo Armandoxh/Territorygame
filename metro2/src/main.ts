@@ -155,15 +155,20 @@ window.addEventListener('resize', () => scene.resize());
 
 let last = performance.now();
 let acc = 0;
+// The sim ticks at a fixed 20 Hz for determinism; frames INTERPOLATE
+// between the last two sim states so trains glide at any refresh rate
+// instead of stepping (the "pixelated" motion of b54 and earlier).
+let prevDistances: number[] = [];
 function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.25);
   last = now;
   acc += dt * simSpeed;
   while (acc > 0.05) {
+    prevDistances = game.trains.map((t) => t.distance);
     game.tick(0.05);
     acc -= 0.05;
   }
-  scene.render();
+  scene.render(acc / 0.05, prevDistances);
   watchSeqs();
   ui.update(now);
   requestAnimationFrame(frame);

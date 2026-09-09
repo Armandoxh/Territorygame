@@ -576,7 +576,9 @@ export class CityScene {
     this.renderer.setSize(w, h, false);
   }
 
-  render(): void {
+  /** [alpha] blends each train between its previous and current sim
+   * positions (0 = previous tick, 1 = current) for fluid motion. */
+  render(alpha = 1, prevDistances: number[] = []): void {
     const g = this.game;
     const n = g.nightFactor;
 
@@ -649,7 +651,10 @@ export class CityScene {
         this.fillTrainGroup(group, this.trainMats[i], wantCars);
       }
       const path = g.paths.get(t.lineId)!;
-      const segIdx = path.segmentAt(t.distance);
+      const prev = prevDistances[i];
+      const d =
+        prev === undefined ? t.distance : prev + (t.distance - prev) * alpha;
+      const segIdx = path.segmentAt(d);
       const a = path.points[segIdx];
       const b = path.points[segIdx + 1];
       const dx = b.x - a.x;
@@ -658,7 +663,7 @@ export class CityScene {
       const lane = len < 0.001 ? 0 : this.lanes.laneOf(t.lineId, segIdx);
       const nx = len < 0.001 ? 0 : (-dy / len) * lane;
       const ny = len < 0.001 ? 0 : (dx / len) * lane;
-      const p = path.posAt(t.distance);
+      const p = path.posAt(d);
       group.position.set(p.x + nx, TRACK_Y + 0.3, p.y + ny);
       group.rotation.y = -Math.atan2(dy * t.direction, dx * t.direction);
     });

@@ -262,3 +262,15 @@ doubling can't mask a dead stat), milestone math + fare-gate
 doubling pinned, hub-service test re-equivalenced (cars 9 = the old
 +18 capacity). Probe verified: line-1 consist grew to 4 cars from 3
 milestones while line A stayed at 1.
+
+Build 55 (metro2): FLUID TRAINS (player: "when the train moves it
+doesn't feel very fluid, almost pixelated"). Root cause: the sim
+ticks at a fixed 20Hz (0.05s, for determinism) and trains rendered
+only at those snapshots -- 20 positions/sec on a 60-120Hz phone =
+visible stepping. Standard fixed-timestep interpolation added: the
+frame loop snapshots train distances before each tick and render()
+blends prev->current by alpha = acc/step, so motion is continuous at
+any refresh rate while the sim stays bit-identical (28 tests green,
+untouched). Probe confirmed interpolated positions BETWEEN tick
+values gliding at exactly line speed; the first probe's all-zero
+deltas were a station dwell, not a bug.
