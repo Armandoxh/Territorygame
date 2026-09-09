@@ -180,29 +180,8 @@ export class Console {
         .filter((l) => g.isUnlocked(l.id) && l.stationIds.includes(id))
         .map((l) => `<span class="bullet" style="background:${l.color}">${l.bullet}</span>`)
         .join('');
-      const workStat = (wid: string, lvl: number): string => {
-        const nxt = lvl + 1;
-        switch (wid) {
-          case 'food': return lvl >= Game.foodMax
-            ? `+$${(0.4 * lvl).toFixed(1)} · +${10 * lvl}%`
-            : `+$${(0.4 * lvl).toFixed(1)} → ${(0.4 * nxt).toFixed(1)} · +${10 * lvl} → ${10 * nxt}%`;
-          case 'gates': return lvl >= Game.foodMax
-            ? `+$${(0.25 * lvl).toFixed(2)}/rider`
-            : `+$${(0.25 * lvl).toFixed(2)} → ${(0.25 * nxt).toFixed(2)}/rider`;
-          case 'platform': return lvl >= Game.foodMax
-            ? `−${15 * lvl}% dwell`
-            : `−${15 * lvl}% → ${15 * nxt}% dwell`;
-          case 'parking': return lvl >= Game.foodMax
-            ? `+${6 * lvl}% riders`
-            : `+${6 * lvl}% → ${6 * nxt}% riders`;
-          case 'escalators': return lvl >= Game.foodMax
-            ? `+${8 * lvl} cap`
-            : `+${8 * lvl} → ${8 * nxt} cap`;
-          default: return lvl >= Game.foodMax
-            ? `+${4 * lvl}% income`
-            : `+${4 * lvl}% → ${4 * nxt}% income`;
-        }
-      };
+      const workStat = (wid: string, lvl: number): string =>
+        this.workStat(wid, lvl);
       const works = !served
         ? ''
         : STATION_WORKS.map((w) => {
@@ -212,13 +191,15 @@ export class Console {
                 <span class="lvl">MAX</span><span class="stat">${workStat(w.id, lvl)}</span></div>`;
             }
             const b1 = g.workBundle(w.id, id, 1);
+            const bAll = g.workBundle(w.id, id, 9);
             return `<div class="row up"><span class="nm">${w.name}</span>
-              <span class="lvl">L${lvl}</span><span class="stat">${workStat(w.id, lvl)}</span>
+              <span class="lvl">L${lvl}</span>
+              <span class="stat">${workStat(w.id, lvl)} <b class="maxhint">· max ${workStat(w.id, Game.foodMax)}</b></span>
               <span class="buys">
                 <button data-act="buy-work" data-id="${w.id}" data-n="1"
                   data-cost="${b1.cost}">$${fmt(b1.cost)}</button>
                 <button data-act="buy-work" data-id="${w.id}" data-n="9"
-                  data-cost="${b1.cost}">MAX</button>
+                  data-cost="${b1.cost}">MAX $${fmt(bAll.cost)}</button>
               </span></div>`;
           }).join('');
       this.stationEl.innerHTML = `
@@ -240,9 +221,11 @@ export class Console {
     level: number,
     max: number,
     stat: string,
+    maxStat: string,
     buys: { act: string; attrs: string },
     b1: { count: number; cost: number },
     b5: { count: number; cost: number },
+    bAll: { count: number; cost: number },
   ): string {
     if (level >= max) {
       return `<div class="row up"><span class="nm">${name}</span>
@@ -250,15 +233,40 @@ export class Console {
     }
     return `<div class="row up">
       <span class="nm">${name}</span><span class="lvl">L${level}</span>
-      <span class="stat">${stat}</span>
+      <span class="stat">${stat} <b class="maxhint">· max ${maxStat}</b></span>
       <span class="buys">
         <button data-act="${buys.act}" ${buys.attrs} data-n="1"
           data-cost="${b1.cost}">$${fmt(b1.cost)}</button>
         <button data-act="${buys.act}" ${buys.attrs} data-n="5"
           data-cost="${b5.cost}">×${b5.count} $${fmt(b5.cost)}</button>
         <button data-act="${buys.act}" ${buys.attrs} data-n="99"
-          data-cost="${b1.cost}">MAX</button>
+          data-cost="${b1.cost}">MAX $${fmt(bAll.cost)}</button>
       </span></div>`;
+  }
+
+  /** Current → next effect for one station work at [lvl]. */
+  private workStat(wid: string, lvl: number): string {
+    const nxt = lvl + 1;
+    switch (wid) {
+      case 'food': return lvl >= Game.foodMax
+        ? `+$${(0.4 * lvl).toFixed(1)} · +${10 * lvl}%`
+        : `+$${(0.4 * lvl).toFixed(1)} → ${(0.4 * nxt).toFixed(1)} · +${10 * lvl} → ${10 * nxt}%`;
+      case 'gates': return lvl >= Game.foodMax
+        ? `+$${(0.25 * lvl).toFixed(2)}/rider`
+        : `+$${(0.25 * lvl).toFixed(2)} → ${(0.25 * nxt).toFixed(2)}/rider`;
+      case 'platform': return lvl >= Game.foodMax
+        ? `−${15 * lvl}% dwell`
+        : `−${15 * lvl}% → ${15 * nxt}% dwell`;
+      case 'parking': return lvl >= Game.foodMax
+        ? `+${6 * lvl}% riders`
+        : `+${6 * lvl}% → ${6 * nxt}% riders`;
+      case 'escalators': return lvl >= Game.foodMax
+        ? `+${8 * lvl} cap`
+        : `+${8 * lvl} → ${8 * nxt} cap`;
+      default: return lvl >= Game.foodMax
+        ? `+${4 * lvl}% income`
+        : `+${4 * lvl}% → ${4 * nxt}% income`;
+    }
   }
 
   private head(title: string): string {
@@ -313,16 +321,19 @@ export class Console {
     const g = this.game;
     const l = g.lineById(id);
     const bullet = `<span class="bullet" style="background:${l.color}">${l.bullet}</span>`;
-    const up = (kind: LineUpgradeKind, name: string, stat: string) =>
+    const up = (kind: LineUpgradeKind, name: string, stat: string, maxStat: string) =>
       this.upRow(
         name,
         g.lineUpgradeLevel(kind, id),
         Game.levelMax,
         stat,
+        maxStat,
         { act: 'buy-up', attrs: `data-kind="${kind}"` },
         g.lineUpgradeBundle(kind, id, 1),
         g.lineUpgradeBundle(kind, id, 5),
+        g.lineUpgradeBundle(kind, id, 99),
       );
+    const sig = 1 + 0.04 * g.globalLevelOf('signal');
     // At MAX a row shows only what you have — no arrow to nowhere.
     const arrow = (kind: LineUpgradeKind, now: string, next: string) =>
       g.lineUpgradeLevel(kind, id) >= Game.levelMax ? now : `${now} → ${next}`;
@@ -341,10 +352,11 @@ export class Console {
         const done = min >= Game.foodMax;
         const count = done ? 0 : g.stationsAtMin(id, w.id);
         const cost = g.stationTierCost(id, w.id);
-        return `<div class="row${w.id === next ? ' next' : ''}">
+        return `<div class="row up${w.id === next ? ' next' : ''}">
           <button class="pri" data-act="raise-priority" data-id="${w.id}">▲</button>
           <span class="nm">${w.name}</span>
-          <span class="meta">${done ? 'all stations MAX' : `L${min}→${min + 1} · ${count} stop${count === 1 ? '' : 's'}`}</span>
+          <span class="lvl">${done ? 'MAX' : `L${min}→${min + 1} ·${count}×`}</span>
+          <span class="stat">${this.workStat(w.id, done ? Game.foodMax : min)}</span>
           <button data-act="buy-tier" data-id="${w.id}" data-cost="${done ? 0 : cost}"
             ${done ? 'disabled' : ''}>${done ? 'MAX' : '$' + fmt(cost)}</button></div>`;
       })
@@ -355,10 +367,12 @@ export class Console {
         <span class="meta">${l.stationIds.length} stops · ${g.trainCount(id)} train${g.trainCount(id) === 1 ? '' : 's'}</span>
         <button data-act="buy-train" data-cost="${trainCost}">+TRAIN · $${fmt(trainCost)}</button></div>` +
       `<div class="sect">LINE UPGRADES</div>` +
-      up('speed', 'SPEED', arrow('speed', spd.toFixed(1), spdNext.toFixed(1))) +
-      up('cars', 'CARS', arrow('cars', `${cap.toFixed(0)}/stop`, `${(cap + 6).toFixed(0)}/stop`)) +
-      up('access', 'ACCESS', arrow('access', `+${acc}%`, `${acc + 10}% riders`)) +
-      up('trainset', 'TRAINSETS', arrow('trainset', `+${tset}%`, `${tset + 8}% riders`)) +
+      up('speed', 'SPEED', arrow('speed', spd.toFixed(1), spdNext.toFixed(1)),
+        (Game.baseSpeed * 2.5 * sig).toFixed(1)) +
+      up('cars', 'CARS', arrow('cars', `${cap.toFixed(0)}/stop`, `${(cap + 6).toFixed(0)}/stop`),
+        '82/stop') +
+      up('access', 'ACCESS', arrow('access', `+${acc}%`, `${acc + 10}% riders`), '+100%') +
+      up('trainset', 'TRAINSETS', arrow('trainset', `+${tset}%`, `${tset + 8}% riders`), '+80%') +
       `<div class="sect">STATION WORKS · ▲ priority</div>` +
       works
     );
@@ -384,11 +398,12 @@ export class Console {
       case 'signal': return `+${4 * lvl}% speed`;
       case 'doors': return `−${5 * lvl}% stop time`;
       case 'marketing': return `+${5 * lvl}% riders`;
-      case 'fare': return `$${g.currentFare.toFixed(2)} fare`;
+      case 'fare':
+        return `$${((Game.fare + 0.25 * lvl) * g.fareScale).toFixed(2)} fare`;
       case 'billboards': return `+${3 * lvl}% income`;
-      case 'crowd': return `${g.stationCapNow.toFixed(0)} cap`;
+      case 'crowd': return `${(Game.stationCapBase + 8 * lvl).toFixed(0)} cap`;
       case 'yards': return `−${4 * lvl}% train cost`;
-      default: return `${(100 * g.offlineEfficiencyNow).toFixed(0)}% offline`;
+      default: return `${(50 + 6 * lvl).toFixed(0)}% offline`;
     }
   }
 
@@ -403,9 +418,11 @@ export class Console {
         lvl,
         d.maxLevel,
         stat,
+        this.globalStatAtMax(d.id, d.maxLevel),
         { act: 'buy-global', attrs: `data-id="${d.id}"` },
         g.globalBundle(d.id, 1),
         g.globalBundle(d.id, 5),
+        g.globalBundle(d.id, 99),
       );
     }).join('');
     return this.head('NETWORK UPGRADES') + rows;

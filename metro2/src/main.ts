@@ -52,11 +52,7 @@ speedBtn.addEventListener('click', () => {
   simSpeed = simSpeed >= 10 ? 1 : 10;
   speedBtn.textContent = simSpeed >= 10 ? '⏩ 10×' : '⏩ 1×';
 });
-const viewBtn = document.getElementById('btn-view') as HTMLButtonElement;
-viewBtn.addEventListener('click', () => {
-  scene.setMapView(!scene.mapView);
-  viewBtn.textContent = scene.mapView ? 'CITY' : 'MAP';
-});
+
 
 // iOS Safari zooms the PAGE on double-tap and pinch even with
 // user-scalable=no — and then refuses to zoom back out. Block the
@@ -79,10 +75,10 @@ canvas.addEventListener(
   { passive: false },
 );
 const scene = new CityScene(canvas, game, { bloom: !params.has('nobloom') });
-scene.controls.autoRotate = showcase && !params.has('fixed');
 
 const ui = new Console(game);
 ui.onUnlock = (lineId) => {
+  scene.refreshService();
   scene.focusLine(lineId);
   const line = city.lines.find((l) => l.id === lineId)!;
   ui.toast(`${line.name} is OPEN — first train entering service`);

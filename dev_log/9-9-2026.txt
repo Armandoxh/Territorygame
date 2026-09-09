@@ -118,3 +118,29 @@ names. The 2D-vs-3D question is now a toggle, not a rebuild. Debug
 handle window.__scene added for headless probing (which found the
 sizeAttenuation label bug and the district text buried under the
 land bevel).
+
+Build 47 (metro2): THE MAP IS THE GAME (player, after playing b46 on
+device: "too polluted and laggy. Remove the city mode" + a 5-item
+list + "this UI isn't coherent" + reversed touch). The 3D city is
+GONE -- scene.ts rewritten 1159 -> 489 lines as a single top-down
+diagram in v1's approved map language: flat #BDD3E8 water / #FAF9F6
+land / #CBE2C6 parks, LOCKED ROUTES AS DASHED GRAY (v1 3.8/2.4
+rhythm; the ugly fades are dead), solid ribbons on v1's 3.2 lane
+gap, station dots that upgrade to white disc + ink ring on service,
+district names printed on the ground. No buildings, no bloom, no
+shadows, no tone mapping -- the lag and the haze went with them. The
+light cycle survives as clean color shifts: paper by day, glowing
+routes at night. DATA LAYER: served stations carry name labels and
+LIVE up/down waiting counts (canvas sprites, redrawn only on change,
+red at platform cap) -- screen-constant size so nothing ever clips,
+with a zoom policy: wide = clean diagram, zoom past 360 = names,
+past 300 = numbers. (World-scaled sprites turned out not to render
+at all from a straight-down camera -- found via the window.__scene
+probe; screen-constant + zoom fading is also just better.) TOUCH
+FIXED as requested: one finger PANS, two fingers zoom; rotation is
+gone -- a diagram has an up. CONSOLE: MAX buttons now price the full
+climb AND every stat line names its max value ("51.2 -> 54.9 · max
+60.0"); station-works rows everywhere (card + line planner) show
+current -> next -> max effect. globalStatAtMax computed from the max
+level, not current getters. 26 tests green; device-size headless
+shots verified overview/street/night.
