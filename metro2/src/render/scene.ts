@@ -227,11 +227,11 @@ export class CityScene {
         const lane = this.lanes.laneOf(line.id, i);
         const nx = (-dy / len) * lane;
         const ny = (dx / len) * lane;
-        const g = new THREE.BoxGeometry(len, 0.35, 1.25);
+        const g = new THREE.BoxGeometry(len, 0.4, 1.7);
         g.rotateY(-Math.atan2(dy, dx));
         g.translate((a.x + b.x) / 2 + nx, TRACK_Y, (a.y + b.y) / 2 + ny);
         parts.push(g);
-        const bed = new THREE.BoxGeometry(len + 0.8, 0.28, 2.1);
+        const bed = new THREE.BoxGeometry(len + 0.8, 0.3, 2.6);
         bed.rotateY(-Math.atan2(dy, dx));
         bed.translate((a.x + b.x) / 2 + nx, TRACK_Y - 0.24, (a.y + b.y) / 2 + ny);
         bedParts.push(bed);
@@ -251,7 +251,7 @@ export class CityScene {
     }
     const bedMesh = new THREE.Mesh(
       BufferGeometryUtils.mergeGeometries(bedParts),
-      new THREE.MeshStandardMaterial({ color: 0x5b5a58, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: 0x46464a, roughness: 1 }),
     );
     bedMesh.castShadow = true;
     bedMesh.receiveShadow = true;
@@ -848,8 +848,10 @@ export class CityScene {
     // The city answers the dark with light. Locked routes stay ghosts.
     this.trackMats.forEach((mat, i) => {
       const unlocked = g.isUnlocked(g.city.lines[i].id);
-      mat.opacity = unlocked ? 1 : 0.14;
-      mat.emissiveIntensity = unlocked ? 0.85 * n : 0;
+      mat.opacity = unlocked ? 1 : 0.3;
+      // A touch of self-light by day keeps the route colors saturated
+      // against the sun-washed city; night still burns brighter.
+      mat.emissiveIntensity = unlocked ? 0.18 + 0.75 * n : 0;
     });
     this.buildingMat.emissiveIntensity = 0.55 * n;
     this.lampMat.opacity = 0.55 * n;

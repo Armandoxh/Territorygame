@@ -3,11 +3,12 @@
  * balance harness remains the authority on tuning; every constant here
  * mirrors the Dart value by name. Deterministic, no RNG — same law as v1.
  *
- * Ported so far (milestone 1, the render proof): rider arrivals with
- * directional platforms, ping-pong trains with dwell, boarding + fares,
- * the rush clock, the light cycle, widest-gap train spawning, line
- * unlocks. Upgrades, works, commissions, and goals port in later
- * milestones.
+ * Ported: rider arrivals with directional platforms, ping-pong trains
+ * with dwell, boarding + fares, the rush clock, the light cycle,
+ * widest-gap train spawning, line unlocks, and (M3) the FULL UPGRADE
+ * ECONOMY — per-line upgrades, the six station works with tier-even
+ * bulk buying and player priority, and the eight network upgrades.
+ * Commissions and the goal ladder port next.
  */
 import { CityDef, LineDef, LinePath } from './city';
 
@@ -30,6 +31,17 @@ export class Game {
   static readonly rushPeriod = 180;
   static readonly rushWindow = 45;
   static readonly rushMult = 2.5;
+  static readonly levelMax = 10;
+  static readonly foodMax = 5; // max level for every station work
+  static readonly foodBonusPerLevel = 0.4;
+
+  // City economics (data may override; New Meridian is 1/1).
+  get costScale(): number {
+    return (this.city as { costScale?: number }).costScale ?? 1;
+  }
+  get fareScale(): number {
+    return (this.city as { fareScale?: number }).fareScale ?? 1;
+  }
 
   readonly city: CityDef;
   readonly paths = new Map<string, LinePath>();
@@ -43,6 +55,26 @@ export class Game {
   readonly waitingDown = new Map<string, number>();
   readonly trains: TrainState[] = [];
   readonly unlockedLineIds = new Set<string>();
+
+  // ---- Station works (six per-station levels) ----
+  readonly foodLevel = new Map<string, number>();
+  readonly gateLevel = new Map<string, number>();
+  readonly platformLevel = new Map<string, number>();
+  readonly parkingLevel = new Map<string, number>();
+  readonly escalatorLevel = new Map<string, number>();
+  readonly securityLevel = new Map<string, number>();
+
+  /** The order the bulk planner attacks work types in — player-set. */
+  stationPriority: string[] = STATION_WORKS.map((w) => w.id);
+
+  // ---- Per-line upgrade levels ----
+  readonly speedLevels = new Map<string, number>();
+  readonly carLevels = new Map<string, number>();
+  readonly accessLevels = new Map<string, number>();
+  readonly trainsetLevels = new Map<string, number>();
+
+  // ---- Network-wide upgrade levels ----
+  readonly globalLevels = new Map<string, number>();
 
   /** $/s estimate over a rolling window (drives HUD + offline pay). */
   avgRate = 0;
@@ -114,12 +146,207 @@ export class Game {
     return (this.waitingUp.get(stationId) ?? 0) + (this.waitingDown.get(stationId) ?? 0);
   }
 
-  trainSpeedFor(_lineId: string): number {
-    return Game.baseSpeed; // + upgrades, in a later milestone
+  // ---- The v1 upgrade economy, formula for formula ----
+  speedLevelOf(id: string): number { return this.speedLevels.get(id) ?? 0; }
+  carLevelOf(id: string): number { return this.carLevels.get(id) ?? 0; }
+  accessLevelOf(id: string): number { return this.accessLevels.get(id) ?? 0; }
+  trainsetLevelOf(id: string): number { return this.trainsetLevels.get(id) ?? 0; }
+  globalLevelOf(id: string): number { return this.globalLevels.get(id) ?? 0; }
+
+  /** This line's trains: +15% speed per level, times network signals. */
+  trainSpeedFor(lineId: string): number {
+    return (
+      Game.baseSpeed *
+      (1 + 0.15 * this.speedLevelOf(lineId)) *
+      (1 + 0.04 * this.globalLevelOf('signal'))
+    );
   }
 
-  capacityFor(_lineId: string): number {
-    return Game.capacityBase;
+  /** This line's cars: riders boarded per stop. */
+  capacityFor(lineId: string): number {
+    return Game.capacityBase + 6.0 * this.carLevelOf(lineId);
+  }
+
+  /** The fare riders actually pay right now. */
+  get currentFare(): number {
+    return (Game.fare + 0.25 * this.globalLevelOf('fare')) * this.fareScale;
+  }
+
+  /** Seconds stopped at each station, after platform doors. */
+  get effectiveDwell(): number {
+    return Game.dwellTime * (1 - 0.05 * this.globalLevelOf('doors'));
+  }
+
+  /** Ridership multiplier at one station: every serving line's access +
+   * trainset upgrades COMPOUND, then food, park & ride, marketing. */
+  demandMultAt(stationId: string): number {
+    let m = 1.0;
+    for (const lineId of this.linesServing.get(stationId) ?? []) {
+      m *=
+        (1 + 0.1 * this.accessLevelOf(lineId)) *
+        (1 + 0.08 * this.trainsetLevelOf(lineId));
+    }
+    m *= 1 + 0.1 * (this.foodLevel.get(stationId) ?? 0);
+    m *= 1 + 0.06 * (this.parkingLevel.get(stationId) ?? 0);
+    return m * (1 + 0.05 * this.globalLevelOf('marketing'));
+  }
+
+  /** What one rider pays boarding here. */
+  incomePerRiderAt(stationId: string): number {
+    return (
+      (this.currentFare +
+        (Game.foodBonusPerLevel * (this.foodLevel.get(stationId) ?? 0) +
+          0.25 * (this.gateLevel.get(stationId) ?? 0)) *
+          this.fareScale) *
+      (1 + 0.04 * (this.securityLevel.get(stationId) ?? 0)) *
+      (1 + 0.03 * this.globalLevelOf('billboards'))
+    );
+  }
+
+  get stationCapNow(): number {
+    return Game.stationCapBase + 8.0 * this.globalLevelOf('crowd');
+  }
+  stationCapAt(stationId: string): number {
+    return this.stationCapNow + 8.0 * (this.escalatorLevel.get(stationId) ?? 0);
+  }
+
+  get offlineEfficiencyNow(): number {
+    return Game.offlineEfficiency + 0.06 * this.globalLevelOf('night');
+  }
+
+  // Per-line upgrade prices scale with the line's tier.
+  private upgradeBase(line: LineDef): number {
+    return 250 * this.costScale + line.unlockCost * 0.05;
+  }
+  nextSpeedCost(id: string): number {
+    return this.upgradeBase(this.lineById(id)) * Math.pow(1.9, this.speedLevelOf(id));
+  }
+  nextCarCost(id: string): number {
+    return this.upgradeBase(this.lineById(id)) * 1.2 * Math.pow(2.0, this.carLevelOf(id));
+  }
+  nextAccessCost(id: string): number {
+    return this.upgradeBase(this.lineById(id)) * 1.5 * Math.pow(2.1, this.accessLevelOf(id));
+  }
+  nextTrainsetCost(id: string): number {
+    return this.upgradeBase(this.lineById(id)) * 1.4 * Math.pow(2.05, this.trainsetLevelOf(id));
+  }
+
+  private buy(allowed: boolean, cost: number, apply: () => void): boolean {
+    if (!allowed || this.cash < cost) return false;
+    this.cash -= cost;
+    apply();
+    return true;
+  }
+
+  private buyLineLevel(map: Map<string, number>, id: string, cost: number): boolean {
+    return this.buy(
+      this.isUnlocked(id) && (map.get(id) ?? 0) < Game.levelMax,
+      cost,
+      () => map.set(id, (map.get(id) ?? 0) + 1),
+    );
+  }
+  buySpeed(id: string): boolean {
+    return this.buyLineLevel(this.speedLevels, id, this.nextSpeedCost(id));
+  }
+  buyCars(id: string): boolean {
+    return this.buyLineLevel(this.carLevels, id, this.nextCarCost(id));
+  }
+  buyAccess(id: string): boolean {
+    return this.buyLineLevel(this.accessLevels, id, this.nextAccessCost(id));
+  }
+  buyTrainset(id: string): boolean {
+    return this.buyLineLevel(this.trainsetLevels, id, this.nextTrainsetCost(id));
+  }
+
+  // ---- Network upgrades ----
+  nextGlobalCost(id: string): number {
+    const def = GLOBALS.find((g) => g.id === id)!;
+    return def.baseCost * this.costScale * Math.pow(def.growth, this.globalLevelOf(id));
+  }
+  buyGlobal(id: string): boolean {
+    const def = GLOBALS.find((g) => g.id === id)!;
+    return this.buy(
+      this.globalLevelOf(id) < def.maxLevel,
+      this.nextGlobalCost(id),
+      () => this.globalLevels.set(id, this.globalLevelOf(id) + 1),
+    );
+  }
+
+  // ---- Station works: singles, and the tier-even bulk planner ----
+  workMapFor(type: string): Map<string, number> {
+    switch (type) {
+      case 'food': return this.foodLevel;
+      case 'gates': return this.gateLevel;
+      case 'platform': return this.platformLevel;
+      case 'parking': return this.parkingLevel;
+      case 'escalators': return this.escalatorLevel;
+      default: return this.securityLevel;
+    }
+  }
+  stationWorkLevel(type: string, stationId: string): number {
+    return this.workMapFor(type).get(stationId) ?? 0;
+  }
+  stationWorkCost(type: string, level: number): number {
+    const def = STATION_WORKS.find((w) => w.id === type)!;
+    return def.baseCost * this.costScale * Math.pow(def.growth, level);
+  }
+  buyStationWork(type: string, stationId: string): boolean {
+    const level = this.stationWorkLevel(type, stationId);
+    return this.buy(
+      this.isServed(stationId) && level < Game.foodMax,
+      this.stationWorkCost(type, level),
+      () => this.workMapFor(type).set(stationId, level + 1),
+    );
+  }
+  raisePriority(type: string): void {
+    const i = this.stationPriority.indexOf(type);
+    if (i <= 0) return;
+    this.stationPriority.splice(i, 1);
+    this.stationPriority.splice(i - 1, 0, type);
+  }
+  /** The line's lowest tier of one work — the tier the bulk buy levels. */
+  minStationLevel(lineId: string, type: string): number {
+    let min = Game.foodMax;
+    const m = this.workMapFor(type);
+    for (const sid of this.lineById(lineId).stationIds) {
+      min = Math.min(min, m.get(sid) ?? 0);
+    }
+    return min;
+  }
+  stationsAtMin(lineId: string, type: string): number {
+    const min = this.minStationLevel(lineId, type);
+    const m = this.workMapFor(type);
+    return this.lineById(lineId).stationIds.filter((sid) => (m.get(sid) ?? 0) === min).length;
+  }
+  stationTierCost(lineId: string, type: string): number {
+    const min = this.minStationLevel(lineId, type);
+    if (min >= Game.foodMax) return 0;
+    return this.stationsAtMin(lineId, type) * this.stationWorkCost(type, min);
+  }
+  /** Raise the line's LOWEST-tier stations one level each while cash
+   * lasts — 8/9 at tier 2 means nobody reaches tier 3 until the 9th
+   * catches up. Returns how many stations upgraded. */
+  buyStationTier(lineId: string, type: string): number {
+    if (!this.isUnlocked(lineId)) return 0;
+    const min = this.minStationLevel(lineId, type);
+    if (min >= Game.foodMax) return 0;
+    const m = this.workMapFor(type);
+    const cost = this.stationWorkCost(type, min);
+    let bought = 0;
+    for (const sid of this.lineById(lineId).stationIds) {
+      if ((m.get(sid) ?? 0) !== min) continue;
+      if (this.cash < cost) break;
+      this.cash -= cost;
+      m.set(sid, min + 1);
+      bought++;
+    }
+    return bought;
+  }
+  nextPlannedType(lineId: string): string | null {
+    for (const type of this.stationPriority) {
+      if (this.minStationLevel(lineId, type) < Game.foodMax) return type;
+    }
+    return null;
   }
 
   // ---- Rush hour + the light cycle (mirrors Dart exactly) ----
@@ -175,13 +402,18 @@ export class Game {
 
     for (const id of this.served) {
       const st = this.city.stations.find((s) => s.id === id)!;
-      const add = st.demand * Game.demandScale * this.rushFactorAt(id) * dt;
+      const add =
+        st.demand *
+        Game.demandScale *
+        this.demandMultAt(id) *
+        this.rushFactorAt(id) *
+        dt;
       const uo = this.upServedSet.has(id);
       const dn = this.downServedSet.has(id);
       let dUp = uo && dn ? add / 2 : uo ? add : 0;
       let dDown = uo && dn ? add / 2 : dn ? add : 0;
       const room =
-        Game.stationCapBase - this.waitingUp.get(id)! - this.waitingDown.get(id)!;
+        this.stationCapAt(id) - this.waitingUp.get(id)! - this.waitingDown.get(id)!;
       if (room <= 0) continue;
       const want = dUp + dDown;
       if (want > room) {
@@ -221,7 +453,8 @@ export class Game {
       t.target === line.stationIds.length - 1 ? -1 : t.target === 0 ? 1 : t.direction;
     const stationId = line.stationIds[t.target];
     this.board(t.lineId, stationId, nextDir);
-    t.dwell = Game.dwellTime;
+    t.dwell =
+      this.effectiveDwell * (1 - 0.15 * (this.platformLevel.get(stationId) ?? 0));
     t.direction = nextDir;
     t.target += nextDir;
   }
@@ -233,7 +466,7 @@ export class Game {
     const take = Math.min(w, cap);
     if (take <= 0) return;
     bucket.set(stationId, w - take);
-    const earned = take * Game.fare;
+    const earned = take * this.incomePerRiderAt(stationId);
     this.cash += earned;
     this.totalEarned += earned;
     this.totalRiders += take;
@@ -316,7 +549,11 @@ export class Game {
    * — the v1 cost law, rail-yard discounts arrive with the upgrade port. */
   nextTrainCost(lineId: string): number {
     const line = this.lineById(lineId);
-    return line.trainCost * Math.pow(2.5, this.trainCount(lineId) - 1);
+    return (
+      line.trainCost *
+      Math.pow(2.5, this.trainCount(lineId) - 1) *
+      (1 - 0.04 * this.globalLevelOf('yards'))
+    );
   }
 
   buyTrain(lineId: string): boolean {
@@ -333,8 +570,9 @@ export class Game {
   static readonly maxOfflineSeconds = 8 * 3600;
 
   toJson(nowMs: number): Record<string, unknown> {
+    const dump = (m: Map<string, number>) => Object.fromEntries(m);
     return {
-      v2s: 1,
+      v2s: 2,
       cash: this.cash,
       totalEarned: this.totalEarned,
       totalRiders: this.totalRiders,
@@ -342,8 +580,20 @@ export class Game {
       avgRate: this.avgRate,
       unlocked: [...this.unlockedLineIds],
       trains: this.trains.map((t) => ({ ...t })),
-      waitingUp: Object.fromEntries(this.waitingUp),
-      waitingDown: Object.fromEntries(this.waitingDown),
+      waitingUp: dump(this.waitingUp),
+      waitingDown: dump(this.waitingDown),
+      foodLevel: dump(this.foodLevel),
+      gateLevel: dump(this.gateLevel),
+      platformLevel: dump(this.platformLevel),
+      parkingLevel: dump(this.parkingLevel),
+      escalatorLevel: dump(this.escalatorLevel),
+      securityLevel: dump(this.securityLevel),
+      speedLevels: dump(this.speedLevels),
+      carLevels: dump(this.carLevels),
+      accessLevels: dump(this.accessLevels),
+      trainsetLevels: dump(this.trainsetLevels),
+      globalLevels: dump(this.globalLevels),
+      stationPriority: this.stationPriority,
       lastSeenMs: nowMs,
     };
   }
@@ -389,11 +639,33 @@ export class Game {
     for (const [id, w] of Object.entries((j.waitingDown as Record<string, number>) ?? {})) {
       if (g.waitingDown.has(id)) g.waitingDown.set(id, Number(w));
     }
+    const load = (m: Map<string, number>, o: unknown, keyOk?: (k: string) => boolean) => {
+      for (const [k, v] of Object.entries((o as Record<string, number>) ?? {})) {
+        if (!keyOk || keyOk(k)) m.set(k, Number(v));
+      }
+    };
+    const stOk = (k: string) => g.waitingUp.has(k);
+    const lnOk = (k: string) => city.lines.some((l) => l.id === k);
+    load(g.foodLevel, j.foodLevel, stOk);
+    load(g.gateLevel, j.gateLevel, stOk);
+    load(g.platformLevel, j.platformLevel, stOk);
+    load(g.parkingLevel, j.parkingLevel, stOk);
+    load(g.escalatorLevel, j.escalatorLevel, stOk);
+    load(g.securityLevel, j.securityLevel, stOk);
+    load(g.speedLevels, j.speedLevels, lnOk);
+    load(g.carLevels, j.carLevels, lnOk);
+    load(g.accessLevels, j.accessLevels, lnOk);
+    load(g.trainsetLevels, j.trainsetLevels, lnOk);
+    load(g.globalLevels, j.globalLevels);
+    const prio = j.stationPriority as string[] | undefined;
+    if (prio && STATION_WORKS.every((w) => prio.includes(w.id))) {
+      g.stationPriority = prio.filter((t) => STATION_WORKS.some((w) => w.id === t));
+    }
     const away = Math.min(
       Math.max((nowMs - Number(j.lastSeenMs ?? nowMs)) / 1000, 0),
       Game.maxOfflineSeconds,
     );
-    const offlineEarned = away * g.avgRate * Game.offlineEfficiency;
+    const offlineEarned = away * g.avgRate * g.offlineEfficiencyNow;
     g.cash += offlineEarned;
     g.totalEarned += offlineEarned;
     return { game: g, offlineEarned };
@@ -416,3 +688,34 @@ export class Game {
     }
   }
 }
+
+// ---- Catalogs (v1's registries, verbatim) ----
+export interface WorkDef {
+  id: string;
+  name: string;
+  blurb: string;
+  baseCost: number;
+  growth: number;
+}
+export const STATION_WORKS: WorkDef[] = [
+  { id: 'food', name: 'FOOD COURT', blurb: '+$0.40/rider · +10% ridership here', baseCost: 300, growth: 2.2 },
+  { id: 'gates', name: 'FARE GATES', blurb: 'Stops fare evasion: +$0.25/rider here', baseCost: 400, growth: 2.2 },
+  { id: 'platform', name: 'PLATFORM WORKS', blurb: 'Trains get in & out 15% faster here', baseCost: 500, growth: 2.3 },
+  { id: 'parking', name: 'PARK & RIDE', blurb: '+6% ridership here', baseCost: 450, growth: 2.2 },
+  { id: 'escalators', name: 'ESCALATORS', blurb: '+8 platform capacity here', baseCost: 350, growth: 2.15 },
+  { id: 'security', name: 'SECURITY DESK', blurb: '+4% income on every fare here', baseCost: 600, growth: 2.3 },
+];
+
+export interface GlobalDef extends WorkDef {
+  maxLevel: number;
+}
+export const GLOBALS: GlobalDef[] = [
+  { id: 'signal', name: 'SIGNAL MODERNIZATION', blurb: '+4% train speed, every line', baseCost: 2500, growth: 2.0, maxLevel: 10 },
+  { id: 'doors', name: 'PLATFORM DOORS', blurb: 'Stops 5% shorter at every station', baseCost: 2000, growth: 2.0, maxLevel: 10 },
+  { id: 'marketing', name: 'CITY MARKETING', blurb: '+5% ridership across the city', baseCost: 3000, growth: 2.1, maxLevel: 10 },
+  { id: 'fare', name: 'FARE REVIEW', blurb: '+$0.25 fare per rider', baseCost: 5000, growth: 2.5, maxLevel: 8 },
+  { id: 'billboards', name: 'AD BILLBOARDS', blurb: '+3% income on every fare', baseCost: 3500, growth: 2.15, maxLevel: 10 },
+  { id: 'crowd', name: 'CROWD CONTROL', blurb: '+8 platform capacity, every station', baseCost: 4000, growth: 2.2, maxLevel: 10 },
+  { id: 'yards', name: 'RAIL YARDS', blurb: 'New trains 4% cheaper', baseCost: 6000, growth: 2.4, maxLevel: 10 },
+  { id: 'night', name: 'NIGHT SERVICE', blurb: '+6% offline earning rate', baseCost: 8000, growth: 2.6, maxLevel: 5 },
+];

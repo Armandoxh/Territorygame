@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b41 (skyline realism + landmarks)
+## ▶ CURRENT BUILD: v2 · b42 (M3a: the upgrade economy, ported)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:
@@ -41,6 +41,8 @@ change unseen.
   system, mirroring the v1 harness test-for-test where the system exists.
 - URL debug knobs: `?t=<sec>` clock, `?speed=<mult>`, `?fixed` camera,
   `?nobloom`.
-- Milestones: M1 render proof (this) → M2 interaction (tap stations,
-  buy lines/trains, HUD console) → M3 economy port (upgrades, works,
-  rush, commissions, goals) → M4 saves + migration from v1 localStorage.
+- Milestones: M1 render proof ✓ (b38) → M2 interaction ✓ (b40) →
+  M3a upgrade economy ✓ (b42: line upgrades, station works with the
+  tier-even planner, network upgrades — v1 formulas verbatim, v1
+  harness bounds green in vitest) → M3b OPS + GOALS (rush desk,
+  commissions, the goal ladder) → M4 v1-save migration.

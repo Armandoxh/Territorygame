@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CityDef } from '../src/engine/city';
-import { Game } from '../src/engine/game';
+import { Game, GLOBALS, STATION_WORKS } from '../src/engine/game';
 
 const city = JSON.parse(
   readFileSync(new URL('../src/data/new_meridian.json', import.meta.url), 'utf8'),
@@ -125,6 +125,131 @@ describe('the ported core', () => {
     const before = hour.game.totalEarned;
     for (let i = 0; i < 600; i++) hour.game.tick(0.1);
     expect(hour.game.totalEarned).toBeGreaterThan(before);
+  });
+
+  test('UPGRADES WORK: each line-1 upgrade measurably raises earnings (v1 bounds)', () => {
+    const base = run(240).totalEarned;
+    const faster = run(240, (g) => g.speedLevels.set('1', 5)).totalEarned;
+    const bigger = run(240, (g) => g.carLevels.set('1', 5)).totalEarned;
+    const access = run(240, (g) => g.accessLevels.set('1', 5)).totalEarned;
+    const sets = run(240, (g) => g.trainsetLevels.set('1', 5)).totalEarned;
+    expect(faster).toBeGreaterThan(base * 1.08);
+    expect(bigger).toBeGreaterThan(base * 1.15);
+    expect(access).toBeGreaterThan(base * 1.04);
+    expect(sets).toBeGreaterThan(base * 1.03);
+  });
+
+  test('NETWORK upgrades pay (v1 bounds), utilities change what they claim', () => {
+    const base = run(240).totalEarned;
+    const mustBeat: [string, number][] = [
+      ['signal', 1.03],
+      ['doors', 1.04],
+      ['marketing', 1.02],
+      ['fare', 1.4],
+      ['billboards', 1.1],
+    ];
+    for (const [id, factor] of mustBeat) {
+      const boosted = run(240, (g) => g.globalLevels.set(id, 5)).totalEarned;
+      expect(boosted, id).toBeGreaterThan(base * factor);
+    }
+    const g = new Game(city);
+    expect(g.stationCapNow).toBe(Game.stationCapBase);
+    g.globalLevels.set('crowd', 5);
+    expect(g.stationCapNow).toBe(Game.stationCapBase + 40);
+    expect(g.offlineEfficiencyNow).toBeCloseTo(0.5, 9);
+    g.globalLevels.set('night', 5);
+    expect(g.offlineEfficiencyNow).toBeCloseTo(0.8, 9);
+    const full = g.nextTrainCost('1');
+    g.globalLevels.set('yards', 10);
+    expect(g.nextTrainCost('1')).toBeCloseTo(full * 0.6, 6);
+  });
+
+  test('network upgrade prices escalate to their caps', () => {
+    const g = new Game(city);
+    g.cash = 1e12;
+    for (const def of GLOBALS) {
+      let last = 0;
+      let bought = 0;
+      for (;;) {
+        const cost = g.nextGlobalCost(def.id);
+        if (!g.buyGlobal(def.id)) break;
+        bought++;
+        expect(cost, def.id).toBeGreaterThan(last);
+        last = cost;
+      }
+      expect(bought, def.id).toBe(def.maxLevel);
+    }
+    expect(g.currentFare).toBeCloseTo(Game.fare + 0.25 * 8, 6);
+  });
+
+  test('shared stations COMPOUND every serving line upgrade (v1 law)', () => {
+    const g = new Game(city);
+    g.cash = 1e12;
+    for (const id of ['A', 'L', 'M', 'N']) g.buyLine(id);
+    const base = g.demandMultAt('s224_282'); // 45 St: lines 1 and N
+    g.accessLevels.set('1', 5);
+    g.trainsetLevels.set('1', 5);
+    g.accessLevels.set('N', 5);
+    g.foodLevel.set('s224_282', 5);
+    expect(g.demandMultAt('s224_282')).toBeCloseTo(base * 1.5 * 1.4 * 1.5 * 1.5, 9);
+  });
+
+  test('income is checkable: one boarding pays riders × income model', () => {
+    const g = new Game(city);
+    g.foodLevel.set('s224_282', 2);
+    g.gateLevel.set('s224_282', 1);
+    g.securityLevel.set('s224_282', 1);
+    g.globalLevels.set('billboards', 1);
+    expect(g.incomePerRiderAt('s224_282')).toBeCloseTo(
+      (2.0 + 0.4 * 2 + 0.25) * 1.04 * 1.03,
+      9,
+    );
+  });
+
+  test('STATION WORKS: tier-even bulk buy, lowest first, priority is mine', () => {
+    const g = new Game(city);
+    g.cash = 1e12;
+    const stops = city.lines[0].stationIds;
+    // Pre-raise all but one station to level 2 — the bulk buy must lift
+    // ONLY the laggard until everyone is even.
+    for (const sid of stops.slice(1)) g.foodLevel.set(sid, 2);
+    expect(g.minStationLevel('1', 'food')).toBe(0);
+    expect(g.stationsAtMin('1', 'food')).toBe(1);
+    expect(g.buyStationTier('1', 'food')).toBe(1);
+    expect(g.foodLevel.get(stops[0])).toBe(1);
+    expect(g.buyStationTier('1', 'food')).toBe(1);
+    expect(g.minStationLevel('1', 'food')).toBe(2);
+    // Now everyone is level 2: the next tier lifts the whole line.
+    expect(g.buyStationTier('1', 'food')).toBe(stops.length);
+    // Priority reorder drives the planner.
+    expect(g.nextPlannedType('1')).toBe('food');
+    g.raisePriority('security');
+    g.raisePriority('security');
+    expect(g.stationPriority[3]).toBe('security');
+    for (const sid of stops) g.foodLevel.set(sid, Game.foodMax);
+    expect(g.nextPlannedType('1')).toBe('gates');
+    // Single buys respect the served gate and the max level.
+    expect(g.buyStationWork('food', stops[0])).toBe(false);
+    expect(g.buyStationWork('escalators', stops[0])).toBe(true);
+    expect(g.stationCapAt(stops[0])).toBe(Game.stationCapBase + 8);
+  });
+
+  test('works and upgrades survive the save round-trip', () => {
+    const g = new Game(city);
+    g.cash = 1e12;
+    g.buyLine('A');
+    g.buySpeed('1');
+    g.buyAccess('1');
+    g.buyGlobal('signal');
+    g.buyStationWork('food', 's224_282');
+    g.raisePriority('platform');
+    const r = Game.fromJson(city, JSON.parse(JSON.stringify(g.toJson(1))), 1).game;
+    expect(r.speedLevelOf('1')).toBe(1);
+    expect(r.accessLevelOf('1')).toBe(1);
+    expect(r.globalLevelOf('signal')).toBe(1);
+    expect(r.foodLevel.get('s224_282')).toBe(1);
+    expect(r.stationPriority).toEqual(g.stationPriority);
+    expect(STATION_WORKS.length).toBe(6);
   });
 
   test('every train keeps serving with the whole network unlocked', () => {

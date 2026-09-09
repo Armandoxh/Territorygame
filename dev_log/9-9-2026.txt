@@ -13,3 +13,25 @@ green pitch, four floodlight masts that burn at night; BAYSIDE FIELD
 apron, terminal, control tower with a blinking red beacon at night,
 two parked planes. Day + night screenshots reviewed before deploy;
 the stadium's night floodlights are the new beauty shot.
+
+Build 42 (metro2): M3a -- THE UPGRADE ECONOMY, PORTED (player: "What
+happened to all our other upgrades... We lost a lot of functionality").
+The whole v1 economy is back, formula for formula: per-line upgrades
+(speed/cars/access/trainsets with v1 cost curves), the SIX station
+works with per-station buying on the station card AND the per-line
+tier-even bulk planner with player-set priority (raise with the ▲),
+all EIGHT network upgrades, and the full income/demand model
+(currentFare, effectiveDwell + platform works, demandMultAt
+compounding across serving lines, incomePerRiderAt, stationCapAt,
+offlineEfficiencyNow, rail-yard train discounts). Save format v2s2
+(additive; v2s1 loads clean). 17 vitest tests green including v1's
+own measured must-show-up bounds for every upgrade -- the port passes
+v1's harness thresholds unchanged. UI: LINE DESK rows now open a full
+line sheet (trains, upgrades, works planner), NETWORK desk button,
+station card sells all six works and shows demand x / $ per rider.
+Map: track ribbons widened (1.25->1.7) with a daytime emissive
+baseline so route colors stay saturated; ghost routes 0.14->0.3 so
+the unbuilt network reads. Headless play test drove: buy speed, buy a
+17-station food tier, buy signals, verify the 5s autosave payload,
+true reload -> everything persisted. OPS (rush desk + commissions) and
+GOALS are M3b, next build.

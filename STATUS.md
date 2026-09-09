@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate v2** | `metro2/` | armandoxh.github.io/Territorygame/metro2/ | v2 · b41 | **Active** — PLAYABLE: line 1 start, LINE DESK (open lines / buy trains), station taps, saves + offline pay, skyline variance. ?showcase keeps the demo |
+| **Metro Magnate v2** | `metro2/` | armandoxh.github.io/Territorygame/metro2/ | v2 · b42 | **Active** — the v1 upgrade economy is BACK: per-line upgrades, 6 station works with tier-even planner + priority, 8 NETWORK upgrades, full income/demand model, save v2s2. OPS+GOALS next |
 | **Metro Magnate** (v1, frozen trunk) | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.17.0 · build 37 | **Active** — NEW MERIDIAN XL live with the four-tab console; OPS runs five rotating contract types; 22-rung mastery goal ladder |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |

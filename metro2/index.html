@@ -73,7 +73,7 @@
         right: 10px;
         color: #ffd98a;
       }
-      #btn-lines {
+      .deskbtn {
         position: fixed;
         bottom: calc(12px + env(safe-area-inset-bottom));
         left: 10px;
@@ -81,9 +81,43 @@
         background: #14161c;
         color: #fff;
         border: 1px solid rgba(255, 255, 255, 0.35);
-        padding: 10px 16px;
+        padding: 10px 14px;
         font: 800 12px Inter, sans-serif;
         letter-spacing: 0.14em;
+      }
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+      }
+      .head-bal {
+        font-weight: 600;
+      }
+      .sect {
+        background: #ececec;
+        color: #444;
+        padding: 5px 10px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        border-bottom: 1px solid #dedede;
+      }
+      .row .chev {
+        color: #999;
+        font-size: 16px;
+        font-weight: 800;
+      }
+      .row .pri {
+        padding: 4px 7px;
+        font-size: 10px;
+      }
+      .row.next {
+        background: #f6f2e4;
+      }
+      #station-card .row {
+        font-size: 11px;
+      }
+      #station-card .row .meta {
+        font-size: 10px;
       }
       #panel {
         position: fixed;
@@ -220,7 +254,8 @@
     <div class="chip" id="rate"></div>
     <div class="chip" id="build"></div>
     <div class="chip" id="phase"></div>
-    <button id="btn-lines">LINES</button>
+    <button id="btn-lines" class="deskbtn">LINES</button>
+    <button id="btn-network" class="deskbtn" style="left: 86px">NETWORK</button>
     <div id="panel" hidden></div>
     <div id="station-card" hidden></div>
     <div id="toasts"></div>
