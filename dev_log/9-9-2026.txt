@@ -58,3 +58,21 @@ RUN (0/6 · 2:00), read income x3.30 off the goals head (5 rungs =
 1.25^3 x 1.3^2, the 5th auto-completing from the seeded riders), and
 toggled the 10x. Remaining for full parity: Angel Bay + moveOn (M3c),
 v1-save migration (M4).
+
+Build 44 (metro2): iOS ZOOM-TRAP FIX (player: stations near another
+line hard to click; double-tapping them "makes the whole screen zoom
+in (buttons too) and I can't fix it without refresh"). Root cause:
+iOS Safari IGNORES user-scalable=no for double-tap and pinch PAGE
+zoom -- rapid re-taps on a fiddly station triggered browser zoom of
+the whole page, and the same flag then blocks pinching back out.
+Fix, three layers: (1) touch-action: manipulation on the page
+(the modern, honored way to disable double-tap zoom; the scrolling
+panel gets pan-y + overscroll-behavior: contain, the canvas keeps
+none), (2) gesturestart/change/end + dblclick preventDefault, (3) a
+320ms double-tap suppressor scoped to the CANVAS ONLY so buy buttons
+keep fast repeated taps (canvas input is pointer-event driven, so no
+click is lost). Also the trigger itself: station pick tolerance
+raised (min 4->5.5 world units, zoom scale 0.02->0.028) so stops
+sitting against a neighboring line's ribbon are comfortably
+tappable. 26 tests green; headless regression re-ran the buy +
+persistence flow with the guards active.

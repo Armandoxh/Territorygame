@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b43 (M3b: OPS + GOALS + the 10×)
+## ▶ CURRENT BUILD: v2 · b44 (iOS zoom-trap fix + tap targets)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:

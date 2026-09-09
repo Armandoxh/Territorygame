@@ -748,7 +748,10 @@ export class CityScene {
     const pz = o.z + d.z * t;
     // Tap tolerance scales with camera height so street-level taps stay
     // precise and orbit-level taps stay forgiving.
-    const tol = Math.max(4, this.camera.position.distanceTo(this.controls.target) * 0.02);
+    const tol = Math.max(
+      5.5,
+      this.camera.position.distanceTo(this.controls.target) * 0.028,
+    );
     let best: string | null = null;
     let bestD = tol;
     for (const st of this.game.city.stations) {

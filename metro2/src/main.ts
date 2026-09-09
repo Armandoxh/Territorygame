@@ -53,7 +53,26 @@ speedBtn.addEventListener('click', () => {
   speedBtn.textContent = simSpeed >= 10 ? '⏩ 10×' : '⏩ 1×';
 });
 
+// iOS Safari zooms the PAGE on double-tap and pinch even with
+// user-scalable=no — and then refuses to zoom back out. Block the
+// browser-level gestures entirely; the game camera owns pinch.
+for (const evt of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(evt, (e) => e.preventDefault(), { passive: false });
+}
+document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
+// Double-tap suppression on the MAP only — buttons keep fast taps
+// (canvas input runs on pointer events, so no click is lost here).
+let lastTouchEnd = 0;
+canvas.addEventListener(
+  'touchend',
+  (e) => {
+    const now = performance.now();
+    if (now - lastTouchEnd < 320) e.preventDefault();
+    lastTouchEnd = now;
+  },
+  { passive: false },
+);
 const scene = new CityScene(canvas, game, { bloom: !params.has('nobloom') });
 scene.controls.autoRotate = showcase && !params.has('fixed');
 
