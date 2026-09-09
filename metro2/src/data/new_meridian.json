@@ -8,1134 +8,1296 @@
    "name": "South Ferry",
    "x": 126.0,
    "y": 452.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 0
   },
   {
    "id": "s158_452",
    "name": "Two Bridges",
    "x": 158.0,
    "y": 452.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s158_420",
    "name": "Bayfront",
    "x": 158.0,
    "y": 420.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s218_360",
    "name": "South Landing",
    "x": 218.0,
    "y": 360.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s206_348",
    "name": "12 St",
    "x": 206.0,
    "y": 348.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": -1
   },
   {
    "id": "s206_324",
    "name": "24 St",
    "x": 206.0,
    "y": 324.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s206_300",
    "name": "36 St",
    "x": 206.0,
    "y": 300.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s224_282",
    "name": "45 St",
    "x": 224.0,
    "y": 282.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s224_260",
    "name": "56 St",
    "x": 224.0,
    "y": 260.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s224_240",
    "name": "66 St",
    "x": 224.0,
    "y": 240.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s206_222",
    "name": "75 St",
    "x": 206.0,
    "y": 222.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s206_198",
    "name": "87 St",
    "x": 206.0,
    "y": 198.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": -1
   },
   {
    "id": "s206_174",
    "name": "99 St",
    "x": 206.0,
    "y": 174.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s224_156",
    "name": "108 St",
    "x": 224.0,
    "y": 156.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s224_132",
    "name": "120 St",
    "x": 224.0,
    "y": 132.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s224_100",
    "name": "Half Moon",
    "x": 224.0,
    "y": 100.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s224_68",
    "name": "North Point",
    "x": 224.0,
    "y": 68.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 1
   },
   {
    "id": "s134_346",
    "name": "Harbor Pier",
    "x": 134.0,
    "y": 346.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 0
   },
   {
    "id": "s158_346",
    "name": "Westgate",
    "x": 158.0,
    "y": 346.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s176_328",
    "name": "Old Mill",
    "x": 176.0,
    "y": 328.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s200_328",
    "name": "Union Sq",
    "x": 200.0,
    "y": 328.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 0
   },
   {
    "id": "s224_304",
    "name": "34 St",
    "x": 224.0,
    "y": 304.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s236_292",
    "name": "Riverside",
    "x": 236.0,
    "y": 292.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s266_292",
    "name": "Bedford Av",
    "x": 266.0,
    "y": 292.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 0
   },
   {
    "id": "s296_322",
    "name": "Court Sq",
    "x": 296.0,
    "y": 322.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 0
   },
   {
    "id": "s320_322",
    "name": "Steinway St",
    "x": 320.0,
    "y": 322.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 0
   },
   {
    "id": "s230_348",
    "name": "Atlantic Av",
    "x": 230.0,
    "y": 348.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s266_348",
    "name": "Myrtle Av",
    "x": 266.0,
    "y": 348.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s290_348",
    "name": "DeKalb Av",
    "x": 290.0,
    "y": 348.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s314_372",
    "name": "Kingsland Rd",
    "x": 314.0,
    "y": 372.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s338_372",
    "name": "Metropolitan",
    "x": 338.0,
    "y": 372.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s362_396",
    "name": "Terminal A",
    "x": 362.0,
    "y": 396.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s394_396",
    "name": "Terminal B",
    "x": 394.0,
    "y": 396.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s426_364",
    "name": "Airfield",
    "x": 426.0,
    "y": 364.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s134_168",
    "name": "Seneca Av",
    "x": 134.0,
    "y": 168.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 0
   },
   {
    "id": "s158_168",
    "name": "Woodhaven",
    "x": 158.0,
    "y": 168.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s194_132",
    "name": "Junction Blvd",
    "x": 194.0,
    "y": 132.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s266_132",
    "name": "Broadway Jct",
    "x": 266.0,
    "y": 132.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s290_132",
    "name": "Sunset Pk",
    "x": 290.0,
    "y": 132.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s338_84",
    "name": "Runway Rd",
    "x": 338.0,
    "y": 84.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s386_84",
    "name": "Customs Hse",
    "x": 386.0,
    "y": 84.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s438_84",
    "name": "Freight Yd",
    "x": 438.0,
    "y": 84.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s438_124",
    "name": "Cedar Falls",
    "x": 438.0,
    "y": 124.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": -1
   },
   {
    "id": "s494_124",
    "name": "Maple Hts",
    "x": 494.0,
    "y": 124.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": -1
   },
   {
    "id": "s200_364",
    "name": "Bay Pkwy",
    "x": 200.0,
    "y": 364.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s266_198",
    "name": "Ocean Pkwy",
    "x": 266.0,
    "y": 198.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s290_198",
    "name": "Brighton",
    "x": 290.0,
    "y": 198.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s314_174",
    "name": "Astoria Blvd",
    "x": 314.0,
    "y": 174.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s338_174",
    "name": "Ditmars Blvd",
    "x": 338.0,
    "y": 174.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s266_242",
    "name": "Queensview",
    "x": 266.0,
    "y": 242.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s344_346",
    "name": "Forest Hls",
    "x": 344.0,
    "y": 346.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s368_346",
    "name": "Kew Gdns",
    "x": 368.0,
    "y": 346.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s302_138",
    "name": "Jamaica Ctr",
    "x": 302.0,
    "y": 138.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s302_162",
    "name": "Greenpoint",
    "x": 302.0,
    "y": 162.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 0
   },
   {
    "id": "s302_198",
    "name": "Nassau Av",
    "x": 302.0,
    "y": 198.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s284_216",
    "name": "Classon Av",
    "x": 284.0,
    "y": 216.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s284_252",
    "name": "Clinton Wash",
    "x": 284.0,
    "y": 252.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s302_270",
    "name": "Fulton St",
    "x": 302.0,
    "y": 270.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s302_306",
    "name": "Crown Hts",
    "x": 302.0,
    "y": 306.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s134_146",
    "name": "Prospect Pk",
    "x": 134.0,
    "y": 146.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s134_190",
    "name": "Church Av",
    "x": 134.0,
    "y": 190.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s152_208",
    "name": "Newkirk Av",
    "x": 152.0,
    "y": 208.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s152_252",
    "name": "Midwood",
    "x": 152.0,
    "y": 252.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s134_270",
    "name": "Canarsie",
    "x": 134.0,
    "y": 270.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s134_310",
    "name": "Livonia Av",
    "x": 134.0,
    "y": 310.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s194_198",
    "name": "East End",
    "x": 194.0,
    "y": 198.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s230_198",
    "name": "Harbor View",
    "x": 230.0,
    "y": 198.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s266_162",
    "name": "Palisade",
    "x": 266.0,
    "y": 162.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s326_138",
    "name": "Iron Docks",
    "x": 326.0,
    "y": 138.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s362_138",
    "name": "Cargoport",
    "x": 362.0,
    "y": 138.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s128_68",
    "name": "Birchwood",
    "x": 128.0,
    "y": 68.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s160_68",
    "name": "Elm Sq",
    "x": 160.0,
    "y": 68.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s192_100",
    "name": "Ashford",
    "x": 192.0,
    "y": 100.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s272_100",
    "name": "Willow Bend",
    "x": 272.0,
    "y": 100.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s304_100",
    "name": "Granite Pk",
    "x": 304.0,
    "y": 100.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s336_100",
    "name": "Quarry St",
    "x": 336.0,
    "y": 100.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s368_100",
    "name": "Millbrook",
    "x": 368.0,
    "y": 100.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s400_68",
    "name": "Foundry Sq",
    "x": 400.0,
    "y": 68.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s432_68",
    "name": "Steel Pier",
    "x": 432.0,
    "y": 68.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s40_60",
    "name": "Coke Works",
    "x": 40.0,
    "y": 60.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": -1
   },
   {
    "id": "s72_60",
    "name": "Brickyard",
    "x": 72.0,
    "y": 60.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s104_92",
    "name": "Tannery Row",
    "x": 104.0,
    "y": 92.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s104_124",
    "name": "Wool Exchange",
    "x": 104.0,
    "y": 124.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s104_156",
    "name": "Corn Hill",
    "x": 104.0,
    "y": 156.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s104_188",
    "name": "Market Cross",
    "x": 104.0,
    "y": 188.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 1
   },
   {
    "id": "s40_188",
    "name": "Fish Wharf",
    "x": 40.0,
    "y": 188.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": -1
   },
   {
    "id": "s40_220",
    "name": "Oyster Bay",
    "x": 40.0,
    "y": 220.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s40_252",
    "name": "Clam Cove",
    "x": 40.0,
    "y": 252.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s72_252",
    "name": "Herring Run",
    "x": 72.0,
    "y": 252.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s104_252",
    "name": "Salmon Falls",
    "x": 104.0,
    "y": 252.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s136_284",
    "name": "Trout Brook",
    "x": 136.0,
    "y": 284.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s160_284",
    "name": "Beaver Dam",
    "x": 160.0,
    "y": 284.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s20_140",
    "name": "Otter Creek",
    "x": 20.0,
    "y": 140.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 1
   },
   {
    "id": "s20_172",
    "name": "Fox Hollow",
    "x": 20.0,
    "y": 172.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s20_204",
    "name": "Wolf Point",
    "x": 20.0,
    "y": 204.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s20_236",
    "name": "Bear Ridge",
    "x": 20.0,
    "y": 236.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s20_268",
    "name": "Eagle Hts",
    "x": 20.0,
    "y": 268.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s20_300",
    "name": "Hawk Hill",
    "x": 20.0,
    "y": 300.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 1
   },
   {
    "id": "s270_266",
    "name": "Raven Ct",
    "x": 270.0,
    "y": 266.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s302_234",
    "name": "Sparrow Ln",
    "x": 302.0,
    "y": 234.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s334_234",
    "name": "Finch Grove",
    "x": 334.0,
    "y": 234.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s366_234",
    "name": "Wren St",
    "x": 366.0,
    "y": 234.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s398_234",
    "name": "Robin Rd",
    "x": 398.0,
    "y": 234.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s430_266",
    "name": "Cardinal Sq",
    "x": 430.0,
    "y": 266.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s72_92",
    "name": "Bluebird Av",
    "x": 72.0,
    "y": 92.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s72_124",
    "name": "Dove Ct",
    "x": 72.0,
    "y": 124.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s72_156",
    "name": "North Meadow",
    "x": 72.0,
    "y": 156.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 1
   },
   {
    "id": "s72_188",
    "name": "South Meadow",
    "x": 72.0,
    "y": 188.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s72_220",
    "name": "East Meadow",
    "x": 72.0,
    "y": 220.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s72_284",
    "name": "West Meadow",
    "x": 72.0,
    "y": 284.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s72_316",
    "name": "Long Acre",
    "x": 72.0,
    "y": 316.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s72_348",
    "name": "Short Acre",
    "x": 72.0,
    "y": 348.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s96_372",
    "name": "Broad Acre",
    "x": 96.0,
    "y": 372.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s40_92",
    "name": "Green Acre",
    "x": 40.0,
    "y": 92.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s40_124",
    "name": "Stone Acre",
    "x": 40.0,
    "y": 124.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s40_156",
    "name": "High Acre",
    "x": 40.0,
    "y": 156.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s134_378",
    "name": "Kingsbridge",
    "x": 134.0,
    "y": 378.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s158_402",
    "name": "Queensbridge",
    "x": 158.0,
    "y": 402.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s158_434",
    "name": "Dukes Ct",
    "x": 158.0,
    "y": 434.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s270_434",
    "name": "Earls Ct",
    "x": 270.0,
    "y": 434.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s302_466",
    "name": "Barons Gate",
    "x": 302.0,
    "y": 466.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s334_466",
    "name": "Regent Row",
    "x": 334.0,
    "y": 466.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s366_466",
    "name": "Crown Point",
    "x": 366.0,
    "y": 466.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": 0
   },
   {
    "id": "s318_282",
    "name": "Scepter St",
    "x": 318.0,
    "y": 282.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s350_282",
    "name": "Orb Lane",
    "x": 350.0,
    "y": 282.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s382_314",
    "name": "Throne Hill",
    "x": 382.0,
    "y": 314.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s414_314",
    "name": "Anchor Wharf",
    "x": 414.0,
    "y": 314.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s414_346",
    "name": "Beacon Pt",
    "x": 414.0,
    "y": 346.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s414_378",
    "name": "Compass Rose",
    "x": 414.0,
    "y": 378.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s302_36",
    "name": "Davit St",
    "x": 302.0,
    "y": 36.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s334_36",
    "name": "Ensign Av",
    "x": 334.0,
    "y": 36.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s366_36",
    "name": "Fathom Ct",
    "x": 366.0,
    "y": 36.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s398_36",
    "name": "Galley Rd",
    "x": 398.0,
    "y": 36.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s430_36",
    "name": "Helm St",
    "x": 430.0,
    "y": 36.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s462_68",
    "name": "Inlet Av",
    "x": 462.0,
    "y": 68.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": -1
   },
   {
    "id": "s46_364",
    "name": "Jetty Rd",
    "x": 46.0,
    "y": 364.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 1
   },
   {
    "id": "s46_396",
    "name": "Keel Ct",
    "x": 46.0,
    "y": 396.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s46_428",
    "name": "Lighthouse",
    "x": 46.0,
    "y": 428.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 1
   },
   {
    "id": "s78_428",
    "name": "Mast Hill",
    "x": 78.0,
    "y": 428.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s102_452",
    "name": "Nautilus Sq",
    "x": 102.0,
    "y": 452.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s346_404",
    "name": "Outrigger",
    "x": 346.0,
    "y": 404.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s378_404",
    "name": "Porthole Pl",
    "x": 378.0,
    "y": 404.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s410_436",
    "name": "Quarterdeck",
    "x": 410.0,
    "y": 436.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s442_436",
    "name": "Rudder Row",
    "x": 442.0,
    "y": 436.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": 0
   },
   {
    "id": "s462_100",
    "name": "Spinnaker",
    "x": 462.0,
    "y": 100.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s438_156",
    "name": "Tiller St",
    "x": 438.0,
    "y": 156.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s462_180",
    "name": "Windlass Ct",
    "x": 462.0,
    "y": 180.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s462_212",
    "name": "Alder Grove",
    "x": 462.0,
    "y": 212.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s462_244",
    "name": "Basil Ct",
    "x": 462.0,
    "y": 244.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s462_276",
    "name": "Clove Hill",
    "x": 462.0,
    "y": 276.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s462_308",
    "name": "Dill Lane",
    "x": 462.0,
    "y": 308.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s462_340",
    "name": "Fennel Sq",
    "x": 462.0,
    "y": 340.0,
-   "demand": 0.7
+   "demand": 0.7,
+   "labelSide": -1
   },
   {
    "id": "s398_466",
    "name": "Ginger Row",
    "x": 398.0,
    "y": 466.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s430_466",
    "name": "Hazel Wood",
    "x": 430.0,
    "y": 466.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": 0
   },
   {
    "id": "s462_434",
    "name": "Ivy Ridge",
    "x": 462.0,
    "y": 434.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s462_402",
    "name": "Juniper Av",
    "x": 462.0,
    "y": 402.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s462_370",
    "name": "Kale Yard",
    "x": 462.0,
    "y": 370.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s494_156",
    "name": "Laurel Pk",
    "x": 494.0,
    "y": 156.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s494_188",
    "name": "Mint Hollow",
    "x": 494.0,
    "y": 188.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s494_220",
    "name": "Nutmeg St",
    "x": 494.0,
    "y": 220.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s494_252",
    "name": "Olive Branch",
    "x": 494.0,
    "y": 252.0,
-   "demand": 0.45
+   "demand": 0.45,
+   "labelSide": -1
   },
   {
    "id": "s494_284",
    "name": "Pepper Hill",
    "x": 494.0,
    "y": 284.0,
-   "demand": 0.3
+   "demand": 0.3,
+   "labelSide": -1
   }
  ],
  "lines": [

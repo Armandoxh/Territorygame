@@ -12,7 +12,6 @@ import { Game } from './engine/game';
 import { CityScene } from './render/scene';
 import { Console } from './ui/console';
 import cityJson from './data/new_meridian.json';
-import { BUILD } from './version';
 
 const params = new URLSearchParams(location.search);
 const city = cityJson as CityDef;
@@ -88,7 +87,6 @@ if (offlineEarned >= 1) {
     `While you were away: +$${Math.floor(offlineEarned).toLocaleString('en-US')}`,
   );
 }
-document.getElementById('build')!.textContent = BUILD;
 
 // Celebrate goal + commission resolutions exactly once each.
 let seenGoalSeq = game.goalSeq;
@@ -150,6 +148,19 @@ window.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('resize', () => scene.resize());
+// One-time coach: what the station fractions mean.
+try {
+  if (!showcase && !localStorage.getItem('metro2_coach_counts')) {
+    localStorage.setItem('metro2_coach_counts', '1');
+    setTimeout(
+      () => ui.toast('STATION NUMBERS · riders waiting — top-left ↑ uptown ⁄ bottom-right ↓ downtown'),
+      4000,
+    );
+  }
+} catch {
+  /* storage unavailable */
+}
+
 // Debug handle for headless play tests.
 (window as unknown as { __scene: CityScene }).__scene = scene;
 

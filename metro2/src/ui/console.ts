@@ -11,9 +11,26 @@
  * DOM rule learned in b40: panels REBUILD only when structure changes
  * and mutate in place otherwise, so no button is detached mid-tap. */
 import {
-  CommissionType, Game, GLOBALS, GOAL_TRACKS, GoalBenefit, LineUpgradeKind,
-  STATION_WORKS,
+  CommissionType, Game, GLOBALS, GOAL_TRACKS, GoalBenefit, GoalTrack,
+  LineUpgradeKind, STATION_WORKS,
 } from '../engine/game';
+import { BUILD } from '../version';
+
+/** Category colors: the reward signal gets a hue per track. */
+export const TRACK_COLORS: Record<string, string> = {
+  growth: '#2f9e63',
+  profit: '#b07714',
+  expansion: '#4a6fd8',
+  mastery: '#8a5fc9',
+};
+
+/** Compact figures with MATCHED units on both sides of a slash. */
+function cfmt(v: number): string {
+  if (v >= 1e9) return (v / 1e9).toFixed(v % 1e9 === 0 ? 0 : 1) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(v % 1e6 === 0 ? 0 : 1) + 'M';
+  if (v >= 1000) return (v / 1000).toFixed(v % 1000 === 0 ? 0 : 1) + 'K';
+  return String(Math.floor(v));
+}
 
 function mmss(s: number): string {
   const t = Math.max(0, Math.ceil(s));
@@ -642,32 +659,47 @@ export class Console {
 
   private goalsHtml(): string {
     const g = this.game;
-    const sections = GOAL_TRACKS.map((track) => {
+    const chips: string[] = [];
+    if (g.goalMult > 1) {
+      chips.push(`<span class="multchip" style="color:#b07714">income ×${g.goalMult.toFixed(2)}</span>`);
+    }
+    if (g.demandGoalMult > 1) {
+      chips.push(`<span class="multchip" style="color:#2f9e63">riders ×${g.demandGoalMult.toFixed(2)}</span>`);
+    }
+    if (g.buildCostMult < 1) {
+      chips.push(`<span class="multchip" style="color:#4a6fd8">costs ×${g.buildCostMult.toFixed(2)}</span>`);
+    }
+    const earned = chips.length
+      ? `<div class="multrow">${chips.join('')}</div>`
+      : '';
+    const section = (track: GoalTrack): string => {
+      const color = TRACK_COLORS[track.id];
       const done = g.trackDone(track.id);
       const goal = g.trackCurrentGoal(track.id);
-      const rows = goal
-        ? `<div class="row goal-current"><span class="mark">►</span>
-            <span class="nm">${goal.name}</span><span class="meta"></span>
-            <span>${benefitLabel(track.benefit, goal.reward)}</span></div>
-          <div class="card-row" id="goal-live-${track.id}">${fmt(g.goalValue(goal.kind))} / ${fmt(goal.target)}</div>
-          <div class="pbar"><div class="pfill" id="goal-bar-${track.id}" style="width:${100 * g.trackProgress(track.id)}%"></div></div>`
-        : `<div class="row goal-done"><span class="mark">✓</span>
-            <span class="nm">TRACK COMPLETE</span></div>`;
+      const current = goal
+        ? `<div class="grow" style="--tk:${color}">
+            <div class="growline"><span class="gname">${goal.name}</span>
+              <span class="greward" style="color:${color}">×${goal.reward}</span></div>
+            <div class="growbar"><div class="gfill" id="goal-bar-${track.id}"
+              style="width:${100 * g.trackProgress(track.id)}%"></div></div>
+            <div class="gfrac" id="goal-live-${track.id}">${cfmt(g.goalValue(goal.kind))} / ${cfmt(goal.target)}</div>
+          </div>`
+        : `<div class="grow"><div class="growline"><span class="gname" style="color:#999">TRACK COMPLETE ✓</span></div></div>`;
       const upNext = track.goals[done + 1];
+      const next = upNext
+        ? `<div class="gnext">next · ${upNext.name} · ×${upNext.reward}</div>`
+        : '';
       return (
-        `<div class="sect">${track.name} · ${track.blurb} · ${done}/${track.goals.length}</div>` +
-        rows +
-        (upNext
-          ? `<div class="row goal-ahead"><span class="mark">·</span>
-              <span class="nm">${upNext.name}</span><span class="meta"></span>
-              <span>${benefitLabel(track.benefit, upNext.reward)}</span></div>`
-          : '')
+        `<div class="sect" style="color:${color}">${track.name} — ${track.blurb} · ${done}/${track.goals.length}</div>` +
+        current +
+        next
       );
-    }).join('');
+    };
     return (
-      this.head(
-        `CITY GOALS · income ×${g.goalMult.toFixed(2)} · riders ×${g.demandGoalMult.toFixed(2)} · costs ×${g.buildCostMult.toFixed(2)}`,
-      ) + sections
+      this.head('CITY GOALS') +
+      earned +
+      GOAL_TRACKS.map(section).join('') +
+      `<div class="buildfoot">METRO MAGNATE · ${BUILD}</div>`
     );
   }
 
@@ -703,7 +735,7 @@ export class Console {
         const goal = g.trackCurrentGoal(track.id);
         const live = document.getElementById(`goal-live-${track.id}`);
         if (goal && live) {
-          live.textContent = `${fmt(g.goalValue(goal.kind))} / ${fmt(goal.target)}`;
+          live.textContent = `${cfmt(g.goalValue(goal.kind))} / ${cfmt(goal.target)}`;
           const bar = document.getElementById(`goal-bar-${track.id}`);
           if (bar) bar.style.width = `${100 * g.trackProgress(track.id)}%`;
         }
@@ -755,9 +787,14 @@ export class Console {
             ? 'DAWN'
             : 'DUSK';
     const best = g.bestTrack;
-    document.getElementById('goal-strip')!.textContent = best.goal
-      ? `${best.track.name} · ${best.goal.name} · ${Math.floor(best.progress * 100)}%`
-      : 'ALL TRACKS COMPLETE';
+    const strip = document.getElementById('goal-strip')!;
+    if (best.goal) {
+      const color = TRACK_COLORS[best.track.id];
+      strip.innerHTML = `<span>${best.goal.name}</span>
+        <span class="gsbar"><span class="gsfill" style="width:${Math.floor(best.progress * 100)}%;background:${color}"></span></span>`;
+    } else {
+      strip.textContent = 'ALL TRACKS COMPLETE';
+    }
     document
       .getElementById('btn-ops')!
       .classList.toggle('dot', !g.commissionActive);

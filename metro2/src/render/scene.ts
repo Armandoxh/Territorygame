@@ -16,7 +16,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { CityDef } from '../engine/city';
+import { CityDef, onLand } from '../engine/city';
 import { Game } from '../engine/game';
 
 const LAND_H = 1.2;
@@ -54,21 +54,23 @@ function textCanvas(
   stroke: string | null,
   w: number,
   h: number,
+  align: 'left' | 'center' | 'right' = 'center',
 ): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   const ctx = c.getContext('2d')!;
   ctx.font = font;
-  ctx.textAlign = 'center';
+  ctx.textAlign = align;
   ctx.textBaseline = 'middle';
+  const x = align === 'left' ? 10 : align === 'right' ? w - 10 : w / 2;
   if (stroke) {
     ctx.lineWidth = 8;
     ctx.strokeStyle = stroke;
-    ctx.strokeText(text, w / 2, h / 2);
+    ctx.strokeText(text, x, h / 2);
   }
   ctx.fillStyle = fill;
-  ctx.fillText(text, w / 2, h / 2);
+  ctx.fillText(text, x, h / 2);
   return c;
 }
 
@@ -100,8 +102,8 @@ class CountSprite {
     this.sprite.position.set(x, TRACK_Y + 0.25, z); // centered on the dot
   }
 
-  set(up: number, down: number, full: boolean): void {
-    const key = `${up}/${down}:${full}`;
+  set(up: number, down: number, hot: boolean): void {
+    const key = `${up}/${down}:${hot}`;
     if (key === this.last) return;
     this.last = key;
     const ctx = this.canvas.getContext('2d')!;
@@ -110,13 +112,15 @@ class CountSprite {
       this.tex.needsUpdate = true;
       return;
     }
-    const ink = full ? '#C62828' : '#1a1a1a';
+    // On a heat-colored disc the ink flips WHITE for contrast.
+    const ink = hot ? '#ffffff' : '#1a1a1a';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
     // A compact fraction hugging the slash — everything stays on the
     // disc. Halo first, ink second, modest weight.
+    const halo = hot ? 'rgba(20,24,31,0.85)' : 'rgba(255,255,255,0.95)';
     ctx.lineWidth = 6;
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeStyle = halo;
     ctx.beginPath();
     ctx.moveTo(74, 114);
     ctx.lineTo(102, 62);
@@ -127,9 +131,9 @@ class CountSprite {
     ctx.moveTo(74, 114);
     ctx.lineTo(102, 62);
     ctx.stroke();
-    ctx.font = '700 38px Inter, sans-serif';
+    ctx.font = '800 40px Inter, sans-serif';
     ctx.lineWidth = 6;
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeStyle = halo;
     ctx.textAlign = 'right';
     ctx.strokeText(String(up), 82, 66);
     ctx.fillStyle = ink;
@@ -261,6 +265,7 @@ export class CityScene {
   private dashedMeshes: THREE.Mesh[] = [];
   private servedDiscs = new Map<string, THREE.Group>();
   private discMats = new Map<string, THREE.MeshBasicMaterial>();
+  private streetMat: THREE.MeshBasicMaterial | null = null;
   private counts = new Map<string, CountSprite>();
   private labels = new Map<string, THREE.Sprite>();
   private trainGroups: THREE.Group[] = [];
@@ -312,6 +317,82 @@ export class CityScene {
       geo.rotateX(-Math.PI / 2);
       this.scene.add(new THREE.Mesh(geo, this.landMat));
     }
+    // A faint street grid, clipped to the landmass — the texture that
+    // says "city" without saying "clutter". One merged mesh.
+    {
+      const streetParts: THREE.BufferGeometry[] = [];
+      const step = 13;
+      const sample = 3;
+      const addRuns = (
+        fixed: number,
+        vertical: boolean,
+      ): void => {
+        let runStart: number | null = null;
+        for (let t = 0; t <= city.size + sample; t += sample) {
+          const x = vertical ? fixed : t;
+          const y = vertical ? t : fixed;
+          const inside = t <= city.size && onLand(city, x, y);
+          if (inside && runStart === null) runStart = t;
+          if (!inside && runStart !== null) {
+            const len = t - sample - runStart;
+            if (len > 6) {
+              const mid = runStart + len / 2;
+              const g = new THREE.BoxGeometry(
+                vertical ? 0.5 : len,
+                0.05,
+                vertical ? len : 0.5,
+              );
+              g.translate(
+                vertical ? fixed : mid,
+                LAND_H + 0.03,
+                vertical ? mid : fixed,
+              );
+              streetParts.push(g);
+            }
+            runStart = null;
+          }
+        }
+      };
+      for (let v = step / 2; v < city.size; v += step) {
+        addRuns(v, true);
+        addRuns(v, false);
+      }
+      if (streetParts.length > 0) {
+        const streets = new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(streetParts),
+          new THREE.MeshBasicMaterial({ color: 0xe9e7e1 }),
+        );
+        this.streetMat = streets.material as THREE.MeshBasicMaterial;
+        this.scene.add(streets);
+      }
+    }
+
+    // Coastline: a slim contour where land meets water, so the bay has
+    // a drawn edge instead of a color boundary.
+    {
+      const coastParts: THREE.BufferGeometry[] = [];
+      for (const ring of city.lands) {
+        for (let i = 0; i < ring.length; i++) {
+          const [ax, ay] = ring[i];
+          const [bx, by] = ring[(i + 1) % ring.length];
+          const dx = bx - ax;
+          const dy = by - ay;
+          const len = Math.hypot(dx, dy);
+          if (len < 0.001) continue;
+          const g = new THREE.BoxGeometry(len, 0.06, 1.0);
+          g.rotateY(-Math.atan2(dy, dx));
+          g.translate((ax + bx) / 2, LAND_H + 0.04, (ay + by) / 2);
+          coastParts.push(g);
+        }
+      }
+      this.scene.add(
+        new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(coastParts),
+          new THREE.MeshBasicMaterial({ color: 0x9db4c8 }),
+        ),
+      );
+    }
+
     const parkMat = new THREE.MeshStandardMaterial({ color: 0xcbe2c6, roughness: 1 });
     for (const p of city.parks) {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(p.w, 0.25, p.h), parkMat);
@@ -323,10 +404,10 @@ export class CityScene {
     // District names, printed on the ground like the real diagram.
     for (const d of city.districts) {
       const tex = new THREE.CanvasTexture(
-        textCanvas(d.text, '800 52px Inter, sans-serif', 'rgba(180,180,180,0.8)', null, 512, 96),
+        textCanvas(d.text, '800 46px Inter, sans-serif', 'rgba(150,150,150,0.5)', null, 512, 96),
       );
       const mesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(88, 16.5),
+        new THREE.PlaneGeometry(52, 9.75),
         new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
       );
       mesh.rotation.x = -Math.PI / 2;
@@ -441,8 +522,13 @@ export class CityScene {
 
       // World-scaled name label below the dot — shrinks with zoom, so
       // it never collides or clips; zooming in is how you read it.
+      const side = st.labelSide ?? 0;
       const tex = new THREE.CanvasTexture(
-        textCanvas(st.name, '800 52px Inter, sans-serif', '#1a1a1a', 'rgba(255,255,255,0.95)', 640, 112),
+        textCanvas(
+          st.name, '800 52px Inter, sans-serif', '#1a1a1a',
+          'rgba(255,255,255,0.95)', 640, 112,
+          side > 0 ? 'left' : side < 0 ? 'right' : 'center',
+        ),
       );
       tex.anisotropy = 4;
       const label = new THREE.Sprite(
@@ -456,7 +542,12 @@ export class CityScene {
       );
       label.renderOrder = 19;
       label.scale.set(0.15, 0.02625, 1);
-      label.center.set(0.5, 1.7);
+      // v1's hand-tuned anchor: left, right, or below its dot — never
+      // floating between stations. Text hugs the near edge of its
+      // canvas so the visible offset is tight.
+      if (side > 0) label.center.set(-0.22, 0.5);
+      else if (side < 0) label.center.set(1.22, 0.5);
+      else label.center.set(0.5, 1.85);
       label.position.set(st.x, TRACK_Y + 0.2, st.y);
       this.scene.add(label);
       this.labels.set(st.id, label);
@@ -476,6 +567,12 @@ export class CityScene {
     const total = cars * len + (cars - 1) * gap;
     for (let i = 0; i < cars; i++) {
       const x = -total / 2 + len / 2 + i * (len + gap);
+      const outline = new THREE.Mesh(
+        new RoundedBoxGeometry(len + 0.7, 0.7, 3.0, 2, 0.7),
+        new THREE.MeshBasicMaterial({ color: 0xffffff }),
+      );
+      outline.position.set(x, 0.42, 0);
+      group.add(outline);
       const body = new THREE.Mesh(new RoundedBoxGeometry(len, 0.8, 2.3, 2, 0.55), mat);
       body.position.set(x, 0.5, 0);
       group.add(body);
@@ -587,6 +684,7 @@ export class CityScene {
     this.scene.background = new THREE.Color(0xbdd3e8).lerp(new THREE.Color(0x141b29), n);
     this.water.color.set(0xbdd3e8).lerp(new THREE.Color(0x141b29), n);
     this.landMat.color.set(0xfaf9f6).lerp(new THREE.Color(0x2b3040), n);
+    this.streetMat?.color.set(0xe9e7e1).lerp(new THREE.Color(0x3a4053), n);
     this.hemi.intensity = 1.9 - 1.1 * n;
     this.solidMats.forEach((mat, i) => {
       const unlocked = g.isUnlocked(g.city.lines[i].id);
@@ -638,7 +736,7 @@ export class CityScene {
         if (!showCounts) continue;
         const up = Math.floor(g.waitingUp.get(id) ?? 0);
         const down = Math.floor(g.waitingDown.get(id) ?? 0);
-        count.set(up, down, ratio >= 0.999);
+        count.set(up, down, ratio > 0.45);
       }
     }
 

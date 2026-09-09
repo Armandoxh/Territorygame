@@ -293,3 +293,27 @@ next-milestone hint only when within 7 levels; (8) one design
 system: nav bar restyled to match the ink bars (no gray strokes),
 phase chip is an indicator with a dot, not a fake button; (9) touch
 targets: back chevron 52px, X 44pt effective, buys min 32px tall.
+
+Build 57 (metro2): THE MAP GETS A BODY + GOALS COMPACTED (player
+relayed a 15-point home-screen/goals audit; verdict: "the panels are
+the game and the map is wallpaper"). MAP: (1) a faint street grid
+clipped to the landmass (run-sampled against the land polys, one
+merged mesh) + a drawn COASTLINE contour -- the city reads as a
+place; (2) trains get a white outline underlay so vehicles pop on
+their own line color; (3) station labels use v1's HAND-TUNED
+labelSide data (recovered through the JSON bridge -- the converter
+had dropped it; 68 side-anchored labels) with side-aligned canvas
+text and clearance for the count fraction -- every name unambiguously
+belongs to its dot; (4) count contrast: ink flips WHITE with a dark
+halo on heat-colored discs, bigger digits, plus a ONE-TIME coach
+toast explaining up/down; (5) MERIDIAN watermark shrunk ~45% and
+lightened; (6) build chip REMOVED from the HUD (now a faint footer
+in the goals panel); (7) top bar aligned: title+cash grid row, goal
+strip is now name + EMBEDDED PROGRESS BAR in the leading track's
+color; (9/13) color arrives: tracks are green/gold/blue/purple in
+strip, sections, bars, rewards. GOALS: compact rows (~90px vs
+~200px) -- all four tracks visible at once; matched number units
+(5.2K / 10K via cfmt); header shows ONLY earned multipliers as
+colored chips (no x1.00 no-ops); panel-head titles ellipsize (the
+collision bug class); bottom padding fixes the clipped-fraction bug;
+disclosure triangles gone. Streets darken with the night cycle.

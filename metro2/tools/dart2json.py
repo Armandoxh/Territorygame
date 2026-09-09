@@ -30,10 +30,11 @@ city = {
 }
 city['stations'] = [
     {'id': m.group(1), 'name': m.group(2), 'x': float(m.group(3)),
-     'y': float(m.group(4)), 'demand': float(m.group(5))}
+     'y': float(m.group(4)), 'demand': float(m.group(5)),
+     'labelSide': int(m.group(6) or 0)}
     for m in re.finditer(
         r"StationDef\(id: '([^']+)', name: '([^']+)', x: ([\d.]+), "
-        r"y: ([\d.]+), demand: ([\d.]+)", block)
+        r"y: ([\d.]+), demand: ([\d.]+)(?:, labelSide: (-?\d+))?", block)
 ]
 city['lines'] = []
 for m in re.finditer(

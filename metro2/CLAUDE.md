@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b56 (the craft pass — 9-point UI audit)
+## ▶ CURRENT BUILD: v2 · b57 (the map gets a body + goals compacted)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:

@@ -12,6 +12,8 @@ export interface StationDef {
   y: number;
   /** Riders per second who want to board here (before upgrades). */
   demand: number;
+  /** Label placement: 0 = below; -1 = left of the dot; 1 = right. */
+  labelSide?: number;
 }
 
 export interface LineDef {
