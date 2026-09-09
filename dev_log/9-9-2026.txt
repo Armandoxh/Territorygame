@@ -168,3 +168,12 @@ dashes, small secondary numbers. scene.setView(x,z,h) added for
 tests. b47's world-scaled-sprite mystery noted: sprites with
 sizeAttenuation:true simply do not render from this camera; screen-
 constant is the law now.
+
+Build 49 (metro2): FRACTION COUNTS ON THE CIRCLE (player: "Why'd we
+take the guests waiting out of the circle? Stack the numbers...
+opposite diagonals... slash divider"). The platform readout returns
+to the station marker, typeset like a fraction straddling the disc:
+uptown count top-left, downtown count bottom-right, an ink slash
+between (white-haloed stroke so it stays crisp on any ground), red
+at platform cap, nothing drawn when empty. One square canvas sprite
+per served station, redrawn only when the numbers change.

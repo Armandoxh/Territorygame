@@ -73,8 +73,9 @@ function textCanvas(
   return c;
 }
 
-/** A live station-count readout: a small canvas sprite redrawn only
- * when its text changes. */
+/** The live platform readout ON the station circle, typeset like a
+ * fraction: uptown count top-left, a slash, downtown count bottom-
+ * right. Redrawn only when the numbers change. */
 class CountSprite {
   readonly sprite: THREE.Sprite;
   private canvas = document.createElement('canvas');
@@ -82,8 +83,8 @@ class CountSprite {
   private last = '';
 
   constructor(x: number, z: number) {
-    this.canvas.width = 256;
-    this.canvas.height = 96;
+    this.canvas.width = 176;
+    this.canvas.height = 176;
     this.tex = new THREE.CanvasTexture(this.canvas);
     this.tex.anisotropy = 4;
     this.sprite = new THREE.Sprite(
@@ -94,25 +95,47 @@ class CountSprite {
         sizeAttenuation: false, // constant screen size, always legible
       }),
     );
-    this.sprite.scale.set(0.062, 0.0232, 1);
-    this.sprite.center.set(0.5, -0.45); // floats just above the dot
-    this.sprite.position.set(x, TRACK_Y + 0.2, z);
+    this.sprite.scale.set(0.055, 0.055, 1);
+    this.sprite.position.set(x, TRACK_Y + 0.25, z); // centered on the dot
   }
 
-  set(text: string, full: boolean): void {
-    const key = `${text}:${full}`;
+  set(up: number, down: number, full: boolean): void {
+    const key = `${up}/${down}:${full}`;
     if (key === this.last) return;
     this.last = key;
     const ctx = this.canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 256, 96);
-    ctx.font = '800 52px Inter, sans-serif';
-    ctx.textAlign = 'center';
+    ctx.clearRect(0, 0, 176, 176);
+    if (up + down <= 0) {
+      this.tex.needsUpdate = true;
+      return;
+    }
+    const ink = full ? '#C62828' : '#1a1a1a';
     ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    // The slash, drawn as a stroke so it stays crisp at any weight.
     ctx.lineWidth = 9;
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-    ctx.strokeText(text, 128, 48);
-    ctx.fillStyle = full ? '#C62828' : '#3a3a3a';
-    ctx.fillText(text, 128, 48);
+    ctx.beginPath();
+    ctx.moveTo(64, 132);
+    ctx.lineTo(112, 44);
+    ctx.stroke();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = ink;
+    ctx.beginPath();
+    ctx.moveTo(64, 132);
+    ctx.lineTo(112, 44);
+    ctx.stroke();
+    // Uptown top-left, downtown bottom-right.
+    ctx.font = '900 54px Inter, sans-serif';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.textAlign = 'right';
+    ctx.strokeText(String(up), 74, 48);
+    ctx.fillStyle = ink;
+    ctx.fillText(String(up), 74, 48);
+    ctx.textAlign = 'left';
+    ctx.strokeText(String(down), 102, 130);
+    ctx.fillText(String(down), 102, 130);
     this.tex.needsUpdate = true;
   }
 }
@@ -574,7 +597,7 @@ export class CityScene {
         const up = Math.floor(g.waitingUp.get(id) ?? 0);
         const down = Math.floor(g.waitingDown.get(id) ?? 0);
         const full = g.waitingAt(id) >= g.stationCapAt(id) - 0.001;
-        count.set(up + down > 0 ? `${up}/${down}` : '', full);
+        count.set(up, down, full);
       }
     }
 
