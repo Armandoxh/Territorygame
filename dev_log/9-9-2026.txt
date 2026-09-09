@@ -92,3 +92,29 @@ rows show only what you have. Engine grew generic bundle helpers
 MAX finished CARS, rows hold one line each. Also fixed: goal strip vs
 rate chip overlap on narrow screens (rate hides under 560px),
 remaining '1 trains' plural.
+
+Build 46 (metro2): LIVING DISTRICTS + MAP VIEW (player: "the 3D map
+is cool but it's not telling a story... this is the city and these
+are the suburbs... a hot part of town... tempted to go back to 2D";
+chose the recommended fix-the-story-in-3D + map toggle). Three
+systems: (1) ZONES -- generation is now geographic: downtown core =
+towers and podium blocks shoulder to shoulder, midtown = mixed
+mid-rise, suburbs = small houses/rowhouses with more trees and air
+between them; height AND texture change as you leave the center.
+(2) GROWTH -- the city reacts to the game: every station has three
+tiers of infill massing that RISE (eased, instanced-scale animation)
+as its heat grows -- heat = service + station works + serving-line
+upgrade levels + lifetime boardings (new engine counter boardedAt,
+persisted). Opening a line visibly urbanizes its corridor; a maxed
+hub sprouts towers and NEON storefront strips that burn in signage
+colors at night. Headless proof: a save with line 1 fully invested
+renders a wall of towers down the corridor while the east mainland
+stays sleepy suburbs. (3) MAP VIEW -- one tap (MAP/CITY chip):
+scenery hides, camera glides overhead, and the same engine draws the
+clean 2D diagram: land/water, saturated owned lines vs pale ghosts,
+station-name labels (screen-constant sprites, staggered above/below
+to dodge collisions, growing as lines unlock) and flat district
+names. The 2D-vs-3D question is now a toggle, not a rebuild. Debug
+handle window.__scene added for headless probing (which found the
+sizeAttenuation label bug and the district text buried under the
+land bevel).

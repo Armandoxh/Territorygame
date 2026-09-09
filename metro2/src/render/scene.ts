@@ -110,6 +110,23 @@ export class CityScene {
   private beamMats: THREE.MeshBasicMaterial[] = [];
   private lanes: LaneTable;
   private fog: THREE.Fog;
+  /** Everything that is CITY, not transit — hidden in MAP view. */
+  private scenery = new THREE.Group();
+  private mapExtras = new THREE.Group();
+  private labels = new THREE.Group();
+  private labeledStations = new Set<string>();
+  mapView = false;
+  // Growth infill: instances that rise as stations run hot.
+  private infill: THREE.InstancedMesh | null = null;
+  private infillMeta: { stIdx: number; tier: number }[] = [];
+  private infillSegs: { x: number; z: number; y: number; w: number; h: number; d: number; rot: number }[] = [];
+  private infillScale: Float32Array = new Float32Array(0);
+  private neon: THREE.InstancedMesh | null = null;
+  private neonMat: THREE.MeshBasicMaterial | null = null;
+  private neonMeta: number[] = [];
+  private neonScale: Float32Array = new Float32Array(0);
+  private neonSegsData: { x: number; z: number; w: number; rot: number; stIdx: number }[] = [];
+  private growthFrame = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -119,6 +136,10 @@ export class CityScene {
     const city = game.city;
     const center = new THREE.Vector3(city.size / 2, 0, city.size / 2);
     this.lanes = buildLanes(city);
+    this.scene.add(this.scenery);
+    this.mapExtras.visible = false;
+    this.scene.add(this.mapExtras, this.labels);
+    this.labels.visible = false;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -331,29 +352,32 @@ export class CityScene {
         if (landmarkBlock(x, y)) continue;
         if (city.stations.some((o) => Math.hypot(o.x - x, o.y - y) < 3.2)) continue;
         if (trackSegs.some((s) => distToSeg(x, y, s) < 2.6)) continue;
-        // Real skylines are mostly FABRIC: about two-thirds low-rise
-        // (houses and rowhouse slabs), a quarter mid-rise, and towers
-        // only where downtown and demand agree — with the core boost
-        // deciding how tall "tall" gets.
+        // THE CITY TELLS ITS STORY BY ZONE. Downtown core: towers and
+        // podium blocks shoulder to shoulder. Midtown: mixed mid-rise.
+        // Suburbs: small houses and rowhouses with yards between —
+        // height AND texture change as you leave the center.
         const dc = Math.hypot(x - 220, y - 280);
         const core = 1 + 0.6 * Math.exp(-(dc * dc) / (2 * 110 * 110));
+        const zone = dc < 95 ? 2 : dc < 175 ? 1 : 0;
         const roll = rnd();
         let w: number;
         let d: number;
         let h: number;
-        if (roll < 0.66) {
-          if (rnd() < 0.35) {
+        const lowShare = zone === 2 ? 0.3 : zone === 1 ? 0.62 : 0.86;
+        const midShare = zone === 2 ? 0.72 : zone === 1 ? 0.92 : 0.99;
+        if (roll < lowShare) {
+          if (rnd() < (zone === 0 ? 0.45 : 0.35)) {
             w = 3.4 + rnd() * 3.0; // a rowhouse slab
             d = 1.9 + rnd() * 1.1;
           } else {
-            w = 1.8 + rnd() * 1.5;
-            d = 1.8 + rnd() * 1.5;
+            w = zone === 0 ? 1.5 + rnd() * 1.1 : 1.8 + rnd() * 1.5;
+            d = zone === 0 ? 1.5 + rnd() * 1.1 : 1.8 + rnd() * 1.5;
           }
-          h = 1.8 + rnd() * 3.0;
-        } else if (roll < 0.9) {
+          h = zone === 0 ? 1.1 + rnd() * 1.6 : 1.8 + rnd() * 3.0;
+        } else if (roll < midShare) {
           w = 2.6 + rnd() * 2.0;
           d = 2.6 + rnd() * 2.0;
-          h = (4.5 + rnd() * 5) * (0.75 + st.demand * 0.5);
+          h = (4.5 + rnd() * 5) * (0.75 + st.demand * 0.5) * (zone === 0 ? 0.7 : 1);
         } else {
           w = 2.3 + rnd() * 1.6;
           d = 2.3 + rnd() * 1.6;
@@ -442,7 +466,7 @@ export class CityScene {
     });
     inst.castShadow = true;
     inst.receiveShadow = true;
-    this.scene.add(inst);
+    this.scenery.add(inst);
     if (antennas.length > 0) {
       const antInst = new THREE.InstancedMesh(
         new THREE.CylinderGeometry(0.07, 0.1, 1, 5),
@@ -454,8 +478,91 @@ export class CityScene {
         m4.setPosition(a.x, a.y + a.h / 2, a.z);
         antInst.setMatrixAt(i, m4);
       });
-      this.scene.add(antInst);
+      this.scenery.add(antInst);
     }
+
+    // ---- GROWTH INFILL: the city reacts to the game. Each station
+    // gets three tiers of extra massing that RISE as it runs hot —
+    // service, works, upgrades, and lifetime traffic all feed the
+    // heat. Opening a line visibly urbanizes its corridor. ----
+    const neonSegs: { x: number; z: number; w: number; rot: number; stIdx: number }[] = [];
+    city.stations.forEach((st, si) => {
+      const rnd = mulberry32(0xc0ffee ^ (si * 2654435761));
+      const dc = Math.hypot(st.x - 220, st.y - 280);
+      const core = 1 + 0.6 * Math.exp(-(dc * dc) / (2 * 110 * 110));
+      const tiers: [number, number, number][] = [
+        [1, 4, 5], // tier, count, base height
+        [2, 4, 9],
+        [3, 2, 16],
+      ];
+      for (const [tier, count, baseH] of tiers) {
+        for (let k = 0; k < count; k++) {
+          const ang = rnd() * Math.PI * 2;
+          const dist = 3.8 + rnd() * 9;
+          const x = st.x + Math.cos(ang) * dist;
+          const y = st.y + Math.sin(ang) * dist;
+          if (!onLand(city, x, y)) continue;
+          if (landmarkBlock(x, y)) continue;
+          if (city.stations.some((o) => Math.hypot(o.x - x, o.y - y) < 3.0)) continue;
+          if (trackSegs.some((sg) => distToSeg(x, y, sg) < 2.6)) continue;
+          if (footprints.some((f) => Math.hypot(f.x - x, f.z - y) < f.r + 0.5)) continue;
+          const w = 2.0 + rnd() * 1.8;
+          const d = 2.0 + rnd() * 1.8;
+          const h = (baseH + rnd() * baseH * 0.7) * (0.7 + 0.3 * core);
+          const rot = (rnd() - 0.5) * 0.14;
+          footprints.push({ x, z: y, r: Math.max(w, d) * 0.7 });
+          this.infillSegs.push({ x, z: y, y: LAND_H, w, h, d, rot });
+          this.infillMeta.push({ stIdx: si, tier });
+          if (tier === 2 && neonSegs.length < 500) {
+            neonSegs.push({ x, z: y, w: w * 0.92, rot, stIdx: si });
+          }
+        }
+      }
+    });
+    if (this.infillSegs.length > 0) {
+      this.infill = new THREE.InstancedMesh(
+        new RoundedBoxGeometry(1, 1, 1, 2, 0.06),
+        this.buildingMat,
+        this.infillSegs.length,
+      );
+      this.infillScale = new Float32Array(this.infillSegs.length);
+      this.infillSegs.forEach((b, i) => {
+        m4.makeScale(0.001, 0.001, 0.001);
+        m4.setPosition(b.x, LAND_H, b.z);
+        this.infill!.setMatrixAt(i, m4);
+        col.set(FACADES[(i * 3) % FACADES.length]);
+        col.multiplyScalar(0.92 + (i % 4) * 0.03);
+        this.infill!.setColorAt(i, col);
+      });
+      this.infill.castShadow = true;
+      this.scenery.add(this.infill);
+    }
+    if (neonSegs.length > 0) {
+      // Storefront neon: additive strips at the base of tier-2 infill,
+      // burning in signage colors once the block has grown in.
+      this.neonMat = new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      this.neon = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(1, 0.5, 0.22),
+        this.neonMat,
+        neonSegs.length,
+      );
+      this.neonScale = new Float32Array(neonSegs.length);
+      const NEON = [0xff4f9a, 0x2ee6d6, 0xffb347, 0x9a6bff, 0x7dff6b];
+      neonSegs.forEach((n, i) => {
+        m4.makeScale(0.001, 0.001, 0.001);
+        m4.setPosition(n.x, LAND_H + 0.9, n.z);
+        this.neon!.setMatrixAt(i, m4);
+        this.neon!.setColorAt(i, col.set(NEON[i % NEON.length]));
+        this.neonMeta.push(n.stIdx);
+      });
+      this.scenery.add(this.neon);
+    }
+    this.neonSegsData = neonSegs;
 
     // ---- Trees: canopies in every park, plus street trees where the
     // blocks left room. The single biggest organic counterweight to a
@@ -477,7 +584,8 @@ export class CityScene {
     });
     city.stations.forEach((st, si) => {
       const rnd = mulberry32(0x85ebca6b ^ (si * 2654435761));
-      for (let k = 0; k < 5; k++) {
+      const dcT = Math.hypot(st.x - 220, st.y - 280);
+      for (let k = 0; k < (dcT > 175 ? 10 : dcT > 95 ? 6 : 3); k++) {
         const ang = rnd() * Math.PI * 2;
         const dist = 3.5 + rnd() * 12;
         const x = st.x + Math.cos(ang) * dist;
@@ -513,7 +621,7 @@ export class CityScene {
     trunkInst.castShadow = true;
     leafInst.castShadow = true;
     leafInst.receiveShadow = true;
-    this.scene.add(trunkInst, leafInst);
+    this.scenery.add(trunkInst, leafInst);
 
     // ---- Landmarks ────────────────────────────────────────────────
     // THE MERIDIAN BOWL: an elliptical stadium on the west bank —
@@ -530,7 +638,7 @@ export class CityScene {
       bowl.position.set(sx, LAND_H + 1.5, sz);
       bowl.castShadow = true;
       bowl.receiveShadow = true;
-      this.scene.add(bowl);
+      this.scenery.add(bowl);
       const pitch = new THREE.Mesh(
         new THREE.CircleGeometry(9.2, 36),
         new THREE.MeshStandardMaterial({ color: 0x6fa867, roughness: 1 }),
@@ -538,7 +646,7 @@ export class CityScene {
       pitch.rotation.x = -Math.PI / 2;
       pitch.scale.x = 1.25;
       pitch.position.set(sx, LAND_H + 0.32, sz);
-      this.scene.add(pitch);
+      this.scenery.add(pitch);
       this.floodMat = new THREE.MeshStandardMaterial({
         color: 0xfff3cd,
         emissive: 0xffedb0,
@@ -556,14 +664,14 @@ export class CityScene {
           mastMat,
         );
         mast.position.set(sx + mx, LAND_H + 3.75, sz + mz);
-        this.scene.add(mast);
+        this.scenery.add(mast);
         const head = new THREE.Mesh(
           new THREE.BoxGeometry(1.7, 0.9, 0.4),
           this.floodMat,
         );
         head.position.set(sx + mx, LAND_H + 7.7, sz + mz);
         head.lookAt(sx, LAND_H, sz);
-        this.scene.add(head);
+        this.scenery.add(head);
       }
     }
 
@@ -578,14 +686,14 @@ export class CityScene {
       );
       runway.position.set(ax, LAND_H + 0.3, az);
       runway.receiveShadow = true;
-      this.scene.add(runway);
+      this.scenery.add(runway);
       const dashParts: THREE.BufferGeometry[] = [];
       for (let dz = -28; dz <= 28; dz += 5.6) {
         const g2 = new THREE.BoxGeometry(0.45, 0.06, 2.6);
         g2.translate(ax, LAND_H + 0.45, az + dz);
         dashParts.push(g2);
       }
-      this.scene.add(
+      this.scenery.add(
         new THREE.Mesh(
           BufferGeometryUtils.mergeGeometries(dashParts),
           new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.8 }),
@@ -597,21 +705,21 @@ export class CityScene {
       );
       apron.position.set(ax - 9.5, LAND_H + 0.27, az + 12);
       apron.receiveShadow = true;
-      this.scene.add(apron);
+      this.scenery.add(apron);
       const terminal = new THREE.Mesh(
         new RoundedBoxGeometry(4.5, 2.6, 13, 2, 0.5),
         new THREE.MeshStandardMaterial({ color: 0xddd8ce, roughness: 0.7 }),
       );
       terminal.position.set(ax - 15.5, LAND_H + 1.3, az + 12);
       terminal.castShadow = true;
-      this.scene.add(terminal);
+      this.scenery.add(terminal);
       const tower = new THREE.Mesh(
         new THREE.CylinderGeometry(0.6, 0.85, 6.5, 8),
         new THREE.MeshStandardMaterial({ color: 0xcfcbc1, roughness: 0.7 }),
       );
       tower.position.set(ax - 15.5, LAND_H + 3.2, az + 2);
       tower.castShadow = true;
-      this.scene.add(tower);
+      this.scenery.add(tower);
       const cab = new THREE.Mesh(
         new THREE.CylinderGeometry(1.4, 1.4, 1.1, 8),
         new THREE.MeshStandardMaterial({
@@ -621,7 +729,7 @@ export class CityScene {
         }),
       );
       cab.position.set(ax - 15.5, LAND_H + 7.0, az + 2);
-      this.scene.add(cab);
+      this.scenery.add(cab);
       this.beaconMat = new THREE.MeshStandardMaterial({
         color: 0xff5544,
         emissive: 0xff3322,
@@ -632,7 +740,7 @@ export class CityScene {
         this.beaconMat,
       );
       beacon.position.set(ax - 15.5, LAND_H + 7.9, az + 2);
-      this.scene.add(beacon);
+      this.scenery.add(beacon);
       // Two parked planes on the apron.
       const planeMat = new THREE.MeshStandardMaterial({
         color: 0xf2f3f5,
@@ -656,7 +764,7 @@ export class CityScene {
         plane.add(tail);
         plane.position.set(ax + px, LAND_H + 0.3, az + pz);
         plane.rotation.y = rot;
-        this.scene.add(plane);
+        this.scenery.add(plane);
       }
     }
 
@@ -790,6 +898,159 @@ export class CityScene {
     this.focusT0 = performance.now();
   }
 
+  /** Ease infill (and its neon) toward each station's heat tier.
+   * Cheap: runs every ~45 frames, eases a few steps per run. */
+  private updateGrowth(): void {
+    if (!this.infill) return;
+    const g = this.game;
+    const heat = g.city.stations.map((st) => g.stationHeat(st.id));
+    const thresholds = [0, 3, 8, 15];
+    const m4 = new THREE.Matrix4();
+    const quat = new THREE.Quaternion();
+    const yAxis = new THREE.Vector3(0, 1, 0);
+    const pos = new THREE.Vector3();
+    const scl = new THREE.Vector3();
+    let dirty = false;
+    this.infillMeta.forEach((meta, i) => {
+      const target = heat[meta.stIdx] >= thresholds[meta.tier] ? 1 : 0;
+      const cur = this.infillScale[i];
+      if (Math.abs(target - cur) < 0.01) return;
+      const next = cur + (target - cur) * 0.3;
+      this.infillScale[i] = next;
+      const b = this.infillSegs[i];
+      quat.setFromAxisAngle(yAxis, b.rot);
+      const sy = Math.max(b.h * next, 0.001);
+      m4.compose(
+        pos.set(b.x, LAND_H + sy / 2, b.z),
+        quat,
+        scl.set(Math.max(b.w * Math.min(1, next * 1.6), 0.001), sy,
+          Math.max(b.d * Math.min(1, next * 1.6), 0.001)),
+      );
+      this.infill!.setMatrixAt(i, m4);
+      dirty = true;
+    });
+    if (dirty) this.infill.instanceMatrix.needsUpdate = true;
+    if (this.neon) {
+      let ndirty = false;
+      this.neonMeta.forEach((stIdx, i) => {
+        const target = heat[stIdx] >= thresholds[2] ? 1 : 0;
+        const cur = this.neonScale[i];
+        if (Math.abs(target - cur) < 0.01) return;
+        const next = cur + (target - cur) * 0.3;
+        this.neonScale[i] = next;
+        const n = this.neonSegsData[i];
+        quat.setFromAxisAngle(yAxis, n.rot);
+        m4.compose(
+          pos.set(n.x, LAND_H + 0.9, n.z),
+          quat,
+          scl.set(Math.max(n.w * next, 0.001), Math.max(0.5 * next, 0.001), 0.22),
+        );
+        this.neon!.setMatrixAt(i, m4);
+        ndirty = true;
+      });
+      if (ndirty) this.neon.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  /** MAP view: the transit diagram — scenery hidden, camera overhead,
+   * served stations labeled, district names on the ground. */
+  setMapView(on: boolean): void {
+    this.mapView = on;
+    this.scenery.visible = !on;
+    this.mapExtras.visible = on;
+    this.labels.visible = on;
+    if (on) {
+      this.buildMapExtras();
+      this.buildLabels();
+      const t = this.controls.target;
+      const dist = this.camera.position.distanceTo(t);
+      this.focusFrom = {
+        target: t.clone(),
+        pos: this.camera.position.clone(),
+      };
+      this.focusTo = {
+        target: t.clone(),
+        pos: new THREE.Vector3(t.x, Math.max(dist, 260), t.z + 1),
+      };
+      this.focusT0 = performance.now();
+      this.controls.maxPolarAngle = 0.06;
+    } else {
+      this.controls.maxPolarAngle = 1.32;
+      const t = this.controls.target;
+      const dist = this.camera.position.distanceTo(t);
+      this.focusFrom = {
+        target: t.clone(),
+        pos: this.camera.position.clone(),
+      };
+      this.focusTo = {
+        target: t.clone(),
+        pos: t.clone().add(new THREE.Vector3(0.55, 0.75, 1).normalize().multiplyScalar(dist)),
+      };
+      this.focusT0 = performance.now();
+    }
+  }
+
+  private mapExtrasBuilt = false;
+
+  private buildMapExtras(): void {
+    if (this.mapExtrasBuilt) return;
+    this.mapExtrasBuilt = true;
+    // District names, laid flat like the printed diagram.
+    for (const d of this.game.city.districts) {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 96;
+      const ctx = c.getContext('2d')!;
+      ctx.font = '800 52px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(110,110,110,0.8)';
+      ctx.fillText(d.text, 256, 48);
+      const tex = new THREE.CanvasTexture(c);
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(96, 18),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(d.x, LAND_H + 0.85, d.y);
+      this.mapExtras.add(mesh);
+    }
+  }
+
+  /** Label sprites for served stations (built lazily, grows on unlock). */
+  buildLabels(): void {
+    for (const st of this.game.city.stations) {
+      if (!this.game.isServed(st.id) || this.labeledStations.has(st.id)) continue;
+      this.labeledStations.add(st.id);
+      const c = document.createElement('canvas');
+      c.width = 256;
+      c.height = 56;
+      const ctx = c.getContext('2d')!;
+      ctx.font = '800 26px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.strokeText(st.name, 128, 28);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillText(st.name, 128, 28);
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: new THREE.CanvasTexture(c),
+          depthWrite: false,
+          transparent: true,
+          // Constant screen size — readable at any map altitude.
+          sizeAttenuation: false,
+        }),
+      );
+      sprite.scale.set(0.14, 0.14 * (56 / 256), 1);
+      // Stagger above/below the dot so neighboring names don't collide.
+      sprite.center.set(0.5, this.labeledStations.size % 2 === 0 ? -0.55 : 1.55);
+      sprite.position.set(st.x, TRACK_Y + 0.5, st.y);
+      this.labels.add(sprite);
+    }
+  }
+
   resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -830,6 +1091,11 @@ export class CityScene {
     this.sun.color.set(0xfff2dd).lerp(new THREE.Color(0xff9b52), Math.min(n * 2, 1));
     this.hemi.intensity = 0.55 * (1 - n) + 0.2;
     this.nightAmbient.intensity = 1.25 * n;
+
+    // The city grows toward the game every couple of seconds.
+    if (++this.growthFrame % 45 === 0) this.updateGrowth();
+    if (this.neonMat) this.neonMat.opacity = 0.9 * n;
+    if (this.mapView && this.labels.children.length < 200) this.buildLabels();
 
     // A newly bought train appears the frame after the purchase.
     while (this.trainGroups.length < g.trains.length) {

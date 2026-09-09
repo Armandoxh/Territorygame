@@ -55,6 +55,8 @@ export class Game {
 
   readonly waitingUp = new Map<string, number>();
   readonly waitingDown = new Map<string, number>();
+  /** Lifetime boardings per station — the map's "hot part of town". */
+  readonly boardedAt = new Map<string, number>();
   readonly trains: TrainState[] = [];
   readonly unlockedLineIds = new Set<string>();
 
@@ -680,6 +682,35 @@ export class Game {
     return sum;
   }
 
+  worksAt(stationId: string): number {
+    let sum = 0;
+    for (const m of [
+      this.foodLevel, this.gateLevel, this.platformLevel,
+      this.parkingLevel, this.escalatorLevel, this.securityLevel,
+    ]) {
+      sum += m.get(stationId) ?? 0;
+    }
+    return sum;
+  }
+
+  /** How BUILT-UP this station's neighborhood is: service + investment
+   * + lifetime traffic. The renderer grows city blocks off it. */
+  stationHeat(stationId: string): number {
+    if (!this.isServed(stationId)) return 0;
+    let lineLevels = 0;
+    for (const lineId of this.linesServing.get(stationId) ?? []) {
+      lineLevels +=
+        this.speedLevelOf(lineId) + this.carLevelOf(lineId) +
+        this.accessLevelOf(lineId) + this.trainsetLevelOf(lineId);
+    }
+    return (
+      1 +
+      this.worksAt(stationId) +
+      lineLevels / 2 +
+      Math.min((this.boardedAt.get(stationId) ?? 0) / 1500, 10)
+    );
+  }
+
   goalValue(kind: GoalKind): number {
     switch (kind) {
       case 'riders': return this.totalRiders;
@@ -813,6 +844,7 @@ export class Game {
     this.lastBoardLineId = lineId;
     this.lastBoardCount = Math.floor(take);
     this.lastBoardAmount = earned;
+    this.boardedAt.set(stationId, (this.boardedAt.get(stationId) ?? 0) + take);
     if (this.rushActive) this.rushEarnings += earned;
     if (this.commissionActive) {
       switch (this.commissionType) {
@@ -953,6 +985,7 @@ export class Game {
       commissionProgress: this.commissionProgress,
       commissionTimeLeft: this.commissionTimeLeft,
       goalsDoneByCity: Object.fromEntries(this.goalsDoneByCity),
+      boardedAt: dump(this.boardedAt),
       rushEarnings: this.rushEarnings,
       lastSeenMs: nowMs,
     };
@@ -1006,6 +1039,7 @@ export class Game {
     };
     const stOk = (k: string) => g.waitingUp.has(k);
     const lnOk = (k: string) => city.lines.some((l) => l.id === k);
+    load(g.boardedAt, j.boardedAt, stOk);
     load(g.foodLevel, j.foodLevel, stOk);
     load(g.gateLevel, j.gateLevel, stOk);
     load(g.platformLevel, j.platformLevel, stOk);

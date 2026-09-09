@@ -52,6 +52,11 @@ speedBtn.addEventListener('click', () => {
   simSpeed = simSpeed >= 10 ? 1 : 10;
   speedBtn.textContent = simSpeed >= 10 ? '⏩ 10×' : '⏩ 1×';
 });
+const viewBtn = document.getElementById('btn-view') as HTMLButtonElement;
+viewBtn.addEventListener('click', () => {
+  scene.setMapView(!scene.mapView);
+  viewBtn.textContent = scene.mapView ? 'CITY' : 'MAP';
+});
 
 // iOS Safari zooms the PAGE on double-tap and pinch even with
 // user-scalable=no — and then refuses to zoom back out. Block the
@@ -141,6 +146,8 @@ window.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('resize', () => scene.resize());
+// Debug handle for headless play tests.
+(window as unknown as { __scene: CityScene }).__scene = scene;
 
 let last = performance.now();
 let acc = 0;
