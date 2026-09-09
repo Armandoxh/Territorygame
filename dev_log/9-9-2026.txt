@@ -229,3 +229,16 @@ the screenshot showed white discs over seeded backlogs; re-applied
 with Edit against the real text. Verified with a seeded gradient
 along line 1: white -> cream -> amber -> orange -> red reading
 north, clear blue-line stations staying white.
+
+Build 53 (metro2): STATION INFO DASHBOARD (player: "don't show me
+the upgrade menu anymore -- big card with demand per second, another
+with ticket cost, add more info cards"). Tapping a station now opens
+a six-tile stat dashboard in the v1 data-panel idiom: RIDERS
+ARRIVING /S (rush-aware, reddens x2.5 during a rush), $ PER BOARDING
+(live incomePerRiderAt -- verified exact: ($2 + $0.80 food) x 1.2
+profit commendation = $3.36), WAITING with cap (color tracks the
+disc's heat), lifetime RIDERS BOARDED HERE (the boardedAt counter),
+TRAINS SERVING THIS STOP, and STATION WORKS BUILT n/30. The works
+shop didn't die -- it demoted behind a WORKS > button on the card
+head (and remains in every line sheet's STATION WORKS tab). Tiles
+update live at 4Hz in place.

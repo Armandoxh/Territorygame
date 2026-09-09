@@ -184,6 +184,12 @@ export class Console {
       this.hideStation();
       return;
     }
+    if (el.getAttribute('data-act') === 'toggle-works') {
+      this.stationWorksOpen = !this.stationWorksOpen;
+      this.cardKey = '';
+      this.renderStation();
+      return;
+    }
     if (el.getAttribute('data-act') === 'buy-work') {
       this.game.buyWorks(el.getAttribute('data-id')!, this.shownStationId!, this.buyN());
       this.cardKey = '';
@@ -193,6 +199,7 @@ export class Console {
 
   showStation(stationId: string): void {
     this.shownStationId = stationId;
+    this.stationWorksOpen = false;
     this.setMode(null);
     this.stationEl.hidden = false;
     this.cardKey = '';
@@ -205,6 +212,7 @@ export class Console {
   }
 
   private cardKey = '';
+  private stationWorksOpen = false;
 
   /** Current → next effect for one station work at [lvl]. */
   private workStat(wid: string, lvl: number): string {
@@ -279,37 +287,87 @@ export class Console {
     const g = this.game;
     const st = g.city.stations.find((s) => s.id === id)!;
     const served = g.isServed(id);
-    const key = `${id}:${served}:${this.buyMode}:${this.structSeq}`;
+    const key = `${id}:${served}:${this.stationWorksOpen}:${this.buyMode}:${this.structSeq}`;
     if (this.cardKey !== key) {
       this.cardKey = key;
       const bullets = g.city.lines
         .filter((l) => g.isUnlocked(l.id) && l.stationIds.includes(id))
         .map((l) => `<span class="bullet" style="background:${l.color}">${l.bullet}</span>`)
         .join('');
-      const works = !served
-        ? ''
-        : STATION_WORKS.map((w) => {
-            const lvl = g.stationWorkLevel(w.id, id);
-            return this.upRow(
-              w.name,
-              lvl,
-              Game.foodMax,
-              this.workStat(w.id, lvl),
-              this.workStat(w.id, Game.foodMax),
-              { act: 'buy-work', attrs: `data-id="${w.id}"` },
-              (n) => g.workBundle(w.id, id, n),
-            );
-          }).join('');
-      this.stationEl.innerHTML = `
-        <div class="card-head"><b>${st.name}</b>${bullets}
-          <button class="xbtn" data-act="close-station">×</button></div>
-        <div class="card-row" id="station-row"></div>${works}`;
+      if (!served) {
+        this.stationEl.innerHTML = `
+          <div class="card-head"><b>${st.name}</b>
+            <button class="xbtn" data-act="close-station">×</button></div>
+          <div class="card-row">no service yet — a locked route stops here</div>`;
+      } else {
+        // The station DASHBOARD: big live stat tiles; the works shop
+        // hides behind its own button.
+        const tiles = `<div class="cardgrid">
+          <div class="tile"><div class="big" id="st-demand">–</div>
+            <div class="sub" id="st-demand-sub">riders arriving /s</div></div>
+          <div class="tile"><div class="big" id="st-ticket">–</div>
+            <div class="sub">per boarding</div></div>
+          <div class="tile"><div class="big" id="st-waiting">–</div>
+            <div class="sub" id="st-cap-sub">waiting · cap –</div></div>
+          <div class="tile"><div class="big" id="st-life">–</div>
+            <div class="sub">riders boarded here</div></div>
+          <div class="tile"><div class="big" id="st-service">–</div>
+            <div class="sub">trains serving this stop</div></div>
+          <div class="tile"><div class="big" id="st-works">–</div>
+            <div class="sub">station works built</div></div>
+        </div>`;
+        const works = !this.stationWorksOpen
+          ? ''
+          : STATION_WORKS.map((w) => {
+              const lvl = g.stationWorkLevel(w.id, id);
+              return this.upRow(
+                w.name,
+                lvl,
+                Game.foodMax,
+                this.workStat(w.id, lvl),
+                this.workStat(w.id, Game.foodMax),
+                { act: 'buy-work', attrs: `data-id="${w.id}"` },
+                (n) => g.workBundle(w.id, id, n),
+              );
+            }).join('');
+        this.stationEl.innerHTML = `
+          <div class="card-head"><b>${st.name}</b>${bullets}
+            <button class="worksbtn" data-act="toggle-works">
+              ${this.stationWorksOpen ? '‹ STATS' : 'WORKS ›'}</button>
+            <button class="xbtn" data-act="close-station">×</button></div>
+          ${this.stationWorksOpen ? works : tiles}`;
+      }
     }
-    const up = Math.floor(g.waitingUp.get(id) ?? 0);
-    const down = Math.floor(g.waitingDown.get(id) ?? 0);
-    document.getElementById('station-row')!.textContent = served
-      ? `waiting ${up} ↑ · ${down} ↓  ·  demand ×${g.demandMultAt(id).toFixed(2)}  ·  $${g.incomePerRiderAt(id).toFixed(2)}/rider`
-      : 'no service yet — a locked route stops here';
+    if (!served) return;
+    if (!this.stationWorksOpen) {
+      const arrivals =
+        st.demand * Game.demandScale * g.demandMultAt(id) * g.rushFactorAt(id);
+      const rushing = g.rushFactorAt(id) > 1;
+      const up = Math.floor(g.waitingUp.get(id) ?? 0);
+      const down = Math.floor(g.waitingDown.get(id) ?? 0);
+      const cap = g.stationCapAt(id);
+      const trains = g.trains.filter((t) =>
+        g.lineById(t.lineId).stationIds.includes(id)).length;
+      const set = (elId: string, text: string) => {
+        const el = document.getElementById(elId);
+        if (el) el.textContent = text;
+      };
+      set('st-demand', `${arrivals.toFixed(1)}/s`);
+      set('st-demand-sub', rushing ? 'riders arriving /s · RUSH ×2.5' : 'riders arriving /s');
+      set('st-ticket', `$${g.incomePerRiderAt(id).toFixed(2)}`);
+      set('st-waiting', `${up}↑ ${down}↓`);
+      set('st-cap-sub', `waiting · cap ${cap.toFixed(0)}`);
+      set('st-life', fmt(g.boardedAt.get(id) ?? 0));
+      set('st-service', String(trains));
+      set('st-works', `${g.worksAt(id)}/${STATION_WORKS.length * Game.foodMax}`);
+      const dEl = document.getElementById('st-demand');
+      if (dEl) dEl.style.color = rushing ? '#c62828' : '#1a1a1a';
+      const wEl = document.getElementById('st-waiting');
+      if (wEl) {
+        const ratio = (up + down) / cap;
+        wEl.style.color = ratio >= 1 ? '#c62828' : ratio > 0.5 ? '#b07714' : '#1a1a1a';
+      }
+    }
     this.refreshDisabled(this.stationEl);
   }
 

@@ -344,8 +344,7 @@
         left: 50%;
         transform: translateX(-50%);
         bottom: calc(58px + env(safe-area-inset-bottom));
-        min-width: 240px;
-        max-width: 92vw;
+        width: min(480px, calc(100vw - 20px));
         background: rgba(255, 255, 255, 0.96);
         border: 1px solid #1a1a1a;
         color: #1a1a1a;
@@ -366,6 +365,41 @@
       .card-row {
         padding: 7px 10px;
         color: #444;
+      }
+      .cardgrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: #dedede;
+      }
+      .tile {
+        background: #fff;
+        padding: 10px 12px;
+      }
+      .tile .big {
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+      }
+      .tile .sub {
+        margin-top: 2px;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: #8a8a8a;
+        text-transform: uppercase;
+      }
+      .worksbtn {
+        margin-left: auto;
+        background: #fff;
+        border: 1px solid #1a1a1a;
+        color: #1a1a1a;
+        font: 800 10px Inter, sans-serif;
+        letter-spacing: 0.08em;
+        padding: 5px 8px;
+      }
+      .card-head .xbtn {
+        margin-left: 4px;
       }
       #toasts {
         position: fixed;
