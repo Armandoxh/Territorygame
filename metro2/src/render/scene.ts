@@ -307,32 +307,62 @@ export class CityScene {
     // Each accepted spot becomes a BUILDING, not a box: simple blocks,
     // towers with setbacks, or podium towers — plus rooftop mechanicals
     // and antennas on the tall ones, all with a little grid-jitter.
+    // Ground reserved for the landmarks (verified clear of rail,
+    // stations, and parks by the site-search script).
+    const STADIUM = { x: 44, z: 336 };
+    const AIRPORT = { x: 484, z: 450 }; // vertical runway, y 420-480
+    const landmarkBlock = (x: number, y: number) =>
+      Math.hypot(x - STADIUM.x, y - STADIUM.z) < 18.5 ||
+      (Math.abs(x - AIRPORT.x) < 15 && y > 414 && y < 486);
+
     type Seg = { x: number; z: number; y: number; w: number; h: number; d: number; rot: number };
     const segs: Seg[] = [];
     const antennas: { x: number; z: number; y: number; h: number }[] = [];
     const footprints: { x: number; z: number; r: number }[] = [];
     city.stations.forEach((st, si) => {
       const rnd = mulberry32(si * 2654435761);
-      const n = Math.round(8 + st.demand * 14);
+      const n = Math.round(12 + st.demand * 18);
       for (let k = 0; k < n; k++) {
         const ang = rnd() * Math.PI * 2;
-        const dist = 4.5 + rnd() * 13;
+        const dist = 4.2 + rnd() * 15;
         const x = st.x + Math.cos(ang) * dist;
         const y = st.y + Math.sin(ang) * dist;
         if (!onLand(city, x, y)) continue;
+        if (landmarkBlock(x, y)) continue;
         if (city.stations.some((o) => Math.hypot(o.x - x, o.y - y) < 3.2)) continue;
         if (trackSegs.some((s) => distToSeg(x, y, s) < 2.6)) continue;
-        const w = 2.2 + rnd() * 2.6;
-        const d = 2.2 + rnd() * 2.6;
-        // Downtown rises: a gentle height boost falling off from the
-        // core, so the skyline has a shape, not a uniform buzz.
+        // Real skylines are mostly FABRIC: about two-thirds low-rise
+        // (houses and rowhouse slabs), a quarter mid-rise, and towers
+        // only where downtown and demand agree — with the core boost
+        // deciding how tall "tall" gets.
         const dc = Math.hypot(x - 220, y - 280);
         const core = 1 + 0.6 * Math.exp(-(dc * dc) / (2 * 110 * 110));
-        const h = (2.5 + rnd() * 8) * (0.55 + st.demand) * 1.5 * core;
+        const roll = rnd();
+        let w: number;
+        let d: number;
+        let h: number;
+        if (roll < 0.66) {
+          if (rnd() < 0.35) {
+            w = 3.4 + rnd() * 3.0; // a rowhouse slab
+            d = 1.9 + rnd() * 1.1;
+          } else {
+            w = 1.8 + rnd() * 1.5;
+            d = 1.8 + rnd() * 1.5;
+          }
+          h = 1.8 + rnd() * 3.0;
+        } else if (roll < 0.9) {
+          w = 2.6 + rnd() * 2.0;
+          d = 2.6 + rnd() * 2.0;
+          h = (4.5 + rnd() * 5) * (0.75 + st.demand * 0.5);
+        } else {
+          w = 2.3 + rnd() * 1.6;
+          d = 2.3 + rnd() * 1.6;
+          h = (8 + rnd() * 9) * (0.55 + st.demand) * core;
+        }
         const rot = (rnd() - 0.5) * 0.14;
         footprints.push({ x, z: y, r: Math.max(w, d) * 0.75 });
         const kind = rnd();
-        if (kind < 0.5 || h < 5) {
+        if (kind < 0.5 || h < 9) {
           segs.push({ x, z: y, y: LAND_H, w, h, d, rot });
         } else if (kind < 0.82) {
           // Tower with a setback: wide base, slimmer upper mass.
@@ -344,10 +374,10 @@ export class CityScene {
           segs.push({ x, z: y, y: LAND_H, w: w * 1.3, h: 2.2, d: d * 1.3, rot });
           segs.push({ x, z: y, y: LAND_H + 2.2, w: w * 0.66, h: h - 2.2, d: d * 0.66, rot });
         }
-        if (h > 8) {
+        if (h > 6.5 && rnd() < 0.6) {
           segs.push({ x, z: y, y: LAND_H + h, w: w * 0.32, h: 0.6, d: d * 0.32, rot });
         }
-        if (h > 12 && rnd() < 0.5) {
+        if (h > 14 && rnd() < 0.45) {
           antennas.push({ x, z: y, y: LAND_H + h + 0.6, h: 1.6 + rnd() * 2.2 });
         }
       }
@@ -359,6 +389,7 @@ export class CityScene {
         const y = st.y + Math.sin(ang) * 6.5;
         if (
           onLand(city, x, y) &&
+          !landmarkBlock(x, y) &&
           !trackSegs.some((sg) => distToSeg(x, y, sg) < 2.6) &&
           !city.stations.some((o) => Math.hypot(o.x - x, o.y - y) < 3.2)
         ) {
@@ -452,6 +483,7 @@ export class CityScene {
         const x = st.x + Math.cos(ang) * dist;
         const z = st.y + Math.sin(ang) * dist;
         if (!onLand(city, x, z)) continue;
+        if (landmarkBlock(x, z)) continue;
         if (trackSegs.some((s) => distToSeg(x, z, s) < 2.4)) continue;
         if (footprints.some((f) => Math.hypot(f.x - x, f.z - z) < f.r + 0.7)) continue;
         trees.push({ x, z, s: 0.7 + rnd() * 0.5 });
@@ -483,6 +515,151 @@ export class CityScene {
     leafInst.receiveShadow = true;
     this.scene.add(trunkInst, leafInst);
 
+    // ---- Landmarks ────────────────────────────────────────────────
+    // THE MERIDIAN BOWL: an elliptical stadium on the west bank —
+    // bowl ring, pitch, four floodlight masts that burn at night.
+    {
+      const sx = STADIUM.x;
+      const sz = STADIUM.z;
+      const bowl = new THREE.Mesh(
+        new THREE.TorusGeometry(10.5, 3.0, 10, 44),
+        new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: 0.8 }),
+      );
+      bowl.rotation.x = -Math.PI / 2;
+      bowl.scale.set(1.25, 1, 0.95);
+      bowl.position.set(sx, LAND_H + 1.5, sz);
+      bowl.castShadow = true;
+      bowl.receiveShadow = true;
+      this.scene.add(bowl);
+      const pitch = new THREE.Mesh(
+        new THREE.CircleGeometry(9.2, 36),
+        new THREE.MeshStandardMaterial({ color: 0x6fa867, roughness: 1 }),
+      );
+      pitch.rotation.x = -Math.PI / 2;
+      pitch.scale.x = 1.25;
+      pitch.position.set(sx, LAND_H + 0.32, sz);
+      this.scene.add(pitch);
+      this.floodMat = new THREE.MeshStandardMaterial({
+        color: 0xfff3cd,
+        emissive: 0xffedb0,
+        emissiveIntensity: 0,
+      });
+      const mastMat = new THREE.MeshStandardMaterial({
+        color: 0x8b8b8b,
+        roughness: 0.7,
+      });
+      for (const [mx, mz] of [
+        [-13.5, -10], [13.5, -10], [-13.5, 10], [13.5, 10],
+      ]) {
+        const mast = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.16, 0.24, 7.5, 6),
+          mastMat,
+        );
+        mast.position.set(sx + mx, LAND_H + 3.75, sz + mz);
+        this.scene.add(mast);
+        const head = new THREE.Mesh(
+          new THREE.BoxGeometry(1.7, 0.9, 0.4),
+          this.floodMat,
+        );
+        head.position.set(sx + mx, LAND_H + 7.7, sz + mz);
+        head.lookAt(sx, LAND_H, sz);
+        this.scene.add(head);
+      }
+    }
+
+    // BAYSIDE FIELD: a small airport on the east shore — runway with
+    // centerline dashes, apron, terminal, control tower with a beacon.
+    {
+      const ax = AIRPORT.x;
+      const az = AIRPORT.z;
+      const runway = new THREE.Mesh(
+        new THREE.BoxGeometry(7, 0.25, 64),
+        new THREE.MeshStandardMaterial({ color: 0x3d3d40, roughness: 0.95 }),
+      );
+      runway.position.set(ax, LAND_H + 0.3, az);
+      runway.receiveShadow = true;
+      this.scene.add(runway);
+      const dashParts: THREE.BufferGeometry[] = [];
+      for (let dz = -28; dz <= 28; dz += 5.6) {
+        const g2 = new THREE.BoxGeometry(0.45, 0.06, 2.6);
+        g2.translate(ax, LAND_H + 0.45, az + dz);
+        dashParts.push(g2);
+      }
+      this.scene.add(
+        new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(dashParts),
+          new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.8 }),
+        ),
+      );
+      const apron = new THREE.Mesh(
+        new THREE.BoxGeometry(11, 0.22, 16),
+        new THREE.MeshStandardMaterial({ color: 0x97979b, roughness: 0.95 }),
+      );
+      apron.position.set(ax - 9.5, LAND_H + 0.27, az + 12);
+      apron.receiveShadow = true;
+      this.scene.add(apron);
+      const terminal = new THREE.Mesh(
+        new RoundedBoxGeometry(4.5, 2.6, 13, 2, 0.5),
+        new THREE.MeshStandardMaterial({ color: 0xddd8ce, roughness: 0.7 }),
+      );
+      terminal.position.set(ax - 15.5, LAND_H + 1.3, az + 12);
+      terminal.castShadow = true;
+      this.scene.add(terminal);
+      const tower = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.6, 0.85, 6.5, 8),
+        new THREE.MeshStandardMaterial({ color: 0xcfcbc1, roughness: 0.7 }),
+      );
+      tower.position.set(ax - 15.5, LAND_H + 3.2, az + 2);
+      tower.castShadow = true;
+      this.scene.add(tower);
+      const cab = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.4, 1.4, 1.1, 8),
+        new THREE.MeshStandardMaterial({
+          color: 0x2a3340,
+          roughness: 0.2,
+          metalness: 0.4,
+        }),
+      );
+      cab.position.set(ax - 15.5, LAND_H + 7.0, az + 2);
+      this.scene.add(cab);
+      this.beaconMat = new THREE.MeshStandardMaterial({
+        color: 0xff5544,
+        emissive: 0xff3322,
+        emissiveIntensity: 0,
+      });
+      const beacon = new THREE.Mesh(
+        new THREE.SphereGeometry(0.35, 8, 8),
+        this.beaconMat,
+      );
+      beacon.position.set(ax - 15.5, LAND_H + 7.9, az + 2);
+      this.scene.add(beacon);
+      // Two parked planes on the apron.
+      const planeMat = new THREE.MeshStandardMaterial({
+        color: 0xf2f3f5,
+        roughness: 0.4,
+      });
+      for (const [px, pz, rot] of [
+        [-8.5, 8.5, 0.4], [-8.5, 16, -0.25],
+      ]) {
+        const plane = new THREE.Group();
+        const fus = new THREE.Mesh(
+          new RoundedBoxGeometry(1.1, 0.9, 5.4, 2, 0.4),
+          planeMat,
+        );
+        fus.position.y = 0.7;
+        plane.add(fus);
+        const wing = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.12, 1.1), planeMat);
+        wing.position.y = 0.75;
+        plane.add(wing);
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.1, 0.9), planeMat);
+        tail.position.set(0, 1.2, 2.4);
+        plane.add(tail);
+        plane.position.set(ax + px, LAND_H + 0.3, az + pz);
+        plane.rotation.y = rot;
+        this.scene.add(plane);
+      }
+    }
+
     // ---- Trains (visuals are added lazily, so a growing fleet shows
     // up the moment it is bought) ----
     this.beamTex = radialTexture('rgba(255,243,196,0.9)', 'rgba(255,243,196,0)');
@@ -498,6 +675,8 @@ export class CityScene {
   }
 
   private beamTex: THREE.Texture;
+  private floodMat!: THREE.MeshStandardMaterial;
+  private beaconMat!: THREE.MeshStandardMaterial;
 
   private addTrainVisual(lineId: string): void {
     {
@@ -674,6 +853,10 @@ export class CityScene {
     });
     this.buildingMat.emissiveIntensity = 0.55 * n;
     this.lampMat.opacity = 0.55 * n;
+    // Stadium floodlights burn at night; the airfield beacon blinks.
+    this.floodMat.emissiveIntensity = 1.5 * n;
+    this.beaconMat.emissiveIntensity =
+      n * (0.7 + 0.7 * Math.sin(performance.now() / 280));
     for (const mat of this.trainMats) mat.emissiveIntensity = 0.7 * n;
     for (const mat of this.beamMats) mat.opacity = 0.75 * n;
     if (this.bloom) this.bloom.strength = 0.08 + 0.55 * n;

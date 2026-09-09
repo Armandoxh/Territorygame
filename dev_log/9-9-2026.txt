@@ -1,0 +1,15 @@
+Build 41 (metro2): SKYLINE REALISM + LANDMARKS (player: "too many
+tall buildings all over... mid sized buildings more frequent, building
+size variation, add a stadium or an airport"). Height distribution
+reworked to real-city fabric: ~66% low-rise (houses + rowhouse slabs,
+h 2-5), 24% mid-rise, 10% towers -- and towers only scale up where the
+downtown core boost and station demand agree, so the spine reads and
+the edges calm down. Denser block counts, wider scatter, more
+footprint variety. TWO LANDMARKS, both sited by a clearance-search
+script against rail/stations/parks and reserved from building/tree
+placement: THE MERIDIAN BOWL (west bank, 44/336) -- elliptical bowl,
+green pitch, four floodlight masts that burn at night; BAYSIDE FIELD
+(east shore, 484/450) -- 64-unit runway with centerline dashes,
+apron, terminal, control tower with a blinking red beacon at night,
+two parked planes. Day + night screenshots reviewed before deploy;
+the stadium's night floodlights are the new beauty shot.
