@@ -336,3 +336,31 @@ riders"). MAP per mock: building-block footprints fill street cells
 (one merged mesh, off-track), and LOCKED ROUTES NOW DASH IN THEIR
 OWN LINE COLORS instead of anonymous gray -- the network's future is
 legible. Streets/blocks darken with the night cycle.
+
+Build 59 (metro2): ONE UPGRADEROW. Player's 16-point audit: "these
+two screens are the same object wearing two different outfits...
+build one UpgradeRow with slots for name/level/effect/cost/
+affordability and use it in both places." Console now has a single
+upRow() component used by the line UPGRADES tab, the line STATION
+WORKS tab (tier buys, with the ▲ priority slot -- only the top
+priority is LIT amber), the station card's works list, and NETWORK.
+Slots: name, L{n} chip, one labeled mono effect line (label once,
+unit once, "X -> Y . max Z"; at L0 it says "-5% to start" instead of
+the dead-weight "-0% ->"), a fixed-width price column (button + x1/
+x10/MAX xN count under it), and a 10-segment pip track with amber
+milestone ticks. Affordability is now a ROW state, not just a button
+tint: affordable rows get a lit category-colored spine
+(border-left), out-of-reach rows fall back whole (dimmed name/sub/
+pips). BUY MAX button replaced by a x1|x10|MAX segmented control in
+each shop plus a live "N of M affordable" note; the duplicate cash
+figure in panel heads is deleted (header owns cash). NETWORK is
+grouped into THROUGHPUT/DEMAND/REVENUE/SERVICE with colored section
+squares and summed n/m counters. Works rows drop the middot soup for
+labeled per-level effects; "17 stops . tier-even" moved to the
+section subhead. Inactive tabs brightened (no longer read disabled);
+panel bottom padding raised so the nav never slices the last row.
+Map: locked dashed routes muted toward the paper (lerp .62), station
+RINGS join the heat pass (ink -> amber -> red load rings), and
+building blocks vary -- slivers/squares/big slabs in two shades.
+Verified: 28 vitest green, headless probes (seg control, x10 bulk
+buy, tier buy, priority), 5 screenshots reviewed.

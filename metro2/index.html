@@ -184,12 +184,12 @@
         position: fixed;
         left: 0;
         right: 0;
-        bottom: calc(52px + env(safe-area-inset-bottom));
+        bottom: calc(56px + env(safe-area-inset-bottom));
         max-height: 56vh;
         overflow-y: auto;
         touch-action: pan-y;
         overscroll-behavior: contain;
-        padding-bottom: 6px;
+        padding-bottom: 22px;
         background: var(--card);
         border-top: 3px solid var(--line, #e5484d);
         z-index: 3;
@@ -222,18 +222,6 @@
         gap: 10px;
         flex: 0 0 auto;
       }
-      .head-bal {
-        font: 700 12px var(--mono);
-        color: var(--dim);
-      }
-      .modebtn {
-        background: var(--card2);
-        border: 1px solid var(--edge);
-        color: var(--txt);
-        font: 800 10px Inter, sans-serif;
-        letter-spacing: 0.06em;
-        padding: 6px 9px;
-      }
       .xbtn {
         background: none;
         border: none;
@@ -250,6 +238,13 @@
         font-size: 10px;
         font-weight: 800;
         letter-spacing: 0.12em;
+      }
+      .sect .sq {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        margin-right: 7px;
+        vertical-align: 1px;
       }
       .sect .cnt {
         float: right;
@@ -314,7 +309,7 @@
         flex: 1;
         background: none;
         border: none;
-        color: var(--dim);
+        color: #aeb8ca;
         font: 800 10.5px Inter, sans-serif;
         letter-spacing: 0.1em;
         padding: 12px 6px;
@@ -329,23 +324,71 @@
         box-shadow: inset 0 -3px 0 var(--line, #e5484d);
       }
 
-      /* ── Upgrade component ── */
-      .uprow {
-        padding: 10px 16px 11px;
+      /* ── THE UpgradeRow (b59): one component, every shop.
+         Affordable = lit spine + filled price; otherwise the whole
+         row falls back. Pip track gives scale even at L0. ── */
+      .segrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 16px 10px;
         border-bottom: 1px solid var(--edge);
+      }
+      .seg3 {
+        display: flex;
+        border: 1px solid var(--edge);
+      }
+      .seg3 .seg {
+        background: none;
+        border: none;
+        color: #aeb8ca;
+        font: 800 11px Inter, sans-serif;
+        padding: 7px 14px;
+        min-height: 32px;
+      }
+      .seg3 .seg + .seg {
+        border-left: 1px solid var(--edge);
+      }
+      .seg3 .seg.on {
+        background: var(--card2);
+        color: var(--txt);
+        box-shadow: inset 0 -2px 0 var(--line, #e5484d);
+      }
+      .segnote {
+        margin-left: auto;
+        font: 700 10px var(--mono);
+        color: var(--dim);
+      }
+      .uprow {
+        padding: 10px 16px 11px 13px;
+        border-bottom: 1px solid var(--edge);
+        border-left: 3px solid transparent;
+      }
+      .uprow.ok {
+        border-left-color: var(--cat, var(--line, #e5484d));
+      }
+      .uprow.no .upname,
+      .uprow.no .upsub,
+      .uprow.no .uplvl,
+      .uprow.no .pips i.on {
+        opacity: 0.55;
+      }
+      .uprow.maxed {
+        border-left-color: var(--cat, var(--line, #e5484d));
+        opacity: 0.72;
       }
       .uphead {
         display: flex;
         align-items: center;
         gap: 7px;
-        min-height: 32px;
+        min-height: 34px;
       }
       .upname {
         font-size: 10px;
         font-weight: 800;
         letter-spacing: 0.09em;
         text-transform: uppercase;
-        color: var(--dim);
+        color: var(--txt);
       }
       .uplvl {
         font: 800 9.5px var(--mono);
@@ -358,59 +401,83 @@
         font-weight: 800;
         color: #f0b429;
       }
-      .upstat {
-        font-size: 17px;
-        font-weight: 800;
-        color: var(--txt);
+      .upsub {
+        font: 700 11px var(--mono);
+        color: #97a1b4;
+        margin-top: 3px;
         font-variant-numeric: tabular-nums;
-        margin: 2px 0 6px;
       }
-      .uparrow {
-        color: #55627a;
-        font-weight: 600;
+      .upsub b {
+        color: var(--txt);
+        font-weight: 800;
       }
-      .upbarrow {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .upbar {
+      .pips {
         position: relative;
-        flex: 1;
+        display: flex;
+        gap: 3px;
         height: 5px;
+        margin-top: 8px;
+      }
+      .pips i {
+        flex: 1;
         background: var(--edge);
       }
-      .upfill {
-        height: 100%;
-        background: var(--line, #e5484d);
+      .pips i.on {
+        background: var(--cat, var(--line, #e5484d));
       }
-      .upbar i {
+      .pips em {
         position: absolute;
         top: -2px;
         width: 2px;
         height: 9px;
         background: #f0b429;
       }
-      .upmax {
+      .pricecol {
+        margin-left: auto;
+        flex: 0 0 88px;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+      }
+      .pricecol button.buy {
+        width: 100%;
+        min-width: 0;
+      }
+      .modecnt {
         font: 700 9px var(--mono);
+        color: var(--dim);
+        text-align: center;
+        letter-spacing: 0.06em;
+      }
+      .uphead .pri {
+        flex: 0 0 auto;
+        background: none;
+        border: 1px solid var(--edge);
         color: #55627a;
-        white-space: nowrap;
+        font-size: 10px;
+        padding: 4px 8px;
+        min-height: 26px;
+      }
+      .uphead .pri.lit {
+        color: #f0b429;
+        border-color: #f0b429;
       }
       button.buy {
-        margin-left: auto;
-        min-width: 78px;
+        min-width: 88px;
         min-height: 32px;
         border: 1px solid var(--edge);
         background: none;
         color: #4d5a72;
         font: 800 11px Inter, sans-serif;
-        padding: 6px 10px;
+        padding: 6px 8px;
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
+        text-align: center;
       }
       button.buy.afford {
-        background: var(--line, #e5484d);
-        border-color: var(--line, #e5484d);
+        background: var(--cat, var(--line, #e5484d));
+        border-color: var(--cat, var(--line, #e5484d));
         color: #fff;
       }
 

@@ -265,8 +265,10 @@ export class CityScene {
   private dashedMeshes: THREE.Mesh[] = [];
   private servedDiscs = new Map<string, THREE.Group>();
   private discMats = new Map<string, THREE.MeshBasicMaterial>();
+  private ringMats = new Map<string, THREE.MeshBasicMaterial>();
   private streetMat: THREE.MeshBasicMaterial | null = null;
   private blockMat: THREE.MeshBasicMaterial | null = null;
+  private blockMat2: THREE.MeshBasicMaterial | null = null;
   private counts = new Map<string, CountSprite>();
   private labels = new Map<string, THREE.Sprite>();
   private trainGroups: THREE.Group[] = [];
@@ -403,28 +405,39 @@ export class CityScene {
           return a / 0x7fffffff;
         };
       })();
-      const blockParts: THREE.BufferGeometry[] = [];
+      const lightParts: THREE.BufferGeometry[] = [];
+      const darkParts: THREE.BufferGeometry[] = [];
       const step = 13;
       for (let cx = step; cx < city.size; cx += step) {
         for (let cy = step; cy < city.size; cy += step) {
-          if (rnd() > 0.34) continue;
+          if (rnd() > 0.4) continue;
           const x = cx - step / 2 + (rnd() - 0.5) * 3;
           const y = cy - step / 2 + (rnd() - 0.5) * 3;
           if (!onLand(city, x, y)) continue;
           if (city.stations.some((st) => Math.hypot(st.x - x, st.y - y) < 7)) continue;
-          const w = 5 + rnd() * 3.5;
-          const h = 5 + rnd() * 3.5;
+          // Footprints vary: slivers, squares, and the odd big slab.
+          const big = rnd() < 0.18;
+          const w = big ? 8 + rnd() * 3 : 3 + rnd() * 4.5;
+          const h = big ? 6 + rnd() * 3 : 3 + rnd() * 4.5;
           const g = new THREE.BoxGeometry(w, 0.04, h);
           g.translate(x, LAND_H + 0.02, y);
-          blockParts.push(g);
+          (rnd() < 0.5 ? lightParts : darkParts).push(g);
         }
       }
-      if (blockParts.length > 0) {
+      if (lightParts.length > 0) {
         const blocks = new THREE.Mesh(
-          BufferGeometryUtils.mergeGeometries(blockParts),
-          new THREE.MeshBasicMaterial({ color: 0xe3e1da }),
+          BufferGeometryUtils.mergeGeometries(lightParts),
+          new THREE.MeshBasicMaterial({ color: 0xe4e2db }),
         );
         this.blockMat = blocks.material as THREE.MeshBasicMaterial;
+        this.scene.add(blocks);
+      }
+      if (darkParts.length > 0) {
+        const blocks = new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(darkParts),
+          new THREE.MeshBasicMaterial({ color: 0xdcd9d0 }),
+        );
+        this.blockMat2 = blocks.material as THREE.MeshBasicMaterial;
         this.scene.add(blocks);
       }
     }
@@ -498,7 +511,7 @@ export class CityScene {
       const solid = new THREE.Mesh(BufferGeometryUtils.mergeGeometries(solidParts), mat);
       this.solidMeshes.push(solid);
       this.scene.add(solid);
-      const dashColor = new THREE.Color(line.color).lerp(new THREE.Color(0xffffff), 0.25);
+      const dashColor = new THREE.Color(line.color).lerp(new THREE.Color(0xd8d5cd), 0.62);
       const dashed = new THREE.Mesh(
         BufferGeometryUtils.mergeGeometries(dashParts),
         new THREE.MeshStandardMaterial({ color: dashColor, roughness: 1 }),
@@ -537,9 +550,11 @@ export class CityScene {
       const group = new THREE.Group();
       const interchange = (linesAt.get(st.id) ?? 1) > 1;
       const r = interchange ? 2.4 : 1.9;
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x3a3f4c });
+      this.ringMats.set(st.id, ringMat);
       const ring = new THREE.Mesh(
         new THREE.CylinderGeometry(r + 0.5, r + 0.5, 0.3, 24),
-        new THREE.MeshBasicMaterial({ color: 0x3a3f4c }),
+        ringMat,
       );
       ring.position.set(st.x, TRACK_Y + 0.1, st.y);
       const discMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -722,7 +737,8 @@ export class CityScene {
     this.water.color.set(0xbdd3e8).lerp(new THREE.Color(0x141b29), n);
     this.landMat.color.set(0xfaf9f6).lerp(new THREE.Color(0x2b3040), n);
     this.streetMat?.color.set(0xe9e7e1).lerp(new THREE.Color(0x3a4053), n);
-    this.blockMat?.color.set(0xe3e1da).lerp(new THREE.Color(0x333a4e), n);
+    this.blockMat?.color.set(0xe4e2db).lerp(new THREE.Color(0x333a4e), n);
+    this.blockMat2?.color.set(0xdcd9d0).lerp(new THREE.Color(0x2e3446), n);
     this.hemi.intensity = 1.9 - 1.1 * n;
     this.solidMats.forEach((mat, i) => {
       const unlocked = g.isUnlocked(g.city.lines[i].id);
@@ -762,6 +778,7 @@ export class CityScene {
       const white = new THREE.Color(0xffffff);
       const amber = new THREE.Color(0xffc94d);
       const red = new THREE.Color(0xe03a2f);
+      const inkRing = new THREE.Color(0x3a3f4c);
       for (const label of this.labels.values()) label.visible = showNames;
       for (const [id, count] of this.counts) {
         const ratio = Math.min(g.waitingAt(id) / g.stationCapAt(id), 1);
@@ -769,6 +786,13 @@ export class CityScene {
         if (mat) {
           if (ratio < 0.5) mat.color.copy(white).lerp(amber, ratio * 2);
           else mat.color.copy(amber).lerp(red, (ratio - 0.5) * 2);
+        }
+        // The RING carries load state at every zoom: ink when clear,
+        // heating toward red as the platform fills.
+        const rMat = this.ringMats.get(id);
+        if (rMat) {
+          if (ratio < 0.5) rMat.color.copy(inkRing).lerp(amber, ratio * 1.4);
+          else rMat.color.copy(amber).lerp(red, (ratio - 0.5) * 2);
         }
         count.sprite.visible = showCounts;
         if (!showCounts) continue;

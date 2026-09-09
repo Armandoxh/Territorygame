@@ -67,9 +67,17 @@ export function benefitLabel(b: GoalBenefit, reward: number): string {
 function fmt(v: number): string {
   if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
   if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 10000) return (v / 1000).toFixed(1) + 'K';
+  if (v >= 1000) return (v / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
   return Math.floor(v).toLocaleString('en-US');
 }
+
+/** NETWORK groups (audit 7): color-coded categories. */
+const NET_GROUPS: { name: string; color: string; ids: string[] }[] = [
+  { name: 'THROUGHPUT', color: '#5b8def', ids: ['signal', 'doors'] },
+  { name: 'DEMAND', color: '#2f9e63', ids: ['marketing', 'crowd'] },
+  { name: 'REVENUE', color: '#f0a04a', ids: ['fare', 'billboards'] },
+  { name: 'SERVICE', color: '#8a5fc9', ids: ['yards', 'night'] },
+];
 
 type LineTab = 'up' | 'works';
 type PanelMode =
@@ -162,13 +170,11 @@ export class Console {
       case 'close-panel':
         this.setMode(null);
         return;
-      case 'cycle-mode': {
-        const i = BUY_MODES.indexOf(this.buyMode);
-        this.buyMode = BUY_MODES[(i + 1) % BUY_MODES.length];
+      case 'set-mode':
+        this.buyMode = Number(el.getAttribute('data-n')) as 1 | 10 | 99;
         this.structSeq++;
         this.renderPanel();
         return;
-      }
       case 'open-line':
         this.setMode({ kind: 'line', id, tab: 'up' });
         return;
@@ -250,95 +256,93 @@ export class Console {
   private cardKey = '';
   private stationWorksOpen = false;
 
-  /** Current → next effect for one station work at [lvl]. */
-  private workStat(wid: string, lvl: number): string {
-    const nxt = lvl + 1;
+  /** What one level of this work buys — labeled, no notation soup. */
+  private workSub(wid: string): string {
     switch (wid) {
-      case 'food': return lvl >= Game.foodMax
-        ? `+$${(0.4 * lvl).toFixed(1)} · +${10 * lvl}%`
-        : `+$${(0.4 * lvl).toFixed(1)} → ${(0.4 * nxt).toFixed(1)} · +${10 * lvl} → ${10 * nxt}%`;
-      case 'gates': return lvl >= Game.foodMax
-        ? `+$${(0.25 * lvl).toFixed(2)}/rider`
-        : `+$${(0.25 * lvl).toFixed(2)} → ${(0.25 * nxt).toFixed(2)}/rider`;
-      case 'platform': return lvl >= Game.foodMax
-        ? `−${15 * lvl}% dwell`
-        : `−${15 * lvl}% → ${15 * nxt}% dwell`;
-      case 'parking': return lvl >= Game.foodMax
-        ? `+${6 * lvl}% riders`
-        : `+${6 * lvl}% → ${6 * nxt}% riders`;
-      case 'escalators': return lvl >= Game.foodMax
-        ? `+${8 * lvl} cap`
-        : `+${8 * lvl} → ${8 * nxt} cap`;
-      default: return lvl >= Game.foodMax
-        ? `+${4 * lvl}% income`
-        : `+${4 * lvl}% → ${4 * nxt}% income`;
+      case 'food': return 'each level: <b>+$0.40</b>/rider · <b>+10%</b> riders here';
+      case 'gates': return 'each level: <b>+$0.25</b> recovered per rider';
+      case 'platform': return 'each level: trains stop <b>15%</b> faster here';
+      case 'parking': return 'each level: <b>+6%</b> riders here';
+      case 'escalators': return 'each level: <b>+8</b> platform capacity';
+      default: return 'each level: <b>+4%</b> income on every fare here';
     }
   }
 
-  private modeLabel(): string {
-    return this.buyMode === 1 ? '×1' : this.buyMode === 10 ? '×10' : 'MAX';
-  }
-
-  private head(title: string, withMode = false): string {
+  private head(title: string): string {
     return `<div class="panel-head"><span>${title}</span>
       <span class="head-right">
-        ${withMode ? `<button class="modebtn" data-act="cycle-mode">BUY ${this.modeLabel()}</button>` : ''}
-        <span class="head-bal">$<span class="bal">${fmt(this.game.cash)}</span></span>
         <button class="xbtn" data-act="close-panel">×</button>
       </span></div>`;
   }
 
-  /** One upgrade as a GAME component, not a data line: caption name,
-   * big stat delta, a level bar with milestone ticks, and one buy
-   * button that reads its affordability at a glance. */
+  /** The ×1 | ×10 | MAX segmented control + live afford count. */
+  private segRow(): string {
+    const seg = BUY_MODES.map((m) => {
+      const label = m === 1 ? '×1' : m === 10 ? '×10' : 'MAX';
+      return `<button class="seg${this.buyMode === m ? ' on' : ''}"
+        data-act="set-mode" data-n="${m}">${label}</button>`;
+    }).join('');
+    return `<div class="segrow"><div class="seg3">${seg}</div>
+      <span class="segnote" id="afford-note"></span></div>`;
+  }
+
+  /** THE UpgradeRow — one component for every shop. Affordability is
+   * a lit spine + bordered price; out-of-reach rows fall back whole.
+   * A pip track shows scale even at L0; milestones tick in amber. */
   private upRow(o: {
     name: string;
     level: number;
     max: number;
-    statNow: string;
-    statNext: string | null; // null at max
-    maxLabel: string;
+    sub: string; // labeled, mono, single-format
+    cat?: string; // category/affordability color
     milestones?: number[];
     nextMilestone?: number | null;
     act: string;
     attrs: string;
     bundle: (n: number) => { count: number; cost: number };
+    pri?: 'lit' | 'dim' | null;
+    priAttrs?: string;
   }): string {
-    const pct = Math.min(100, (o.level / o.max) * 100);
+    const cat = o.cat ?? 'var(--line, #e5484d)';
+    const pipCount = Math.min(o.max, 10);
+    const filled = Math.round((o.level / o.max) * pipCount);
     const ticks = (o.milestones ?? [])
       .filter((m) => m < o.max)
-      .map((m) => `<i style="left:${(m / o.max) * 100}%"></i>`)
+      .map((m) => `<em style="left:${(m / o.max) * 100}%"></em>`)
       .join('');
-    const bar = `<div class="upbar"><div class="upfill" style="width:${pct}%"></div>${ticks}</div>
-      <span class="upmax">${o.maxLabel}</span>`;
+    let pips = '';
+    for (let i = 0; i < pipCount; i++) {
+      pips += `<i class="${i < filled ? 'on' : ''}"></i>`;
+    }
+    const pri =
+      o.pri === undefined || o.pri === null
+        ? ''
+        : `<button class="pri${o.pri === 'lit' ? ' lit' : ''}" data-act="raise-priority" ${o.priAttrs ?? ''}>▲</button>`;
     if (o.level >= o.max) {
-      return `<div class="uprow">
-        <div class="uphead"><span class="upname">${o.name}</span>
-          <span class="uplvl">MAX</span></div>
-        <div class="upstat">${o.statNow}</div>
-        <div class="upbarrow">${bar}</div></div>`;
+      return `<div class="uprow maxed" style="--cat:${cat}">
+        <div class="uphead">${pri}<span class="upname">${o.name}</span>
+          <span class="uplvl">L${o.level}</span>
+          <div class="pricecol"><button class="buy" disabled>MAX</button></div></div>
+        <div class="upsub">${o.sub}</div>
+        <div class="pips">${pips}${ticks}</div></div>`;
     }
     const b = o.bundle(this.buyMode);
     const b1 = this.buyMode === 1 ? b : o.bundle(1);
-    const label =
-      this.buyMode === 1
-        ? `$${fmt(b.cost)}`
-        : this.buyMode === 10
-          ? `×${b.count} · $${fmt(b.cost)}`
-          : `MAX · $${fmt(b.cost)}`;
     const near =
       o.nextMilestone != null && o.nextMilestone - o.level <= 7
-        ? `<span class="upnext">⚡×2 @L${o.nextMilestone}</span>`
+        ? ` <span class="upnext">⚡×2 @L${o.nextMilestone}</span>`
         : '';
-    return `<div class="uprow">
-      <div class="uphead"><span class="upname">${o.name}</span>
+    const cnt =
+      this.buyMode === 1 ? '×1' : this.buyMode === 10 ? `×${b.count}` : `MAX ×${b.count}`;
+    return `<div class="uprow" style="--cat:${cat}">
+      <div class="uphead">${pri}<span class="upname">${o.name}</span>
         <span class="uplvl">L${o.level}</span>${near}
-        <button class="buy" data-act="${o.act}" ${o.attrs}
-          data-cost="${b1.cost}">${label}</button></div>
-      <div class="upstat">${o.statNow}${
-        o.statNext ? ` <span class="uparrow">→</span> ${o.statNext}` : ''
-      }</div>
-      <div class="upbarrow">${bar}</div></div>`;
+        <div class="pricecol">
+          <button class="buy" data-act="${o.act}" ${o.attrs}
+            data-cost="${b1.cost}">$${fmt(b.cost)}</button>
+          <span class="modecnt">${cnt}</span></div></div>
+      <div class="upsub">${o.sub}</div>
+      <div class="pips">${pips}${ticks}</div></div>`;
   }
 
   private renderStation(): void {
@@ -384,9 +388,8 @@ export class Console {
                 name: w.name,
                 level: lvl,
                 max: Game.foodMax,
-                statNow: this.workStat(w.id, lvl),
-                statNext: null,
-                maxLabel: `max ${this.workStat(w.id, Game.foodMax)}`,
+                sub: this.workSub(w.id),
+                cat: '#2f9e63',
                 act: 'buy-work',
                 attrs: `data-id="${w.id}"`,
                 bundle: (n) => g.workBundle(w.id, id, n),
@@ -490,20 +493,12 @@ export class Console {
     </div>`;
     let body: string;
     if (tab === 'up') {
-      const up = (
-        kind: LineUpgradeKind,
-        name: string,
-        statNow: string,
-        statNext: string | null,
-        maxLabel: string,
-      ) =>
+      const up = (kind: LineUpgradeKind, name: string, sub: string) =>
         this.upRow({
           name,
           level: g.lineUpgradeLevel(kind, id),
           max: Game.levelMax,
-          statNow,
-          statNext,
-          maxLabel,
+          sub,
           milestones: Game.milestoneLevels,
           nextMilestone: g.nextMilestone(kind, id),
           act: 'buy-up',
@@ -516,85 +511,115 @@ export class Console {
       const acc = 3 * g.accessLevelOf(id);
       const tset = 2.5 * g.trainsetLevelOf(id);
       const bonus = g.lineMilestoneMult(id);
+      const arrow = (kind: LineUpgradeKind, label: string, now: string, next: string, maxv: string) => {
+        const lv = g.lineUpgradeLevel(kind, id);
+        if (lv >= Game.levelMax) return `${label} <b>${now}</b> · fully built`;
+        if (lv === 0) return `${label} <b>${next}</b> to start · max ${maxv}`;
+        return `${label} <b>${now}</b> → <b>${next}</b> · max ${maxv}`;
+      };
       body =
         `<div class="row"><span class="meta">${l.stationIds.length} stops · ${g.trainCount(id)} train${g.trainCount(id) === 1 ? '' : 's'}</span>
           <button class="buy" data-act="buy-train" data-cost="${trainCost}">+TRAIN · $${fmt(trainCost)}</button></div>` +
-        `<div class="sect">LINE BONUS ×${bonus} — each ⚡ doubles this line's income and adds a car</div>` +
-        up('speed', 'Speed', spd.toFixed(1), (spd + Game.baseSpeed * 0.04 * sig).toFixed(1),
-          `max ${(Game.baseSpeed * 5 * sig).toFixed(0)}`) +
-        up('cars', 'Cars per stop', cap.toFixed(0), `${(cap + 2).toFixed(0)}`, 'max 222') +
-        up('access', 'Ridership · access', `+${acc}%`, `+${acc + 3}%`, 'max +300%') +
-        up('trainset', 'Ridership · trainsets', `+${tset.toFixed(1)}%`, `+${(tset + 2.5).toFixed(1)}%`, 'max +250%');
+        `<div class="sect">LINE BONUS ×${bonus} · each ⚡ doubles income here, +1 car</div>` +
+        up('speed', 'SPEED', arrow('speed', 'speed', spd.toFixed(1), (spd + Game.baseSpeed * 0.04 * sig).toFixed(1), (Game.baseSpeed * 5 * sig).toFixed(0))) +
+        up('cars', 'CARS', arrow('cars', 'per stop', cap.toFixed(0), (cap + 2).toFixed(0), '222')) +
+        up('access', 'ACCESS', arrow('access', 'riders', `+${acc}%`, `+${acc + 3}%`, '+300%')) +
+        up('trainset', 'TRAINSETS', arrow('trainset', 'riders', `+${tset.toFixed(1)}%`, `+${(tset + 2.5).toFixed(1)}%`, '+250%'));
     } else {
-      const next = g.nextPlannedType(id);
-      body = STATION_WORKS
-        .slice()
-        .sort((a, b) => g.stationPriority.indexOf(a.id) - g.stationPriority.indexOf(b.id))
-        .map((w) => {
-          const min = g.minStationLevel(id, w.id);
-          const done = min >= Game.foodMax;
-          const count = done ? 0 : g.stationsAtMin(id, w.id);
-          const cost = g.stationTierCost(id, w.id);
-          return `<div class="row up${w.id === next ? ' next' : ''}">
-            <button class="pri" data-act="raise-priority" data-id="${w.id}">▲</button>
-            <span class="nm">${w.name}</span>
-            <span class="lvl">${done ? 'MAX' : `L${min}→${min + 1} ·${count}×`}</span>
-            <span class="stat">${this.workStat(w.id, done ? Game.foodMax : min)}</span>
-            <button data-act="buy-tier" data-id="${w.id}" data-cost="${done ? 0 : cost}"
-              ${done ? 'disabled' : ''}>${done ? 'MAX' : '$' + fmt(cost)}</button></div>`;
-        })
-        .join('');
-      body = `<div class="sect">tier-even across the line · ▲ sets priority</div>` + body;
+      const topPriority = g.stationPriority[0];
+      body =
+        `<div class="sect">STATION WORKS<span class="cnt">${l.stationIds.length} stops · tier-even</span></div>` +
+        STATION_WORKS.slice()
+          .sort((a, b) => g.stationPriority.indexOf(a.id) - g.stationPriority.indexOf(b.id))
+          .map((w) => {
+            const min = g.minStationLevel(id, w.id);
+            return this.upRow({
+              name: w.name,
+              level: min,
+              max: Game.foodMax,
+              sub: this.workSub(w.id),
+              cat: '#2f9e63',
+              act: 'buy-tier',
+              attrs: `data-id="${w.id}"`,
+              bundle: () => ({
+                count: g.stationsAtMin(id, w.id),
+                cost: g.stationTierCost(id, w.id),
+              }),
+              pri: w.id === topPriority ? 'lit' : 'dim',
+              priAttrs: `data-id="${w.id}"`,
+            });
+          })
+          .join('');
     }
-    return this.head(`${bullet} ${l.name.toUpperCase()}`, tab === 'up') + tabs + body;
+    return (
+      this.head(`${bullet} ${l.name.toUpperCase()}`) +
+      tabs +
+      (tab === 'up' ? this.segRow() : '') +
+      body
+    );
   }
 
-  private globalStat(id: string, lvl: number): string {
+  /** One labeled sub per global: label once, unit once (audit 6). */
+  private globalSub(id: string): string {
     const g = this.game;
+    const lvl = g.globalLevelOf(id);
+    const def = GLOBALS.find((d) => d.id === id)!;
+    const maxed = lvl >= def.maxLevel;
+    const rng = (label: string, now: string, next: string, maxv: string) => {
+      if (maxed) return `${label} <b>${now}</b> · fully built`;
+      if (lvl === 0) return `${label} <b>${next}</b> to start · max ${maxv}`;
+      return `${label} <b>${now}</b> → <b>${next}</b> · max ${maxv}`;
+    };
     switch (id) {
-      case 'signal': return `+${4 * lvl}% <span class="uparrow">→</span> +${4 * (lvl + 1)}% speed`;
-      case 'doors': return `−${5 * lvl}% <span class="uparrow">→</span> −${5 * (lvl + 1)}% stop time`;
-      case 'marketing': return `+${5 * lvl}% <span class="uparrow">→</span> +${5 * (lvl + 1)}% riders`;
-      case 'fare': return `$${g.currentFare.toFixed(2)} <span class="uparrow">→</span> $${(g.currentFare + 0.25 * g.fareScale).toFixed(2)} fare`;
-      case 'billboards': return `+${3 * lvl}% <span class="uparrow">→</span> +${3 * (lvl + 1)}% income`;
-      case 'crowd': return `${g.stationCapNow.toFixed(0)} <span class="uparrow">→</span> ${(g.stationCapNow + 8).toFixed(0)} cap`;
-      case 'yards': return `−${4 * lvl}% <span class="uparrow">→</span> −${4 * (lvl + 1)}% train cost`;
-      default: return `${(100 * g.offlineEfficiencyNow).toFixed(0)}% <span class="uparrow">→</span> ${(100 * g.offlineEfficiencyNow + 6).toFixed(0)}% offline`;
-    }
-  }
-
-  private globalStatAtMax(id: string, lvl: number): string {
-    const g = this.game;
-    switch (id) {
-      case 'signal': return `+${4 * lvl}% speed`;
-      case 'doors': return `−${5 * lvl}% stop time`;
-      case 'marketing': return `+${5 * lvl}% riders`;
+      case 'signal':
+        return rng('speed', `+${4 * lvl}%`, `+${4 * (lvl + 1)}%`, '+40%');
+      case 'doors':
+        return rng('stop time', `−${5 * lvl}%`, `−${5 * (lvl + 1)}%`, '−50%');
+      case 'marketing':
+        return rng('riders', `+${5 * lvl}%`, `+${5 * (lvl + 1)}%`, '+50%');
       case 'fare':
-        return `$${((Game.fare + 0.25 * lvl) * g.fareScale).toFixed(2)} fare`;
-      case 'billboards': return `+${3 * lvl}% income`;
-      case 'crowd': return `${(Game.stationCapBase + 8 * lvl).toFixed(0)} cap`;
-      case 'yards': return `−${4 * lvl}% train cost`;
-      default: return `${(50 + 6 * lvl).toFixed(0)}% offline`;
+        return rng('fare', `$${g.currentFare.toFixed(2)}`,
+          `$${(g.currentFare + 0.25 * g.fareScale).toFixed(2)}`,
+          `$${(4 * g.fareScale).toFixed(2)}`);
+      case 'billboards':
+        return rng('income', `+${3 * lvl}%`, `+${3 * (lvl + 1)}%`, '+30%');
+      case 'crowd':
+        return rng('capacity', g.stationCapNow.toFixed(0),
+          (g.stationCapNow + 8).toFixed(0), String(Game.stationCapBase + 80));
+      case 'yards':
+        return rng('train cost', `−${4 * lvl}%`, `−${4 * (lvl + 1)}%`, '−40%');
+      default:
+        return rng('offline rate', `${(100 * g.offlineEfficiencyNow).toFixed(0)}%`,
+          `${(100 * g.offlineEfficiencyNow + 6).toFixed(0)}%`, '80%');
     }
   }
 
   private networkHtml(): string {
     const g = this.game;
-    const rows = GLOBALS.map((d) => {
-      const lvl = g.globalLevelOf(d.id);
-      return this.upRow({
-        name: d.name,
-        level: lvl,
-        max: d.maxLevel,
-        statNow: lvl >= d.maxLevel ? this.globalStatAtMax(d.id, lvl) : this.globalStat(d.id, lvl),
-        statNext: null,
-        maxLabel: `max ${this.globalStatAtMax(d.id, d.maxLevel)}`,
-        act: 'buy-global',
-        attrs: `data-id="${d.id}"`,
-        bundle: (n) => g.globalBundle(d.id, n),
-      });
+    const sections = NET_GROUPS.map((grp) => {
+      const defs = grp.ids.map((gid) => GLOBALS.find((d) => d.id === gid)!);
+      const lvls = defs.reduce((n, d) => n + g.globalLevelOf(d.id), 0);
+      const maxs = defs.reduce((n, d) => n + d.maxLevel, 0);
+      const rows = defs
+        .map((d) =>
+          this.upRow({
+            name: d.name,
+            level: g.globalLevelOf(d.id),
+            max: d.maxLevel,
+            sub: this.globalSub(d.id),
+            cat: grp.color,
+            act: 'buy-global',
+            attrs: `data-id="${d.id}"`,
+            bundle: (n) => g.globalBundle(d.id, n),
+          }),
+        )
+        .join('');
+      return (
+        `<div class="sect" style="color:${grp.color}"><span class="sq" style="background:${grp.color}"></span>${grp.name}<span class="cnt">${lvls}/${maxs}</span></div>` +
+        rows
+      );
     }).join('');
-    return this.head('NETWORK UPGRADES', true) + rows;
+    return this.head('NETWORK') + this.segRow() + sections;
   }
 
   private lineName(id: string | null): string {
@@ -720,8 +745,6 @@ export class Console {
 
   private refreshLive(): void {
     const g = this.game;
-    const bal = this.panelEl.querySelector('.bal');
-    if (bal) bal.textContent = fmt(g.cash);
     if (this.mode?.kind === 'ops') {
       for (const o of [0, 1, 2, 3]) {
         const el = document.getElementById(`ops-t${o}`);
@@ -768,14 +791,26 @@ export class Console {
   private goalsSeqSeen = 0;
 
   private refreshDisabled(root: HTMLElement): void {
+    let ok = 0;
+    let total = 0;
     for (const btn of root.querySelectorAll<HTMLButtonElement>('button[data-cost]')) {
       const cost = Number(btn.getAttribute('data-cost'));
       if (cost > 0) {
         const can = this.game.cash >= cost;
         btn.disabled = !can;
         btn.classList.toggle('afford', can);
+        // The WHOLE row answers "can I buy it" (lit spine vs fallback).
+        const row = btn.closest('.uprow');
+        if (row) {
+          row.classList.toggle('ok', can);
+          row.classList.toggle('no', !can);
+          total++;
+          if (can) ok++;
+        }
       }
     }
+    const note = root.querySelector('#afford-note');
+    if (note) note.textContent = `${ok} of ${total} affordable`;
   }
 
   toast(text: string): void {

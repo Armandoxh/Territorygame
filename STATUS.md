@@ -1,6 +1,6 @@
 # Project Status — Where We're At
 
-_Last updated: 2026-09-05 (session: Metro Magnate approved-network port)_
+_Last updated: 2026-09-09 (session: Metro Magnate v2 — unified UpgradeRow)_
 
 This repo is a portfolio of game experiments built with Claude. Everything
 develops on branch `claude/investment-game-9xxLw`; GitHub Actions builds,
@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate v2** | `metro2/` | armandoxh.github.io/Territorygame/metro2/ | v2 · b43 | **Active** — FULL v1 PARITY minus the city ladder: four-tab console (LINES·OPS·GOALS·NETWORK), 5 commission types, rush timetable, 22-rung goal ladder with compounding commendations, ⏩10×. Angel Bay next |
+| **Metro Magnate v2** | `metro2/` | armandoxh.github.io/Territorygame/metro2/ | v2 · b59 | **Active** — map-only diagram renderer, dark player-mockup chrome, four parallel goal tracks, L100 line upgrades with ⚡ milestones, and ONE UpgradeRow component across every shop (line/works/network). Angel Bay next |
 | **Metro Magnate** (v1, frozen trunk) | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.17.0 · build 37 | **Active** — NEW MERIDIAN XL live with the four-tab console; OPS runs five rotating contract types; 22-rung mastery goal ladder |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |
