@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b47 (THE MAP IS THE GAME — city mode removed)
+## ▶ CURRENT BUILD: v2 · b48 (map controls + crisp diagram)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:

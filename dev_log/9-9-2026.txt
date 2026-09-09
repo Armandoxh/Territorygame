@@ -144,3 +144,27 @@ climb AND every stat line names its max value ("51.2 -> 54.9 · max
 current -> next -> max effect. globalStatAtMax computed from the max
 level, not current getters. 26 tests green; device-size headless
 shots verified overview/street/night.
+
+Build 48 (metro2): MAP CONTROLS + THE CRISP PASS (player on b47:
+zoomed-in pan "only inches in one direction", "dragging the camera
+zooms in and out", and "I don't like anything about this
+screenshot"). ROOT CAUSE of the input bugs: OrbitControls' spherical
+math with a straight-down camera and up=(0,0,-1) leaked vertical
+drags into camera HEIGHT (the phantom zoom) and degenerated pans.
+OrbitControls is GONE -- replaced by a purpose-built MapControls
+(~100 lines): one-finger drag projects both pointer positions onto
+the map plane and moves the world by the difference, so the point
+under your finger STAYS under your finger at every zoom; pinch zooms
+toward the pinch midpoint (and pans with it); wheel zooms toward the
+cursor; height clamped 55-620, target clamped to city bounds.
+Headless verification: 120px drag moved the target exactly with the
+pointer and height stayed bit-identical. THE LOOK: land bevel
+removed (it read as a pale halo band), pixelRatio cap 2->3, count
+sprites HALVED in size, doubled in texture resolution, recolored
+quiet gray (red only at cap) and floated just above the dot; name
+labels smaller with double-res textures. The zoomed map now reads
+as a crisp printed diagram: bold ink rings, clean ribbons, tidy
+dashes, small secondary numbers. scene.setView(x,z,h) added for
+tests. b47's world-scaled-sprite mystery noted: sprites with
+sizeAttenuation:true simply do not render from this camera; screen-
+constant is the law now.

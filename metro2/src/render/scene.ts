@@ -8,10 +8,12 @@
  * still turns evening service into a glowing night map. No buildings,
  * no bloom, no shadows: fast and clean on a phone.
  *
- * Touch: one finger PANS, two fingers zoom. No rotation — a diagram
- * has an up. */
+ * Touch: one finger PANS (the point under your finger stays under
+ * your finger — deltas are computed by projecting the drag onto the
+ * map plane), two fingers pinch-zoom toward the pinch. No rotation —
+ * a diagram has an up. OrbitControls is gone: its spherical math
+ * fought the straight-down camera and leaked drags into zoom. */
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CityDef } from '../engine/city';
@@ -80,9 +82,10 @@ class CountSprite {
   private last = '';
 
   constructor(x: number, z: number) {
-    this.canvas.width = 128;
-    this.canvas.height = 56;
+    this.canvas.width = 256;
+    this.canvas.height = 96;
     this.tex = new THREE.CanvasTexture(this.canvas);
+    this.tex.anisotropy = 4;
     this.sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: this.tex,
@@ -91,8 +94,9 @@ class CountSprite {
         sizeAttenuation: false, // constant screen size, always legible
       }),
     );
-    this.sprite.scale.set(0.105, 0.046, 1);
-    this.sprite.position.set(x, TRACK_Y + 1.2, z);
+    this.sprite.scale.set(0.062, 0.0232, 1);
+    this.sprite.center.set(0.5, -0.45); // floats just above the dot
+    this.sprite.position.set(x, TRACK_Y + 0.2, z);
   }
 
   set(text: string, full: boolean): void {
@@ -100,16 +104,122 @@ class CountSprite {
     if (key === this.last) return;
     this.last = key;
     const ctx = this.canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 128, 56);
-    ctx.font = '900 34px Inter, sans-serif';
+    ctx.clearRect(0, 0, 256, 96);
+    ctx.font = '800 52px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-    ctx.strokeText(text, 64, 28);
-    ctx.fillStyle = full ? '#C62828' : '#1a1a1a';
-    ctx.fillText(text, 64, 28);
+    ctx.lineWidth = 9;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeText(text, 128, 48);
+    ctx.fillStyle = full ? '#C62828' : '#3a3a3a';
+    ctx.fillText(text, 128, 48);
     this.tex.needsUpdate = true;
+  }
+}
+
+/** Flat-map pan/zoom: drag grabs the map, pinch/wheel zooms toward
+ * the gesture. Camera stays straight-down; only target + height move. */
+class MapControls {
+  readonly target = new THREE.Vector3();
+  height = 420;
+  minHeight = 55;
+  maxHeight = 620;
+  private pointers = new Map<number, { x: number; y: number }>();
+
+  constructor(
+    private camera: THREE.PerspectiveCamera,
+    dom: HTMLElement,
+    private boundsMax: number,
+  ) {
+    dom.addEventListener('pointerdown', (e) => {
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      dom.setPointerCapture(e.pointerId);
+    });
+    dom.addEventListener('pointermove', (e) => {
+      if (!this.pointers.has(e.pointerId)) return;
+      const prev = this.pointers.get(e.pointerId)!;
+      if (this.pointers.size === 1) {
+        const a = this.planePoint(prev.x, prev.y);
+        const b = this.planePoint(e.clientX, e.clientY);
+        if (a && b) {
+          this.target.x += a.x - b.x;
+          this.target.z += a.z - b.z;
+          this.apply();
+        }
+      } else if (this.pointers.size === 2) {
+        const [p1, p2] = [...this.pointers.values()];
+        const other = p1 === prev ? p2 : p1;
+        const before = Math.hypot(prev.x - other.x, prev.y - other.y);
+        const after = Math.hypot(e.clientX - other.x, e.clientY - other.y);
+        const midX = (e.clientX + other.x) / 2;
+        const midY = (e.clientY + other.y) / 2;
+        const prevMidX = (prev.x + other.x) / 2;
+        const prevMidY = (prev.y + other.y) / 2;
+        // Pan by the midpoint drag…
+        const a = this.planePoint(prevMidX, prevMidY);
+        const b = this.planePoint(midX, midY);
+        if (a && b) {
+          this.target.x += a.x - b.x;
+          this.target.z += a.z - b.z;
+          this.apply();
+        }
+        // …then zoom toward the midpoint.
+        if (before > 8 && after > 8) this.zoomAt(midX, midY, before / after);
+      }
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    });
+    const drop = (e: PointerEvent) => this.pointers.delete(e.pointerId);
+    dom.addEventListener('pointerup', drop);
+    dom.addEventListener('pointercancel', drop);
+    dom.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        this.zoomAt(e.clientX, e.clientY, Math.exp(e.deltaY * 0.0012));
+      },
+      { passive: false },
+    );
+    this.apply();
+  }
+
+  private planePoint(clientX: number, clientY: number): THREE.Vector3 | null {
+    const ndc = new THREE.Vector2(
+      (clientX / window.innerWidth) * 2 - 1,
+      -(clientY / window.innerHeight) * 2 + 1,
+    );
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const o = ray.ray.origin;
+    const d = ray.ray.direction;
+    if (Math.abs(d.y) < 1e-6) return null;
+    const t = (TRACK_Y - o.y) / d.y;
+    if (t <= 0) return null;
+    return new THREE.Vector3(o.x + d.x * t, TRACK_Y, o.z + d.z * t);
+  }
+
+  private zoomAt(clientX: number, clientY: number, factor: number): void {
+    const before = this.planePoint(clientX, clientY);
+    this.height = Math.min(Math.max(this.height * factor, this.minHeight), this.maxHeight);
+    this.apply();
+    const after = this.planePoint(clientX, clientY);
+    if (before && after) {
+      this.target.x += before.x - after.x;
+      this.target.z += before.z - after.z;
+      this.apply();
+    }
+  }
+
+  /** Reposition the camera from target + height (with bounds). */
+  apply(): void {
+    const m = 60;
+    this.target.x = Math.min(Math.max(this.target.x, -m), this.boundsMax + m);
+    this.target.z = Math.min(Math.max(this.target.z, -m), this.boundsMax + m);
+    this.camera.position.set(this.target.x, this.height, this.target.z + 0.001);
+    this.camera.lookAt(this.target.x, TRACK_Y, this.target.z);
+  }
+
+  update(): void {
+    /* input-driven; nothing per-frame */
   }
 }
 
@@ -117,7 +227,7 @@ export class CityScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
-  readonly controls: OrbitControls;
+  readonly controls: MapControls;
 
   private hemi: THREE.HemisphereLight;
   private water: THREE.MeshStandardMaterial;
@@ -143,27 +253,14 @@ export class CityScene {
     this.lanes = buildLanes(city);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
     this.renderer.toneMapping = THREE.NoToneMapping;
 
     this.camera = new THREE.PerspectiveCamera(40, 1, 1, 3000);
-    this.camera.position.set(center.x, 420, center.z + 0.001);
     this.camera.up.set(0, 0, -1);
-
-    // A diagram has an up: no rotation. One finger pans, two zoom.
-    this.controls = new OrbitControls(this.camera, canvas);
+    this.controls = new MapControls(this.camera, canvas, city.size);
     this.controls.target.copy(center);
-    this.controls.enableDamping = true;
-    this.controls.enableRotate = false;
-    this.controls.screenSpacePanning = false;
-    this.controls.minDistance = 55;
-    this.controls.maxDistance = 620;
-    this.controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
-    this.controls.mouseButtons = {
-      LEFT: THREE.MOUSE.PAN,
-      MIDDLE: THREE.MOUSE.DOLLY,
-      RIGHT: THREE.MOUSE.PAN,
-    };
+    this.controls.apply();
 
     // Flat, even light — the print-map look needs no sun.
     this.hemi = new THREE.HemisphereLight(0xffffff, 0xdddddd, 1.9);
@@ -185,10 +282,7 @@ export class CityScene {
       });
       const geo = new THREE.ExtrudeGeometry(shape, {
         depth: LAND_H,
-        bevelEnabled: true,
-        bevelThickness: 0.3,
-        bevelSize: 1.2,
-        bevelSegments: 1,
+        bevelEnabled: false,
       });
       geo.rotateX(-Math.PI / 2);
       this.scene.add(new THREE.Mesh(geo, this.landMat));
@@ -321,8 +415,9 @@ export class CityScene {
       // World-scaled name label below the dot — shrinks with zoom, so
       // it never collides or clips; zooming in is how you read it.
       const tex = new THREE.CanvasTexture(
-        textCanvas(st.name, '800 30px Inter, sans-serif', '#1a1a1a', 'rgba(255,255,255,0.95)', 320, 64),
+        textCanvas(st.name, '800 52px Inter, sans-serif', '#1a1a1a', 'rgba(255,255,255,0.95)', 640, 112),
       );
+      tex.anisotropy = 4;
       const label = new THREE.Sprite(
         new THREE.SpriteMaterial({
           map: tex,
@@ -331,9 +426,9 @@ export class CityScene {
           sizeAttenuation: false,
         }),
       );
-      label.scale.set(0.19, 0.038, 1);
-      label.center.set(0.5, 2.1);
-      label.position.set(st.x, TRACK_Y + 0.4, st.y);
+      label.scale.set(0.15, 0.02625, 1);
+      label.center.set(0.5, 1.7);
+      label.position.set(st.x, TRACK_Y + 0.2, st.y);
       this.scene.add(label);
       this.labels.set(st.id, label);
     }
@@ -377,7 +472,7 @@ export class CityScene {
     if (t <= 0) return null;
     const px = o.x + d.x * t;
     const pz = o.z + d.z * t;
-    const tol = Math.max(5.5, this.camera.position.distanceTo(this.controls.target) * 0.028);
+    const tol = Math.max(5.5, this.controls.height * 0.028);
     let best: string | null = null;
     let bestD = tol;
     for (const st of this.game.city.stations) {
@@ -391,8 +486,8 @@ export class CityScene {
   }
 
   // Camera glide toward a newly bought line.
-  private focusFrom: { target: THREE.Vector3; pos: THREE.Vector3 } | null = null;
-  private focusTo: { target: THREE.Vector3; pos: THREE.Vector3 } | null = null;
+  private focusFrom: { target: THREE.Vector3; h: number } | null = null;
+  private focusTo: { target: THREE.Vector3; h: number } | null = null;
   private focusT0 = 0;
 
   focusLine(lineId: string): void {
@@ -409,15 +504,16 @@ export class CityScene {
     }
     const target = new THREE.Vector3((minX + maxX) / 2, 0, (minZ + maxZ) / 2);
     const span = Math.max(maxX - minX, maxZ - minZ, 60);
-    this.focusFrom = {
-      target: this.controls.target.clone(),
-      pos: this.camera.position.clone(),
-    };
-    this.focusTo = {
-      target,
-      pos: new THREE.Vector3(target.x, Math.min(span * 1.6 + 60, 620), target.z + 0.001),
-    };
+    this.focusFrom = { target: this.controls.target.clone(), h: this.controls.height };
+    this.focusTo = { target, h: Math.min(span * 1.6 + 60, 620) };
     this.focusT0 = performance.now();
+  }
+
+  /** Jump the view (used by tests and the unlock glide's endpoint). */
+  setView(x: number, z: number, h: number): void {
+    this.controls.target.set(x, 0, z);
+    this.controls.height = h;
+    this.controls.apply();
   }
 
   resize(): void {
@@ -452,7 +548,8 @@ export class CityScene {
       const e = Math.min((performance.now() - this.focusT0) / 1300, 1);
       const k = e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
       this.controls.target.lerpVectors(this.focusFrom.target, this.focusTo.target, k);
-      this.camera.position.lerpVectors(this.focusFrom.pos, this.focusTo.pos, k);
+      this.controls.height = this.focusFrom.h + (this.focusTo.h - this.focusFrom.h) * k;
+      this.controls.apply();
       if (e >= 1) {
         this.focusTo = null;
         this.focusFrom = null;
@@ -467,7 +564,7 @@ export class CityScene {
     // Live waiting counts at 4 Hz, plus the zoom policy: a wide view
     // stays a clean diagram; zooming in reveals names, then numbers.
     if (++this.countFrame % 15 === 0) {
-      const camH = this.camera.position.y;
+      const camH = this.controls.height;
       const showNames = camH < 360;
       const showCounts = camH < 300;
       for (const label of this.labels.values()) label.visible = showNames;
