@@ -22,6 +22,9 @@
           sans-serif;
         -webkit-user-select: none;
         user-select: none;
+        /* iOS ignores user-scalable=no; this is what actually stops
+           double-tap page zoom while keeping panel scrolling alive. */
+        touch-action: manipulation;
       }
       canvas {
         display: block;
@@ -185,6 +188,8 @@
         bottom: calc(58px + env(safe-area-inset-bottom));
         max-height: 46vh;
         overflow-y: auto;
+        touch-action: pan-y;
+        overscroll-behavior: contain;
         background: rgba(255, 255, 255, 0.96);
         border: 1px solid #1a1a1a;
         z-index: 3;
@@ -305,7 +310,7 @@
         100% { opacity: 0; }
       }
     </style>
-    <script type="module" crossorigin src="/Territorygame/metro2/assets/index-CdUiRALd.js"></script>
+    <script type="module" crossorigin src="/Territorygame/metro2/assets/index-WM-azbG2.js"></script>
   </head>
   <body>
     <canvas id="scene"></canvas>
