@@ -96,9 +96,13 @@ let seenCommSeq = game.commissionSeq;
 function watchSeqs(): void {
   if (game.goalSeq !== seenGoalSeq) {
     seenGoalSeq = game.goalSeq;
-    ui.toast(
-      `COMMENDATION · ${game.lastGoalName} — income ×${game.lastGoalReward} forever`,
-    );
+    const what =
+      game.lastGoalBenefit === 'income'
+        ? `income ×${game.lastGoalReward}`
+        : game.lastGoalBenefit === 'riders'
+          ? `ridership ×${game.lastGoalReward}`
+          : `build costs ×${game.lastGoalReward}`;
+    ui.toast(`COMMENDATION · ${game.lastGoalName} — ${what} forever`);
   }
   if (game.commissionSeq !== seenCommSeq) {
     seenCommSeq = game.commissionSeq;
@@ -123,9 +127,13 @@ canvas.addEventListener('pointerup', (e) => {
   if (showcase) return;
   const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
   if (moved > 7 || performance.now() - downT > 600) return;
+  // A map tap first CLOSES whatever is open — one tap out of any desk.
+  if (ui.isOpen) {
+    ui.closeAll();
+    return;
+  }
   const id = scene.pickStation(e.clientX, e.clientY);
   if (id) ui.showStation(id);
-  else ui.hideStation();
 });
 
 function save(): void {

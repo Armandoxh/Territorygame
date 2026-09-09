@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CityDef } from '../src/engine/city';
-import { Game, GLOBALS, STATION_WORKS } from '../src/engine/game';
+import { GOAL_TRACKS, Game, GLOBALS, STATION_WORKS } from '../src/engine/game';
 
 const city = JSON.parse(
   readFileSync(new URL('../src/data/new_meridian.json', import.meta.url), 'utf8'),
@@ -252,29 +252,73 @@ describe('the ported core', () => {
     expect(STATION_WORKS.length).toBe(6);
   });
 
-  test('CITY GOALS: the 22-rung ladder compounds commendations (v1 law)', () => {
+  test('GOAL TRACKS run in parallel with typed benefits', () => {
     const g = new Game(city);
-    expect(g.goals.length).toBe(22);
-    expect(g.currentGoal!.name).toBe('OPENING DAY');
+    expect(GOAL_TRACKS.length).toBe(4);
     expect(g.goalMult).toBe(1);
+    expect(g.demandGoalMult).toBe(1);
+    expect(g.buildCostMult).toBe(1);
+    // Drive ONLY ridership: the GROWTH track advances alone.
+    g.totalRiders = 60000;
+    g.tick(0.05);
+    expect(g.trackDone('growth')).toBe(3);
+    expect(g.trackDone('profit')).toBe(0);
+    expect(g.demandGoalMult).toBeCloseTo(1.1 * 1.1 * 1.15, 9);
+    expect(g.goalMult).toBe(1); // growth never touches income
+    // Demand rewards reach the arrivals model.
+    const base = 1.1 * 1.1 * 1.15;
+    expect(g.demandMultAt('s224_282')).toBeCloseTo(base, 9);
+    // Money drives PROFIT (income) — and only income.
+    g.totalEarned = 1_000_000;
+    g.tick(0.05);
+    expect(g.trackDone('profit')).toBe(3);
+    expect(g.goalMult).toBeCloseTo(1.2 * 1.2 * 1.25, 9);
+    expect(g.incomePerRiderAt('s126_452')).toBeCloseTo(Game.fare * 1.2 * 1.2 * 1.25, 6);
+    // EXPANSION pays in build discounts, applied to purchase costs.
+    const trainBefore = g.nextTrainCost('1');
+    const speedBefore = g.nextSpeedCost('1');
+    g.cash = 1e9;
+    g.buyLine('A');
+    g.buyTrain('1');
+    g.buyTrain('1'); // lines 2 ✓, trains 4 ✓ -> two EXPANSION rungs
+    g.tick(0.05);
+    expect(g.trackDone('expansion')).toBe(2);
+    expect(g.buildCostMult).toBeCloseTo(0.97 * 0.97, 9);
+    expect(g.nextSpeedCost('1')).toBeCloseTo(speedBefore * 0.97 * 0.97, 6);
+    expect(g.nextTrainCost('1')).toBeLessThan(trainBefore * 2.5 * 2.5); // discounted growth
+    // Line unlocks are never discounted (progression pacing).
+    expect(g.lineById('L').unlockCost).toBe(city.lines.find((l) => l.id === 'L')!.unlockCost);
+  });
+
+  test('every track completes and the benefits multiply out exactly', () => {
+    const g = new Game(city);
     g.cash = 1e12;
     for (const line of city.lines) g.buyLine(line.id);
-    g.totalRiders = 5_000_000;
-    g.totalEarned = 250_000_000;
+    for (let i = 0; i < 30; i++) g.buyTrain('1');
+    g.totalRiders = 100_000_000;
+    g.totalEarned = 2_000_000_000;
     g.commissionsDone = 99;
-    g.rushEarnings = 1e9;
-    for (const l of ['1', 'A', 'L', 'M', 'N', 'J']) g.speedLevels.set(l, 10);
+    g.rushEarnings = 1e8;
+    for (const l of ['1', 'A', 'L', 'M', 'N', 'J', 'G', 'E', '7', 'B', 'D', 'F'])
+      g.speedLevels.set(l, 10);
     const stops = city.lines[0].stationIds;
-    // Parking counts as works but has no income term, so the exact
-    // fare-per-rider assertion below stays checkable.
-    for (let i = 0; i < 8; i++) g.parkingLevel.set(stops[i], 5);
-    g.tick(0.1);
-    expect(g.currentGoal).toBeNull();
-    let expected = 1;
-    for (const goal of g.goals) expected *= goal.reward;
-    expect(g.goalMult).toBeCloseTo(expected, 6);
-    expect(g.incomePerRiderAt('s126_452')).toBeCloseTo(Game.fare * expected, 3);
-    expect(g.goalProgress).toBe(1);
+    for (let i = 0; i < 12; i++) g.parkingLevel.set(stops[i], 5);
+    g.tick(0.05);
+    let income = 1;
+    let demand = 1;
+    let build = 1;
+    for (const track of GOAL_TRACKS) {
+      expect(g.trackCurrentGoal(track.id), track.id).toBeNull();
+      for (const goal of track.goals) {
+        if (track.benefit === 'income') income *= goal.reward;
+        else if (track.benefit === 'riders') demand *= goal.reward;
+        else build *= goal.reward;
+      }
+    }
+    expect(g.goalMult).toBeCloseTo(income, 6);
+    expect(g.demandGoalMult).toBeCloseTo(demand, 6);
+    expect(g.buildCostMult).toBeCloseTo(build, 6);
+    expect(g.incomePerRiderAt('s126_452')).toBeCloseTo(Game.fare * income, 3);
   });
 
   test('the first commendation fires by itself in normal play', () => {
@@ -282,8 +326,8 @@ describe('the ported core', () => {
       s.cash = 10000;
       s.buyTrain('1');
     });
-    expect(g.goalsDone).toBeGreaterThanOrEqual(1);
-    expect(g.goalMult).toBeGreaterThanOrEqual(1.25);
+    expect(g.goalSeq).toBeGreaterThanOrEqual(1);
+    expect(g.demandGoalMult * g.goalMult * (2 - g.buildCostMult)).toBeGreaterThan(1);
   });
 
   test('contract types rotate through five different jobs', () => {
@@ -372,7 +416,7 @@ describe('the ported core', () => {
   test('mid-flight commissions, goals, and rush earnings survive a save', () => {
     const m = new Game(city);
     m.acceptCommission();
-    m.goalsDoneByCity.set('new_meridian', 3);
+    m.goalsDoneByTrack.set('profit', 3);
     m.rushEarnings = 1234.5;
     for (let i = 0; i < 100; i++) m.tick(0.1);
     const r = Game.fromJson(city, JSON.parse(JSON.stringify(m.toJson(1))), 1).game;
@@ -380,10 +424,10 @@ describe('the ported core', () => {
     expect(r.commissionLineId).toBe(m.commissionLineId);
     expect(r.commissionProgress).toBeCloseTo(m.commissionProgress, 3);
     expect(r.commissionTimeLeft).toBeCloseTo(m.commissionTimeLeft, 3);
-    expect(r.goalsDone).toBe(m.goalsDone);
-    // The restore RECOMPUTES the multiplier from the ladder — the saved
-    // 3 rungs are worth exactly 1.25³.
-    expect(r.goalMult).toBeCloseTo(1.25 * 1.25 * 1.25, 9);
+    expect(r.trackDone('profit')).toBeGreaterThanOrEqual(3);
+    // The restore RECOMPUTES the multiplier from the tracks — at least
+    // the three saved PROFIT rungs are in the product.
+    expect(r.goalMult).toBeGreaterThanOrEqual(1.2 * 1.2 * 1.25 - 1e-9);
     expect(r.rushEarnings).toBeCloseTo(m.rushEarnings + 0, 1);
   });
 

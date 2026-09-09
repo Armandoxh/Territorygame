@@ -1,14 +1,18 @@
-/** The v2 console — v1's dashboard idiom (ink chips, hairlines, square
- * corners) as a DOM overlay on the 3D city. M3 scope: the LINE DESK,
- * per-line sheets (upgrades + trains + the STATION WORKS planner with
- * player priority and tier-even bulk buys), the NETWORK desk, station
- * cards with all six works, and toasts.
+/** The v2 console — v1's dashboard idiom (ink bars, hairlines, square
+ * corners) as a DOM overlay on the map.
+ *
+ * b51 shape, from played feedback:
+ * - ONE buy button per row + a global ×1/×10/×MAX toggle in the panel
+ *   head (the idle-genre standard), so rows stay single-line.
+ * - Line sheets split into UPGRADES and STATION WORKS sub-tabs.
+ * - Every panel closes from its ✕ or by tapping the map.
+ * - GOALS is four parallel tracks with categorized benefits.
  *
  * DOM rule learned in b40: panels REBUILD only when structure changes
- * (a purchase, a mode switch) and mutate in place otherwise, so no
- * button is ever detached mid-tap. */
+ * and mutate in place otherwise, so no button is detached mid-tap. */
 import {
-  CommissionType, Game, GLOBALS, LineUpgradeKind, STATION_WORKS,
+  CommissionType, Game, GLOBALS, GOAL_TRACKS, GoalBenefit, LineUpgradeKind,
+  STATION_WORKS,
 } from '../engine/game';
 
 function mmss(s: number): string {
@@ -26,6 +30,12 @@ export function commissionTypeName(t: CommissionType): string {
   }
 }
 
+export function benefitLabel(b: GoalBenefit, reward: number): string {
+  if (b === 'income') return `income ×${reward}`;
+  if (b === 'riders') return `riders ×${reward}`;
+  return `build costs ×${reward}`;
+}
+
 function fmt(v: number): string {
   if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
   if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
@@ -33,12 +43,15 @@ function fmt(v: number): string {
   return Math.floor(v).toLocaleString('en-US');
 }
 
+type LineTab = 'up' | 'works';
 type PanelMode =
   | { kind: 'lines' }
-  | { kind: 'line'; id: string }
+  | { kind: 'line'; id: string; tab: LineTab }
   | { kind: 'network' }
   | { kind: 'ops' }
   | { kind: 'goals' };
+
+const BUY_MODES = [1, 10, 99] as const;
 
 export class Console {
   private cashEl = document.getElementById('cash')!;
@@ -50,9 +63,10 @@ export class Console {
   private mode: PanelMode | null = null;
   private shownStationId: string | null = null;
   private lastRefresh = 0;
-  /** Bumped on every purchase → forces the next render to rebuild. */
   private structSeq = 0;
   private builtKey = '';
+  /** The global buy amount: ×1, ×10, or MAX — one toggle for all rows. */
+  private buyMode: 1 | 10 | 99 = 1;
 
   constructor(private game: Game) {
     document.getElementById('btn-lines')!.addEventListener('click', () => {
@@ -79,12 +93,26 @@ export class Console {
   /** main.ts hooks the camera glide here. */
   onUnlock: ((lineId: string) => void) | null = null;
 
+  /** True while any panel or card is open (map taps close them). */
+  get isOpen(): boolean {
+    return this.mode !== null || this.shownStationId !== null;
+  }
+
+  closeAll(): void {
+    this.setMode(null);
+    this.hideStation();
+  }
+
   private setMode(mode: PanelMode | null): void {
     this.mode = mode;
     this.panelEl.hidden = mode === null;
     if (mode) this.hideStation();
     this.structSeq++;
     if (mode) this.renderPanel();
+  }
+
+  private buyN(): number {
+    return this.buyMode;
   }
 
   private onPanelClick(e: Event): void {
@@ -95,8 +123,23 @@ export class Console {
     const id = el.getAttribute('data-id') ?? '';
     const lineId = this.mode?.kind === 'line' ? this.mode.id : id;
     switch (act) {
+      case 'close-panel':
+        this.setMode(null);
+        return;
+      case 'cycle-mode': {
+        const i = BUY_MODES.indexOf(this.buyMode);
+        this.buyMode = BUY_MODES[(i + 1) % BUY_MODES.length];
+        this.structSeq++;
+        this.renderPanel();
+        return;
+      }
       case 'open-line':
-        this.setMode({ kind: 'line', id });
+        this.setMode({ kind: 'line', id, tab: 'up' });
+        return;
+      case 'line-tab':
+        if (this.mode?.kind === 'line') {
+          this.setMode({ kind: 'line', id: this.mode.id, tab: id as LineTab });
+        }
         return;
       case 'back':
         this.setMode({ kind: 'lines' });
@@ -111,7 +154,7 @@ export class Console {
         g.buyLineUpgrades(
           el.getAttribute('data-kind') as LineUpgradeKind,
           lineId,
-          Number(el.getAttribute('data-n')),
+          this.buyN(),
         );
         break;
       case 'buy-tier':
@@ -121,7 +164,7 @@ export class Console {
         g.raisePriority(id);
         break;
       case 'buy-global':
-        g.buyGlobals(id, Number(el.getAttribute('data-n') ?? '1'));
+        g.buyGlobals(id, this.buyN());
         break;
       case 'accept-commission':
         g.acceptCommission();
@@ -142,12 +185,8 @@ export class Console {
       return;
     }
     if (el.getAttribute('data-act') === 'buy-work') {
-      this.game.buyWorks(
-        el.getAttribute('data-id')!,
-        this.shownStationId!,
-        Number(el.getAttribute('data-n') ?? '1'),
-      );
-      this.cardKey = ''; // rebuild with fresh costs
+      this.game.buyWorks(el.getAttribute('data-id')!, this.shownStationId!, this.buyN());
+      this.cardKey = '';
       this.renderStation();
     }
   }
@@ -166,83 +205,6 @@ export class Console {
   }
 
   private cardKey = '';
-
-  private renderStation(): void {
-    const id = this.shownStationId;
-    if (!id) return;
-    const g = this.game;
-    const st = g.city.stations.find((s) => s.id === id)!;
-    const served = g.isServed(id);
-    const key = `${id}:${served}`;
-    if (this.cardKey !== key) {
-      this.cardKey = key;
-      const bullets = g.city.lines
-        .filter((l) => g.isUnlocked(l.id) && l.stationIds.includes(id))
-        .map((l) => `<span class="bullet" style="background:${l.color}">${l.bullet}</span>`)
-        .join('');
-      const workStat = (wid: string, lvl: number): string =>
-        this.workStat(wid, lvl);
-      const works = !served
-        ? ''
-        : STATION_WORKS.map((w) => {
-            const lvl = g.stationWorkLevel(w.id, id);
-            if (lvl >= Game.foodMax) {
-              return `<div class="row up"><span class="nm">${w.name}</span>
-                <span class="lvl">MAX</span><span class="stat">${workStat(w.id, lvl)}</span></div>`;
-            }
-            const b1 = g.workBundle(w.id, id, 1);
-            const bAll = g.workBundle(w.id, id, 9);
-            return `<div class="row up"><span class="nm">${w.name}</span>
-              <span class="lvl">L${lvl}</span>
-              <span class="stat">${workStat(w.id, lvl)} <b class="maxhint">· max ${workStat(w.id, Game.foodMax)}</b></span>
-              <span class="buys">
-                <button data-act="buy-work" data-id="${w.id}" data-n="1"
-                  data-cost="${b1.cost}">$${fmt(b1.cost)}</button>
-                <button data-act="buy-work" data-id="${w.id}" data-n="9"
-                  data-cost="${b1.cost}">MAX $${fmt(bAll.cost)}</button>
-              </span></div>`;
-          }).join('');
-      this.stationEl.innerHTML = `
-        <div class="card-head"><b>${st.name}</b>${bullets}
-          <button class="x" data-act="close-station">×</button></div>
-        <div class="card-row" id="station-row"></div>${works}`;
-    }
-    const up = Math.floor(g.waitingUp.get(id) ?? 0);
-    const down = Math.floor(g.waitingDown.get(id) ?? 0);
-    document.getElementById('station-row')!.textContent = served
-      ? `waiting ${up} ↑ · ${down} ↓  ·  demand ×${g.demandMultAt(id).toFixed(2)}  ·  $${g.incomePerRiderAt(id).toFixed(2)}/rider`
-      : 'no service yet — a locked route stops here';
-    this.refreshDisabled(this.stationEl);
-  }
-
-  /** One upgrade row: NAME · Ln · stat now → next, with +1/+5/MAX. */
-  private upRow(
-    name: string,
-    level: number,
-    max: number,
-    stat: string,
-    maxStat: string,
-    buys: { act: string; attrs: string },
-    b1: { count: number; cost: number },
-    b5: { count: number; cost: number },
-    bAll: { count: number; cost: number },
-  ): string {
-    if (level >= max) {
-      return `<div class="row up"><span class="nm">${name}</span>
-        <span class="lvl">MAX</span><span class="stat">${stat}</span></div>`;
-    }
-    return `<div class="row up">
-      <span class="nm">${name}</span><span class="lvl">L${level}</span>
-      <span class="stat">${stat} <b class="maxhint">· max ${maxStat}</b></span>
-      <span class="buys">
-        <button data-act="${buys.act}" ${buys.attrs} data-n="1"
-          data-cost="${b1.cost}">$${fmt(b1.cost)}</button>
-        <button data-act="${buys.act}" ${buys.attrs} data-n="5"
-          data-cost="${b5.cost}">×${b5.count} $${fmt(b5.cost)}</button>
-        <button data-act="${buys.act}" ${buys.attrs} data-n="99"
-          data-cost="${b1.cost}">MAX $${fmt(bAll.cost)}</button>
-      </span></div>`;
-  }
 
   /** Current → next effect for one station work at [lvl]. */
   private workStat(wid: string, lvl: number): string {
@@ -269,27 +231,103 @@ export class Console {
     }
   }
 
-  private head(title: string): string {
+  private modeLabel(): string {
+    return this.buyMode === 1 ? '×1' : this.buyMode === 10 ? '×10' : 'MAX';
+  }
+
+  private head(title: string, withMode = false): string {
     return `<div class="panel-head"><span>${title}</span>
-      <span class="head-bal">$<span class="bal">${fmt(this.game.cash)}</span></span></div>`;
+      <span class="head-right">
+        ${withMode ? `<button class="modebtn" data-act="cycle-mode">BUY ${this.modeLabel()}</button>` : ''}
+        <span class="head-bal">$<span class="bal">${fmt(this.game.cash)}</span></span>
+        <button class="xbtn" data-act="close-panel">×</button>
+      </span></div>`;
+  }
+
+  /** One upgrade row: NAME · Ln · stat, one buy button (global mode). */
+  private upRow(
+    name: string,
+    level: number,
+    max: number,
+    stat: string,
+    maxStat: string,
+    buys: { act: string; attrs: string },
+    bundle: (n: number) => { count: number; cost: number },
+  ): string {
+    if (level >= max) {
+      return `<div class="row up"><span class="nm">${name}</span>
+        <span class="lvl">MAX</span><span class="stat">${stat}</span></div>`;
+    }
+    const b = bundle(this.buyMode);
+    const b1 = this.buyMode === 1 ? b : bundle(1);
+    const label =
+      this.buyMode === 1
+        ? `$${fmt(b.cost)}`
+        : this.buyMode === 10
+          ? `×${b.count} $${fmt(b.cost)}`
+          : `MAX $${fmt(b.cost)}`;
+    return `<div class="row up">
+      <span class="nm">${name}</span><span class="lvl">L${level}</span>
+      <span class="stat">${stat} <b class="maxhint">· max ${maxStat}</b></span>
+      <button data-act="${buys.act}" ${buys.attrs} data-cost="${b1.cost}">${label}</button>
+    </div>`;
+  }
+
+  private renderStation(): void {
+    const id = this.shownStationId;
+    if (!id) return;
+    const g = this.game;
+    const st = g.city.stations.find((s) => s.id === id)!;
+    const served = g.isServed(id);
+    const key = `${id}:${served}:${this.buyMode}:${this.structSeq}`;
+    if (this.cardKey !== key) {
+      this.cardKey = key;
+      const bullets = g.city.lines
+        .filter((l) => g.isUnlocked(l.id) && l.stationIds.includes(id))
+        .map((l) => `<span class="bullet" style="background:${l.color}">${l.bullet}</span>`)
+        .join('');
+      const works = !served
+        ? ''
+        : STATION_WORKS.map((w) => {
+            const lvl = g.stationWorkLevel(w.id, id);
+            return this.upRow(
+              w.name,
+              lvl,
+              Game.foodMax,
+              this.workStat(w.id, lvl),
+              this.workStat(w.id, Game.foodMax),
+              { act: 'buy-work', attrs: `data-id="${w.id}"` },
+              (n) => g.workBundle(w.id, id, n),
+            );
+          }).join('');
+      this.stationEl.innerHTML = `
+        <div class="card-head"><b>${st.name}</b>${bullets}
+          <button class="xbtn" data-act="close-station">×</button></div>
+        <div class="card-row" id="station-row"></div>${works}`;
+    }
+    const up = Math.floor(g.waitingUp.get(id) ?? 0);
+    const down = Math.floor(g.waitingDown.get(id) ?? 0);
+    document.getElementById('station-row')!.textContent = served
+      ? `waiting ${up} ↑ · ${down} ↓  ·  demand ×${g.demandMultAt(id).toFixed(2)}  ·  $${g.incomePerRiderAt(id).toFixed(2)}/rider`
+      : 'no service yet — a locked route stops here';
+    this.refreshDisabled(this.stationEl);
   }
 
   private renderPanel(): void {
-    const g = this.game;
     if (!this.mode) return;
-    const key = `${JSON.stringify(this.mode)}:${this.structSeq}`;
+    const key = `${JSON.stringify(this.mode)}:${this.structSeq}:${this.buyMode}`;
     if (key === this.builtKey) {
       this.refreshLive();
       return;
     }
     this.builtKey = key;
     if (this.mode.kind === 'lines') this.panelEl.innerHTML = this.linesHtml();
-    else if (this.mode.kind === 'line') this.panelEl.innerHTML = this.lineHtml(this.mode.id);
-    else if (this.mode.kind === 'ops') this.panelEl.innerHTML = this.opsHtml();
+    else if (this.mode.kind === 'line') {
+      this.panelEl.innerHTML = this.lineHtml(this.mode.id, this.mode.tab);
+    } else if (this.mode.kind === 'ops') this.panelEl.innerHTML = this.opsHtml();
     else if (this.mode.kind === 'goals') this.panelEl.innerHTML = this.goalsHtml();
     else this.panelEl.innerHTML = this.networkHtml();
     this.refreshLive();
-    void g;
   }
 
   private linesHtml(): string {
@@ -298,11 +336,10 @@ export class Console {
       .map((l) => {
         const bullet = `<span class="bullet" style="background:${l.color}">${l.bullet}</span>`;
         if (!g.isUnlocked(l.id)) {
-          const cost = l.unlockCost;
           return `<div class="row locked">${bullet}<span class="nm">${l.name}</span>
             <span class="meta">${l.stationIds.length} stops</span>
-            <button data-act="buy-line" data-id="${l.id}" data-cost="${cost}">
-              OPEN · $${fmt(cost)}</button></div>`;
+            <button data-act="buy-line" data-id="${l.id}" data-cost="${l.unlockCost}">
+              OPEN · $${fmt(l.unlockCost)}</button></div>`;
         }
         const n = g.trainCount(l.id);
         const lv =
@@ -317,65 +354,67 @@ export class Console {
     return this.head('LINE DESK') + rows;
   }
 
-  private lineHtml(id: string): string {
+  private lineHtml(id: string, tab: LineTab): string {
     const g = this.game;
     const l = g.lineById(id);
     const bullet = `<span class="bullet" style="background:${l.color}">${l.bullet}</span>`;
-    const up = (kind: LineUpgradeKind, name: string, stat: string, maxStat: string) =>
-      this.upRow(
-        name,
-        g.lineUpgradeLevel(kind, id),
-        Game.levelMax,
-        stat,
-        maxStat,
-        { act: 'buy-up', attrs: `data-kind="${kind}"` },
-        g.lineUpgradeBundle(kind, id, 1),
-        g.lineUpgradeBundle(kind, id, 5),
-        g.lineUpgradeBundle(kind, id, 99),
-      );
-    const sig = 1 + 0.04 * g.globalLevelOf('signal');
-    // At MAX a row shows only what you have — no arrow to nowhere.
-    const arrow = (kind: LineUpgradeKind, now: string, next: string) =>
-      g.lineUpgradeLevel(kind, id) >= Game.levelMax ? now : `${now} → ${next}`;
-    const spd = g.trainSpeedFor(id);
-    const spdNext = spd + Game.baseSpeed * 0.15 * (1 + 0.04 * g.globalLevelOf('signal'));
-    const cap = g.capacityFor(id);
-    const acc = 10 * g.accessLevelOf(id);
-    const tset = 8 * g.trainsetLevelOf(id);
     const trainCost = g.nextTrainCost(id);
-    const next = g.nextPlannedType(id);
-    const works = STATION_WORKS
-      .slice()
-      .sort((a, b) => g.stationPriority.indexOf(a.id) - g.stationPriority.indexOf(b.id))
-      .map((w) => {
-        const min = g.minStationLevel(id, w.id);
-        const done = min >= Game.foodMax;
-        const count = done ? 0 : g.stationsAtMin(id, w.id);
-        const cost = g.stationTierCost(id, w.id);
-        return `<div class="row up${w.id === next ? ' next' : ''}">
-          <button class="pri" data-act="raise-priority" data-id="${w.id}">▲</button>
-          <span class="nm">${w.name}</span>
-          <span class="lvl">${done ? 'MAX' : `L${min}→${min + 1} ·${count}×`}</span>
-          <span class="stat">${this.workStat(w.id, done ? Game.foodMax : min)}</span>
-          <button data-act="buy-tier" data-id="${w.id}" data-cost="${done ? 0 : cost}"
-            ${done ? 'disabled' : ''}>${done ? 'MAX' : '$' + fmt(cost)}</button></div>`;
-      })
-      .join('');
-    return (
-      this.head(`${l.name.toUpperCase()}`) +
-      `<div class="row"><button data-act="back">‹ ALL LINES</button>${bullet}
-        <span class="meta">${l.stationIds.length} stops · ${g.trainCount(id)} train${g.trainCount(id) === 1 ? '' : 's'}</span>
-        <button data-act="buy-train" data-cost="${trainCost}">+TRAIN · $${fmt(trainCost)}</button></div>` +
-      `<div class="sect">LINE UPGRADES</div>` +
-      up('speed', 'SPEED', arrow('speed', spd.toFixed(1), spdNext.toFixed(1)),
-        (Game.baseSpeed * 2.5 * sig).toFixed(1)) +
-      up('cars', 'CARS', arrow('cars', `${cap.toFixed(0)}/stop`, `${(cap + 6).toFixed(0)}/stop`),
-        '82/stop') +
-      up('access', 'ACCESS', arrow('access', `+${acc}%`, `${acc + 10}% riders`), '+100%') +
-      up('trainset', 'TRAINSETS', arrow('trainset', `+${tset}%`, `${tset + 8}% riders`), '+80%') +
-      `<div class="sect">STATION WORKS · ▲ priority</div>` +
-      works
-    );
+    const tabs = `<div class="tabs">
+      <button data-act="back">‹</button>
+      <button class="${tab === 'up' ? 'on' : ''}" data-act="line-tab" data-id="up">UPGRADES</button>
+      <button class="${tab === 'works' ? 'on' : ''}" data-act="line-tab" data-id="works">STATION WORKS</button>
+    </div>`;
+    let body: string;
+    if (tab === 'up') {
+      const up = (kind: LineUpgradeKind, name: string, stat: string, maxStat: string) =>
+        this.upRow(
+          name,
+          g.lineUpgradeLevel(kind, id),
+          Game.levelMax,
+          stat,
+          maxStat,
+          { act: 'buy-up', attrs: `data-kind="${kind}"` },
+          (n) => g.lineUpgradeBundle(kind, id, n),
+        );
+      const sig = 1 + 0.04 * g.globalLevelOf('signal');
+      const arrow = (kind: LineUpgradeKind, now: string, next: string) =>
+        g.lineUpgradeLevel(kind, id) >= Game.levelMax ? now : `${now} → ${next}`;
+      const spd = g.trainSpeedFor(id);
+      const spdNext = spd + Game.baseSpeed * 0.15 * sig;
+      const cap = g.capacityFor(id);
+      const acc = 10 * g.accessLevelOf(id);
+      const tset = 8 * g.trainsetLevelOf(id);
+      body =
+        `<div class="row"><span class="meta">${l.stationIds.length} stops · ${g.trainCount(id)} train${g.trainCount(id) === 1 ? '' : 's'}</span>
+          <button data-act="buy-train" data-cost="${trainCost}">+TRAIN · $${fmt(trainCost)}</button></div>` +
+        up('speed', 'SPEED', arrow('speed', spd.toFixed(1), spdNext.toFixed(1)),
+          (Game.baseSpeed * 2.5 * sig).toFixed(1)) +
+        up('cars', 'CARS', arrow('cars', `${cap.toFixed(0)}/stop`, `${(cap + 6).toFixed(0)}/stop`),
+          '82/stop') +
+        up('access', 'ACCESS', arrow('access', `+${acc}%`, `${acc + 10}% riders`), '+100%') +
+        up('trainset', 'TRAINSETS', arrow('trainset', `+${tset}%`, `${tset + 8}% riders`), '+80%');
+    } else {
+      const next = g.nextPlannedType(id);
+      body = STATION_WORKS
+        .slice()
+        .sort((a, b) => g.stationPriority.indexOf(a.id) - g.stationPriority.indexOf(b.id))
+        .map((w) => {
+          const min = g.minStationLevel(id, w.id);
+          const done = min >= Game.foodMax;
+          const count = done ? 0 : g.stationsAtMin(id, w.id);
+          const cost = g.stationTierCost(id, w.id);
+          return `<div class="row up${w.id === next ? ' next' : ''}">
+            <button class="pri" data-act="raise-priority" data-id="${w.id}">▲</button>
+            <span class="nm">${w.name}</span>
+            <span class="lvl">${done ? 'MAX' : `L${min}→${min + 1} ·${count}×`}</span>
+            <span class="stat">${this.workStat(w.id, done ? Game.foodMax : min)}</span>
+            <button data-act="buy-tier" data-id="${w.id}" data-cost="${done ? 0 : cost}"
+              ${done ? 'disabled' : ''}>${done ? 'MAX' : '$' + fmt(cost)}</button></div>`;
+        })
+        .join('');
+      body = `<div class="sect">tier-even across the line · ▲ sets priority</div>` + body;
+    }
+    return this.head(`${bullet} ${l.name.toUpperCase()}`, tab === 'up') + tabs + body;
   }
 
   private globalStat(id: string, lvl: number): string {
@@ -420,12 +459,10 @@ export class Console {
         stat,
         this.globalStatAtMax(d.id, d.maxLevel),
         { act: 'buy-global', attrs: `data-id="${d.id}"` },
-        g.globalBundle(d.id, 1),
-        g.globalBundle(d.id, 5),
-        g.globalBundle(d.id, 99),
+        (n) => g.globalBundle(d.id, n),
       );
     }).join('');
-    return this.head('NETWORK UPGRADES') + rows;
+    return this.head('NETWORK UPGRADES', true) + rows;
   }
 
   private lineName(id: string | null): string {
@@ -448,12 +485,12 @@ export class Console {
         const name = sid
           ? g.city.stations.find((s) => s.id === sid)!.name
           : 'the hub';
-        return `Board ${Math.floor(q)} riders at ${name} within ${t} — cars and trains on this line feed the hub; a built-up hub fills faster.`;
+        return `Board ${Math.floor(q)} riders at ${name} within ${t} — cars and trains on this line feed the hub.`;
       }
       case 'sweep':
-        return `Get EVERY platform on this line under ${Game.sweepThreshold} waiting at the same moment, within ${t}.`;
+        return `Get EVERY platform on this line under ${Game.sweepThreshold} waiting at once, within ${t}.`;
       case 'rushCash':
-        return `Earn $${fmt(q)} during rush-hour windows within ${t} — check the timetable above before accepting.`;
+        return `Earn $${fmt(q)} during rush windows within ${t} — check the timetable above.`;
     }
   }
 
@@ -476,11 +513,10 @@ export class Console {
     const timetable = [0, 1, 2, 3]
       .map((o) => {
         const id = g.rushLineIdForCycle(o);
-        const until = g.secondsUntilRushStart(o);
         const when =
           o === 0 && g.rushActive
             ? `<span class="rushnow">RUNNING · <span id="ops-t${o}">${mmss(g.rushSecondsLeft)}</span> left</span>`
-            : `in <span id="ops-t${o}">${mmss(until)}</span>`;
+            : `in <span id="ops-t${o}">${mmss(g.secondsUntilRushStart(o))}</span>`;
         return `<div class="row">${this.lineName(id)}<span class="meta"></span><span>${when}</span></div>`;
       })
       .join('');
@@ -497,7 +533,7 @@ export class Console {
         <div class="card-row">${this.offerText()}</div>
         <div class="row"><button data-act="accept-commission">ACCEPT</button>
           <button data-act="skip-commission">SKIP</button>
-          <span class="meta">${this.game.commissionsDone} delivered</span></div>`;
+          <span class="meta">${g.commissionsDone} delivered</span></div>`;
     }
     return (
       this.head('OPERATIONS') +
@@ -510,29 +546,35 @@ export class Console {
 
   private goalsHtml(): string {
     const g = this.game;
-    const done = g.goalsDone;
-    const rows = g.goals
-      .map((goal, i) => {
-        const mark = i < done ? '✓' : i === done ? '►' : '·';
-        const cls = i < done ? 'done' : i === done ? 'current' : 'ahead';
-        const extra =
-          i === done
-            ? `<div class="card-row" id="goal-live">${fmt(g.goalValue(goal.kind))} / ${fmt(goal.target)}</div>
-               <div class="pbar"><div class="pfill" id="goal-bar" style="width:${100 * g.goalProgress}%"></div></div>`
-            : '';
-        return `<div class="row goal-${cls}"><span class="mark">${mark}</span>
-          <span class="nm">${goal.name}</span>
-          <span class="meta"></span><span>×${goal.reward}</span></div>${extra}`;
-      })
-      .join('');
+    const sections = GOAL_TRACKS.map((track) => {
+      const done = g.trackDone(track.id);
+      const goal = g.trackCurrentGoal(track.id);
+      const rows = goal
+        ? `<div class="row goal-current"><span class="mark">►</span>
+            <span class="nm">${goal.name}</span><span class="meta"></span>
+            <span>${benefitLabel(track.benefit, goal.reward)}</span></div>
+          <div class="card-row" id="goal-live-${track.id}">${fmt(g.goalValue(goal.kind))} / ${fmt(goal.target)}</div>
+          <div class="pbar"><div class="pfill" id="goal-bar-${track.id}" style="width:${100 * g.trackProgress(track.id)}%"></div></div>`
+        : `<div class="row goal-done"><span class="mark">✓</span>
+            <span class="nm">TRACK COMPLETE</span></div>`;
+      const upNext = track.goals[done + 1];
+      return (
+        `<div class="sect">${track.name} · ${track.blurb} · ${done}/${track.goals.length}</div>` +
+        rows +
+        (upNext
+          ? `<div class="row goal-ahead"><span class="mark">·</span>
+              <span class="nm">${upNext.name}</span><span class="meta"></span>
+              <span>${benefitLabel(track.benefit, upNext.reward)}</span></div>`
+          : '')
+      );
+    }).join('');
     return (
-      this.head(`CITY GOALS · income ×${g.goalMult.toFixed(2)}`) +
-      `<div class="sect">${done}/${g.goals.length} COMMENDATIONS · each multiplies income forever</div>` +
-      rows
+      this.head(
+        `CITY GOALS · income ×${g.goalMult.toFixed(2)} · riders ×${g.demandGoalMult.toFixed(2)} · costs ×${g.buildCostMult.toFixed(2)}`,
+      ) + sections
     );
   }
 
-  /** In-place refresh: balance text + affordability, nothing detached. */
   private refreshLive(): void {
     const g = this.game;
     const bal = this.panelEl.querySelector('.bal');
@@ -554,7 +596,6 @@ export class Console {
           bar.style.width = `${Math.min(100, (100 * g.commissionProgress) / g.commissionQuota)}%`;
         }
       }
-      // Resolution (win/expire) changes structure — force a rebuild.
       if (this.opsSeq !== g.commissionSeq) {
         this.opsSeq = g.commissionSeq;
         this.structSeq++;
@@ -562,12 +603,14 @@ export class Console {
       }
     }
     if (this.mode?.kind === 'goals') {
-      const goal = g.currentGoal;
-      const live = document.getElementById('goal-live');
-      if (goal && live) {
-        live.textContent = `${fmt(g.goalValue(goal.kind))} / ${fmt(goal.target)}`;
-        const bar = document.getElementById('goal-bar');
-        if (bar) bar.style.width = `${100 * g.goalProgress}%`;
+      for (const track of GOAL_TRACKS) {
+        const goal = g.trackCurrentGoal(track.id);
+        const live = document.getElementById(`goal-live-${track.id}`);
+        if (goal && live) {
+          live.textContent = `${fmt(g.goalValue(goal.kind))} / ${fmt(goal.target)}`;
+          const bar = document.getElementById(`goal-bar-${track.id}`);
+          if (bar) bar.style.width = `${100 * g.trackProgress(track.id)}%`;
+        }
       }
       if (this.goalsSeqSeen !== g.goalSeq) {
         this.goalsSeqSeen = g.goalSeq;
@@ -610,11 +653,10 @@ export class Console {
           : g.rushClock % 180 < 110
             ? 'DAWN'
             : 'DUSK';
-    // The one-line goal status (tap → GOALS board), v1 console idiom.
-    const goal = g.currentGoal;
-    document.getElementById('goal-strip')!.textContent = goal
-      ? `GOAL · ${goal.name} · ${Math.floor(g.goalProgress * 100)}% · ×${goal.reward}`
-      : 'ALL COMMENDATIONS EARNED';
+    const best = g.bestTrack;
+    document.getElementById('goal-strip')!.textContent = best.goal
+      ? `${best.track.name} · ${best.goal.name} · ${Math.floor(best.progress * 100)}%`
+      : 'ALL TRACKS COMPLETE';
     document
       .getElementById('btn-ops')!
       .classList.toggle('dot', !g.commissionActive);

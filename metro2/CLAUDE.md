@@ -1,12 +1,18 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b50 (compact counts, night-proof markers)
+## ▶ CURRENT BUILD: v2 · b51 (parallel goal tracks + idle-standard console)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:
 **TypeScript + Vite + three.js**, deployed by
 `.github/workflows/metro2-web.yml` to
 https://armandoxh.github.io/Territorygame/metro2/.
+
+**DESIGN DIVERGENCE (b51, player-directed):** v2's goals are FOUR
+PARALLEL TRACKS with typed benefits (GROWTH→ridership mult,
+PROFIT/MASTERY→income mult, EXPANSION→build-cost discounts) — v1's
+single 22-rung ladder is retired in v2. The v1 harness remains the
+authority for the SIM CORE only; goal design is now v2's own.
 
 v1 (Flutter) is the FROZEN TRUNK at commit tag point b37 — it stays
 live at /metro/ and its `metro/test/economy_test.dart` harness remains

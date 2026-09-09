@@ -92,12 +92,16 @@ export class Game {
   commissionSeq = 0;
   lastCommissionWon = false;
 
-  // ---- City goals (sequential; each completion compounds income) ----
-  readonly goalsDoneByCity = new Map<string, number>();
-  private _goalMult = 1;
+  // ---- City goals: FOUR PARALLEL TRACKS, each with its own benefit
+  // (player-directed redesign, b51 — v1's single ladder retired) ----
+  readonly goalsDoneByTrack = new Map<string, number>();
+  private _incomeGoalMult = 1;
+  private _demandGoalMult = 1;
+  private _buildCostMult = 1;
   goalSeq = 0;
   lastGoalName = '';
   lastGoalReward = 1;
+  lastGoalBenefit: GoalBenefit = 'income';
   /** Lifetime money earned during rush windows. */
   rushEarnings = 0;
 
@@ -213,7 +217,7 @@ export class Game {
     }
     m *= 1 + 0.1 * (this.foodLevel.get(stationId) ?? 0);
     m *= 1 + 0.06 * (this.parkingLevel.get(stationId) ?? 0);
-    return m * (1 + 0.05 * this.globalLevelOf('marketing'));
+    return m * (1 + 0.05 * this.globalLevelOf('marketing')) * this._demandGoalMult;
   }
 
   /** What one rider pays boarding here. */
@@ -225,7 +229,7 @@ export class Game {
           this.fareScale) *
       (1 + 0.04 * (this.securityLevel.get(stationId) ?? 0)) *
       (1 + 0.03 * this.globalLevelOf('billboards')) *
-      this._goalMult
+      this._incomeGoalMult
     );
   }
 
@@ -242,7 +246,7 @@ export class Game {
 
   // Per-line upgrade prices scale with the line's tier.
   private upgradeBase(line: LineDef): number {
-    return 250 * this.costScale + line.unlockCost * 0.05;
+    return (250 * this.costScale + line.unlockCost * 0.05) * this._buildCostMult;
   }
   nextSpeedCost(id: string): number {
     return this.upgradeBase(this.lineById(id)) * Math.pow(1.9, this.speedLevelOf(id));
@@ -353,7 +357,7 @@ export class Game {
     return this.bundle(
       this.globalLevelOf(id),
       def.maxLevel,
-      (l) => def.baseCost * this.costScale * Math.pow(def.growth, l),
+      (l) => def.baseCost * this.costScale * Math.pow(def.growth, l) * this._buildCostMult,
       n,
     );
   }
@@ -378,7 +382,10 @@ export class Game {
   // ---- Network upgrades ----
   nextGlobalCost(id: string): number {
     const def = GLOBALS.find((g) => g.id === id)!;
-    return def.baseCost * this.costScale * Math.pow(def.growth, this.globalLevelOf(id));
+    return (
+      def.baseCost * this.costScale * Math.pow(def.growth, this.globalLevelOf(id)) *
+      this._buildCostMult
+    );
   }
   buyGlobal(id: string): boolean {
     const def = GLOBALS.find((g) => g.id === id)!;
@@ -405,7 +412,9 @@ export class Game {
   }
   stationWorkCost(type: string, level: number): number {
     const def = STATION_WORKS.find((w) => w.id === type)!;
-    return def.baseCost * this.costScale * Math.pow(def.growth, level);
+    return (
+      def.baseCost * this.costScale * Math.pow(def.growth, level) * this._buildCostMult
+    );
   }
   buyStationWork(type: string, stationId: string): boolean {
     const level = this.stationWorkLevel(type, stationId);
@@ -633,32 +642,72 @@ export class Game {
     }
   }
 
-  // ---- Goals: the commendation ladder ----
-  get goals(): GoalDef[] {
-    return goalsFor(this.city.id);
+  // ---- Goals: four parallel commendation tracks ----
+  trackDone(trackId: string): number {
+    return this.goalsDoneByTrack.get(trackId) ?? 0;
   }
 
-  get goalsDone(): number {
-    return this.goalsDoneByCity.get(this.city.id) ?? 0;
+  trackCurrentGoal(trackId: string): GoalDef | null {
+    const track = GOAL_TRACKS.find((t) => t.id === trackId)!;
+    const done = this.trackDone(trackId);
+    return done < track.goals.length ? track.goals[done] : null;
   }
 
-  /** The permanent income multiplier from every commendation earned. */
+  trackProgress(trackId: string): number {
+    const goal = this.trackCurrentGoal(trackId);
+    if (!goal) return 1;
+    return Math.min(this.goalValue(goal.kind) / goal.target, 1);
+  }
+
+  /** Permanent income multiplier (PROFIT + MASTERY commendations). */
   get goalMult(): number {
-    return this._goalMult;
+    return this._incomeGoalMult;
+  }
+
+  /** Permanent ridership multiplier (GROWTH commendations). */
+  get demandGoalMult(): number {
+    return this._demandGoalMult;
+  }
+
+  /** Build-cost discount factor (EXPANSION commendations, <1 is cheaper).
+   * Applies to trains, line upgrades, station works, and network
+   * upgrades — never to line unlocks (the progression ladder). */
+  get buildCostMult(): number {
+    return this._buildCostMult;
   }
 
   private recomputeGoalMult(): void {
-    this._goalMult = 1;
-    for (const [cityId, done] of this.goalsDoneByCity) {
-      const ladder = goalsFor(cityId);
-      for (let i = 0; i < done && i < ladder.length; i++) {
-        this._goalMult *= ladder[i].reward;
+    this._incomeGoalMult = 1;
+    this._demandGoalMult = 1;
+    this._buildCostMult = 1;
+    for (const track of GOAL_TRACKS) {
+      const done = this.trackDone(track.id);
+      for (let i = 0; i < done && i < track.goals.length; i++) {
+        const r = track.goals[i].reward;
+        if (track.benefit === 'income') this._incomeGoalMult *= r;
+        else if (track.benefit === 'riders') this._demandGoalMult *= r;
+        else this._buildCostMult *= r;
       }
     }
   }
 
-  get currentGoal(): GoalDef | null {
-    return this.goalsDone < this.goals.length ? this.goals[this.goalsDone] : null;
+  /** The track nearest its next commendation — the header strip. */
+  get bestTrack(): { track: GoalTrack; goal: GoalDef | null; progress: number } {
+    let best = GOAL_TRACKS[0];
+    let bestP = -1;
+    for (const track of GOAL_TRACKS) {
+      const p = this.trackProgress(track.id);
+      const goal = this.trackCurrentGoal(track.id);
+      if (goal && p > bestP) {
+        bestP = p;
+        best = track;
+      }
+    }
+    return {
+      track: best,
+      goal: this.trackCurrentGoal(best.id),
+      progress: Math.max(bestP, 0),
+    };
   }
 
   get totalStationWorks(): number {
@@ -724,21 +773,20 @@ export class Game {
     }
   }
 
-  get goalProgress(): number {
-    const goal = this.currentGoal;
-    if (!goal) return 1;
-    return Math.min(this.goalValue(goal.kind) / goal.target, 1);
-  }
-
   private checkGoals(): void {
-    for (;;) {
-      const goal = this.currentGoal;
-      if (!goal || this.goalValue(goal.kind) < goal.target) return;
-      this.goalsDoneByCity.set(this.city.id, this.goalsDone + 1);
-      this._goalMult *= goal.reward;
-      this.goalSeq += 1;
-      this.lastGoalName = goal.name;
-      this.lastGoalReward = goal.reward;
+    for (const track of GOAL_TRACKS) {
+      for (;;) {
+        const goal = this.trackCurrentGoal(track.id);
+        if (!goal || this.goalValue(goal.kind) < goal.target) break;
+        this.goalsDoneByTrack.set(track.id, this.trackDone(track.id) + 1);
+        if (track.benefit === 'income') this._incomeGoalMult *= goal.reward;
+        else if (track.benefit === 'riders') this._demandGoalMult *= goal.reward;
+        else this._buildCostMult *= goal.reward;
+        this.goalSeq += 1;
+        this.lastGoalName = goal.name;
+        this.lastGoalReward = goal.reward;
+        this.lastGoalBenefit = track.benefit;
+      }
     }
   }
 
@@ -937,7 +985,8 @@ export class Game {
     return (
       line.trainCost *
       Math.pow(2.5, this.trainCount(lineId) - 1) *
-      (1 - 0.04 * this.globalLevelOf('yards'))
+      (1 - 0.04 * this.globalLevelOf('yards')) *
+      this._buildCostMult
     );
   }
 
@@ -957,7 +1006,7 @@ export class Game {
   toJson(nowMs: number): Record<string, unknown> {
     const dump = (m: Map<string, number>) => Object.fromEntries(m);
     return {
-      v2s: 3,
+      v2s: 4,
       cash: this.cash,
       totalEarned: this.totalEarned,
       totalRiders: this.totalRiders,
@@ -984,7 +1033,7 @@ export class Game {
       commissionActive: this.commissionActive,
       commissionProgress: this.commissionProgress,
       commissionTimeLeft: this.commissionTimeLeft,
-      goalsDoneByCity: Object.fromEntries(this.goalsDoneByCity),
+      goalsDoneByTrack: Object.fromEntries(this.goalsDoneByTrack),
       boardedAt: dump(this.boardedAt),
       rushEarnings: this.rushEarnings,
       lastSeenMs: nowMs,
@@ -1056,10 +1105,12 @@ export class Game {
     g.commissionActive = Boolean(j.commissionActive ?? false);
     g.commissionProgress = Number(j.commissionProgress ?? 0);
     g.commissionTimeLeft = Number(j.commissionTimeLeft ?? 0);
+    // v2s4 tracks; older saves simply re-complete their tracks from
+    // lifetime counters on the first tick.
     for (const [k, v] of Object.entries(
-      (j.goalsDoneByCity as Record<string, number>) ?? {},
+      (j.goalsDoneByTrack as Record<string, number>) ?? {},
     )) {
-      g.goalsDoneByCity.set(k, Number(v));
+      if (GOAL_TRACKS.some((t) => t.id === k)) g.goalsDoneByTrack.set(k, Number(v));
     }
     g.recomputeGoalMult();
     g.rushEarnings = Number(j.rushEarnings ?? 0);
@@ -1136,6 +1187,8 @@ export type GoalKind =
   | 'riders' | 'earned' | 'lines' | 'trains'
   | 'commissions' | 'works' | 'lineUpgrades' | 'rushEarned';
 
+export type GoalBenefit = 'income' | 'riders' | 'build';
+
 export interface GoalDef {
   name: string;
   kind: GoalKind;
@@ -1143,40 +1196,79 @@ export interface GoalDef {
   reward: number;
 }
 
+export interface GoalTrack {
+  id: string;
+  name: string;
+  benefit: GoalBenefit;
+  blurb: string;
+  goals: GoalDef[];
+}
+
 const g = (name: string, kind: GoalKind, target: number, reward: number): GoalDef =>
   ({ name, kind, target, reward });
 
-/** New Meridian's 22-rung ladder: downtown, then MASTERY of the
- * systems — contracts, works, upgrades, rush earnings. */
-export const NEW_MERIDIAN_GOALS: GoalDef[] = [
-  g('OPENING DAY', 'riders', 1000, 1.25),
-  g('SECOND LINE', 'lines', 2, 1.25),
-  g('ROLLING STOCK', 'trains', 4, 1.25),
-  g('CROSSTOWN', 'lines', 3, 1.3),
-  g('BUSY MORNING', 'riders', 25000, 1.3),
-  g('FIVE ROUTES', 'lines', 5, 1.4),
-  g('HALF MILLION', 'earned', 500000, 1.4),
-  g('SEVEN ROUTES', 'lines', 7, 1.5),
-  g('TWO MILLION', 'earned', 2000000, 1.5),
-  g('NINE ROUTES', 'lines', 9, 1.75),
-  g('MILLION RIDERS', 'riders', 1000000, 1.75),
-  g('DOWNTOWN COMPLETE', 'earned', 25000000, 2.0),
-  g('TWELVE ROUTES', 'lines', 12, 1.5),
-  g('CITY CONTRACTOR', 'commissions', 5, 1.5),
-  g('FIFTY MILLION', 'earned', 50000000, 1.5),
-  g('MASTER BUILDER', 'works', 40, 1.75),
-  g('SIXTEEN ROUTES', 'lines', 16, 1.75),
-  g('RUSH BARON', 'rushEarned', 5000000, 1.75),
-  g('FIVE MILLION RIDERS', 'riders', 5000000, 1.75),
-  g('FULL SERVICE', 'lineUpgrades', 60, 2.0),
-  g('EVERY LINE', 'lines', 24, 2.0),
-  g('NEW MERIDIAN COMPLETE', 'earned', 250000000, 2.0),
+/** Four ladders climb AT ONCE, and their rewards differ by track —
+ * chase whichever fits your build. Income rewards multiply the fare,
+ * riders rewards multiply demand, build rewards CUT purchase costs. */
+export const GOAL_TRACKS: GoalTrack[] = [
+  {
+    id: 'growth', name: 'GROWTH', benefit: 'riders',
+    blurb: 'ridership boosts',
+    goals: [
+      g('OPENING DAY', 'riders', 1000, 1.1),
+      g('TEN THOUSAND', 'riders', 10000, 1.1),
+      g('BUSY MORNING', 'riders', 50000, 1.15),
+      g('QUARTER MILLION', 'riders', 250000, 1.15),
+      g('MILLION RIDERS', 'riders', 1000000, 1.2),
+      g('FIVE MILLION', 'riders', 5000000, 1.2),
+      g('TWENTY MILLION', 'riders', 20000000, 1.25),
+      g('CITY THAT RIDES', 'riders', 100000000, 1.25),
+    ],
+  },
+  {
+    id: 'profit', name: 'PROFIT', benefit: 'income',
+    blurb: 'fare boosts',
+    goals: [
+      g('FIRST FIFTY K', 'earned', 50000, 1.2),
+      g('QUARTER MILLION', 'earned', 250000, 1.2),
+      g('FIRST MILLION', 'earned', 1000000, 1.25),
+      g('FIVE MILLION', 'earned', 5000000, 1.25),
+      g('TWENTY-FIVE MILLION', 'earned', 25000000, 1.3),
+      g('HUNDRED MILLION', 'earned', 100000000, 1.3),
+      g('HALF BILLION', 'earned', 500000000, 1.4),
+      g('TWO BILLION', 'earned', 2000000000, 1.5),
+    ],
+  },
+  {
+    id: 'expansion', name: 'EXPANSION', benefit: 'build',
+    blurb: 'build discounts',
+    goals: [
+      g('SECOND LINE', 'lines', 2, 0.97),
+      g('ROLLING STOCK', 'trains', 4, 0.97),
+      g('FOUR ROUTES', 'lines', 4, 0.95),
+      g('TEN TRAINS', 'trains', 10, 0.95),
+      g('SEVEN ROUTES', 'lines', 7, 0.95),
+      g('TEN ROUTES', 'lines', 10, 0.95),
+      g('BIG FLEET', 'trains', 25, 0.95),
+      g('SIXTEEN ROUTES', 'lines', 16, 0.93),
+      g('EVERY LINE', 'lines', 24, 0.93),
+    ],
+  },
+  {
+    id: 'mastery', name: 'MASTERY', benefit: 'income',
+    blurb: 'income boosts',
+    goals: [
+      g('FIRST CONTRACTS', 'commissions', 3, 1.15),
+      g('BUILDER', 'works', 15, 1.15),
+      g('TUNED MACHINE', 'lineUpgrades', 20, 1.2),
+      g('RUSH MONEY', 'rushEarned', 500000, 1.2),
+      g('CITY CONTRACTOR', 'commissions', 12, 1.25),
+      g('MASTER BUILDER', 'works', 60, 1.25),
+      g('FULL SERVICE', 'lineUpgrades', 120, 1.3),
+      g('RUSH BARON', 'rushEarned', 10000000, 1.3),
+    ],
+  },
 ];
-
-export function goalsFor(cityId: string): GoalDef[] {
-  void cityId; // Angel Bay's ladder arrives with the city-ladder port.
-  return NEW_MERIDIAN_GOALS;
-}
 
 export type LineUpgradeKind = 'speed' | 'cars' | 'access' | 'trainset';
 export const LINE_UPGRADE_KINDS: LineUpgradeKind[] = [

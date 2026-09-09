@@ -44,30 +44,35 @@
         pointer-events: none;
         z-index: 2;
       }
-      #title {
+      #topbar {
+        position: fixed;
         top: calc(10px + env(safe-area-inset-top));
         left: 10px;
+        right: 10px;
+        display: flex;
+        gap: 6px;
+        z-index: 2;
+      }
+      #topbar .chip {
+        position: static;
       }
       #cash {
-        top: calc(10px + env(safe-area-inset-top));
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 15px;
+        flex: 1;
+        text-align: center;
+        font-size: 14px;
         letter-spacing: 0.06em;
+        min-width: 0;
+        overflow: hidden;
       }
       #rate {
-        top: calc(42px + env(safe-area-inset-top));
-        left: 50%;
-        transform: translateX(-50%);
+        top: calc(46px + env(safe-area-inset-top));
+        right: 10px;
         font-weight: 600;
         font-size: 10px;
         letter-spacing: 0.06em;
-        border-top: none;
         padding: 3px 8px;
       }
       #build {
-        top: calc(10px + env(safe-area-inset-top));
-        right: 10px;
         font-weight: 600;
         letter-spacing: 0.06em;
       }
@@ -104,7 +109,7 @@
         background: #e5484d;
       }
       #goal-strip {
-        top: calc(42px + env(safe-area-inset-top));
+        top: calc(46px + env(safe-area-inset-top));
         left: 10px;
         font-weight: 700;
         font-size: 10px;
@@ -114,7 +119,7 @@
       .chipbtn {
         pointer-events: auto;
         cursor: pointer;
-        top: calc(42px + env(safe-area-inset-top));
+        top: calc(74px + env(safe-area-inset-top));
         right: 10px;
         background: #14161c;
       }
@@ -153,6 +158,52 @@
       }
       .head-bal {
         font-weight: 600;
+      }
+      .head-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .modebtn {
+        background: #fff;
+        color: #1a1a1a;
+        border: none;
+        font: 800 10px Inter, sans-serif;
+        letter-spacing: 0.08em;
+        padding: 4px 8px;
+      }
+      .xbtn {
+        background: none;
+        border: none;
+        color: inherit;
+        font-size: 17px;
+        line-height: 1;
+        padding: 0 2px;
+        cursor: pointer;
+      }
+      .tabs {
+        display: flex;
+        border-bottom: 1px solid #1a1a1a;
+      }
+      .tabs button {
+        flex: 1;
+        background: #f1f1f1;
+        border: none;
+        border-right: 1px solid #dedede;
+        color: #777;
+        font: 800 10.5px Inter, sans-serif;
+        letter-spacing: 0.1em;
+        padding: 9px 6px;
+      }
+      .tabs button:first-child {
+        flex: 0 0 40px;
+        font-size: 14px;
+        color: #1a1a1a;
+      }
+      .tabs button.on {
+        background: #fff;
+        color: #1a1a1a;
+        border-bottom: 2px solid #1a1a1a;
       }
       .sect {
         background: #ececec;
@@ -301,12 +352,8 @@
         padding: 7px 10px;
         border-bottom: 1px solid #dedede;
       }
-      .card-head .x {
+      .card-head .xbtn {
         margin-left: auto;
-        background: none;
-        border: none;
-        font-size: 16px;
-        line-height: 1;
         color: #1a1a1a;
       }
       .card-row {
@@ -338,6 +385,9 @@
         #rate {
           display: none; /* the goal strip owns that band on phones */
         }
+        .chipbtn {
+          top: calc(46px + env(safe-area-inset-top));
+        }
       }
       @keyframes toastfade {
         0% { opacity: 0; transform: translateY(-6px); }
@@ -349,10 +399,12 @@
   </head>
   <body>
     <canvas id="scene"></canvas>
-    <div class="chip" id="title">METRO MAGNATE · V2</div>
-    <div class="chip" id="cash"></div>
+    <div id="topbar">
+      <div class="chip" id="title">METRO MAGNATE</div>
+      <div class="chip" id="cash"></div>
+      <div class="chip" id="build"></div>
+    </div>
     <div class="chip" id="rate"></div>
-    <div class="chip" id="build"></div>
     <div class="chip" id="phase"></div>
     <div id="goal-strip" class="chip"></div>
     <div id="deskbar">

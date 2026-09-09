@@ -190,3 +190,27 @@ MeshStandardMaterial dimmed by the night hemisphere — now unlit
 MeshBasicMaterial, so discs stay paper-white on the dark map like a
 proper glowing diagram (ring softened to #3a3f4c to read on both
 grounds).
+
+Build 51 (metro2): PARALLEL GOAL TRACKS + IDLE-STANDARD CONSOLE
+(player: overlapping chips, verbose line sheet -> split works tab,
+map-tap to exit, "city goals is hugely linear... categorize the
+benefit... chase goals in parallel", and "look at top idle games" re
+1/5/max). (1) GOALS REDESIGNED -- v1's single ladder retired in v2:
+four tracks climb AT ONCE, each with a typed benefit: GROWTH (rider
+milestones -> permanent ridership multipliers into demandMultAt),
+PROFIT (earnings -> income multipliers), EXPANSION (lines/fleet ->
+build-cost DISCOUNTS on trains/upgrades/works/globals, never line
+unlocks), MASTERY (contracts/works/upgrade-levels/rush -> income).
+Engine: goalsDoneByTrack, three deriveds (goalMult, demandGoalMult,
+buildCostMult), bestTrack for the header strip, save v2s4 (older
+saves re-complete tracks from lifetime counters on first tick).
+(2) BUY MODE: per-row 1/5/MAX strips replaced by the idle-genre
+standard -- ONE button per row + a global BUY x1/x10/MAX toggle in
+the panel head. (3) Line sheet split into UPGRADES | STATION WORKS
+sub-tabs with a back chevron. (4) Every panel gets an X and A MAP
+TAP CLOSES EVERYTHING. (5) Top HUD rebuilt as one flex bar -- chips
+can no longer overlap. 27 tests green (track isolation, benefit
+typing, exact products, discount application, unlock-price
+protection). Headless drive: x10 bought CARS L0->L10 at the quoted
+bundle price, map tap closed the desk, goals head read income x1.66
+· riders x1.39 · costs x0.97 from three different tracks.
