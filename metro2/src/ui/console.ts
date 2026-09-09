@@ -252,33 +252,57 @@ export class Console {
       </span></div>`;
   }
 
-  /** One upgrade row: NAME · Ln · stat, one buy button (global mode). */
-  private upRow(
-    name: string,
-    level: number,
-    max: number,
-    stat: string,
-    maxStat: string,
-    buys: { act: string; attrs: string },
-    bundle: (n: number) => { count: number; cost: number },
-  ): string {
-    if (level >= max) {
-      return `<div class="row up"><span class="nm">${name}</span>
-        <span class="lvl">MAX</span><span class="stat">${stat}</span></div>`;
+  /** One upgrade as a GAME component, not a data line: caption name,
+   * big stat delta, a level bar with milestone ticks, and one buy
+   * button that reads its affordability at a glance. */
+  private upRow(o: {
+    name: string;
+    level: number;
+    max: number;
+    statNow: string;
+    statNext: string | null; // null at max
+    maxLabel: string;
+    milestones?: number[];
+    nextMilestone?: number | null;
+    act: string;
+    attrs: string;
+    bundle: (n: number) => { count: number; cost: number };
+  }): string {
+    const pct = Math.min(100, (o.level / o.max) * 100);
+    const ticks = (o.milestones ?? [])
+      .filter((m) => m < o.max)
+      .map((m) => `<i style="left:${(m / o.max) * 100}%"></i>`)
+      .join('');
+    const bar = `<div class="upbar"><div class="upfill" style="width:${pct}%"></div>${ticks}</div>
+      <span class="upmax">${o.maxLabel}</span>`;
+    if (o.level >= o.max) {
+      return `<div class="uprow">
+        <div class="uphead"><span class="upname">${o.name}</span>
+          <span class="uplvl">MAX</span></div>
+        <div class="upstat">${o.statNow}</div>
+        <div class="upbarrow">${bar}</div></div>`;
     }
-    const b = bundle(this.buyMode);
-    const b1 = this.buyMode === 1 ? b : bundle(1);
+    const b = o.bundle(this.buyMode);
+    const b1 = this.buyMode === 1 ? b : o.bundle(1);
     const label =
       this.buyMode === 1
         ? `$${fmt(b.cost)}`
         : this.buyMode === 10
-          ? `×${b.count} $${fmt(b.cost)}`
-          : `MAX $${fmt(b.cost)}`;
-    return `<div class="row up">
-      <span class="nm">${name}</span><span class="lvl">L${level}</span>
-      <span class="stat">${stat} <b class="maxhint">· max ${maxStat}</b></span>
-      <button data-act="${buys.act}" ${buys.attrs} data-cost="${b1.cost}">${label}</button>
-    </div>`;
+          ? `×${b.count} · $${fmt(b.cost)}`
+          : `MAX · $${fmt(b.cost)}`;
+    const near =
+      o.nextMilestone != null && o.nextMilestone - o.level <= 7
+        ? `<span class="upnext">⚡×2 @L${o.nextMilestone}</span>`
+        : '';
+    return `<div class="uprow">
+      <div class="uphead"><span class="upname">${o.name}</span>
+        <span class="uplvl">L${o.level}</span>${near}
+        <button class="buy" data-act="${o.act}" ${o.attrs}
+          data-cost="${b1.cost}">${label}</button></div>
+      <div class="upstat">${o.statNow}${
+        o.statNext ? ` <span class="uparrow">→</span> ${o.statNext}` : ''
+      }</div>
+      <div class="upbarrow">${bar}</div></div>`;
   }
 
   private renderStation(): void {
@@ -320,15 +344,17 @@ export class Console {
           ? ''
           : STATION_WORKS.map((w) => {
               const lvl = g.stationWorkLevel(w.id, id);
-              return this.upRow(
-                w.name,
-                lvl,
-                Game.foodMax,
-                this.workStat(w.id, lvl),
-                this.workStat(w.id, Game.foodMax),
-                { act: 'buy-work', attrs: `data-id="${w.id}"` },
-                (n) => g.workBundle(w.id, id, n),
-              );
+              return this.upRow({
+                name: w.name,
+                level: lvl,
+                max: Game.foodMax,
+                statNow: this.workStat(w.id, lvl),
+                statNext: null,
+                maxLabel: `max ${this.workStat(w.id, Game.foodMax)}`,
+                act: 'buy-work',
+                attrs: `data-id="${w.id}"`,
+                bundle: (n) => g.workBundle(w.id, id, n),
+              });
             }).join('');
         this.stationEl.innerHTML = `
           <div class="card-head"><b>${st.name}</b>${bullets}
@@ -379,6 +405,10 @@ export class Console {
       return;
     }
     this.builtKey = key;
+    this.panelEl.style.setProperty(
+      '--line',
+      this.mode.kind === 'line' ? this.game.lineById(this.mode.id).color : '#1a1a1a',
+    );
     if (this.mode.kind === 'lines') this.panelEl.innerHTML = this.linesHtml();
     else if (this.mode.kind === 'line') {
       this.panelEl.innerHTML = this.lineHtml(this.mode.id, this.mode.tab);
@@ -424,37 +454,41 @@ export class Console {
     </div>`;
     let body: string;
     if (tab === 'up') {
-      const up = (kind: LineUpgradeKind, name: string, stat: string, maxStat: string) => {
-        const next = g.nextMilestone(kind, id);
-        return this.upRow(
+      const up = (
+        kind: LineUpgradeKind,
+        name: string,
+        statNow: string,
+        statNext: string | null,
+        maxLabel: string,
+      ) =>
+        this.upRow({
           name,
-          g.lineUpgradeLevel(kind, id),
-          Game.levelMax,
-          stat,
-          `${maxStat}${next ? ` · ⚡×2 @L${next}` : ''}`,
-          { act: 'buy-up', attrs: `data-kind="${kind}"` },
-          (n) => g.lineUpgradeBundle(kind, id, n),
-        );
-      };
+          level: g.lineUpgradeLevel(kind, id),
+          max: Game.levelMax,
+          statNow,
+          statNext,
+          maxLabel,
+          milestones: Game.milestoneLevels,
+          nextMilestone: g.nextMilestone(kind, id),
+          act: 'buy-up',
+          attrs: `data-kind="${kind}"`,
+          bundle: (n) => g.lineUpgradeBundle(kind, id, n),
+        });
       const sig = 1 + 0.04 * g.globalLevelOf('signal');
-      const arrow = (kind: LineUpgradeKind, now: string, next: string) =>
-        g.lineUpgradeLevel(kind, id) >= Game.levelMax ? now : `${now} → ${next}`;
       const spd = g.trainSpeedFor(id);
-      const spdNext = spd + Game.baseSpeed * 0.04 * sig;
       const cap = g.capacityFor(id);
       const acc = 3 * g.accessLevelOf(id);
       const tset = 2.5 * g.trainsetLevelOf(id);
       const bonus = g.lineMilestoneMult(id);
       body =
         `<div class="row"><span class="meta">${l.stationIds.length} stops · ${g.trainCount(id)} train${g.trainCount(id) === 1 ? '' : 's'}</span>
-          <button data-act="buy-train" data-cost="${trainCost}">+TRAIN · $${fmt(trainCost)}</button></div>` +
-        `<div class="sect">LINE INCOME BONUS ×${bonus} · every ⚡ milestone (L10·25·50·100) doubles it · +1 car</div>` +
-        up('speed', 'SPEED', arrow('speed', spd.toFixed(1), spdNext.toFixed(1)),
-          (Game.baseSpeed * 5 * sig).toFixed(1)) +
-        up('cars', 'CARS', arrow('cars', `${cap.toFixed(0)}/stop`, `${(cap + 2).toFixed(0)}/stop`),
-          '222/stop') +
-        up('access', 'ACCESS', arrow('access', `+${acc}%`, `${acc + 3}% riders`), '+300%') +
-        up('trainset', 'TRAINSETS', arrow('trainset', `+${tset.toFixed(1)}%`, `${(tset + 2.5).toFixed(1)}% riders`), '+250%');
+          <button class="buy" data-act="buy-train" data-cost="${trainCost}">+TRAIN · $${fmt(trainCost)}</button></div>` +
+        `<div class="sect">LINE BONUS ×${bonus} — each ⚡ doubles this line's income and adds a car</div>` +
+        up('speed', 'Speed', spd.toFixed(1), (spd + Game.baseSpeed * 0.04 * sig).toFixed(1),
+          `max ${(Game.baseSpeed * 5 * sig).toFixed(0)}`) +
+        up('cars', 'Cars per stop', cap.toFixed(0), `${(cap + 2).toFixed(0)}`, 'max 222') +
+        up('access', 'Ridership · access', `+${acc}%`, `+${acc + 3}%`, 'max +300%') +
+        up('trainset', 'Ridership · trainsets', `+${tset.toFixed(1)}%`, `+${(tset + 2.5).toFixed(1)}%`, 'max +250%');
     } else {
       const next = g.nextPlannedType(id);
       body = STATION_WORKS
@@ -482,14 +516,14 @@ export class Console {
   private globalStat(id: string, lvl: number): string {
     const g = this.game;
     switch (id) {
-      case 'signal': return `+${4 * lvl}% → ${4 * (lvl + 1)}% speed`;
-      case 'doors': return `−${5 * lvl}% → ${5 * (lvl + 1)}% stop time`;
-      case 'marketing': return `+${5 * lvl}% → ${5 * (lvl + 1)}% riders`;
-      case 'fare': return `$${g.currentFare.toFixed(2)} → ${(g.currentFare + 0.25 * g.fareScale).toFixed(2)} fare`;
-      case 'billboards': return `+${3 * lvl}% → ${3 * (lvl + 1)}% income`;
-      case 'crowd': return `${g.stationCapNow.toFixed(0)} → ${(g.stationCapNow + 8).toFixed(0)} cap`;
-      case 'yards': return `−${4 * lvl}% → ${4 * (lvl + 1)}% train cost`;
-      default: return `${(100 * g.offlineEfficiencyNow).toFixed(0)}% → ${(100 * g.offlineEfficiencyNow + 6).toFixed(0)}% offline`;
+      case 'signal': return `+${4 * lvl}% <span class="uparrow">→</span> +${4 * (lvl + 1)}% speed`;
+      case 'doors': return `−${5 * lvl}% <span class="uparrow">→</span> −${5 * (lvl + 1)}% stop time`;
+      case 'marketing': return `+${5 * lvl}% <span class="uparrow">→</span> +${5 * (lvl + 1)}% riders`;
+      case 'fare': return `$${g.currentFare.toFixed(2)} <span class="uparrow">→</span> $${(g.currentFare + 0.25 * g.fareScale).toFixed(2)} fare`;
+      case 'billboards': return `+${3 * lvl}% <span class="uparrow">→</span> +${3 * (lvl + 1)}% income`;
+      case 'crowd': return `${g.stationCapNow.toFixed(0)} <span class="uparrow">→</span> ${(g.stationCapNow + 8).toFixed(0)} cap`;
+      case 'yards': return `−${4 * lvl}% <span class="uparrow">→</span> −${4 * (lvl + 1)}% train cost`;
+      default: return `${(100 * g.offlineEfficiencyNow).toFixed(0)}% <span class="uparrow">→</span> ${(100 * g.offlineEfficiencyNow + 6).toFixed(0)}% offline`;
     }
   }
 
@@ -512,17 +546,17 @@ export class Console {
     const g = this.game;
     const rows = GLOBALS.map((d) => {
       const lvl = g.globalLevelOf(d.id);
-      const stat =
-        lvl >= d.maxLevel ? this.globalStatAtMax(d.id, lvl) : this.globalStat(d.id, lvl);
-      return this.upRow(
-        d.name,
-        lvl,
-        d.maxLevel,
-        stat,
-        this.globalStatAtMax(d.id, d.maxLevel),
-        { act: 'buy-global', attrs: `data-id="${d.id}"` },
-        (n) => g.globalBundle(d.id, n),
-      );
+      return this.upRow({
+        name: d.name,
+        level: lvl,
+        max: d.maxLevel,
+        statNow: lvl >= d.maxLevel ? this.globalStatAtMax(d.id, lvl) : this.globalStat(d.id, lvl),
+        statNext: null,
+        maxLabel: `max ${this.globalStatAtMax(d.id, d.maxLevel)}`,
+        act: 'buy-global',
+        attrs: `data-id="${d.id}"`,
+        bundle: (n) => g.globalBundle(d.id, n),
+      });
     }).join('');
     return this.head('NETWORK UPGRADES', true) + rows;
   }
@@ -689,7 +723,11 @@ export class Console {
   private refreshDisabled(root: HTMLElement): void {
     for (const btn of root.querySelectorAll<HTMLButtonElement>('button[data-cost]')) {
       const cost = Number(btn.getAttribute('data-cost'));
-      if (cost > 0) btn.disabled = this.game.cash < cost;
+      if (cost > 0) {
+        const can = this.game.cash >= cost;
+        btn.disabled = !can;
+        btn.classList.toggle('afford', can);
+      }
     }
   }
 

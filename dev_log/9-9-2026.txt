@@ -274,3 +274,22 @@ any refresh rate while the sim stays bit-identical (28 tests green,
 untouched). Probe confirmed interpolated positions BETWEEN tick
 values gliding at exactly line speed; the first probe's all-zero
 deltas were a station dwell, not a bug.
+
+Build 56 (metro2): THE CRAFT PASS (player delivered a 9-point
+editors-choice audit of the line sheet). All nine: (1) the wrapping
+price buttons -- upgrade rows rebuilt as two-line GAME components
+(no flex overflow possible); (2) letter-spacing stripped from all
+body text, kept only on display strings; (3) panels fully OPAQUE --
+no more map labels ghosting through; (4) real type hierarchy:
+9.5px gray uppercase captions, 16px bold tabular-num stat deltas,
+9px max labels -- three sizes, brutal contrast; (5) LINE COLOR OWNS
+ITS SHEET via a CSS --line var: top accent bar, filled buy buttons,
+active-tab underline, progress-bar fills all in the line's color;
+(6) affordability at a glance: buyable = color-filled, can't-afford
+= ghosted hairline (class toggled in the 4Hz pass); (7) spreadsheet
+rows -> components: level PROGRESS BAR with amber MILESTONE TICKS at
+10/25/50/100 (the bar teaches the system), stat delta as the hero,
+next-milestone hint only when within 7 levels; (8) one design
+system: nav bar restyled to match the ink bars (no gray strokes),
+phase chip is an indicator with a dot, not a fake button; (9) touch
+targets: back chevron 52px, X 44pt effective, buys min 32px tall.

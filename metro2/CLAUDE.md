@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b55 (fluid trains — frame interpolation)
+## ▶ CURRENT BUILD: v2 · b56 (the craft pass — 9-point UI audit)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:
