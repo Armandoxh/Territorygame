@@ -364,3 +364,22 @@ RINGS join the heat pass (ink -> amber -> red load rings), and
 building blocks vary -- slivers/squares/big slabs in two shades.
 Verified: 28 vitest green, headless probes (seg control, x10 bulk
 buy, tier buy, priority), 5 screenshots reviewed.
+
+Build 60 (metro2): PRICE-TRUTH HOTFIX. Player field report: "on my
+lines tab I cannot click the upgrade buttons -- mostly it's orange
+but I cannot tap it and purchase." Not a tap bug (touch-emulated
+probes clicked fine) -- a display/charge split: the b54 rebalance
+rewrote the DISPLAYED line-upgrade curve to base x 1.14^level
+(lineUpgradeCostAt, feeding buttons and bundles) but buySpeed/
+buyCars/buyAccess/buyTrainset still charged v1's retired x1.9-x2.1
+curves via nextSpeedCost etc. Identical at L0, wildly divergent
+deep: at speed L14 the button said $1.6K while the engine demanded
+base x 1.9^14 (~millions) -- so the buy silently failed and the
+orange button read as dead. Fix: the four next*Cost getters now
+alias lineUpgradeCostAt, so charged cost can never drift from
+displayed cost again. Globals and station works audited -- both
+already charge their displayed formula. New regression test walks
+speed/cars/access/trainset at L0/14/26/60/99: cash == shown price
+must buy exactly one level, a hair less must buy zero (29 vitest
+green). Probe at the player's exact save shape (speed L14, $6K
+cash): tap now purchases, L14 -> L15, price reprices to $1.8K.

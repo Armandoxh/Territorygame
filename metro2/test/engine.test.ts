@@ -143,6 +143,38 @@ describe('the ported core', () => {
     expect(sets).toBeGreaterThan(base * 2 * 1.03);
   });
 
+  test('the displayed price IS the charged price at every level (b59 bug)', () => {
+    // b59 field report: buttons showed the b54 ×1.14 curve but buys
+    // still charged v1's ×1.9-×2.1 curves — "orange but tapping
+    // doesn't purchase". Displayed and charged must be one number.
+    const g = new Game(city);
+    g.buyLine('1');
+    for (const kind of ['speed', 'cars', 'access', 'trainset'] as const) {
+      for (const level of [0, 14, 26, 60, 99]) {
+        g.speedLevels.set('1', 0);
+        g.carLevels.set('1', 0);
+        g.accessLevels.set('1', 0);
+        g.trainsetLevels.set('1', 0);
+        g.lineUpgradeLevel(kind, '1'); // warm the getter path
+        const map = {
+          speed: g.speedLevels, cars: g.carLevels,
+          access: g.accessLevels, trainset: g.trainsetLevels,
+        }[kind];
+        map.set('1', level);
+        const shown = g.lineUpgradeBundle(kind, '1', 1).cost;
+        // Exactly the shown price must clear the buy…
+        g.cash = shown + 1e-9;
+        expect(g.buyLineUpgrades(kind, '1', 1)).toBe(1);
+        expect(map.get('1')).toBe(level + 1);
+        expect(g.cash).toBeCloseTo(1e-9, 6);
+        // …and a hair less must not.
+        map.set('1', level);
+        g.cash = shown * 0.999;
+        expect(g.buyLineUpgrades(kind, '1', 1)).toBe(0);
+      }
+    }
+  });
+
   test('MILESTONES: every 10/25/50/100 doubles the line income', () => {
     const g = new Game(city);
     expect(g.lineMilestoneMult('1')).toBe(1);

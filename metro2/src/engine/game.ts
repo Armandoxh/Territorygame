@@ -253,17 +253,21 @@ export class Game {
   private upgradeBase(line: LineDef): number {
     return (250 * this.costScale + line.unlockCost * 0.05) * this._buildCostMult;
   }
+  // The b54 ×1.14 curve is THE price. These alias lineUpgradeCostAt so
+  // the charged cost can never drift from the displayed one again
+  // (b59 bug: v1's ×1.9-×2.1 curves survived here while the UI showed
+  // ×1.14 — affordable-looking buttons whose buys silently failed).
   nextSpeedCost(id: string): number {
-    return this.upgradeBase(this.lineById(id)) * Math.pow(1.9, this.speedLevelOf(id));
+    return this.lineUpgradeCostAt('speed', id, this.speedLevelOf(id));
   }
   nextCarCost(id: string): number {
-    return this.upgradeBase(this.lineById(id)) * 1.2 * Math.pow(2.0, this.carLevelOf(id));
+    return this.lineUpgradeCostAt('cars', id, this.carLevelOf(id));
   }
   nextAccessCost(id: string): number {
-    return this.upgradeBase(this.lineById(id)) * 1.5 * Math.pow(2.1, this.accessLevelOf(id));
+    return this.lineUpgradeCostAt('access', id, this.accessLevelOf(id));
   }
   nextTrainsetCost(id: string): number {
-    return this.upgradeBase(this.lineById(id)) * 1.4 * Math.pow(2.05, this.trainsetLevelOf(id));
+    return this.lineUpgradeCostAt('trainset', id, this.trainsetLevelOf(id));
   }
 
   private buy(allowed: boolean, cost: number, apply: () => void): boolean {
