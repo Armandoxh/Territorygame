@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b51 (parallel goal tracks + idle-standard console)
+## ▶ CURRENT BUILD: v2 · b52 (rate readout + congestion heat map)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:

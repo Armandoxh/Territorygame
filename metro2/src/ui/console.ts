@@ -641,8 +641,9 @@ export class Console {
 
   update(nowMs: number): void {
     const g = this.game;
-    this.cashEl.textContent = `$${fmt(g.cash)}`;
-    this.rateEl.textContent = `$${g.avgRate.toFixed(1)}/s · ${fmt(g.totalRiders)} riders`;
+    this.cashEl.innerHTML =
+      `$${fmt(g.cash)} <span class="cashrate">+$${g.avgRate >= 100 ? fmt(g.avgRate) : g.avgRate.toFixed(1)}/s</span>`;
+    this.rateEl.textContent = `${fmt(g.totalRiders)} riders`;
     const n = g.nightFactor;
     this.phaseEl.textContent = g.rushActive
       ? 'NIGHT RUSH'

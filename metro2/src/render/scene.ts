@@ -260,6 +260,7 @@ export class CityScene {
   private solidMeshes: THREE.Mesh[] = [];
   private dashedMeshes: THREE.Mesh[] = [];
   private servedDiscs = new Map<string, THREE.Group>();
+  private discMats = new Map<string, THREE.MeshBasicMaterial>();
   private counts = new Map<string, CountSprite>();
   private labels = new Map<string, THREE.Sprite>();
   private trainGroups: THREE.Group[] = [];
@@ -423,9 +424,11 @@ export class CityScene {
         new THREE.MeshBasicMaterial({ color: 0x3a3f4c }),
       );
       ring.position.set(st.x, TRACK_Y + 0.1, st.y);
+      const discMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      this.discMats.set(st.id, discMat);
       const disc = new THREE.Mesh(
         new THREE.CylinderGeometry(r, r, 0.34, 24),
-        new THREE.MeshBasicMaterial({ color: 0xffffff }),
+        discMat,
       );
       disc.position.set(st.x, TRACK_Y + 0.14, st.y);
       group.add(ring, disc);
@@ -587,20 +590,30 @@ export class CityScene {
       this.addTrainVisual(g.trains[this.trainGroups.length].lineId);
     }
 
-    // Live waiting counts at 4 Hz, plus the zoom policy: a wide view
-    // stays a clean diagram; zooming in reveals names, then numbers.
+    // Live waiting counts + CONGESTION HEAT at 4 Hz, plus the zoom
+    // policy: wide stays clean, zooming reveals names then numbers.
+    // Discs read as a heat map at EVERY zoom: white = clear, amber =
+    // filling, red = at capacity.
     if (++this.countFrame % 15 === 0) {
       const camH = this.controls.height;
       const showNames = camH < 360;
       const showCounts = camH < 300;
+      const white = new THREE.Color(0xffffff);
+      const amber = new THREE.Color(0xffc94d);
+      const red = new THREE.Color(0xe03a2f);
       for (const label of this.labels.values()) label.visible = showNames;
       for (const [id, count] of this.counts) {
+        const ratio = Math.min(g.waitingAt(id) / g.stationCapAt(id), 1);
+        const mat = this.discMats.get(id);
+        if (mat) {
+          if (ratio < 0.5) mat.color.copy(white).lerp(amber, ratio * 2);
+          else mat.color.copy(amber).lerp(red, (ratio - 0.5) * 2);
+        }
         count.sprite.visible = showCounts;
         if (!showCounts) continue;
         const up = Math.floor(g.waitingUp.get(id) ?? 0);
         const down = Math.floor(g.waitingDown.get(id) ?? 0);
-        const full = g.waitingAt(id) >= g.stationCapAt(id) - 0.001;
-        count.set(up, down, full);
+        count.set(up, down, ratio >= 0.999);
       }
     }
 

@@ -214,3 +214,18 @@ typing, exact products, discount application, unlock-price
 protection). Headless drive: x10 bought CARS L0->L10 at the quoted
 bundle price, map tap closed the desk, goals head read income x1.66
 · riders x1.39 · costs x0.97 from three different tracks.
+
+Build 52 (metro2): $/s BACK + CONGESTION HEAT (player: "I need my
+earnings per second back. Add a color palette to each node, white to
+red, signifying how backed up they are"). The earn rate lives inline
+in the cash chip now (green +$27.4/s) so it survives phone widths
+where the old rate chip was hidden; the standalone chip demotes to a
+riders counter on wide screens. Station discs are a live heat map at
+every zoom: fill ratio (waiting/cap) lerps white -> amber (50%) ->
+red (100%), updated in the same 4Hz pass as the counts; the count
+text goes red in step at cap. First patch attempt silently missed
+(the b49 count-loop text had drifted under the sed) -- caught because
+the screenshot showed white discs over seeded backlogs; re-applied
+with Edit against the real text. Verified with a seeded gradient
+along line 1: white -> cream -> amber -> orange -> red reading
+north, clear blue-line stations staying white.
