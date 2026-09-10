@@ -258,6 +258,9 @@ export class Console {
       case 'buy-street':
         g.buyStreetTeam();
         break;
+      case 'hire-supt':
+        if (this.mode?.kind === 'line') g.hireSuperintendent(this.mode.id);
+        break;
       case 'move-on':
         if (this.moveOnArmed) {
           this.onMoveOn?.();
@@ -587,8 +590,11 @@ export class Console {
         const lv =
           g.speedLevelOf(l.id) + g.carLevelOf(l.id) + g.accessLevelOf(l.id) +
           g.trainsetLevelOf(l.id);
+        const gear = g.superintendents.has(l.id)
+          ? '<span class="sicon small">⚙</span>'
+          : '';
         return `<div class="row" data-act="open-line" data-id="${l.id}">
-          ${bullet}<span class="nm">${l.name}</span>
+          ${bullet}<span class="nm">${l.name}</span>${gear}
           <span class="meta">${n} train${n === 1 ? '' : 's'} · ${lv} upgrade lvls</span>
           <span class="chev">›</span></div>`;
       })
@@ -632,9 +638,18 @@ export class Console {
         if (lv === 0) return `${label} <b>${next}</b> to start · max ${maxv}`;
         return `${label} <b>${now}</b> → <b>${next}</b> · max ${maxv}`;
       };
+      const supt = g.superintendents.has(id)
+        ? `<div class="row supt on"><span class="sicon">⚙</span>
+            <span class="nm">SUPERINTENDENT ON DUTY</span>
+            <span class="meta">buys this line's cheapest upgrade when it's under 20% of treasury</span></div>`
+        : `<div class="row supt"><span class="sicon">⚙</span>
+            <span class="nm">SUPERINTENDENT</span>
+            <span class="meta">runs this line's upgrades for you</span>
+            <button class="buy" data-act="hire-supt" data-cost="${g.superintendentCost().toFixed(2)}">HIRE · $${fmt(g.superintendentCost())}</button></div>`;
       body =
         `<div class="row"><span class="meta">${l.stationIds.length} stops · ${g.trainCount(id)} train${g.trainCount(id) === 1 ? '' : 's'}</span>
           <button class="buy" data-act="buy-train" data-cost="${trainCost}">+TRAIN · $${fmt(trainCost)}</button></div>` +
+        supt +
         `<div class="sect">LINE BONUS ×${fmtMult(bonus)} · each ⚡ pays ×1.5 income here, +1 car</div>` +
         up('speed', 'SPEED', arrow('speed', 'speed', spd.toFixed(1), (spd + Game.baseSpeed * 0.04 * sig).toFixed(1), (Game.baseSpeed * 5 * sig).toFixed(0))) +
         up('cars', 'CARS', arrow('cars', 'per stop', cap.toFixed(0), (cap + 2).toFixed(0), '222')) +
@@ -923,6 +938,12 @@ export class Console {
         this.renderPanel();
       }
     }
+    if (this.mode?.kind === 'line' && this.superSeqSeen !== g.superSeq) {
+      this.superSeqSeen = g.superSeq;
+      this.structSeq++;
+      this.renderPanel();
+      return;
+    }
     if (this.mode?.kind === 'goals') {
       for (const track of this.game.tracks) {
         const goal = g.trackCurrentGoal(track.id);
@@ -944,6 +965,7 @@ export class Console {
 
   private opsSeq = 0;
   private goalsSeqSeen = 0;
+  private superSeqSeen = 0;
 
   private refreshDisabled(root: HTMLElement): void {
     let ok = 0;

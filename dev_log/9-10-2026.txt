@@ -123,3 +123,22 @@ crowd decay + recovery, filler pricing, relief pay/clear/cooldown,
 streak keep/bump/reset + fare landing). Deferred: push
 notifications (needs installed-PWA service worker), monetization
 (none -- by design).
+
+Build 66 (metro2): SMALL TRAINS, HIRED HANDS. Player: "the trains
+are too big" + "add an upgrade that automatically upgrades for me
+-- figure out creatively how to do it." (1) Rolling stock ~35%
+smaller (car 4.6x3.0 -> 3.0x1.5, tighter gaps, proportionate
+outline/roof) -- trains now sit ON the line instead of straddling
+it. (2) THE SUPERINTENDENT: automation as a person, not a toggle.
+Hire one per line from the line sheet (~5 min of income, rate-
+priced); every 5 sim-seconds they buy that line's CHEAPEST upgrade
+-- but only when it costs under 20% of the treasury, so they never
+starve the player's own plans. Deterministic (pure tick cadence,
+no RNG). ON DUTY row with a spinning green gear on the line sheet,
+gear badge on the LINE DESK, superSeq-driven live panel refresh,
+and throttled wire reports ("the superintendent never sleeps").
+Hires save (v2s5 field, validated against unlocked lines on load).
+38 vitest green (new law test: hire cost/gating, cheapest-first
+cadence one per 5s, the 20% reserve holds when broke, save
+roundtrip). Probe: hire $18.6K -> ON DUTY -> access/trainset
+levels tick up unattended while speed/cars (pricier) wait.

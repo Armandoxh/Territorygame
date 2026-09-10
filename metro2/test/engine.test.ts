@@ -208,6 +208,42 @@ describe('the ported core', () => {
     expect(bumped.incomePerRiderAt(stop)).toBeCloseTo(plainFare * 1.02, 9);
   });
 
+  test('THE SUPERINTENDENT: hired lines self-upgrade under a 20% cash cap', () => {
+    const g = new Game(city);
+    // Hiring costs ~5 minutes of income and needs the line unlocked.
+    g.avgRate = 100;
+    expect(g.superintendentCost()).toBeCloseTo(30000, 6);
+    expect(g.hireSuperintendent('A')).toBe(false); // locked line
+    g.cash = 30000;
+    expect(g.hireSuperintendent('1')).toBe(true);
+    expect(g.cash).toBeCloseTo(0, 6);
+    expect(g.hireSuperintendent('1')).toBe(false); // already on duty
+    // Broke: the desk waits. Cheapest upgrade is ~$250; the 20% rule
+    // means nothing moves until the treasury holds 5× that.
+    for (let i = 0; i < 200; i++) g.tick(0.05);
+    const lvls = () =>
+      g.speedLevelOf('1') + g.carLevelOf('1') + g.accessLevelOf('1') + g.trainsetLevelOf('1');
+    g.waitingUp.forEach((_, k) => g.waitingUp.set(k, 0));
+    g.waitingDown.forEach((_, k) => g.waitingDown.set(k, 0));
+    const before = lvls();
+    // Rich: one purchase per 5s pass, always the cheapest kind.
+    g.cash = 1e6;
+    for (let i = 0; i < 100; i++) g.tick(0.05); // one 5s pass
+    expect(lvls()).toBe(before + 1);
+    for (let i = 0; i < 100; i++) g.tick(0.05);
+    expect(lvls()).toBe(before + 2);
+    // Never spends more than 20% of cash on one purchase.
+    g.cash = 100; // cheapest is ~$250 — 20% rule blocks it
+    const held = lvls();
+    for (let i = 0; i < 200; i++) g.tick(0.05);
+    expect(lvls()).toBe(held);
+    // The hire survives the save round-trip.
+    g.cash = 0;
+    const j = JSON.parse(JSON.stringify(g.toJson(1_000_000)));
+    const r = Game.fromJson(city, j, 1_000_000);
+    expect([...r.game.superintendents]).toEqual(['1']);
+  });
+
   test('UPGRADES WORK: each line-1 upgrade measurably raises earnings', () => {
     // b54 scale: shallow per-level gains — measured at L24 (below the
     // L25 milestone so the income doubling cannot mask a dead stat).

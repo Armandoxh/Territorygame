@@ -122,6 +122,13 @@ export class Game {
   readonly reliefCooldown = new Map<string, number>();
   /** Consecutive real days played (set at load from the wall clock). */
   streakDays = 1;
+  /** Lines with a hired SUPERINTENDENT — they buy that line's cheapest
+   * upgrade every few seconds, when it costs <20% of the treasury. */
+  readonly superintendents = new Set<string>();
+  private superClock = 0;
+  /** Bumped on every superintendent purchase (the wire reports it). */
+  superSeq = 0;
+  lastSuperLineId = '';
 
   /** $/s estimate over a rolling window (drives HUD + offline pay). */
   avgRate = 0;
@@ -261,6 +268,43 @@ export class Game {
   /** STREET TEAM price: ~25 seconds of the current earn rate, floor $40. */
   get streetTeamCost(): number {
     return Math.max(40 * this.costScale, this.avgRate * 25);
+  }
+
+  /** Hiring a superintendent: ~5 minutes of income, floor by city. */
+  superintendentCost(): number {
+    return Math.max(3000 * this.costScale, this.avgRate * 300);
+  }
+
+  hireSuperintendent(lineId: string): boolean {
+    if (!this.isUnlocked(lineId) || this.superintendents.has(lineId)) return false;
+    const cost = this.superintendentCost();
+    if (this.cash < cost) return false;
+    this.cash -= cost;
+    this.superintendents.add(lineId);
+    return true;
+  }
+
+  /** One superintendent pass: each hired line buys its CHEAPEST
+   * upgrade, capped at 20% of cash so they never starve the player. */
+  private runSuperintendents(): void {
+    for (const lineId of this.superintendents) {
+      let bestKind: LineUpgradeKind | null = null;
+      let bestCost = Infinity;
+      for (const kind of ['speed', 'cars', 'access', 'trainset'] as const) {
+        if (this.lineUpgradeLevel(kind, lineId) >= Game.levelMax) continue;
+        const c = this.lineUpgradeBundle(kind, lineId, 1).cost;
+        if (c < bestCost) {
+          bestCost = c;
+          bestKind = kind;
+        }
+      }
+      if (bestKind && bestCost <= this.cash * 0.2) {
+        if (this.buyLineUpgrades(bestKind, lineId, 1) > 0) {
+          this.superSeq += 1;
+          this.lastSuperLineId = lineId;
+        }
+      }
+    }
   }
 
   buyStreetTeam(): boolean {
@@ -968,6 +1012,11 @@ export class Game {
 
     // Rolling earn-rate estimate (v1 idiom: a windowed average the HUD
     // and offline pay can trust).
+    this.superClock += dt;
+    if (this.superClock >= 5) {
+      this.superClock -= 5;
+      this.runSuperintendents();
+    }
     this.windowTime += dt;
     if (this.windowTime >= 20) {
       const rate = this.windowEarned / this.windowTime;
@@ -1235,6 +1284,7 @@ export class Game {
       priorGoals: this.priorGoals,
       streetTeamLevel: this.streetTeamLevel,
       streakDays: this.streakDays,
+      superintendents: [...this.superintendents],
       crowdPenalty: dump(this.crowdPenalty),
       boardedAt: dump(this.boardedAt),
       rushEarnings: this.rushEarnings,
@@ -1325,6 +1375,9 @@ export class Game {
     g.recomputeGoalMult();
     g.rushEarnings = Number(j.rushEarnings ?? 0);
     g.streetTeamLevel = Number(j.streetTeamLevel ?? 0);
+    for (const id of (j.superintendents as string[]) ?? []) {
+      if (g.isUnlocked(id)) g.superintendents.add(id);
+    }
     for (const [k, v] of Object.entries(
       (j.crowdPenalty as Record<string, number>) ?? {},
     )) {

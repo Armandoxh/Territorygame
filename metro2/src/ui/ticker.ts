@@ -30,6 +30,8 @@ export class Ticker {
   private rushWas = false;
   private rushWarned = -1;
   private goldenWarned = -1;
+  private superSeq = 0;
+  private superShownAt = 0;
   private milesWas: number;
   private crowdShownAt = new Map<string, number>();
   private lastFiller = 0;
@@ -110,6 +112,18 @@ export class Ticker {
         this.push(this.pick([
           `Night rush — platforms packed across ${g.city.name}`,
           'Evening bell: every fare rides ×2.5 until the rush clears',
+        ]));
+      }
+    }
+    if (g.superSeq !== this.superSeq) {
+      const line = g.lineById(g.lastSuperLineId);
+      this.superSeq = g.superSeq;
+      if (line && nowMs - this.superShownAt > 45000) {
+        this.superShownAt = nowMs;
+        this.push(this.pick([
+          `${line.name} superintendent signs off another upgrade`,
+          `Depot memo: the ${line.name} desk keeps investing`,
+          `${line.name} crews upgraded again — the superintendent never sleeps`,
         ]));
       }
     }

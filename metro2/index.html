@@ -195,6 +195,29 @@
         50% { opacity: 0.55; }
       }
 
+      /* ── The superintendent ── */
+      .row.supt .sicon {
+        font-size: 15px;
+        color: var(--dim);
+      }
+      .row.supt.on {
+        background: rgba(87, 199, 133, 0.06);
+      }
+      .row.supt.on .sicon {
+        color: #57c785;
+        animation: gearspin 6s linear infinite;
+      }
+      .row.supt.on .nm {
+        color: #57c785;
+      }
+      @keyframes gearspin {
+        to { transform: rotate(360deg); }
+      }
+      .sicon.small {
+        font-size: 12px;
+        color: #57c785;
+      }
+
       /* ── Relief dispatch ── */
       .reliefrow {
         display: flex;

@@ -614,25 +614,26 @@ export class CityScene {
     cars: number,
   ): void {
     group.clear();
-    const len = 4.6;
-    const gap = 0.5;
+    // b66: player verdict "trains too big" — ~35% smaller stock.
+    const len = 3.0;
+    const gap = 0.35;
     const total = cars * len + (cars - 1) * gap;
     for (let i = 0; i < cars; i++) {
       const x = -total / 2 + len / 2 + i * (len + gap);
       const outline = new THREE.Mesh(
-        new RoundedBoxGeometry(len + 0.7, 0.7, 3.0, 2, 0.7),
+        new RoundedBoxGeometry(len + 0.45, 0.6, 2.0, 2, 0.45),
         new THREE.MeshBasicMaterial({ color: 0xffffff }),
       );
       outline.position.set(x, 0.42, 0);
       group.add(outline);
-      const body = new THREE.Mesh(new RoundedBoxGeometry(len, 0.8, 2.3, 2, 0.55), mat);
+      const body = new THREE.Mesh(new RoundedBoxGeometry(len, 0.7, 1.5, 2, 0.35), mat);
       body.position.set(x, 0.5, 0);
       group.add(body);
       const roof = new THREE.Mesh(
-        new RoundedBoxGeometry(len - 1.4, 0.3, 1.5, 2, 0.3),
+        new RoundedBoxGeometry(len - 0.9, 0.25, 0.95, 2, 0.2),
         new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }),
       );
-      roof.position.set(x, 1.0, 0);
+      roof.position.set(x, 0.95, 0);
       group.add(roof);
     }
     group.userData.cars = cars;

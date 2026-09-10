@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b65 (the compulsion build — stakes, variance, verbs)
+## ▶ CURRENT BUILD: v2 · b66 (small trains, hired hands — the SUPERINTENDENT)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:
