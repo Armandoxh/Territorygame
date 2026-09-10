@@ -28,6 +28,8 @@ export class Ticker {
   private goalSeq: number;
   private commSeq: number;
   private rushWas = false;
+  private rushWarned = -1;
+  private goldenWarned = -1;
   private milesWas: number;
   private crowdShownAt = new Map<string, number>();
   private lastFiller = 0;
@@ -90,6 +92,17 @@ export class Ticker {
               'City Hall lets a contract expire; no payout',
             ]),
       );
+    }
+    // Cliffhanger: the rush announces itself 30s out.
+    const untilRush = g.secondsUntilRushStart(0);
+    if (!g.rushActive && untilRush <= 30 && this.rushWarned !== g.rushCycleId) {
+      this.rushWarned = g.rushCycleId;
+      this.push('⚡ Night rush in 30 seconds — position your trains');
+    }
+    // A GOLDEN CONTRACT on the desk is front-page news.
+    if (!g.commissionActive && g.commissionIsGolden && this.goldenWarned !== g.commissionIndex) {
+      this.goldenWarned = g.commissionIndex;
+      this.push('★ GOLDEN CONTRACT on the commission desk — ×10 the usual fee');
     }
     if (g.rushActive !== this.rushWas) {
       this.rushWas = g.rushActive;

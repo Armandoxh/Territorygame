@@ -74,8 +74,17 @@ class SoundDesk {
     osc.stop(t0 + dur + 0.02);
   }
 
+  private buzz(ms: number): void {
+    try {
+      navigator.vibrate?.(ms);
+    } catch {
+      /* no haptics on this platform */
+    }
+  }
+
   /** A purchase lands: turnstile click + coin blip. */
   buy(): void {
+    this.buzz(8);
     this.tone(2600, 0.03, { type: 'square', gain: 0.12 });
     this.tone(1245, 0.09, { type: 'triangle', gain: 0.35, at: 0.02 });
     this.tone(1865, 0.12, { type: 'triangle', gain: 0.28, at: 0.055 });
@@ -83,6 +92,7 @@ class SoundDesk {
 
   /** A commendation: two-note station chime. */
   chime(): void {
+    this.buzz(35);
     this.tone(880, 0.35, { type: 'sine', gain: 0.4 });
     this.tone(1318, 0.5, { type: 'sine', gain: 0.35, at: 0.12 });
     this.tone(1760, 0.6, { type: 'sine', gain: 0.15, at: 0.24 });
@@ -97,6 +107,7 @@ class SoundDesk {
 
   /** Collecting the away earnings: a little coin cascade. */
   collect(): void {
+    this.buzz(20);
     const steps = [988, 1175, 1480, 1760, 2093];
     steps.forEach((f, i) =>
       this.tone(f, 0.16, { type: 'triangle', gain: 0.3, at: i * 0.055 }),

@@ -111,6 +111,18 @@ export class Game {
   /** Lifetime money earned during rush windows. */
   rushEarnings = 0;
 
+  // ---- b65 engagement systems (all deterministic) ----
+  /** STREET TEAM: the always-affordable filler — priced off the live
+   * income rate so a shop is never dead. +0.5% riders each, forever. */
+  streetTeamLevel = 0;
+  /** Per-station demand shed while pinned at capacity (0..0.6):
+   * ignore a red station and its riders start avoiding it. */
+  readonly crowdPenalty = new Map<string, number>();
+  /** RELIEF DISPATCH cooldowns, seconds remaining per station. */
+  readonly reliefCooldown = new Map<string, number>();
+  /** Consecutive real days played (set at load from the wall clock). */
+  streakDays = 1;
+
   /** $/s estimate over a rolling window (drives HUD + offline pay). */
   avgRate = 0;
   /** Riders/s over the same rolling window (the return-card figure). */
@@ -227,7 +239,66 @@ export class Game {
     }
     m *= 1 + 0.1 * (this.foodLevel.get(stationId) ?? 0);
     m *= 1 + 0.06 * (this.parkingLevel.get(stationId) ?? 0);
-    return m * (1 + 0.05 * this.globalLevelOf('marketing')) * this._demandGoalMult;
+    return (
+      m *
+      (1 + 0.05 * this.globalLevelOf('marketing')) *
+      Math.pow(1.005, this.streetTeamLevel) *
+      (1 - (this.crowdPenalty.get(stationId) ?? 0)) *
+      this._demandGoalMult
+    );
+  }
+
+  /** Day-streak income bonus: +2%/day, capped at +20%. */
+  /** Which rush cycle we're in — a stable id for one-per-cycle UI. */
+  get rushCycleId(): number {
+    return Math.floor(this.rushClock / Game.rushPeriod);
+  }
+
+  get streakMult(): number {
+    return 1 + 0.02 * Math.min(Math.max(this.streakDays - 1, 0), 10);
+  }
+
+  /** STREET TEAM price: ~25 seconds of the current earn rate, floor $40. */
+  get streetTeamCost(): number {
+    return Math.max(40 * this.costScale, this.avgRate * 25);
+  }
+
+  buyStreetTeam(): boolean {
+    const cost = this.streetTeamCost;
+    if (this.cash < cost) return false;
+    this.cash -= cost;
+    this.streetTeamLevel += 1;
+    return true;
+  }
+
+  /** RELIEF DISPATCH: clear a crowded platform for instant fares.
+   * Needs the queue at ≥50% capacity; 90s cooldown per station. */
+  reliefReady(stationId: string): boolean {
+    return (
+      (this.reliefCooldown.get(stationId) ?? 0) <= 0 &&
+      this.waitingAt(stationId) >= this.stationCapAt(stationId) * 0.5
+    );
+  }
+
+  reliefPayout(stationId: string): number {
+    // incomePerRiderAt already carries the streak bonus.
+    return this.waitingAt(stationId) * this.incomePerRiderAt(stationId);
+  }
+
+  dispatchRelief(stationId: string): number {
+    if (!this.reliefReady(stationId)) return 0;
+    const pay = this.reliefPayout(stationId);
+    const riders = this.waitingAt(stationId);
+    this.waitingUp.set(stationId, 0);
+    this.waitingDown.set(stationId, 0);
+    this.cash += pay;
+    this.totalEarned += pay;
+    this.totalRiders += riders;
+    this.windowEarned += pay;
+    this.windowRiders += riders;
+    this.boardedAt.set(stationId, (this.boardedAt.get(stationId) ?? 0) + riders);
+    this.reliefCooldown.set(stationId, 90);
+    return pay;
   }
 
   /** What one rider pays boarding here. */
@@ -239,6 +310,7 @@ export class Game {
           this.fareScale) *
       (1 + 0.04 * (this.securityLevel.get(stationId) ?? 0)) *
       (1 + 0.03 * this.globalLevelOf('billboards')) *
+      this.streakMult *
       this._incomeGoalMult
     );
   }
@@ -627,8 +699,24 @@ export class Game {
     return this.commissionType === 'rushCash' ? 240 : Game.commissionLimit;
   }
 
+  /** Variable-ratio payouts, deterministically hashed from the offer
+   * index: most land ×0.6–×2.4; every so often a ×10 GOLDEN CONTRACT
+   * appears unannounced. Same index, same roll — the sim stays pure. */
+  static commissionPayoutMult(index: number): number {
+    const h = (Math.imul(index + 1, 2654435761) >>> 0) % 1000;
+    if (h < 90) return 10; // GOLDEN — about one offer in eleven
+    return 0.6 + (h / 999) * 1.8;
+  }
+
+  get commissionIsGolden(): boolean {
+    return Game.commissionPayoutMult(this.commissionIndex) >= 10;
+  }
+
   get commissionReward(): number {
-    return 2 * this.haulEquivalent * this.currentFare * this.goalMult;
+    return (
+      2 * this.haulEquivalent * this.currentFare * this.goalMult *
+      Game.commissionPayoutMult(this.commissionIndex)
+    );
   }
 
   acceptCommission(): void {
@@ -892,6 +980,18 @@ export class Game {
     }
 
     for (const id of this.served) {
+      // The stakes law (b65): a platform pinned at capacity starts
+      // SHEDDING demand — riders avoid it (up to −60%) — and recovers
+      // twice as fast once you serve it. The map's red ring now costs.
+      const pinned =
+        this.waitingAt(id) >= this.stationCapAt(id) * 0.999;
+      const pen = this.crowdPenalty.get(id) ?? 0;
+      const nextPen = pinned
+        ? Math.min(0.6, pen + dt / 30)
+        : Math.max(0, pen - dt / 15);
+      if (nextPen > 0 || pen > 0) this.crowdPenalty.set(id, nextPen);
+      const cd = this.reliefCooldown.get(id) ?? 0;
+      if (cd > 0) this.reliefCooldown.set(id, cd - dt);
       const st = this.city.stations.find((s) => s.id === id)!;
       const add =
         st.demand *
@@ -1096,7 +1196,8 @@ export class Game {
 
   // ---- Save (v2 format, version s1) + the v1 offline-earnings law ----
   static readonly offlineEfficiency = 0.5;
-  static readonly maxOfflineSeconds = 8 * 3600;
+  /** b65: 4h cap (was v1's 8h) — the reason to come back before it. */
+  static readonly maxOfflineSeconds = 4 * 3600;
 
   toJson(nowMs: number): Record<string, unknown> {
     const dump = (m: Map<string, number>) => Object.fromEntries(m);
@@ -1132,6 +1233,9 @@ export class Game {
       goalsDoneByTrack: Object.fromEntries(this.goalsDoneByTrack),
       cityId: this.city.id,
       priorGoals: this.priorGoals,
+      streetTeamLevel: this.streetTeamLevel,
+      streakDays: this.streakDays,
+      crowdPenalty: dump(this.crowdPenalty),
       boardedAt: dump(this.boardedAt),
       rushEarnings: this.rushEarnings,
       lastSeenMs: nowMs,
@@ -1220,6 +1324,21 @@ export class Game {
     }
     g.recomputeGoalMult();
     g.rushEarnings = Number(j.rushEarnings ?? 0);
+    g.streetTeamLevel = Number(j.streetTeamLevel ?? 0);
+    for (const [k, v] of Object.entries(
+      (j.crowdPenalty as Record<string, number>) ?? {},
+    )) {
+      g.crowdPenalty.set(k, Number(v));
+    }
+    // Day streak: consecutive UTC days bump it, a missed day resets.
+    {
+      const dayOf = (ms: number) => Math.floor(ms / 86400_000);
+      const lastDay = dayOf(Number(j.lastSeenMs ?? nowMs));
+      const today = dayOf(nowMs);
+      const saved = Number(j.streakDays ?? 1);
+      g.streakDays =
+        today === lastDay ? saved : today === lastDay + 1 ? saved + 1 : 1;
+    }
     const prio = j.stationPriority as string[] | undefined;
     if (prio && STATION_WORKS.every((w) => prio.includes(w.id))) {
       g.stationPriority = prio.filter((t) => STATION_WORKS.some((w) => w.id === t));

@@ -129,8 +129,8 @@ export class Console {
   private spawnFly(anchor: Element, amount: number): void {
     const r = anchor.getBoundingClientRect();
     const fly = document.createElement('div');
-    fly.className = 'flyout';
-    fly.textContent = `−$${fmt(amount)}`;
+    fly.className = amount < 0 ? 'flyout gain' : 'flyout';
+    fly.textContent = amount < 0 ? `+$${fmt(-amount)}` : `−$${fmt(amount)}`;
     fly.style.left = `${r.left + r.width / 2}px`;
     fly.style.top = `${r.top - 4}px`;
     document.body.appendChild(fly);
@@ -255,6 +255,9 @@ export class Console {
       case 'buy-global':
         g.buyGlobals(id, this.buyN());
         break;
+      case 'buy-street':
+        g.buyStreetTeam();
+        break;
       case 'move-on':
         if (this.moveOnArmed) {
           this.onMoveOn?.();
@@ -297,6 +300,18 @@ export class Console {
     }
     if (el.getAttribute('data-act') === 'toggle-works') {
       this.stationWorksOpen = !this.stationWorksOpen;
+      this.cardKey = '';
+      this.renderStation();
+      return;
+    }
+    if (el.getAttribute('data-act') === 'relief') {
+      const sid = el.getAttribute('data-id')!;
+      const pay = this.game.dispatchRelief(sid);
+      if (pay > 0) {
+        sound.collect();
+        this.spawnFly(el, -pay); // shows as a GAIN
+        this.toast(`Relief buses roll — $${fmt(pay)} collected, platform clear`);
+      }
       this.cardKey = '';
       this.renderStation();
       return;
@@ -479,12 +494,18 @@ export class Console {
                 bundle: (n) => g.workBundle(w.id, id, n),
               });
             }).join('');
+        const relief = !this.stationWorksOpen
+          ? `<div class="reliefrow" id="relief-row" hidden>
+              <button class="reliefbtn" data-act="relief" data-id="${id}">
+                DISPATCH RELIEF — <span id="relief-pay">$0</span></button>
+              <span class="reliefnote">clears the platform for instant fares</span></div>`
+          : '';
         this.stationEl.innerHTML = `
           <div class="card-head"><b>${st.name}</b>${bullets}
             <button class="worksbtn" data-act="toggle-works">
               ${this.stationWorksOpen ? '‹ STATS' : 'WORKS ›'}</button>
             <button class="xbtn" data-act="close-station">×</button></div>
-          ${this.stationWorksOpen ? works : tiles}`;
+          ${this.stationWorksOpen ? works : tiles + relief}`;
       }
     }
     if (!served) return;
@@ -509,6 +530,15 @@ export class Console {
       set('st-life', fmt(g.boardedAt.get(id) ?? 0));
       set('st-service', String(trains));
       set('st-works', `${g.worksAt(id)}/${STATION_WORKS.length * Game.foodMax}`);
+      const rrow = document.getElementById('relief-row');
+      if (rrow) {
+        const ready = g.reliefReady(id);
+        rrow.hidden = !ready;
+        if (ready) {
+          const payEl = document.getElementById('relief-pay');
+          if (payEl) payEl.textContent = `$${fmt(g.reliefPayout(id))}`;
+        }
+      }
       const dEl = document.getElementById('st-demand');
       if (dEl) dEl.style.color = rushing ? '#c62828' : '#1a1a1a';
       const wEl = document.getElementById('st-waiting');
@@ -704,7 +734,17 @@ export class Console {
         rows
       );
     }).join('');
-    return this.head('NETWORK') + this.segRow() + sections;
+    const stCost = g.streetTeamCost;
+    const street =
+      `<div class="sect" style="color:#57c785"><span class="sq" style="background:#57c785"></span>STREET TEAM<span class="cnt">L${g.streetTeamLevel} · no cap</span></div>` +
+      `<div class="uprow" style="--cat:#57c785">
+        <div class="uphead"><span class="upname">CITY OUTREACH</span>
+          <span class="uplvl">L${g.streetTeamLevel}</span>
+          <div class="pricecol">
+            <button class="buy" data-act="buy-street" data-cost="${stCost.toFixed(2)}">$${fmt(stCost)}</button>
+            <span class="modecnt">×1</span></div></div>
+        <div class="upsub">canvassers on every corner: <b>+0.5%</b> riders citywide, forever · priced at ≈25s of income</div></div>`;
+    return this.head('NETWORK') + this.segRow() + street + sections;
   }
 
   private lineName(id: string | null): string {
@@ -769,11 +809,12 @@ export class Console {
         <div class="card-row" id="ops-progress">${this.progressText()}</div>
         <div class="pbar"><div class="pfill" id="ops-bar" style="width:${(100 * g.commissionProgress) / g.commissionQuota}%"></div></div>`;
     } else {
-      desk = `<div class="row"><span class="nm">${commissionTypeName(g.commissionType)}</span>
+      const golden = g.commissionIsGolden;
+      desk = `<div class="row${golden ? ' golden' : ''}"><span class="nm">${golden ? '★ GOLDEN · ' : ''}${commissionTypeName(g.commissionType)}</span>
           <span class="meta">${this.lineName(g.commissionLineId)}</span>
-          <span class="nm">pays $${fmt(g.commissionReward)}</span></div>
+          <span class="nm${golden ? ' goldpay' : ''}">pays $${fmt(g.commissionReward)}</span></div>
         <div class="card-row">${this.offerText()}</div>
-        <div class="row"><button data-act="accept-commission">ACCEPT</button>
+        <div class="row"><button data-act="accept-commission"${golden ? ' class="goldbtn"' : ''}>ACCEPT</button>
           <button data-act="skip-commission">SKIP</button>
           <span class="meta">${g.commissionsDone} delivered</span></div>`;
     }
@@ -795,6 +836,7 @@ export class Console {
       chip(`riders ×${g.demandGoalMult.toFixed(2)}`, g.demandGoalMult > 1, '#57c785') +
       chip(`income ×${g.goalMult.toFixed(2)}`, g.goalMult > 1, '#f0a04a') +
       chip(`costs ×${g.buildCostMult.toFixed(2)}`, g.buildCostMult < 1, '#5b8def') +
+      chip(`day ${g.streakDays} streak ×${g.streakMult.toFixed(2)}`, g.streakDays > 1, '#e07a9a') +
       `</div>`;
     const section = (track: GoalTrack): string => {
       const color = TRACK_COLORS[track.id];
@@ -869,6 +911,7 @@ export class Console {
       const prog = document.getElementById('ops-progress');
       if (prog && g.commissionActive) {
         prog.textContent = this.progressText();
+        prog.classList.toggle('urgent', g.commissionTimeLeft < 30);
         const bar = document.getElementById('ops-bar');
         if (bar) {
           bar.style.width = `${Math.min(100, (100 * g.commissionProgress) / g.commissionQuota)}%`;

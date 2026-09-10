@@ -95,3 +95,31 @@ walls 7s->51s+ by hour 6 with lines pacing ~1/hour -- 15/24 lines,
 offline earnings doing the heavy lifting. 36 vitest green
 (milestone test repriced, new unlock-scaling law test, whole-city
 stake raised for x1.6^22).
+
+Build 65 (metro2): THE COMPULSION BUILD. Player's engagement audit
+("once it snowballs it's 1000 monotonous clicks") -- shipped every
+point not already live, all deterministic (index hashes + state, no
+sim RNG): (1) STREET TEAM in NETWORK: uncapped filler priced at
+~25s of the live earn rate (+0.5% riders each) -- a shop is never
+dead. (2) VARIABLE COMMISSIONS: payouts x0.6-2.4 hashed from the
+offer index, with x10 GOLDEN CONTRACTS ~1 in 11 -- gold row, gold
+ACCEPT, wire headline; active-contract timer pulses red under 30s.
+(3) STAKES: a platform pinned at capacity sheds demand (up to -60%,
+recovers 2x faster once served) -- the red ring finally costs money.
+(4) RELIEF DISPATCH: the active verb -- a >=50%-full station card
+grows a glowing button that clears the platform for instant fares
+(90s cooldown, green +$ flyout, toast). (5) DAY STREAK: consecutive
+real days pay +2%/day income (cap +20%), shown on the return card
+("DAY 4 STREAK") and as a goals chip. (6) Offline cap 8h -> 4h (the
+comeback window; law test updated). (7) FEEL: commendations now
+STOP THE SCREEN -- 1.4s full-screen splash (kicker/title/benefit)
+replacing the quiet toast; haptics via navigator.vibrate where the
+platform has it (Android; iOS Safari has no web vibration API).
+(8) CLIFFHANGERS: the wire announces the rush 30s early and breaks
+golden-contract news. Fixed in review: reliefPayout double-counted
+the streak (already inside incomePerRiderAt). 37 vitest green (new
+ENGAGEMENT LAWS suite: payout determinism/spread/golden cadence,
+crowd decay + recovery, filler pricing, relief pay/clear/cooldown,
+streak keep/bump/reset + fare landing). Deferred: push
+notifications (needs installed-PWA service worker), monetization
+(none -- by design).

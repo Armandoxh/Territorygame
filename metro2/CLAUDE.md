@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b64 (the curvy curve — paced for honest 1×)
+## ▶ CURRENT BUILD: v2 · b65 (the compulsion build — stakes, variance, verbs)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:
@@ -16,6 +16,17 @@ scaled ×1.6 per line already owned. The ⏩ fast-forward is a DEBUG
 tool (?dev only); the game is balanced for 1× + offline. Pacing
 validated by the greedy-bot probe: hook buys every ~15s, spree
 minutes 20-90, then growing walls; 15/24 lines at hour 6.
+
+**DESIGN DIVERGENCE (b65, player-directed engagement laws):** all
+deterministic (hashes/state, no RNG): commission payouts vary
+×0.6-×2.4 by index hash with ×10 GOLDEN contracts ~1 in 11;
+platforms pinned at capacity SHED demand (up to −60%, recovers 2×
+faster when served); STREET TEAM is an uncapped filler priced at
+≈25s of live income (+0.5% riders each); RELIEF DISPATCH clears a
+≥50%-full platform for instant fares (90s cooldown); a real-day
+STREAK pays +2%/day income (cap +20%); offline cap is 4h (was
+v1's 8h — the comeback window). Monetization rule (player+audit):
+build the compulsion, never sell relief from it.
 
 **DESIGN DIVERGENCE (b51, player-directed):** v2's goals are FOUR
 PARALLEL TRACKS with typed benefits (GROWTH→ridership mult,

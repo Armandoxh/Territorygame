@@ -123,6 +123,108 @@
         to { filter: none; }
       }
 
+      /* ── Commendation splash: stop the screen for a beat ── */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 15;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(5, 9, 17, 0.55);
+        pointer-events: none;
+      }
+      #splash[hidden] {
+        display: none;
+      }
+      #splash .sp-in {
+        text-align: center;
+        transform: scale(0.8);
+        opacity: 0;
+      }
+      #splash.go .sp-in {
+        animation: spin2 1.4s ease-out forwards;
+      }
+      @keyframes spin2 {
+        0% { transform: scale(0.8); opacity: 0; }
+        14% { transform: scale(1.04); opacity: 1; }
+        22% { transform: scale(1); }
+        78% { opacity: 1; }
+        100% { opacity: 0; }
+      }
+      .sp-k {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.3em;
+        color: #f0b429;
+      }
+      .sp-t {
+        font-size: 30px;
+        font-weight: 800;
+        color: #fff;
+        margin: 6px 0 4px;
+        text-shadow: 0 2px 18px rgba(240, 180, 41, 0.35);
+      }
+      .sp-s {
+        font: 700 13px var(--mono);
+        color: #cfd6e2;
+      }
+
+      /* ── Golden contracts ── */
+      .row.golden {
+        background: rgba(240, 180, 41, 0.08);
+        box-shadow: inset 3px 0 0 #f0b429;
+      }
+      .row.golden .nm {
+        color: #f0b429;
+      }
+      .goldpay {
+        color: #f0b429 !important;
+      }
+      button.goldbtn {
+        background: #f0b429 !important;
+        border-color: #f0b429 !important;
+        color: #231a02 !important;
+      }
+      .card-row.urgent {
+        color: #ff6b62;
+        font-weight: 800;
+        animation: urgentpulse 1s infinite;
+      }
+      @keyframes urgentpulse {
+        50% { opacity: 0.55; }
+      }
+
+      /* ── Relief dispatch ── */
+      .reliefrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px 12px;
+        border-top: 1px solid var(--edge);
+      }
+      .reliefbtn {
+        background: #b93c5d;
+        border: none;
+        color: #fff;
+        font: 800 11.5px Inter, sans-serif;
+        letter-spacing: 0.05em;
+        padding: 11px 14px;
+        min-height: 40px;
+        animation: reliefglow 1.6s infinite;
+      }
+      @keyframes reliefglow {
+        50% { box-shadow: 0 0 14px rgba(224, 58, 47, 0.55); }
+      }
+      .reliefnote {
+        color: var(--dim);
+        font-size: 10px;
+        flex: 1;
+      }
+      .flyout.gain {
+        color: #57c785;
+      }
+
       /* ── The return card: the day-30 front door ── */
       #return-card {
         position: fixed;
@@ -833,5 +935,6 @@
         <button id="rc-collect">COLLECT</button>
       </div>
     </div>
+    <div id="splash" hidden></div>
   </body>
 </html>

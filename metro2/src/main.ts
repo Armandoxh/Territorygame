@@ -132,7 +132,8 @@ if (offlineEarned >= 1) {
     `your network ran for ${fmtDur(offlineSeconds)}`;
   document.getElementById('rc-cash')!.textContent = `+$${cfmtBig(offlineEarned)}`;
   document.getElementById('rc-riders')!.textContent =
-    `${cfmtBig(offlineRiders)} riders carried`;
+    `${cfmtBig(offlineRiders)} riders carried` +
+    (game.streakDays > 1 ? ` · DAY ${game.streakDays} STREAK` : '');
   const rc = document.getElementById('return-card')!;
   ui.holdCashAt(game.cash - offlineEarned);
   rc.hidden = false;
@@ -170,7 +171,7 @@ function watchSeqs(): void {
         : game.lastGoalBenefit === 'riders'
           ? `ridership ×${game.lastGoalReward}`
           : `build costs ×${game.lastGoalReward}`;
-    ui.toast(`COMMENDATION · ${game.lastGoalName} — ${what} forever`);
+    splash('COMMENDATION', game.lastGoalName, `${what} — forever`);
     sound.chime();
   }
   if (game.commissionSeq !== seenCommSeq) {
@@ -180,7 +181,24 @@ function watchSeqs(): void {
         ? 'COMMISSION DELIVERED — city hall pays out'
         : 'Commission expired — the desk moves on',
     );
+    if (game.lastCommissionWon) sound.buy();
   }
+}
+
+/** The half-second full-screen beat a commendation deserves. */
+let splashTimer = 0;
+function splash(kicker: string, title: string, sub: string): void {
+  const el = document.getElementById('splash')!;
+  el.innerHTML = `<div class="sp-in"><div class="sp-k">${kicker}</div>
+    <div class="sp-t">${title}</div><div class="sp-s">${sub}</div></div>`;
+  el.hidden = false;
+  el.classList.remove('go');
+  void el.offsetWidth;
+  el.classList.add('go');
+  clearTimeout(splashTimer);
+  splashTimer = window.setTimeout(() => {
+    el.hidden = true;
+  }, 1400);
 }
 
 // Tap (not drag) picks a station.

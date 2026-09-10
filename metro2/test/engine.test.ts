@@ -98,7 +98,7 @@ describe('the ported core', () => {
     expect(g.buyTrain('A')).toBe(false); // locked line sells no trains
   });
 
-  test('saves round-trip and the offline law pays 50%, capped at 8h', () => {
+  test('saves round-trip and the offline law pays 50%, capped at 4h (b65)', () => {
     const g = run(300, (s) => {
       s.cash = 1e6;
       s.buyLine(city.lines[1].id);
@@ -120,9 +120,9 @@ describe('the ported core', () => {
     // Away for an hour: half the live rate.
     const hour = Game.fromJson(city, j, 1_000_000 + 3600_000);
     expect(hour.offlineEarned).toBeCloseTo(g.avgRate * 3600 * 0.5, 3);
-    // Away for a week: capped at 8 hours.
+    // Away for a week: capped at 4 hours (b65 — the comeback window).
     const week = Game.fromJson(city, j, 1_000_000 + 7 * 24 * 3600_000);
-    expect(week.offlineEarned).toBeCloseTo(g.avgRate * 8 * 3600 * 0.5, 3);
+    expect(week.offlineEarned).toBeCloseTo(g.avgRate * 4 * 3600 * 0.5, 3);
     // And the restored world keeps running.
     const before = hour.game.totalEarned;
     for (let i = 0; i < 600; i++) hour.game.tick(0.1);
@@ -139,6 +139,73 @@ describe('the ported core', () => {
     expect(hour.offlineRiders).toBeCloseTo(g.avgRiders * 3600 * 0.5, 3);
     expect(hour.game.totalRiders).toBeCloseTo(
       g.totalRiders + hour.offlineRiders, 3);
+  });
+
+  test('ENGAGEMENT LAWS (b65): variable contracts, decay, filler, relief, streak', () => {
+    // Variable-ratio commissions: deterministic per index, spread out,
+    // with GOLDEN (×10) contracts appearing at a real cadence.
+    const mults = Array.from({ length: 200 }, (_, i) => Game.commissionPayoutMult(i));
+    expect(mults).toEqual(Array.from({ length: 200 }, (_, i) => Game.commissionPayoutMult(i)));
+    const golden = mults.filter((m) => m >= 10).length;
+    expect(golden).toBeGreaterThanOrEqual(8);
+    expect(golden).toBeLessThanOrEqual(40);
+    for (const m of mults) {
+      expect(m === 10 || (m >= 0.6 && m <= 2.4)).toBe(true);
+    }
+    const spread = new Set(mults.map((m) => m.toFixed(2)));
+    expect(spread.size).toBeGreaterThan(50); // payouts genuinely vary
+
+    // Crowding DECAY: a pinned platform sheds demand, then recovers.
+    const g = new Game(city);
+    const stop = g.city.lines[0].stationIds[3];
+    g.waitingUp.set(stop, g.stationCapAt(stop));
+    const before = g.demandMultAt(stop);
+    for (let i = 0; i < 400; i++) {
+      g.waitingUp.set(stop, g.stationCapAt(stop)); // hold it pinned
+      g.tick(0.05);
+    }
+    expect(g.crowdPenalty.get(stop)!).toBeGreaterThan(0.5);
+    expect(g.demandMultAt(stop)).toBeLessThan(before * 0.5);
+    g.waitingUp.set(stop, 0); // serve it; recovery is 2× faster
+    for (let i = 0; i < 400; i++) g.tick(0.05);
+    expect(g.crowdPenalty.get(stop)!).toBeLessThan(0.01);
+
+    // STREET TEAM filler: always priced ≈25s of the live rate.
+    g.avgRate = 100;
+    expect(g.streetTeamCost).toBeCloseTo(2500, 6);
+    g.cash = 2500;
+    const dm = g.demandMultAt(stop);
+    expect(g.buyStreetTeam()).toBe(true);
+    expect(g.cash).toBeCloseTo(0, 6);
+    expect(g.streetTeamLevel).toBe(1);
+    expect(g.demandMultAt(stop)).toBeCloseTo(dm * 1.005, 9);
+
+    // RELIEF DISPATCH: crowded platform pays out and clears, then
+    // cools down for 90s.
+    const cap = g.stationCapAt(stop);
+    g.waitingUp.set(stop, cap * 0.8);
+    g.waitingDown.set(stop, 0); // the decay phase left down-riders here
+    expect(g.reliefReady(stop)).toBe(true);
+    const pay = g.dispatchRelief(stop);
+    expect(pay).toBeCloseTo(cap * 0.8 * g.incomePerRiderAt(stop), 4);
+    expect(g.waitingAt(stop)).toBe(0);
+    g.waitingUp.set(stop, cap * 0.8);
+    expect(g.reliefReady(stop)).toBe(false); // cooldown holds
+    expect(g.dispatchRelief(stop)).toBe(0);
+
+    // DAY STREAK: same day keeps it, next day bumps it, a gap resets;
+    // the bonus lands on every fare.
+    const day = 86_400_000;
+    const j = JSON.parse(JSON.stringify(g.toJson(10 * day + 1000)));
+    expect(Game.fromJson(city, j, 10 * day + 2000).game.streakDays).toBe(1);
+    const bumped = Game.fromJson(city, j, 11 * day + 2000).game;
+    expect(bumped.streakDays).toBe(2);
+    expect(bumped.streakMult).toBeCloseTo(1.02, 9);
+    expect(Game.fromJson(city, j, 14 * day).game.streakDays).toBe(1);
+    const j2 = JSON.parse(JSON.stringify(bumped.toJson(11 * day + 3000)));
+    expect(Game.fromJson(city, j2, 12 * day).game.streakDays).toBe(3);
+    const plainFare = new Game(city).incomePerRiderAt(stop);
+    expect(bumped.incomePerRiderAt(stop)).toBeCloseTo(plainFare * 1.02, 9);
   });
 
   test('UPGRADES WORK: each line-1 upgrade measurably raises earnings', () => {
