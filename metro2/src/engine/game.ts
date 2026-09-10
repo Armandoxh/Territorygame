@@ -33,9 +33,9 @@ export class Game {
   static readonly rushPeriod = 180;
   static readonly rushWindow = 45;
   static readonly rushMult = 2.5;
-  /** Line upgrades climb to 100 (b54): shallow per-level gains on a
-   * long ×1.14 cost curve, with MILESTONES at 10/25/50/100 that each
-   * DOUBLE the line's income. Deep, slow, rewarding. */
+  /** Line upgrades climb to 100 (b54, repriced b64): shallow per-level
+   * gains on a ×1.25 cost curve, with MILESTONES at 10/25/50/100 that
+   * each pay ×1.5 line income. Deep, slow, rewarding. */
   static readonly levelMax = 100;
   static readonly milestoneLevels = [10, 25, 50, 100];
   static readonly foodMax = 5; // max level for every station work
@@ -347,7 +347,7 @@ export class Game {
 
   /** Every milestone DOUBLES this line's income at the fare gate. */
   lineMilestoneMult(id: string): number {
-    return Math.pow(2, this.lineMilestoneCount(id));
+    return Math.pow(1.5, this.lineMilestoneCount(id));
   }
 
   lineUpgradeLevel(kind: LineUpgradeKind, id: string): number {
@@ -363,9 +363,9 @@ export class Game {
     const base = this.upgradeBase(this.lineById(id));
     const factor =
       kind === 'speed' ? 1 : kind === 'cars' ? 1.2 : kind === 'access' ? 1.5 : 1.4;
-    // A long, steady climb (~×3.7 by L10, ~×700 by L50, ~×500K by
-    // L100) — the slow burn the milestones pay off.
-    return base * factor * Math.pow(1.14, level);
+    // b64 (player-directed): ×1.25/level — ~×9 by L10, ~×70K by L50.
+    // Steep enough that milestones are CLIMBS, not speed bumps.
+    return base * factor * Math.pow(1.25, level);
   }
 
   lineUpgradeBundle(kind: LineUpgradeKind, id: string, n: number) {
@@ -1050,13 +1050,20 @@ export class Game {
     return { lineId: line.id, distance, direction, dwell: 0, target };
   }
 
+  /** What THIS line costs to open right now — the map price scaled
+   * ×1.6 per line the empire already runs (b64 pacing law). */
+  lineUnlockCost(lineId: string): number {
+    const owned = this.city.lines.filter((l) => this.isUnlocked(l.id)).length;
+    return this.lineById(lineId).unlockCost * Math.pow(1.6, Math.max(0, owned - 1));
+  }
+
   buyLine(lineId: string): boolean {
-    const line = this.lineById(lineId);
-    if (this.isUnlocked(lineId) || this.cash < line.unlockCost) return false;
-    this.cash -= line.unlockCost;
+    const cost = this.lineUnlockCost(lineId);
+    if (this.isUnlocked(lineId) || this.cash < cost) return false;
+    this.cash -= cost;
     this.unlockedLineIds.add(lineId);
     this.recomputeServed();
-    this.trains.push(this.spawnTrain(line));
+    this.trains.push(this.spawnTrain(this.lineById(lineId)));
     this.unlockSeq += 1;
     this.lastUnlockedLineId = lineId;
     return true;

@@ -10,7 +10,7 @@ tests, and deploys each game to GitHub Pages on every push.
 
 | Game | Where | Live URL | Version | State |
 |---|---|---|---|---|
-| **Metro Magnate v2** | `metro2/` | armandoxh.github.io/Territorygame/metro2/ | v2 · b63 | **Active** — map-only diagram renderer, dark player-mockup chrome, four parallel goal tracks, L100 line upgrades with ⚡ milestones, ONE UpgradeRow across every shop, and THE CITY LADDER: finish all four goal tracks in New Meridian, move on to Angel Bay (×10 costs, ×8 fares, commendations carry) |
+| **Metro Magnate v2** | `metro2/` | armandoxh.github.io/Territorygame/metro2/ | v2 · b64 | **Active** — map-only diagram renderer, dark player-mockup chrome, four parallel goal tracks, L100 line upgrades with ⚡ milestones, ONE UpgradeRow across every shop, and THE CITY LADDER: finish all four goal tracks in New Meridian, move on to Angel Bay (×10 costs, ×8 fares, commendations carry) |
 | **Metro Magnate** (v1, frozen trunk) | `metro/` | armandoxh.github.io/Territorygame/metro/ | v0.17.0 · build 37 | **Active** — NEW MERIDIAN XL live with the four-tab console; OPS runs five rotating contract types; 22-rung mastery goal ladder |
 | **Scratch Empire** | `scratch/` | …/Territorygame/scratch/ | v0.1.0 · build 6 | Parked, green — v0.1 complete (true scratch reveal, EV-positive economy). Open: iPhone web haptics unverified (test panel shipped, awaiting device check) |
 | **WealthQuest** | `wealthquest/` | …/Territorygame/wealthquest/ | v0.50.0 · build 125 | Parked — deep sim, honest accounting. Audited: engine sound, balance fails own scorecard (bankruptcy spiral, crypto tail, crisis drag). Fix list in the audit (chat log) |

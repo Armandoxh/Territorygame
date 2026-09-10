@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b63 (honest prices — the button sells what you can buy)
+## ▶ CURRENT BUILD: v2 · b64 (the curvy curve — paced for honest 1×)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:
@@ -8,10 +8,14 @@ ceiling: "V2 needs to be on a better graphics engine." Stack:
 `.github/workflows/metro2-web.yml` to
 https://armandoxh.github.io/Territorygame/metro2/.
 
-**DESIGN DIVERGENCE (b54, player-directed):** line-upgrade
-progression is v2's own: L100 caps, ×1.14 cost curve, shallow
-per-level effects, and milestones at 10/25/50/100 that each DOUBLE
-the line's income (+1 visible train car, max 5). v1 curves retired.
+**DESIGN DIVERGENCE (b54, repriced b64 — both player-directed):**
+line-upgrade progression is v2's own: L100 caps, ×1.25 cost curve,
+shallow per-level effects, milestones at 10/25/50/100 paying ×1.5
+line income each (+1 visible train car, max 5), and LINE UNLOCKS
+scaled ×1.6 per line already owned. The ⏩ fast-forward is a DEBUG
+tool (?dev only); the game is balanced for 1× + offline. Pacing
+validated by the greedy-bot probe: hook buys every ~15s, spree
+minutes 20-90, then growing walls; 15/24 lines at hour 6.
 
 **DESIGN DIVERGENCE (b51, player-directed):** v2's goals are FOUR
 PARALLEL TRACKS with typed benefits (GROWTH→ridership mult,

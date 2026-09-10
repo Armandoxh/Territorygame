@@ -65,6 +65,11 @@ export function benefitLabel(b: GoalBenefit, reward: number): string {
   return `build costs ×${reward}`;
 }
 
+/** Milestone multiplier printer: ×1, ×1.5, ×2.25, ×11.4… */
+function fmtMult(v: number): string {
+  return v >= 10 ? v.toFixed(0) : v.toFixed(2).replace(/\.?0+$/, '');
+}
+
 function fmt(v: number): string {
   if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
   if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
@@ -411,7 +416,7 @@ export class Console {
     }
     const near =
       o.nextMilestone != null && o.nextMilestone - o.level <= 7
-        ? ` <span class="upnext">⚡×2 @L${o.nextMilestone}</span>`
+        ? ` <span class="upnext">⚡×1.5 @L${o.nextMilestone}</span>`
         : '';
     return `<div class="uprow" style="--cat:${cat}">
       <div class="uphead">${pri}<span class="upname">${o.name}</span>
@@ -542,10 +547,11 @@ export class Console {
       .map((l) => {
         const bullet = `<span class="bullet" style="background:${l.color}">${l.bullet}</span>`;
         if (!g.isUnlocked(l.id)) {
+          const open = g.lineUnlockCost(l.id);
           return `<div class="row locked">${bullet}<span class="nm">${l.name}</span>
             <span class="meta">${l.stationIds.length} stops</span>
-            <button data-act="buy-line" data-id="${l.id}" data-cost="${l.unlockCost}">
-              OPEN · $${fmt(l.unlockCost)}</button></div>`;
+            <button data-act="buy-line" data-id="${l.id}" data-cost="${open}">
+              OPEN · $${fmt(open)}</button></div>`;
         }
         const n = g.trainCount(l.id);
         const lv =
@@ -599,7 +605,7 @@ export class Console {
       body =
         `<div class="row"><span class="meta">${l.stationIds.length} stops · ${g.trainCount(id)} train${g.trainCount(id) === 1 ? '' : 's'}</span>
           <button class="buy" data-act="buy-train" data-cost="${trainCost}">+TRAIN · $${fmt(trainCost)}</button></div>` +
-        `<div class="sect">LINE BONUS ×${bonus} · each ⚡ doubles income here, +1 car</div>` +
+        `<div class="sect">LINE BONUS ×${fmtMult(bonus)} · each ⚡ pays ×1.5 income here, +1 car</div>` +
         up('speed', 'SPEED', arrow('speed', 'speed', spd.toFixed(1), (spd + Game.baseSpeed * 0.04 * sig).toFixed(1), (Game.baseSpeed * 5 * sig).toFixed(0))) +
         up('cars', 'CARS', arrow('cars', 'per stop', cap.toFixed(0), (cap + 2).toFixed(0), '222')) +
         up('access', 'ACCESS', arrow('access', 'riders', `+${acc}%`, `+${acc + 3}%`, '+300%')) +
@@ -917,8 +923,14 @@ export class Console {
         btn.textContent = `$${fmt(ladder[Math.max(k - 1, 0)])}`;
         const cnt = btn.parentElement?.querySelector('.modecnt');
         if (cnt) {
-          cnt.textContent =
-            this.buyMode === 99 ? (can ? `MAX ×${k}` : '×0') : `×${k}`;
+          if (!can && this.game.avgRate > 0.01) {
+            // Anticipation timer: how long until the first level lands.
+            const wait = (ladder[0] - cash) / this.game.avgRate;
+            cnt.textContent = wait < 5940 ? `in ${mmss(wait)}` : 'later';
+          } else {
+            cnt.textContent =
+              this.buyMode === 99 ? (can ? `MAX ×${k}` : '×0') : `×${k}`;
+          }
         }
       } else {
         const cost = Number(btn.getAttribute('data-cost'));

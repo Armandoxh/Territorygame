@@ -51,12 +51,17 @@ if (showcase) {
   if (params.has('t')) game.rushClock = Number(params.get('t'));
 }
 let simSpeed = Number(params.get('speed') ?? (showcase ? '3' : '1'));
-// v1's ⏩ fast-forward: exact physics, compressed time.
+// The ⏩ is a DEBUG tool (player's call, b64): visible only with ?dev.
+// The game is balanced for honest 1× + offline earnings.
 const speedBtn = document.getElementById('btn-speed') as HTMLButtonElement;
-speedBtn.addEventListener('click', () => {
-  simSpeed = simSpeed >= 10 ? 1 : 10;
-  speedBtn.textContent = simSpeed >= 10 ? '⏩ 10×' : '⏩ 1×';
-});
+if (params.has('dev')) {
+  speedBtn.addEventListener('click', () => {
+    simSpeed = simSpeed >= 10 ? 1 : 10;
+    speedBtn.textContent = simSpeed >= 10 ? '⏩ 10×' : '⏩ 1×';
+  });
+} else {
+  speedBtn.hidden = true;
+}
 
 
 // iOS Safari zooms the PAGE on double-tap and pinch even with

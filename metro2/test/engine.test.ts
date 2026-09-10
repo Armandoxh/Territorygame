@@ -149,12 +149,29 @@ describe('the ported core', () => {
     const bigger = run(240, (g) => g.carLevels.set('1', 24)).totalEarned;
     const access = run(240, (g) => g.accessLevels.set('1', 24)).totalEarned;
     const sets = run(240, (g) => g.trainsetLevels.set('1', 24)).totalEarned;
-    // One L10 milestone is inside all runs, so compare against that
-    // shared floor: strip it by requiring margins above ×2.
-    expect(faster).toBeGreaterThan(base * 2 * 1.08);
-    expect(bigger).toBeGreaterThan(base * 2 * 1.1);
-    expect(access).toBeGreaterThan(base * 2 * 1.04);
-    expect(sets).toBeGreaterThan(base * 2 * 1.03);
+    // One L10 milestone (×1.5, b64) is inside all runs, so compare
+    // against that shared floor: margins above ×1.5.
+    expect(faster).toBeGreaterThan(base * 1.5 * 1.08);
+    expect(bigger).toBeGreaterThan(base * 1.5 * 1.1);
+    expect(access).toBeGreaterThan(base * 1.5 * 1.04);
+    expect(sets).toBeGreaterThan(base * 1.5 * 1.03);
+  });
+
+  test('line unlocks scale ×1.6 per owned line (b64 pacing law)', () => {
+    const g = new Game(city);
+    const second = city.lines[1];
+    const third = city.lines[2];
+    expect(g.lineUnlockCost(second.id)).toBeCloseTo(second.unlockCost, 6);
+    g.cash = second.unlockCost;
+    expect(g.buyLine(second.id)).toBe(true); // first expansion at map price
+    expect(g.lineUnlockCost(third.id)).toBeCloseTo(third.unlockCost * 1.6, 6);
+    g.cash = third.unlockCost * 1.6 - 1;
+    expect(g.buyLine(third.id)).toBe(false); // the display IS the charge
+    g.cash = third.unlockCost * 1.6;
+    expect(g.buyLine(third.id)).toBe(true);
+    // Three owned: the next one costs ×1.6².
+    expect(g.lineUnlockCost(city.lines[3].id)).toBeCloseTo(
+      city.lines[3].unlockCost * 1.6 * 1.6, 6);
   });
 
   test('the displayed price IS the charged price at every level (b59 bug)', () => {
@@ -189,23 +206,23 @@ describe('the ported core', () => {
     }
   });
 
-  test('MILESTONES: every 10/25/50/100 doubles the line income', () => {
+  test('MILESTONES: every 10/25/50/100 pays ×1.5 line income (b64)', () => {
     const g = new Game(city);
     expect(g.lineMilestoneMult('1')).toBe(1);
     g.speedLevels.set('1', 10);
     expect(g.milestonesFor('speed', '1')).toBe(1);
     expect(g.nextMilestone('speed', '1')).toBe(25);
-    expect(g.lineMilestoneMult('1')).toBe(2);
+    expect(g.lineMilestoneMult('1')).toBe(1.5);
     g.carLevels.set('1', 25);
-    expect(g.lineMilestoneMult('1')).toBe(8); // 1 + 2 milestones -> 2^3
+    expect(g.lineMilestoneMult('1')).toBeCloseTo(Math.pow(1.5, 3), 9);
     g.accessLevels.set('1', 100);
     expect(g.milestonesFor('access', '1')).toBe(4);
     expect(g.nextMilestone('access', '1')).toBeNull();
-    expect(g.lineMilestoneMult('1')).toBe(Math.pow(2, 7));
-    // And it lands at the fare gate: same physics, doubled money.
+    expect(g.lineMilestoneMult('1')).toBeCloseTo(Math.pow(1.5, 7), 9);
+    // And it lands at the fare gate: same physics, ×1.5 money.
     const plain = run(120).totalEarned;
     const stoned = run(120, (s) => s.trainsetLevels.set('1', 10)).totalEarned;
-    expect(stoned).toBeGreaterThan(plain * 1.9);
+    expect(stoned).toBeGreaterThan(plain * 1.4);
   });
 
   test('NETWORK upgrades pay (v1 bounds), utilities change what they claim', () => {
@@ -362,7 +379,9 @@ describe('the ported core', () => {
 
   test('every track completes and the benefits multiply out exactly', () => {
     const g = new Game(city);
-    g.cash = 1e12;
+    // b64 unlock scaling: the 24th line costs ×1.6²² its map price,
+    // so the whole-city stake is bigger now.
+    g.cash = 1e15;
     for (const line of city.lines) g.buyLine(line.id);
     for (let i = 0; i < 30; i++) g.buyTrain('1');
     g.totalRiders = 100_000_000;

@@ -73,3 +73,25 @@ the affordable count (buyMany law); now the label matches it
 exactly. Probed at the reported state: $10.5K x10 -> "$8.8K x9"
 lit, buy lands L6->L15, then "$1.8K x0" unlit; MAX with $2.6K ->
 "$1.6K MAX x2" / "$938 MAX x1" / SPEED unlit x0. 35 vitest green.
+
+Build 64 (metro2): THE CURVY CURVE. Player: "almost too fast now,
+in 10x it takes 3 minutes until I can buy anything -- can the curve
+be more curvy and addictive?" -- reversing b61's leave-it call. And
+the load-bearing answer from AskUserQuestion: "the 10x is really
+for my debugging" -- so the SPEED TOGGLE IS A DEV TOOL now (hidden
+unless ?dev; ?speed= still works for probes) and the game balances
+for honest 1x + offline. The validated dials from the b61 sims,
+now shipped: line-upgrade curve x1.14 -> x1.25 per level;
+milestones pay x1.5 (was x2 -- the stacking that beat every price
+curve); line unlocks scale x1.6 per owned line (lineUnlockCost,
+displayed AND charged -- expansion order is now a real choice).
+Plus the anticipation timer: a row you can't afford shows a live
+"in 2:45" countdown (cost gap / earn rate) instead of a dead x0.
+Copy updated (each lightning pays x1.5), fmtMult for 1.5^n
+bonuses. Greedy-bot pace probe on the shipped engine: buys every
+~15s in the opening, spree minutes 20-90 (the honeymoon), then
+walls 7s->51s+ by hour 6 with lines pacing ~1/hour -- 15/24 lines,
+39% of levels at 6h; Angel Bay sits weeks out at casual pace with
+offline earnings doing the heavy lifting. 36 vitest green
+(milestone test repriced, new unlock-scaling law test, whole-city
+stake raised for x1.6^22).
