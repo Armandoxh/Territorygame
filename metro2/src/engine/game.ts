@@ -99,6 +99,8 @@ export class Game {
   // ---- City goals: FOUR PARALLEL TRACKS, each with its own benefit
   // (player-directed redesign, b51 — v1's single ladder retired) ----
   readonly goalsDoneByTrack = new Map<string, number>();
+  /** Commendations banked in cities already left — they compound too. */
+  priorGoals: Record<string, Record<string, number>> = {};
   private _incomeGoalMult = 1;
   private _demandGoalMult = 1;
   private _buildCostMult = 1;
@@ -677,8 +679,13 @@ export class Game {
     return this.goalsDoneByTrack.get(trackId) ?? 0;
   }
 
+  /** This city's four tracks (each city has its own targets). */
+  get tracks(): GoalTrack[] {
+    return goalTracksFor(this.city.id);
+  }
+
   trackCurrentGoal(trackId: string): GoalDef | null {
-    const track = GOAL_TRACKS.find((t) => t.id === trackId)!;
+    const track = this.tracks.find((t) => t.id === trackId)!;
     const done = this.trackDone(trackId);
     return done < track.goals.length ? track.goals[done] : null;
   }
@@ -710,22 +717,64 @@ export class Game {
     this._incomeGoalMult = 1;
     this._demandGoalMult = 1;
     this._buildCostMult = 1;
-    for (const track of GOAL_TRACKS) {
-      const done = this.trackDone(track.id);
-      for (let i = 0; i < done && i < track.goals.length; i++) {
-        const r = track.goals[i].reward;
-        if (track.benefit === 'income') this._incomeGoalMult *= r;
-        else if (track.benefit === 'riders') this._demandGoalMult *= r;
-        else this._buildCostMult *= r;
+    const fold = (tracks: GoalTrack[], done: (trackId: string) => number) => {
+      for (const track of tracks) {
+        const n = done(track.id);
+        for (let i = 0; i < n && i < track.goals.length; i++) {
+          const r = track.goals[i].reward;
+          if (track.benefit === 'income') this._incomeGoalMult *= r;
+          else if (track.benefit === 'riders') this._demandGoalMult *= r;
+          else this._buildCostMult *= r;
+        }
       }
+    };
+    // Every commendation from every city carries (the v1 moveOn law).
+    for (const [cityId, done] of Object.entries(this.priorGoals)) {
+      fold(goalTracksFor(cityId), (t) => done[t] ?? 0);
     }
+    fold(this.tracks, (t) => this.trackDone(t));
+  }
+
+  // ---- The city ladder (M3c): finish every track, move on ----
+  get nextCityId(): string | null {
+    const idx = CITY_LADDER.indexOf(this.city.id);
+    return idx >= 0 && idx + 1 < CITY_LADDER.length ? CITY_LADDER[idx + 1] : null;
+  }
+
+  /** True once ALL FOUR tracks are complete and another city awaits. */
+  get canMoveOn(): boolean {
+    return (
+      this.nextCityId !== null &&
+      this.tracks.every((t) => this.trackCurrentGoal(t.id) === null)
+    );
+  }
+
+  /** Hand the keys over: cash, lifetime stats, and every commendation
+   * carry; the network starts fresh at the new city's higher stakes.
+   * The caller supplies the next city's def and swaps the world in. */
+  moveOn(next: CityDef): Game {
+    if (!this.canMoveOn || next.id !== this.nextCityId) {
+      throw new Error(`cannot move on to ${next.id}`);
+    }
+    const g = new Game(next);
+    g.cash = this.cash;
+    g.totalEarned = this.totalEarned;
+    g.totalRiders = this.totalRiders;
+    g.avgRate = this.avgRate;
+    g.rushEarnings = this.rushEarnings;
+    g.priorGoals = {
+      ...this.priorGoals,
+      [this.city.id]: Object.fromEntries(this.goalsDoneByTrack),
+    };
+    g.recomputeGoalMult();
+    return g;
   }
 
   /** The track nearest its next commendation — the header strip. */
   get bestTrack(): { track: GoalTrack; goal: GoalDef | null; progress: number } {
-    let best = GOAL_TRACKS[0];
+    let best = this.tracks[0];
     let bestP = -1;
-    for (const track of GOAL_TRACKS) {
+    for (const track of this.tracks) {
       const p = this.trackProgress(track.id);
       const goal = this.trackCurrentGoal(track.id);
       if (goal && p > bestP) {
@@ -804,7 +853,7 @@ export class Game {
   }
 
   private checkGoals(): void {
-    for (const track of GOAL_TRACKS) {
+    for (const track of this.tracks) {
       for (;;) {
         const goal = this.trackCurrentGoal(track.id);
         if (!goal || this.goalValue(goal.kind) < goal.target) break;
@@ -1037,7 +1086,7 @@ export class Game {
   toJson(nowMs: number): Record<string, unknown> {
     const dump = (m: Map<string, number>) => Object.fromEntries(m);
     return {
-      v2s: 4,
+      v2s: 5,
       cash: this.cash,
       totalEarned: this.totalEarned,
       totalRiders: this.totalRiders,
@@ -1065,6 +1114,8 @@ export class Game {
       commissionProgress: this.commissionProgress,
       commissionTimeLeft: this.commissionTimeLeft,
       goalsDoneByTrack: Object.fromEntries(this.goalsDoneByTrack),
+      cityId: this.city.id,
+      priorGoals: this.priorGoals,
       boardedAt: dump(this.boardedAt),
       rushEarnings: this.rushEarnings,
       lastSeenMs: nowMs,
@@ -1137,11 +1188,18 @@ export class Game {
     g.commissionProgress = Number(j.commissionProgress ?? 0);
     g.commissionTimeLeft = Number(j.commissionTimeLeft ?? 0);
     // v2s4 tracks; older saves simply re-complete their tracks from
-    // lifetime counters on the first tick.
+    // lifetime counters on the first tick. v2s5 adds prior-city banks.
     for (const [k, v] of Object.entries(
       (j.goalsDoneByTrack as Record<string, number>) ?? {},
     )) {
-      if (GOAL_TRACKS.some((t) => t.id === k)) g.goalsDoneByTrack.set(k, Number(v));
+      if (g.tracks.some((t) => t.id === k)) g.goalsDoneByTrack.set(k, Number(v));
+    }
+    for (const [cityId, done] of Object.entries(
+      (j.priorGoals as Record<string, Record<string, number>>) ?? {},
+    )) {
+      if (CITY_LADDER.includes(cityId) && cityId !== g.city.id) {
+        g.priorGoals[cityId] = { ...done };
+      }
     }
     g.recomputeGoalMult();
     g.rushEarnings = Number(j.rushEarnings ?? 0);
@@ -1300,6 +1358,67 @@ export const GOAL_TRACKS: GoalTrack[] = [
     ],
   },
 ];
+
+/** Angel Bay's four tracks — the second rung of the city ladder.
+ * Lifetime kinds (riders/earned/rushEarned) target ABOVE New
+ * Meridian's finals since those counters carry across the move;
+ * network kinds start fresh with the fresh network. */
+export const ANGEL_BAY_TRACKS: GoalTrack[] = [
+  {
+    id: 'growth', name: 'GROWTH', benefit: 'riders',
+    blurb: 'ridership boosts',
+    goals: [
+      g('BAY COMMUTERS', 'riders', 150000000, 1.15),
+      g('HARBOR CROWDS', 'riders', 400000000, 1.2),
+      g('MILLIONS DAILY', 'riders', 1000000000, 1.2),
+      g('COAST THAT RIDES', 'riders', 3000000000, 1.25),
+      g('ALL OF ANGEL BAY', 'riders', 10000000000, 1.3),
+    ],
+  },
+  {
+    id: 'profit', name: 'PROFIT', benefit: 'income',
+    blurb: 'fare boosts',
+    goals: [
+      g('BAY LEDGER', 'earned', 5000000000, 1.25),
+      g('TEN BILLION', 'earned', 10000000000, 1.3),
+      g('HARBOR FORTUNE', 'earned', 50000000000, 1.3),
+      g('QUARTER TRILLION', 'earned', 250000000000, 1.4),
+      g('ANGEL BAY COMPLETE', 'earned', 1000000000000, 1.5),
+    ],
+  },
+  {
+    id: 'expansion', name: 'EXPANSION', benefit: 'build',
+    blurb: 'build discounts',
+    goals: [
+      g('WEST SHORE OPENS', 'lines', 2, 0.97),
+      g('THE NARROWS', 'lines', 3, 0.95),
+      g('SIX TRAINS', 'trains', 6, 0.95),
+      g('FIVE ROUTES', 'lines', 5, 0.95),
+      g('BAY FLEET', 'trains', 15, 0.95),
+      g('SEVEN ROUTES', 'lines', 7, 0.93),
+      g('EVERY LINE', 'lines', 9, 0.93),
+    ],
+  },
+  {
+    id: 'mastery', name: 'MASTERY', benefit: 'income',
+    blurb: 'income boosts',
+    goals: [
+      g('BAY CONTRACTOR', 'commissions', 5, 1.2),
+      g('HARBOR WORKS', 'works', 30, 1.2),
+      g('BAY RUSH BARON', 'rushEarned', 50000000, 1.25),
+      g('TUNED HARBOR', 'lineUpgrades', 80, 1.25),
+      g('MASTER OF THE BAY', 'works', 120, 1.3),
+      g('FULL BAY SERVICE', 'lineUpgrades', 200, 1.4),
+    ],
+  },
+];
+
+/** The city ladder, in order. moveOn() walks it left to right. */
+export const CITY_LADDER = ['new_meridian', 'angel_bay'];
+
+export function goalTracksFor(cityId: string): GoalTrack[] {
+  return cityId === 'angel_bay' ? ANGEL_BAY_TRACKS : GOAL_TRACKS;
+}
 
 export type LineUpgradeKind = 'speed' | 'cars' | 'access' | 'trainset';
 export const LINE_UPGRADE_KINDS: LineUpgradeKind[] = [

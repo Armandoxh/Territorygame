@@ -7,21 +7,20 @@
  * orbit). Other knobs: ?t=<sec>, ?speed=<mult>, ?nobloom, ?fixed,
  * ?reset wipes the save.
  */
-import { CityDef } from './engine/city';
 import { Game } from './engine/game';
 import { CityScene } from './render/scene';
 import { Console } from './ui/console';
-import cityJson from './data/new_meridian.json';
+import { CITIES, cityById } from './data/cities';
 
 const params = new URLSearchParams(location.search);
-const city = cityJson as CityDef;
 const showcase = params.has('showcase');
 const SAVE_KEY = 'metro2_save';
 
 let game: Game;
 let offlineEarned = 0;
 if (showcase) {
-  game = Game.showcase(city, 2);
+  // ?showcase=angel_bay demos any city on the ladder.
+  game = Game.showcase(cityById(params.get('showcase') ?? undefined), 2);
   game.rushClock = Number(params.get('t') ?? '40');
 } else {
   if (params.has('reset')) localStorage.removeItem(SAVE_KEY);
@@ -33,14 +32,15 @@ if (showcase) {
   }
   if (raw) {
     try {
-      const r = Game.fromJson(city, JSON.parse(raw), Date.now());
+      const j = JSON.parse(raw) as Record<string, unknown>;
+      const r = Game.fromJson(cityById(j.cityId as string | undefined), j, Date.now());
       game = r.game;
       offlineEarned = r.offlineEarned;
     } catch {
-      game = new Game(city);
+      game = new Game(CITIES[0]);
     }
   } else {
-    game = new Game(city);
+    game = new Game(CITIES[0]);
   }
   if (params.has('t')) game.rushClock = Number(params.get('t'));
 }
@@ -73,9 +73,24 @@ canvas.addEventListener(
   },
   { passive: false },
 );
+const city = game.city;
+document.getElementById('hud-city')!.textContent = city.name.toUpperCase();
 const scene = new CityScene(canvas, game, { bloom: !params.has('nobloom') });
 
 const ui = new Console(game);
+ui.onMoveOn = () => {
+  const next = cityById(game.nextCityId ?? undefined);
+  // Swap the world FIRST: the unload path (visibilitychange + the 5s
+  // autosave) saves `game`, and a reload fires it — if the old world
+  // were still bound it would overwrite the handoff we just wrote.
+  game = game.moveOn(next);
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(game.toJson(Date.now())));
+  } catch {
+    /* storage unavailable — the move still happens this session */
+  }
+  location.reload();
+};
 ui.onUnlock = (lineId) => {
   scene.refreshService();
   scene.focusLine(lineId);

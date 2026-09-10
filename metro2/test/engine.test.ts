@@ -4,7 +4,9 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { CityDef } from '../src/engine/city';
-import { GOAL_TRACKS, Game, GLOBALS, STATION_WORKS } from '../src/engine/game';
+import {
+  ANGEL_BAY_TRACKS, GOAL_TRACKS, Game, GLOBALS, STATION_WORKS,
+} from '../src/engine/game';
 
 const city = JSON.parse(
   readFileSync(new URL('../src/data/new_meridian.json', import.meta.url), 'utf8'),
@@ -504,5 +506,113 @@ describe('the ported core', () => {
       expect(g.waitingAt(st.id)).toBeLessThanOrEqual(Game.stationCapBase + 1e-6);
       if (!g.isServed(st.id)) expect(g.waitingAt(st.id)).toBe(0);
     }
+  });
+});
+
+describe('the city ladder (M3c) — v1 moveOn law, v2 track shape', () => {
+  const angelBay = JSON.parse(
+    readFileSync(new URL('../src/data/angel_bay.json', import.meta.url), 'utf8'),
+  ) as CityDef;
+
+  /** A New Meridian world with all four tracks finished. */
+  function finished(): Game {
+    const g = new Game(city);
+    g.cash = 1e15;
+    for (const l of g.city.lines) if (!g.isUnlocked(l.id)) g.buyLine(l.id);
+    while (g.trains.length < 25) g.buyTrain('1');
+    g.totalRiders = 100000000;
+    g.totalEarned = 2000000000;
+    g.commissionsDone = 12;
+    g.rushEarnings = 10000000;
+    g.speedLevels.set('1', 100);
+    g.speedLevels.set('A', 20); // 120 line-upgrade levels
+    const stops = g.city.lines[0].stationIds;
+    for (let i = 0; i < 12; i++) g.parkingLevel.set(stops[i], 5); // 60 works
+    g.tick(0.05);
+    return g;
+  }
+
+  test('the approved Angel Bay geometry came through the bridge', () => {
+    expect(angelBay.stations.length).toBe(59);
+    expect(angelBay.lines.length).toBe(9);
+    expect((angelBay as { costScale?: number }).costScale).toBe(10);
+    expect((angelBay as { fareScale?: number }).fareScale).toBe(8);
+  });
+
+  test('finish every track in New Meridian, open Angel Bay', () => {
+    const g = new Game(city);
+    expect(g.nextCityId).toBe('angel_bay');
+    expect(g.canMoveOn).toBe(false);
+    const done = finished();
+    for (const t of GOAL_TRACKS) expect(done.trackCurrentGoal(t.id)).toBeNull();
+    expect(done.canMoveOn).toBe(true);
+    const multBefore = done.goalMult;
+    const demandBefore = done.demandGoalMult;
+    const buildBefore = done.buildCostMult;
+    const cashBefore = done.cash;
+
+    const ab = done.moveOn(angelBay);
+    expect(ab.city.id).toBe('angel_bay');
+    expect(ab.cash).toBe(cashBefore); // cash moves with you
+    expect(ab.goalMult).toBeCloseTo(multBefore, 9); // every commendation carries
+    expect(ab.demandGoalMult).toBeCloseTo(demandBefore, 9);
+    expect(ab.buildCostMult).toBeCloseTo(buildBefore, 9);
+    expect([...ab.unlockedLineIds]).toEqual(['1']); // the network starts fresh
+    expect(ab.trains.length).toBe(1);
+    expect(ab.speedLevelOf('1')).toBe(0);
+    expect(ab.trackDone('growth')).toBe(0); // Angel Bay's own tracks start at 0
+    expect(ab.trackCurrentGoal('expansion')!.name).toBe('WEST SHORE OPENS');
+    expect(ab.nextCityId).toBeNull(); // Angel Bay is the frontier for now
+    expect(ab.currentFare).toBeCloseTo(Game.fare * 8, 9); // bay riders pay 8×
+
+    // Carried lifetime counters sit BELOW every Angel Bay target — no
+    // track completes for free on arrival.
+    ab.tick(0.05);
+    for (const t of ANGEL_BAY_TRACKS) expect(ab.trackDone(t.id)).toBe(0);
+
+    // And the new city earns from its own line 1 immediately.
+    const before = ab.totalEarned;
+    for (let i = 0; i < 2400; i++) ab.tick(0.1);
+    expect(ab.totalEarned).toBeGreaterThan(before);
+    expect(ab.totalRiders).toBeGreaterThan(100000000);
+  });
+
+  test('moveOn is refused before the ladder is finished', () => {
+    const g = new Game(city);
+    expect(() => g.moveOn(angelBay)).toThrow();
+  });
+
+  test('Angel Bay serves with everything unlocked, at 10× build costs', () => {
+    const g = new Game(angelBay);
+    // costScale reaches every purchase lane.
+    expect(g.nextGlobalCost('signal')).toBeCloseTo(2500 * 10, 6);
+    g.cash = 1e15;
+    for (const l of g.city.lines) {
+      if (!g.isUnlocked(l.id)) expect(g.buyLine(l.id)).toBe(true);
+    }
+    g.buyTrain('1');
+    for (let i = 0; i < 6000; i++) g.tick(0.1);
+    expect(g.totalRiders).toBeGreaterThan(0);
+    for (const st of g.city.stations) {
+      expect(g.waitingAt(st.id)).toBeLessThanOrEqual(g.stationCapAt(st.id) + 1e-6);
+    }
+  });
+
+  test('the whole ladder survives a save round-trip', () => {
+    const ab = finished().moveOn(angelBay);
+    ab.cash = 12345;
+    for (let i = 0; i < 200; i++) ab.tick(0.05);
+    const j = ab.toJson(1_000_000);
+    expect(j.cityId).toBe('angel_bay');
+    const r = Game.fromJson(angelBay, j as Record<string, unknown>, 1_000_000);
+    expect(r.game.city.id).toBe('angel_bay');
+    expect(r.game.goalMult).toBeCloseTo(ab.goalMult, 9);
+    expect(r.game.demandGoalMult).toBeCloseTo(ab.demandGoalMult, 9);
+    expect(r.game.buildCostMult).toBeCloseTo(ab.buildCostMult, 9);
+    // The New Meridian bank came through complete, field for field.
+    expect(r.game.priorGoals.new_meridian).toEqual(
+      Object.fromEntries(GOAL_TRACKS.map((t) => [t.id, t.goals.length])),
+    );
+    expect(r.game.priorGoals).toEqual(ab.priorGoals);
   });
 });

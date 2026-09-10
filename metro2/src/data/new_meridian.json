@@ -2,6 +2,8 @@
  "id": "new_meridian",
  "name": "New Meridian",
  "size": 520.0,
+ "costScale": 1.0,
+ "fareScale": 1.0,
  "stations": [
   {
    "id": "s126_452",

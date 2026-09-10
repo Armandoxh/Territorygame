@@ -11,7 +11,7 @@
  * DOM rule learned in b40: panels REBUILD only when structure changes
  * and mutate in place otherwise, so no button is detached mid-tap. */
 import {
-  CommissionType, Game, GLOBALS, GOAL_TRACKS, GoalBenefit, GoalTrack,
+  CITY_LADDER, CommissionType, Game, GLOBALS, GoalBenefit, GoalTrack,
   LineUpgradeKind, STATION_WORKS,
 } from '../engine/game';
 import { BUILD } from '../version';
@@ -129,6 +129,10 @@ export class Console {
   /** main.ts hooks the camera glide here. */
   onUnlock: ((lineId: string) => void) | null = null;
 
+  /** main.ts hooks the city handoff here (save + reload). */
+  onMoveOn: (() => void) | null = null;
+  private moveOnArmed = false;
+
   /** True while any panel or card is open (map taps close them). */
   get isOpen(): boolean {
     return this.mode !== null || this.shownStationId !== null;
@@ -141,6 +145,7 @@ export class Console {
 
   private setMode(mode: PanelMode | null): void {
     this.mode = mode;
+    this.moveOnArmed = false;
     this.panelEl.hidden = mode === null;
     if (mode) this.hideStation();
     const active =
@@ -208,6 +213,15 @@ export class Console {
       case 'buy-global':
         g.buyGlobals(id, this.buyN());
         break;
+      case 'move-on':
+        if (this.moveOnArmed) {
+          this.onMoveOn?.();
+          return;
+        }
+        this.moveOnArmed = true;
+        this.structSeq++;
+        this.renderPanel();
+        return;
       case 'accept-commission':
         g.acceptCommission();
         break;
@@ -735,10 +749,37 @@ export class Console {
         next
       );
     };
+    const nextId = g.nextCityId;
+    let ladder = '';
+    if (nextId) {
+      const nextName = nextId.replace(/_/g, ' ').toUpperCase();
+      if (g.canMoveOn) {
+        ladder = this.moveOnArmed
+          ? `<div class="gcard moveon armed" data-act="move-on">
+              <div class="gtitle">HAND OVER THE KEYS?</div>
+              <div class="gsub">cash, riders and every commendation travel with you
+                — this network stays behind. Tap again to move.</div></div>`
+          : `<div class="gcard moveon" data-act="move-on">
+              <div class="gtitle">MOVE TO ${nextName} ›</div>
+              <div class="gsub">all four tracks complete — a bigger city calls.
+                costs ×10 · fares ×8 · fresh network</div></div>`;
+      } else {
+        const doneTracks = this.game.tracks.filter(
+          (t) => g.trackCurrentGoal(t.id) === null,
+        ).length;
+        ladder = `<div class="gnext ladder"><span>⛴</span>
+          <span>${nextName} AWAITS — finish all four tracks</span>
+          <span class="gr2">${doneTracks}/4</span></div>`;
+      }
+    } else if (CITY_LADDER.indexOf(g.city.id) > 0) {
+      ladder = `<div class="gnext ladder"><span>⛴</span>
+        <span>${g.city.name.toUpperCase()} — the frontier, for now</span></div>`;
+    }
     return (
       this.head('CITY GOALS') +
       earned +
-      GOAL_TRACKS.map(section).join('') +
+      ladder +
+      this.game.tracks.map(section).join('') +
       `<div class="buildfoot">METRO MAGNATE · ${BUILD}</div>`
     );
   }
@@ -769,7 +810,7 @@ export class Console {
       }
     }
     if (this.mode?.kind === 'goals') {
-      for (const track of GOAL_TRACKS) {
+      for (const track of this.game.tracks) {
         const goal = g.trackCurrentGoal(track.id);
         const live = document.getElementById(`goal-live-${track.id}`);
         if (goal && live) {

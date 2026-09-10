@@ -1,0 +1,34 @@
+Build 61 (metro2): THE CITY LADDER (M3c). Player asked "do I get to
+the point where it's too easy and I can just buy everything?" --
+answered with a sim, not vibes: a greedy buy-everything bot on the
+real engine unlocks all 24 lines by minute 20 and maxes all 9,600
+upgrade levels by minute 80; milestone x2 stacking (2^16 income per
+line) outruns any price curve (tested x1.22, x1.30, milestone x1.5,
+unlock scaling -- all just delay it). Offered four rebalances via
+AskUserQuestion; player chose LEAVE IT, BUILD ANGEL BAY -- the city
+ladder is the pacing, recorded as a design decision in CLAUDE.md.
+
+Shipped the ladder: dart2json now emits every city (angel_bay.json:
+59 stations, 9 lines, costScale 10, fareScale 8 -- v1-approved
+geometry, New Meridian json unchanged except the two new scale
+fields). Engine: per-city goal tracks (goalTracksFor -- Angel Bay
+gets four bay-flavored tracks whose lifetime targets sit above New
+Meridian's finals so nothing completes free on arrival), priorGoals
+banks commendations from cities already left (they compound, the v1
+law), CITY_LADDER + canMoveOn (all four tracks complete) + moveOn(
+next) carrying cash/totalEarned/totalRiders/avgRate/rushEarnings,
+save v2s5 (cityId + priorGoals; v2s4 loads fine). UI: GOALS panel
+grows the ladder card -- teaser with track count while climbing,
+gold MOVE TO ANGEL BAY card when ready, two-tap arm/confirm (HAND
+OVER THE KEYS?), then save + reload into the new city; HUD wordmark
+is now the live city name; ?showcase=<cityId> demos any city.
+
+One real bug found by the headless flow test: the reload raced the
+unload autosave -- visibilitychange saved the OLD world over the
+just-written Angel Bay save, so the move silently undid itself.
+Fix: swap the module-level game reference to the moved world BEFORE
+reload, so every later save writes the new city. 34 vitest green
+(6 new: geometry bridge, full v1 moveOn law mirror, refusal before
+the ladder is done, Angel Bay serves at 10x costs, save roundtrip
+with the New Meridian bank field-for-field). Screenshots reviewed:
+Angel Bay day/night, moveOn card, armed card, arrival, bay goals.
