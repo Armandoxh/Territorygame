@@ -113,7 +113,10 @@ export class Game {
 
   /** $/s estimate over a rolling window (drives HUD + offline pay). */
   avgRate = 0;
+  /** Riders/s over the same rolling window (the return-card figure). */
+  avgRiders = 0;
   private windowEarned = 0;
+  private windowRiders = 0;
   private windowTime = 0;
 
   /** Bumped on every line unlock — the renderer keys the reveal off it. */
@@ -761,6 +764,7 @@ export class Game {
     g.totalEarned = this.totalEarned;
     g.totalRiders = this.totalRiders;
     g.avgRate = this.avgRate;
+    g.avgRiders = this.avgRiders;
     g.rushEarnings = this.rushEarnings;
     g.priorGoals = {
       ...this.priorGoals,
@@ -880,7 +884,10 @@ export class Game {
     if (this.windowTime >= 20) {
       const rate = this.windowEarned / this.windowTime;
       this.avgRate = this.avgRate === 0 ? rate : this.avgRate * 0.6 + rate * 0.4;
+      const rr = this.windowRiders / this.windowTime;
+      this.avgRiders = this.avgRiders === 0 ? rr : this.avgRiders * 0.6 + rr * 0.4;
       this.windowEarned = 0;
+      this.windowRiders = 0;
       this.windowTime = 0;
     }
 
@@ -967,6 +974,7 @@ export class Game {
     this.totalEarned += earned;
     this.totalRiders += take;
     this.windowEarned += earned;
+    this.windowRiders += take;
     this.boardSeq += 1;
     this.lastBoardStationId = stationId;
     this.lastBoardLineId = lineId;
@@ -1092,6 +1100,7 @@ export class Game {
       totalRiders: this.totalRiders,
       rushClock: this.rushClock,
       avgRate: this.avgRate,
+      avgRiders: this.avgRiders,
       unlocked: [...this.unlockedLineIds],
       trains: this.trains.map((t) => ({ ...t })),
       waitingUp: dump(this.waitingUp),
@@ -1127,13 +1136,14 @@ export class Game {
     city: CityDef,
     j: Record<string, unknown>,
     nowMs: number,
-  ): { game: Game; offlineEarned: number } {
+  ): { game: Game; offlineEarned: number; offlineSeconds: number; offlineRiders: number } {
     const g = new Game(city);
     g.cash = Number(j.cash ?? 0);
     g.totalEarned = Number(j.totalEarned ?? 0);
     g.totalRiders = Number(j.totalRiders ?? 0);
     g.rushClock = Number(j.rushClock ?? 0);
     g.avgRate = Number(j.avgRate ?? 0);
+    g.avgRiders = Number(j.avgRiders ?? 0);
     g.unlockedLineIds.clear();
     for (const id of (j.unlocked as string[]) ?? ['1']) {
       if (city.lines.some((l) => l.id === id)) g.unlockedLineIds.add(id);
@@ -1212,9 +1222,11 @@ export class Game {
       Game.maxOfflineSeconds,
     );
     const offlineEarned = away * g.avgRate * g.offlineEfficiencyNow;
+    const offlineRiders = away * g.avgRiders * g.offlineEfficiencyNow;
     g.cash += offlineEarned;
     g.totalEarned += offlineEarned;
-    return { game: g, offlineEarned };
+    g.totalRiders += offlineRiders;
+    return { game: g, offlineEarned, offlineSeconds: away, offlineRiders };
   }
 
   private recomputeServed(): void {

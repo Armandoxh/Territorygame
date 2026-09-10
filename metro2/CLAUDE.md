@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b61 (THE CITY LADDER — Angel Bay + moveOn)
+## ▶ CURRENT BUILD: v2 · b62 (the return, the juice, the wire)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:

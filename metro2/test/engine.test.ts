@@ -129,6 +129,18 @@ describe('the ported core', () => {
     expect(hour.game.totalEarned).toBeGreaterThan(before);
   });
 
+  test('the rider rate tracks, saves, and pays out offline (b62)', () => {
+    const g = run(300);
+    expect(g.avgRiders).toBeGreaterThan(0);
+    const j = JSON.parse(JSON.stringify(g.toJson(1_000_000)));
+    const hour = Game.fromJson(city, j, 1_000_000 + 3600_000);
+    expect(hour.game.avgRiders).toBeCloseTo(g.avgRiders, 6);
+    expect(hour.offlineSeconds).toBeCloseTo(3600, 6);
+    expect(hour.offlineRiders).toBeCloseTo(g.avgRiders * 3600 * 0.5, 3);
+    expect(hour.game.totalRiders).toBeCloseTo(
+      g.totalRiders + hour.offlineRiders, 3);
+  });
+
   test('UPGRADES WORK: each line-1 upgrade measurably raises earnings', () => {
     // b54 scale: shallow per-level gains — measured at L24 (below the
     // L25 milestone so the income doubling cannot mask a dead stat).

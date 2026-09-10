@@ -32,3 +32,30 @@ reload, so every later save writes the new city. 34 vitest green
 the ladder is done, Angel Bay serves at 10x costs, save roundtrip
 with the New Meridian bank field-for-field). Screenshots reviewed:
 Angel Bay day/night, moveOn card, armed card, arrival, bay goals.
+
+Build 62 (metro2): THE RETURN, THE JUICE, THE WIRE. Player's day-30
+audit ("no reason to come back, nothing moves or makes a sound,
+nobody in it") -- shipped its three ordered asks. Corrections noted
+first: offline earnings already existed (v1 law) and prestige is
+b61's ladder; what was missing was the MOMENT. (1) THE RETURN CARD:
+full-screen WHILE YOU WERE AWAY on load -- away duration, big green
++$X, riders carried (new engine avgRiders rolling rate, saved and
+paid offline like cash), COLLECT plays a coin cascade and the header
+cash ROLLS up from the pre-credit figure (eased display value in
+console.update). Found+fixed: #return-card{display:flex} beat the
+UA [hidden] rule so the dismissed card ate every tap. (2) JUICE +
+SOUND: every successful buy spawns a "-$X" fly-out from the button,
+clicks a synthesized turnstile+coin (WebAudio, zero assets, unlocks
+on first gesture per iOS law), and the purchased row pulse-flashes
+with pip glow after rebuild; commendations chime; the night rush
+rings a platform bell; mute toggle in the HUD, persisted. (3) THE
+WIRE: one-line news ticker under the header -- reacts to unlocks,
+commendations, commissions won/lost, rush open, service milestones,
+and 98%-capacity platforms ("X crowding draws complaints"), with
+idle filler so it never goes dead; seeded renderer-side PRNG picks
+phrasings, sim stays deterministic. 35 vitest green (new: rider
+rate tracks/saves/pays offline). Headless verified: card shows
+"6h 12m / +$42.6K / 14.2K riders", cash 60K->102.6K roll, flyout
+"-$713" + row pulse, wire rotating real headlines. Deferred as
+recorded design forks (player's call): failure pressure vs pure
+idle (par.3), build identity/tradeoffs (par.4), daily hook.

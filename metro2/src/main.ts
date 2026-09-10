@@ -11,6 +11,8 @@ import { Game } from './engine/game';
 import { CityScene } from './render/scene';
 import { Console } from './ui/console';
 import { CITIES, cityById } from './data/cities';
+import { sound } from './ui/sound';
+import { Ticker } from './ui/ticker';
 
 const params = new URLSearchParams(location.search);
 const showcase = params.has('showcase');
@@ -18,6 +20,8 @@ const SAVE_KEY = 'metro2_save';
 
 let game: Game;
 let offlineEarned = 0;
+let offlineSeconds = 0;
+let offlineRiders = 0;
 if (showcase) {
   // ?showcase=angel_bay demos any city on the ladder.
   game = Game.showcase(cityById(params.get('showcase') ?? undefined), 2);
@@ -36,6 +40,8 @@ if (showcase) {
       const r = Game.fromJson(cityById(j.cityId as string | undefined), j, Date.now());
       game = r.game;
       offlineEarned = r.offlineEarned;
+      offlineSeconds = r.offlineSeconds;
+      offlineRiders = r.offlineRiders;
     } catch {
       game = new Game(CITIES[0]);
     }
@@ -77,6 +83,12 @@ const city = game.city;
 document.getElementById('hud-city')!.textContent = city.name.toUpperCase();
 const scene = new CityScene(canvas, game, { bloom: !params.has('nobloom') });
 
+const muteBtn = document.getElementById('btn-mute') as HTMLButtonElement;
+muteBtn.textContent = sound.muted ? '🔇' : '🔊';
+muteBtn.addEventListener('click', () => {
+  muteBtn.textContent = sound.toggleMute() ? '🔇' : '🔊';
+});
+
 const ui = new Console(game);
 ui.onMoveOn = () => {
   const next = cityById(game.nextCityId ?? undefined);
@@ -98,14 +110,52 @@ ui.onUnlock = (lineId) => {
   ui.toast(`${line.name} is OPEN — first train entering service`);
 };
 if (offlineEarned >= 1) {
-  ui.toast(
-    `While you were away: +$${Math.floor(offlineEarned).toLocaleString('en-US')}`,
+  // THE RETURN: the single most load-bearing moment in the genre.
+  // Cash is already credited (v1 law); the header holds the
+  // pre-collect figure and rolls up when the player collects.
+  const fmtDur = (sec: number): string => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${Math.max(m, 1)}m`;
+  };
+  const cfmtBig = (v: number): string =>
+    v >= 1e9 ? (v / 1e9).toFixed(1) + 'B'
+    : v >= 1e6 ? (v / 1e6).toFixed(1) + 'M'
+    : v >= 1000 ? (v / 1000).toFixed(1) + 'K'
+    : String(Math.floor(v));
+  document.getElementById('rc-time')!.textContent =
+    `your network ran for ${fmtDur(offlineSeconds)}`;
+  document.getElementById('rc-cash')!.textContent = `+$${cfmtBig(offlineEarned)}`;
+  document.getElementById('rc-riders')!.textContent =
+    `${cfmtBig(offlineRiders)} riders carried`;
+  const rc = document.getElementById('return-card')!;
+  ui.holdCashAt(game.cash - offlineEarned);
+  rc.hidden = false;
+  document.getElementById('rc-collect')!.addEventListener(
+    'click',
+    () => {
+      sound.collect();
+      rc.hidden = true;
+      ui.releaseCash();
+    },
+    { once: true },
   );
 }
+
+// THE WIRE — the city talks back.
+const ticker = new Ticker(game, document.getElementById('ticker')!);
 
 // Celebrate goal + commission resolutions exactly once each.
 let seenGoalSeq = game.goalSeq;
 let seenCommSeq = game.commissionSeq;
+let rushWas = false;
+function watchRush(): void {
+  if (game.rushActive !== rushWas) {
+    rushWas = game.rushActive;
+    if (rushWas) sound.bell();
+  }
+}
+
 function watchSeqs(): void {
   if (game.goalSeq !== seenGoalSeq) {
     seenGoalSeq = game.goalSeq;
@@ -116,6 +166,7 @@ function watchSeqs(): void {
           ? `ridership ×${game.lastGoalReward}`
           : `build costs ×${game.lastGoalReward}`;
     ui.toast(`COMMENDATION · ${game.lastGoalName} — ${what} forever`);
+    sound.chime();
   }
   if (game.commissionSeq !== seenCommSeq) {
     seenCommSeq = game.commissionSeq;
@@ -196,6 +247,8 @@ function frame(now: number): void {
   }
   scene.render(acc / 0.05, prevDistances);
   watchSeqs();
+  watchRush();
+  ticker.update(now);
   ui.update(now);
   requestAnimationFrame(frame);
 }

@@ -15,6 +15,7 @@ import {
   LineUpgradeKind, STATION_WORKS,
 } from '../engine/game';
 import { BUILD } from '../version';
+import { sound } from './sound';
 
 /** Category colors: the reward signal gets a hue per track. */
 export const TRACK_COLORS: Record<string, string> = {
@@ -103,6 +104,41 @@ export class Console {
   private builtKey = '';
   /** The global buy amount: ×1, ×10, or MAX — one toggle for all rows. */
   private buyMode: 1 | 10 | 99 = 1;
+  /** The cash figure the HEADER shows — eased toward the real value so
+   * spends and windfalls ROLL instead of teleporting. */
+  private shownCash: number | null = null;
+  private cashHeld = false;
+
+  /** Freeze the rolling cash display at [v] (the return card holds the
+   * pre-collect figure); releaseCash lets it roll up. */
+  holdCashAt(v: number): void {
+    this.shownCash = v;
+    this.cashHeld = true;
+  }
+
+  releaseCash(): void {
+    this.cashHeld = false;
+  }
+
+  /** A spent price flies out of the button that took it. */
+  private spawnFly(anchor: Element, amount: number): void {
+    const r = anchor.getBoundingClientRect();
+    const fly = document.createElement('div');
+    fly.className = 'flyout';
+    fly.textContent = `−$${fmt(amount)}`;
+    fly.style.left = `${r.left + r.width / 2}px`;
+    fly.style.top = `${r.top - 4}px`;
+    document.body.appendChild(fly);
+    setTimeout(() => fly.remove(), 900);
+  }
+
+  /** After a rebuild, flash the row the purchase landed in. */
+  private pulseRow(root: HTMLElement, act: string, attr: string | null): void {
+    const sel = attr
+      ? `[data-act="${act}"]${attr}`
+      : `[data-act="${act}"]`;
+    root.querySelector(sel)?.closest('.uprow, .row')?.classList.add('pulse');
+  }
 
   constructor(private game: Game) {
     document.getElementById('btn-lines')!.addEventListener('click', () => {
@@ -171,6 +207,7 @@ export class Console {
     const act = el.getAttribute('data-act')!;
     const id = el.getAttribute('data-id') ?? '';
     const lineId = this.mode?.kind === 'line' ? this.mode.id : id;
+    const cashBefore = g.cash;
     switch (act) {
       case 'close-panel':
         this.setMode(null);
@@ -229,8 +266,21 @@ export class Console {
         g.skipCommission();
         break;
     }
+    const spent = cashBefore - g.cash;
+    if (spent > 0.005) {
+      sound.buy();
+      this.spawnFly(el, spent);
+    }
     this.structSeq++;
     this.renderPanel();
+    if (spent > 0.005) {
+      const kind = el.getAttribute('data-kind');
+      const dataId = el.getAttribute('data-id');
+      this.pulseRow(
+        this.panelEl, act,
+        kind ? `[data-kind="${kind}"]` : dataId ? `[data-id="${dataId}"]` : null,
+      );
+    }
   }
 
   private onStationClick(e: Event): void {
@@ -247,9 +297,20 @@ export class Console {
       return;
     }
     if (el.getAttribute('data-act') === 'buy-work') {
+      const before = this.game.cash;
       this.game.buyWorks(el.getAttribute('data-id')!, this.shownStationId!, this.buyN());
+      const spent = before - this.game.cash;
+      if (spent > 0.005) {
+        sound.buy();
+        this.spawnFly(el, spent);
+      }
       this.cardKey = '';
       this.renderStation();
+      if (spent > 0.005) {
+        this.pulseRow(
+          this.stationEl, 'buy-work', `[data-id="${el.getAttribute('data-id')}"]`,
+        );
+      }
     }
   }
 
@@ -864,8 +925,14 @@ export class Console {
 
   update(nowMs: number): void {
     const g = this.game;
+    if (this.shownCash === null) this.shownCash = g.cash;
+    if (!this.cashHeld) {
+      const d = g.cash - this.shownCash;
+      this.shownCash =
+        Math.abs(d) < Math.max(0.5, g.cash * 1e-7) ? g.cash : this.shownCash + d * 0.16;
+    }
     this.cashEl.innerHTML =
-      `$${fmt(g.cash)}<span class="cashrate">+$${g.avgRate >= 100 ? fmt(g.avgRate) : g.avgRate.toFixed(2)} / sec</span>`;
+      `$${fmt(this.shownCash)}<span class="cashrate">+$${g.avgRate >= 100 ? fmt(g.avgRate) : g.avgRate.toFixed(2)} / sec</span>`;
     this.rateEl.textContent = `${fmt(g.totalRiders)} riders`;
     const n = g.nightFactor;
     const phase = g.rushActive
