@@ -59,3 +59,17 @@ rate tracks/saves/pays offline). Headless verified: card shows
 "-$713" + row pulse, wire rotating real headlines. Deferred as
 recorded design forks (player's call): failure pressure vs pure
 idle (par.3), build identity/tradeoffs (par.4), daily hook.
+
+Build 63 (metro2): HONEST PRICES. Player screenshot: x10 mode with
+$10.5K showed SPEED at "$10.6K x10" LIT -- the full-bundle price,
+lighting up because one level was affordable. "Show me the max
+purchaseable, not the max." Every price-ladder button (line
+upgrades, works, network) now shows the AFFORDABLE bundle: the
+cumulative 1..n prices are embedded at build (data-cums), and the
+4Hz refresh pass re-aims the button live -- price of k levels, xk
+under it (MAX xk in MAX mode), lit only when k >= 1; broke rows
+show the single-level price unlit with x0. Buying always delivered
+the affordable count (buyMany law); now the label matches it
+exactly. Probed at the reported state: $10.5K x10 -> "$8.8K x9"
+lit, buy lands L6->L15, then "$1.8K x0" unlit; MAX with $2.6K ->
+"$1.6K MAX x2" / "$938 MAX x1" / SPEED unlit x0. 35 vitest green.

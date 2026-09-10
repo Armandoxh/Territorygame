@@ -1,6 +1,6 @@
 # Metro Magnate v2 — project rules
 
-## ▶ CURRENT BUILD: v2 · b62 (the return, the juice, the wire)
+## ▶ CURRENT BUILD: v2 · b63 (honest prices — the button sells what you can buy)
 
 The WebGL successor to Metro Magnate v1. Player verdict on v1's craft
 ceiling: "V2 needs to be on a better graphics engine." Stack:

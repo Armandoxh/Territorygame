@@ -401,21 +401,25 @@ export class Console {
         <div class="upsub">${o.sub}</div>
         <div class="pips">${pips}${ticks}</div></div>`;
     }
-    const b = o.bundle(this.buyMode);
-    const b1 = this.buyMode === 1 ? b : o.bundle(1);
+    const full = o.bundle(this.buyMode);
+    const b1 = this.buyMode === 1 ? full : o.bundle(1);
+    // Cumulative prices of the next 1..n levels — bundle(k).cost is
+    // already the total for k, so this is one pass.
+    const cums: number[] = [];
+    for (let k = 1; k <= Math.max(full.count, 1); k++) {
+      cums.push(o.bundle(k).cost);
+    }
     const near =
       o.nextMilestone != null && o.nextMilestone - o.level <= 7
         ? ` <span class="upnext">⚡×2 @L${o.nextMilestone}</span>`
         : '';
-    const cnt =
-      this.buyMode === 1 ? '×1' : this.buyMode === 10 ? `×${b.count}` : `MAX ×${b.count}`;
     return `<div class="uprow" style="--cat:${cat}">
       <div class="uphead">${pri}<span class="upname">${o.name}</span>
         <span class="uplvl">L${o.level}</span>${near}
         <div class="pricecol">
           <button class="buy" data-act="${o.act}" ${o.attrs}
-            data-cost="${b1.cost}">$${fmt(b.cost)}</button>
-          <span class="modecnt">${cnt}</span></div></div>
+            data-cost="${b1.cost}" data-cums="${cums.map((c) => c.toFixed(2)).join('|')}">$${fmt(b1.cost)}</button>
+          <span class="modecnt">×1</span></div></div>
       <div class="upsub">${o.sub}</div>
       <div class="pips">${pips}${ticks}</div></div>`;
   }
@@ -895,20 +899,40 @@ export class Console {
   private refreshDisabled(root: HTMLElement): void {
     let ok = 0;
     let total = 0;
+    const cash = this.game.cash;
     for (const btn of root.querySelectorAll<HTMLButtonElement>('button[data-cost]')) {
-      const cost = Number(btn.getAttribute('data-cost'));
-      if (cost > 0) {
-        const can = this.game.cash >= cost;
+      const cums = btn.getAttribute('data-cums');
+      let can: boolean;
+      if (cums) {
+        // b62 field report: ×10/MAX priced the FULL bundle and lit on
+        // ×1 affordability — misleading. The button now shows the max
+        // purchasable right now: price of k levels, ×k underneath,
+        // lit only when k ≥ 1. Re-aimed live as cash grows.
+        const ladder = cums.split('|').map(Number);
+        let k = 0;
+        while (k < ladder.length && ladder[k] <= cash) k++;
+        can = k > 0;
         btn.disabled = !can;
         btn.classList.toggle('afford', can);
-        // The WHOLE row answers "can I buy it" (lit spine vs fallback).
-        const row = btn.closest('.uprow');
-        if (row) {
-          row.classList.toggle('ok', can);
-          row.classList.toggle('no', !can);
-          total++;
-          if (can) ok++;
+        btn.textContent = `$${fmt(ladder[Math.max(k - 1, 0)])}`;
+        const cnt = btn.parentElement?.querySelector('.modecnt');
+        if (cnt) {
+          cnt.textContent =
+            this.buyMode === 99 ? (can ? `MAX ×${k}` : '×0') : `×${k}`;
         }
+      } else {
+        const cost = Number(btn.getAttribute('data-cost'));
+        if (cost <= 0) continue;
+        can = cash >= cost;
+        btn.disabled = !can;
+        btn.classList.toggle('afford', can);
+      }
+      const row = btn.closest('.uprow');
+      if (row) {
+        row.classList.toggle('ok', can);
+        row.classList.toggle('no', !can);
+        total++;
+        if (can) ok++;
       }
     }
     const note = root.querySelector('#afford-note');
