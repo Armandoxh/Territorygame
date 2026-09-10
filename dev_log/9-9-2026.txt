@@ -1,0 +1,385 @@
+Build 41 (metro2): SKYLINE REALISM + LANDMARKS (player: "too many
+tall buildings all over... mid sized buildings more frequent, building
+size variation, add a stadium or an airport"). Height distribution
+reworked to real-city fabric: ~66% low-rise (houses + rowhouse slabs,
+h 2-5), 24% mid-rise, 10% towers -- and towers only scale up where the
+downtown core boost and station demand agree, so the spine reads and
+the edges calm down. Denser block counts, wider scatter, more
+footprint variety. TWO LANDMARKS, both sited by a clearance-search
+script against rail/stations/parks and reserved from building/tree
+placement: THE MERIDIAN BOWL (west bank, 44/336) -- elliptical bowl,
+green pitch, four floodlight masts that burn at night; BAYSIDE FIELD
+(east shore, 484/450) -- 64-unit runway with centerline dashes,
+apron, terminal, control tower with a blinking red beacon at night,
+two parked planes. Day + night screenshots reviewed before deploy;
+the stadium's night floodlights are the new beauty shot.
+
+Build 42 (metro2): M3a -- THE UPGRADE ECONOMY, PORTED (player: "What
+happened to all our other upgrades... We lost a lot of functionality").
+The whole v1 economy is back, formula for formula: per-line upgrades
+(speed/cars/access/trainsets with v1 cost curves), the SIX station
+works with per-station buying on the station card AND the per-line
+tier-even bulk planner with player-set priority (raise with the ▲),
+all EIGHT network upgrades, and the full income/demand model
+(currentFare, effectiveDwell + platform works, demandMultAt
+compounding across serving lines, incomePerRiderAt, stationCapAt,
+offlineEfficiencyNow, rail-yard train discounts). Save format v2s2
+(additive; v2s1 loads clean). 17 vitest tests green including v1's
+own measured must-show-up bounds for every upgrade -- the port passes
+v1's harness thresholds unchanged. UI: LINE DESK rows now open a full
+line sheet (trains, upgrades, works planner), NETWORK desk button,
+station card sells all six works and shows demand x / $ per rider.
+Map: track ribbons widened (1.25->1.7) with a daytime emissive
+baseline so route colors stay saturated; ghost routes 0.14->0.3 so
+the unbuilt network reads. Headless play test drove: buy speed, buy a
+17-station food tier, buy signals, verify the 5s autosave payload,
+true reload -> everything persisted. OPS (rush desk + commissions) and
+GOALS are M3b, next build.
+
+Build 43 (metro2): M3b -- OPS + GOALS + THE 10x (player: "Fix the gap
+and bring back my 10x"). The console is the full v1 four-tab desk
+again: LINES · OPS · GOALS · NETWORK. OPS = the rush timetable (next
+4 cycles off the deterministic clock) + the commission desk with all
+FIVE contract types (haul / turnback run / hub service / clean sweep
+/ rush contract), v1 quotas, per-type clocks, uniform rewards, and
+per-type offer/progress copy. GOALS = the 22-rung New Meridian ladder
+verbatim (incl. the mastery rungs: contracts, works, upgrade levels,
+rush earnings), commendations compounding income exactly as v1, a
+goal status strip under the header (tap -> board), commendation and
+commission toasts, an OPS attention dot while an offer waits. The
+⏩10x fast-forward is back as a header toggle (same fixed-step 0.05s
+sub-ticks -- exact physics, compressed). Save v2s3 adds commissions,
+goalsDoneByCity, rushEarnings; goalMult is RECOMPUTED from the ladder
+on load. 26 vitest tests green -- the b36 v1 suite ported whole
+(rotation, turnback win, hub bare-fails/invested-wins, sweep instant
+win, rush-window-only progress, hopeless expiry, ladder completion
+with exact income product). Headless play test accepted a TURNBACK
+RUN (0/6 · 2:00), read income x3.30 off the goals head (5 rungs =
+1.25^3 x 1.3^2, the 5th auto-completing from the seeded riders), and
+toggled the 10x. Remaining for full parity: Angel Bay + moveOn (M3c),
+v1-save migration (M4).
+
+Build 44 (metro2): iOS ZOOM-TRAP FIX (player: stations near another
+line hard to click; double-tapping them "makes the whole screen zoom
+in (buttons too) and I can't fix it without refresh"). Root cause:
+iOS Safari IGNORES user-scalable=no for double-tap and pinch PAGE
+zoom -- rapid re-taps on a fiddly station triggered browser zoom of
+the whole page, and the same flag then blocks pinching back out.
+Fix, three layers: (1) touch-action: manipulation on the page
+(the modern, honored way to disable double-tap zoom; the scrolling
+panel gets pan-y + overscroll-behavior: contain, the canvas keeps
+none), (2) gesturestart/change/end + dblclick preventDefault, (3) a
+320ms double-tap suppressor scoped to the CANVAS ONLY so buy buttons
+keep fast repeated taps (canvas input is pointer-event driven, so no
+click is lost). Also the trigger itself: station pick tolerance
+raised (min 4->5.5 world units, zoom scale 0.02->0.028) so stops
+sitting against a neighboring line's ribbon are comfortably
+tappable. 26 tests green; headless regression re-ran the buy +
+persistence flow with the guards active.
+
+Build 45 (metro2): STAT ROWS + BUNDLE BUYS (player: "menus feel very
+AI... too much text summary. Just show current stat and what the
+upgrade gets you, and buy 1/5/max"). Every upgrade row across the
+line sheets, NETWORK desk, and station cards is now NAME · Ln ·
+stat-now -> stat-next with a +1 / +5 / MAX buy strip (MAX buys as
+many levels as cash allows; +5 caps at remaining and shows its true
+bundle price). Blurb sentences deleted everywhere. Stats are live
+computed values, not descriptions: SPEED 51.2->54.9, CARS 82->88/
+stop, fare $2.50->2.75, -15%->30% dwell, 96->104 cap, etc. Maxed
+rows show only what you have. Engine grew generic bundle helpers
+(lineUpgradeBundle/globalBundle/workBundle + buyMany). Phone-width
+(430px) play test: +5 SPEED took L2->L7 for the shown bundle price,
+MAX finished CARS, rows hold one line each. Also fixed: goal strip vs
+rate chip overlap on narrow screens (rate hides under 560px),
+remaining '1 trains' plural.
+
+Build 46 (metro2): LIVING DISTRICTS + MAP VIEW (player: "the 3D map
+is cool but it's not telling a story... this is the city and these
+are the suburbs... a hot part of town... tempted to go back to 2D";
+chose the recommended fix-the-story-in-3D + map toggle). Three
+systems: (1) ZONES -- generation is now geographic: downtown core =
+towers and podium blocks shoulder to shoulder, midtown = mixed
+mid-rise, suburbs = small houses/rowhouses with more trees and air
+between them; height AND texture change as you leave the center.
+(2) GROWTH -- the city reacts to the game: every station has three
+tiers of infill massing that RISE (eased, instanced-scale animation)
+as its heat grows -- heat = service + station works + serving-line
+upgrade levels + lifetime boardings (new engine counter boardedAt,
+persisted). Opening a line visibly urbanizes its corridor; a maxed
+hub sprouts towers and NEON storefront strips that burn in signage
+colors at night. Headless proof: a save with line 1 fully invested
+renders a wall of towers down the corridor while the east mainland
+stays sleepy suburbs. (3) MAP VIEW -- one tap (MAP/CITY chip):
+scenery hides, camera glides overhead, and the same engine draws the
+clean 2D diagram: land/water, saturated owned lines vs pale ghosts,
+station-name labels (screen-constant sprites, staggered above/below
+to dodge collisions, growing as lines unlock) and flat district
+names. The 2D-vs-3D question is now a toggle, not a rebuild. Debug
+handle window.__scene added for headless probing (which found the
+sizeAttenuation label bug and the district text buried under the
+land bevel).
+
+Build 47 (metro2): THE MAP IS THE GAME (player, after playing b46 on
+device: "too polluted and laggy. Remove the city mode" + a 5-item
+list + "this UI isn't coherent" + reversed touch). The 3D city is
+GONE -- scene.ts rewritten 1159 -> 489 lines as a single top-down
+diagram in v1's approved map language: flat #BDD3E8 water / #FAF9F6
+land / #CBE2C6 parks, LOCKED ROUTES AS DASHED GRAY (v1 3.8/2.4
+rhythm; the ugly fades are dead), solid ribbons on v1's 3.2 lane
+gap, station dots that upgrade to white disc + ink ring on service,
+district names printed on the ground. No buildings, no bloom, no
+shadows, no tone mapping -- the lag and the haze went with them. The
+light cycle survives as clean color shifts: paper by day, glowing
+routes at night. DATA LAYER: served stations carry name labels and
+LIVE up/down waiting counts (canvas sprites, redrawn only on change,
+red at platform cap) -- screen-constant size so nothing ever clips,
+with a zoom policy: wide = clean diagram, zoom past 360 = names,
+past 300 = numbers. (World-scaled sprites turned out not to render
+at all from a straight-down camera -- found via the window.__scene
+probe; screen-constant + zoom fading is also just better.) TOUCH
+FIXED as requested: one finger PANS, two fingers zoom; rotation is
+gone -- a diagram has an up. CONSOLE: MAX buttons now price the full
+climb AND every stat line names its max value ("51.2 -> 54.9 · max
+60.0"); station-works rows everywhere (card + line planner) show
+current -> next -> max effect. globalStatAtMax computed from the max
+level, not current getters. 26 tests green; device-size headless
+shots verified overview/street/night.
+
+Build 48 (metro2): MAP CONTROLS + THE CRISP PASS (player on b47:
+zoomed-in pan "only inches in one direction", "dragging the camera
+zooms in and out", and "I don't like anything about this
+screenshot"). ROOT CAUSE of the input bugs: OrbitControls' spherical
+math with a straight-down camera and up=(0,0,-1) leaked vertical
+drags into camera HEIGHT (the phantom zoom) and degenerated pans.
+OrbitControls is GONE -- replaced by a purpose-built MapControls
+(~100 lines): one-finger drag projects both pointer positions onto
+the map plane and moves the world by the difference, so the point
+under your finger STAYS under your finger at every zoom; pinch zooms
+toward the pinch midpoint (and pans with it); wheel zooms toward the
+cursor; height clamped 55-620, target clamped to city bounds.
+Headless verification: 120px drag moved the target exactly with the
+pointer and height stayed bit-identical. THE LOOK: land bevel
+removed (it read as a pale halo band), pixelRatio cap 2->3, count
+sprites HALVED in size, doubled in texture resolution, recolored
+quiet gray (red only at cap) and floated just above the dot; name
+labels smaller with double-res textures. The zoomed map now reads
+as a crisp printed diagram: bold ink rings, clean ribbons, tidy
+dashes, small secondary numbers. scene.setView(x,z,h) added for
+tests. b47's world-scaled-sprite mystery noted: sprites with
+sizeAttenuation:true simply do not render from this camera; screen-
+constant is the law now.
+
+Build 49 (metro2): FRACTION COUNTS ON THE CIRCLE (player: "Why'd we
+take the guests waiting out of the circle? Stack the numbers...
+opposite diagonals... slash divider"). The platform readout returns
+to the station marker, typeset like a fraction straddling the disc:
+uptown count top-left, downtown count bottom-right, an ink slash
+between (white-haloed stroke so it stays crisp on any ground), red
+at platform cap, nothing drawn when empty. One square canvas sprite
+per served station, redrawn only when the numbers change.
+
+Build 50 (metro2): COMPACT COUNTS + NIGHT-PROOF MARKERS (player on
+b49 night screenshot: "Nope. numbers too far. Compact. doesn't need
+this big bold font"). Fraction redrawn: digits hug the slash (spread
+halved), font 900/54 -> 700/38, sprite 0.055 -> 0.05 — the whole
+readout sits ON the disc. The clipping in the screenshot was depth:
+count sprites z-fought the disc top (both ~ +0.25); counts and
+labels now render depthTest:false with explicit renderOrder, always
+above the map. And the muddy night discs: station markers were
+MeshStandardMaterial dimmed by the night hemisphere — now unlit
+MeshBasicMaterial, so discs stay paper-white on the dark map like a
+proper glowing diagram (ring softened to #3a3f4c to read on both
+grounds).
+
+Build 51 (metro2): PARALLEL GOAL TRACKS + IDLE-STANDARD CONSOLE
+(player: overlapping chips, verbose line sheet -> split works tab,
+map-tap to exit, "city goals is hugely linear... categorize the
+benefit... chase goals in parallel", and "look at top idle games" re
+1/5/max). (1) GOALS REDESIGNED -- v1's single ladder retired in v2:
+four tracks climb AT ONCE, each with a typed benefit: GROWTH (rider
+milestones -> permanent ridership multipliers into demandMultAt),
+PROFIT (earnings -> income multipliers), EXPANSION (lines/fleet ->
+build-cost DISCOUNTS on trains/upgrades/works/globals, never line
+unlocks), MASTERY (contracts/works/upgrade-levels/rush -> income).
+Engine: goalsDoneByTrack, three deriveds (goalMult, demandGoalMult,
+buildCostMult), bestTrack for the header strip, save v2s4 (older
+saves re-complete tracks from lifetime counters on first tick).
+(2) BUY MODE: per-row 1/5/MAX strips replaced by the idle-genre
+standard -- ONE button per row + a global BUY x1/x10/MAX toggle in
+the panel head. (3) Line sheet split into UPGRADES | STATION WORKS
+sub-tabs with a back chevron. (4) Every panel gets an X and A MAP
+TAP CLOSES EVERYTHING. (5) Top HUD rebuilt as one flex bar -- chips
+can no longer overlap. 27 tests green (track isolation, benefit
+typing, exact products, discount application, unlock-price
+protection). Headless drive: x10 bought CARS L0->L10 at the quoted
+bundle price, map tap closed the desk, goals head read income x1.66
+· riders x1.39 · costs x0.97 from three different tracks.
+
+Build 52 (metro2): $/s BACK + CONGESTION HEAT (player: "I need my
+earnings per second back. Add a color palette to each node, white to
+red, signifying how backed up they are"). The earn rate lives inline
+in the cash chip now (green +$27.4/s) so it survives phone widths
+where the old rate chip was hidden; the standalone chip demotes to a
+riders counter on wide screens. Station discs are a live heat map at
+every zoom: fill ratio (waiting/cap) lerps white -> amber (50%) ->
+red (100%), updated in the same 4Hz pass as the counts; the count
+text goes red in step at cap. First patch attempt silently missed
+(the b49 count-loop text had drifted under the sed) -- caught because
+the screenshot showed white discs over seeded backlogs; re-applied
+with Edit against the real text. Verified with a seeded gradient
+along line 1: white -> cream -> amber -> orange -> red reading
+north, clear blue-line stations staying white.
+
+Build 53 (metro2): STATION INFO DASHBOARD (player: "don't show me
+the upgrade menu anymore -- big card with demand per second, another
+with ticket cost, add more info cards"). Tapping a station now opens
+a six-tile stat dashboard in the v1 data-panel idiom: RIDERS
+ARRIVING /S (rush-aware, reddens x2.5 during a rush), $ PER BOARDING
+(live incomePerRiderAt -- verified exact: ($2 + $0.80 food) x 1.2
+profit commendation = $3.36), WAITING with cap (color tracks the
+disc's heat), lifetime RIDERS BOARDED HERE (the boardedAt counter),
+TRAINS SERVING THIS STOP, and STATION WORKS BUILT n/30. The works
+shop didn't die -- it demoted behind a WORKS > button on the card
+head (and remains in every line sheet's STATION WORKS tab). Tiles
+update live at 4Hz in place.
+
+Build 54 (metro2): L100 PROGRESSION + MILESTONE DOUBLING (player:
+"maxing out my network too quickly. Slower burn, more rewarding.
+Trains to level 100. Every 10/25/50/100 give a 100% boost. Maybe
+after level 10... something creative"). Line upgrades now climb to
+L100 on a long x1.14 cost curve (~x3.7 by L10, ~x700 by L50, ~x500K
+by L100) with shallow per-level effects that stay sane at the top:
+speed +4%/lvl (x5 at 100), cars +2/stop (222 at 100), access +3%,
+trainsets +2.5%. THE REWARD ENGINE: milestones at L10/25/50/100 on
+each of the four kinds EACH DOUBLE that line's income at the fare
+gate -- 16 possible x2s per line (x65,536 fully mastered; the idle
+end-game lane). The creative bit: each milestone adds a CAR to the
+line's trains on the map (1->5 visible cars, rebuilt live when a
+milestone lands) -- rolling stock as the trophy. Line sheet shows
+LINE INCOME BONUS xN + next-milestone hints per row. Tests: 28 green
+-- effect guards re-measured at L24 (below the L25 milestone so
+doubling can't mask a dead stat), milestone math + fare-gate
+doubling pinned, hub-service test re-equivalenced (cars 9 = the old
++18 capacity). Probe verified: line-1 consist grew to 4 cars from 3
+milestones while line A stayed at 1.
+
+Build 55 (metro2): FLUID TRAINS (player: "when the train moves it
+doesn't feel very fluid, almost pixelated"). Root cause: the sim
+ticks at a fixed 20Hz (0.05s, for determinism) and trains rendered
+only at those snapshots -- 20 positions/sec on a 60-120Hz phone =
+visible stepping. Standard fixed-timestep interpolation added: the
+frame loop snapshots train distances before each tick and render()
+blends prev->current by alpha = acc/step, so motion is continuous at
+any refresh rate while the sim stays bit-identical (28 tests green,
+untouched). Probe confirmed interpolated positions BETWEEN tick
+values gliding at exactly line speed; the first probe's all-zero
+deltas were a station dwell, not a bug.
+
+Build 56 (metro2): THE CRAFT PASS (player delivered a 9-point
+editors-choice audit of the line sheet). All nine: (1) the wrapping
+price buttons -- upgrade rows rebuilt as two-line GAME components
+(no flex overflow possible); (2) letter-spacing stripped from all
+body text, kept only on display strings; (3) panels fully OPAQUE --
+no more map labels ghosting through; (4) real type hierarchy:
+9.5px gray uppercase captions, 16px bold tabular-num stat deltas,
+9px max labels -- three sizes, brutal contrast; (5) LINE COLOR OWNS
+ITS SHEET via a CSS --line var: top accent bar, filled buy buttons,
+active-tab underline, progress-bar fills all in the line's color;
+(6) affordability at a glance: buyable = color-filled, can't-afford
+= ghosted hairline (class toggled in the 4Hz pass); (7) spreadsheet
+rows -> components: level PROGRESS BAR with amber MILESTONE TICKS at
+10/25/50/100 (the bar teaches the system), stat delta as the hero,
+next-milestone hint only when within 7 levels; (8) one design
+system: nav bar restyled to match the ink bars (no gray strokes),
+phase chip is an indicator with a dot, not a fake button; (9) touch
+targets: back chevron 52px, X 44pt effective, buys min 32px tall.
+
+Build 57 (metro2): THE MAP GETS A BODY + GOALS COMPACTED (player
+relayed a 15-point home-screen/goals audit; verdict: "the panels are
+the game and the map is wallpaper"). MAP: (1) a faint street grid
+clipped to the landmass (run-sampled against the land polys, one
+merged mesh) + a drawn COASTLINE contour -- the city reads as a
+place; (2) trains get a white outline underlay so vehicles pop on
+their own line color; (3) station labels use v1's HAND-TUNED
+labelSide data (recovered through the JSON bridge -- the converter
+had dropped it; 68 side-anchored labels) with side-aligned canvas
+text and clearance for the count fraction -- every name unambiguously
+belongs to its dot; (4) count contrast: ink flips WHITE with a dark
+halo on heat-colored discs, bigger digits, plus a ONE-TIME coach
+toast explaining up/down; (5) MERIDIAN watermark shrunk ~45% and
+lightened; (6) build chip REMOVED from the HUD (now a faint footer
+in the goals panel); (7) top bar aligned: title+cash grid row, goal
+strip is now name + EMBEDDED PROGRESS BAR in the leading track's
+color; (9/13) color arrives: tracks are green/gold/blue/purple in
+strip, sections, bars, rewards. GOALS: compact rows (~90px vs
+~200px) -- all four tracks visible at once; matched number units
+(5.2K / 10K via cfmt); header shows ONLY earned multipliers as
+colored chips (no x1.00 no-ops); panel-head titles ellipsize (the
+collision bug class); bottom padding fixes the clipped-fraction bug;
+disclosure triangles gone. Streets darken with the night cycle.
+
+Build 58 (metro2): THE PLAYER-MOCKUP CHROME (player sent two
+metro-redesign.html mockups: "This is what I was thinking").
+index.html rewritten to the mock's dark chrome around the light map:
+HEADER as one composed card -- NEW MERIDIAN small caps + speed
+toggle, HUGE cash figure, mono green +$21.20 / sec, and a NEXT goal
+row with an embedded bar and percentage. BOTTOM NAV: icon+label tabs
+(LINES ▤ / OPS ◈ / GOALS ◎ / NET ⬡) with a red active underline and
+the day/night PHASE as an iconed nav slot (☀/◐/☾/⚡). All panels
+converted to the dark card system (CSS vars: bg/card/edge/dim), buy
+buttons keep the line-color affordance system on dark. GOALS matches
+the mock exactly: multiplier chips all visible but only LIVE ones
+lit, colored square section bullets with n/8 counters, goal cards
+whose PROGRESS IS THE CARD FILL (tinted background width), lock
+icons on next goals, mono numerals with unit words ("5.2K / 10K
+riders"). MAP per mock: building-block footprints fill street cells
+(one merged mesh, off-track), and LOCKED ROUTES NOW DASH IN THEIR
+OWN LINE COLORS instead of anonymous gray -- the network's future is
+legible. Streets/blocks darken with the night cycle.
+
+Build 59 (metro2): ONE UPGRADEROW. Player's 16-point audit: "these
+two screens are the same object wearing two different outfits...
+build one UpgradeRow with slots for name/level/effect/cost/
+affordability and use it in both places." Console now has a single
+upRow() component used by the line UPGRADES tab, the line STATION
+WORKS tab (tier buys, with the ▲ priority slot -- only the top
+priority is LIT amber), the station card's works list, and NETWORK.
+Slots: name, L{n} chip, one labeled mono effect line (label once,
+unit once, "X -> Y . max Z"; at L0 it says "-5% to start" instead of
+the dead-weight "-0% ->"), a fixed-width price column (button + x1/
+x10/MAX xN count under it), and a 10-segment pip track with amber
+milestone ticks. Affordability is now a ROW state, not just a button
+tint: affordable rows get a lit category-colored spine
+(border-left), out-of-reach rows fall back whole (dimmed name/sub/
+pips). BUY MAX button replaced by a x1|x10|MAX segmented control in
+each shop plus a live "N of M affordable" note; the duplicate cash
+figure in panel heads is deleted (header owns cash). NETWORK is
+grouped into THROUGHPUT/DEMAND/REVENUE/SERVICE with colored section
+squares and summed n/m counters. Works rows drop the middot soup for
+labeled per-level effects; "17 stops . tier-even" moved to the
+section subhead. Inactive tabs brightened (no longer read disabled);
+panel bottom padding raised so the nav never slices the last row.
+Map: locked dashed routes muted toward the paper (lerp .62), station
+RINGS join the heat pass (ink -> amber -> red load rings), and
+building blocks vary -- slivers/squares/big slabs in two shades.
+Verified: 28 vitest green, headless probes (seg control, x10 bulk
+buy, tier buy, priority), 5 screenshots reviewed.
+
+Build 60 (metro2): PRICE-TRUTH HOTFIX. Player field report: "on my
+lines tab I cannot click the upgrade buttons -- mostly it's orange
+but I cannot tap it and purchase." Not a tap bug (touch-emulated
+probes clicked fine) -- a display/charge split: the b54 rebalance
+rewrote the DISPLAYED line-upgrade curve to base x 1.14^level
+(lineUpgradeCostAt, feeding buttons and bundles) but buySpeed/
+buyCars/buyAccess/buyTrainset still charged v1's retired x1.9-x2.1
+curves via nextSpeedCost etc. Identical at L0, wildly divergent
+deep: at speed L14 the button said $1.6K while the engine demanded
+base x 1.9^14 (~millions) -- so the buy silently failed and the
+orange button read as dead. Fix: the four next*Cost getters now
+alias lineUpgradeCostAt, so charged cost can never drift from
+displayed cost again. Globals and station works audited -- both
+already charge their displayed formula. New regression test walks
+speed/cars/access/trainset at L0/14/26/60/99: cash == shown price
+must buy exactly one level, a hair less must buy zero (29 vitest
+green). Probe at the player's exact save shape (speed L14, $6K
+cash): tap now purchases, L14 -> L15, price reprices to $1.8K.

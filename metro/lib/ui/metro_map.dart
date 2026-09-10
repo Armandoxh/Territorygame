@@ -1,0 +1,845 @@
+import 'dart:math';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import '../data/cities.dart';
+import '../state/game_state.dart';
+import 'transit_style.dart';
+
+/// The living map (STYLE.md): water-framed flat land, lines on their lane
+/// offsets through station dots that inflate with waiting counts, trains
+/// sliding as route bullets, and "riders × +$" pops as they board. Locked
+/// lines draw dashed gray with a price plate — the routes you're saving
+/// for. Pinch-zooms from whole-city to street level; tap a served station
+/// to open it.
+class MetroMap extends StatefulWidget {
+  const MetroMap({super.key, required this.game, required this.onStationTap});
+
+  final GameState game;
+  final void Function(StationDef station) onStationTap;
+
+  @override
+  State<MetroMap> createState() => _MetroMapState();
+}
+
+class _MetroMapState extends State<MetroMap> {
+  int _seenSeq = 0;
+  final List<_FarePop> _pops = [];
+  final TransformationController _viewer = TransformationController();
+  bool _centered = false;
+
+  // Unlock cinema: the newly bought line draws itself in while the
+  // camera glides to it.
+  int _seenUnlockSeq = 0;
+  String? _revealLineId;
+  int _revealStartMs = 0;
+  double _glideFromScale = 1;
+  Offset _glideFromT = Offset.zero;
+  static const int _revealMs = 2200;
+  static const int _glideMs = 1400;
+
+  @override
+  void dispose() {
+    _viewer.dispose();
+    super.dispose();
+  }
+
+  void _handleTap(Offset local, Size size) {
+    final g = widget.game;
+    final world = g.city.size;
+    final s = size.shortestSide / world;
+    final origin = Offset(
+        (size.width - world * s) / 2, (size.height - world * s) / 2);
+    final map = (local - origin) / s;
+    StationDef? best;
+    var bestD = 8.0; // tap tolerance in map units
+    for (final st in g.city.stations) {
+      if (!g.isServed(st.id)) continue;
+      final d = (st.pos - map).distance;
+      if (d < bestD) {
+        bestD = d;
+        best = st;
+      }
+    }
+    if (best != null) widget.onStationTap(best);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final g = widget.game;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    if (g.boardSeq != _seenSeq) {
+      _seenSeq = g.boardSeq;
+      if (g.lastBoardAmount >= 1 && g.lastBoardStationId.isNotEmpty) {
+        _pops.add(_FarePop(
+          stationId: g.lastBoardStationId,
+          amount: g.lastBoardAmount,
+          riders: g.lastBoardCount,
+          bornMs: now,
+        ));
+      }
+    }
+    _pops.removeWhere((p) => now - p.bornMs > _FarePop.lifeMs);
+
+    if (g.unlockSeq != _seenUnlockSeq) {
+      _seenUnlockSeq = g.unlockSeq;
+      if (g.lastUnlockedLineId.isNotEmpty) {
+        _revealLineId = g.lastUnlockedLineId;
+        _revealStartMs = now;
+        _glideFromScale = _viewer.value.storage[0];
+        _glideFromT =
+            Offset(_viewer.value.storage[12], _viewer.value.storage[13]);
+      }
+    }
+    var revealF = 1.0;
+    if (_revealLineId != null) {
+      final t = (now - _revealStartMs) / _revealMs;
+      if (t >= 1) {
+        _revealLineId = null;
+      } else {
+        revealF = Curves.easeInOut.transform(t.clamp(0.0, 1.0));
+      }
+    }
+
+    return Container(
+      // STYLE.md: water frames the city; the landmass is painted on top.
+      // The water darkens with the city's light cycle so pinch-out never
+      // shows daylit sea around a night city.
+      decoration: BoxDecoration(
+        color: Color.lerp(const Color(0xFFBDD3E8), const Color(0xFF1B2534),
+            g.nightFactor)!,
+        border: Border.all(color: TransitStyle.hairline, width: 1),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+            // The map square is rendered at the viewport's LONG side, so it
+            // fills the whole frame and pans/zooms like the real Live Map.
+            final side = constraints.maxHeight > constraints.maxWidth
+                ? constraints.maxHeight
+                : constraints.maxWidth;
+            final size = Size(side, side);
+            final fit = constraints.maxWidth / side;
+            if (!_centered) {
+              _centered = true;
+              // Open on the whole metropolis: scale-to-fit the width,
+              // vertically centered — the top-down diagram view.
+              _viewer.value = Matrix4.identity()
+                ..translate(0.0, (constraints.maxHeight - side * fit) / 2)
+                ..scale(fit);
+            }
+            // Camera glide toward the line being revealed.
+            if (_revealLineId != null) {
+              final lineId = _revealLineId!;
+              final gt = ((now - _revealStartMs) / _glideMs).clamp(0.0, 1.0);
+              final e = Curves.easeInOut.transform(gt);
+              final pts = g.paths[lineId]!.points;
+              var minX = pts.first.dx, maxX = pts.first.dx;
+              var minY = pts.first.dy, maxY = pts.first.dy;
+              for (final p in pts) {
+                if (p.dx < minX) minX = p.dx;
+                if (p.dx > maxX) maxX = p.dx;
+                if (p.dy < minY) minY = p.dy;
+                if (p.dy > maxY) maxY = p.dy;
+              }
+              final sPx = side / g.city.size;
+              final span =
+                  ((maxX - minX) > (maxY - minY) ? (maxX - minX) : (maxY - minY))
+                          .clamp(40.0, g.city.size.toDouble()) *
+                      sPx;
+              final z = (0.72 *
+                      (constraints.maxWidth < constraints.maxHeight
+                          ? constraints.maxWidth
+                          : constraints.maxHeight) /
+                      (span + 40 * sPx))
+                  .clamp(fit, 6.0);
+              final cx = (minX + maxX) / 2 * sPx;
+              final cy = (minY + maxY) / 2 * sPx;
+              final targetT = Offset(constraints.maxWidth / 2 - cx * z,
+                  constraints.maxHeight / 2 - cy * z);
+              if (gt < 1) {
+                final zNow = _glideFromScale + (z - _glideFromScale) * e;
+                final tNow = Offset.lerp(_glideFromT, targetT, e)!;
+                final m = Matrix4.identity()
+                  ..translate(tNow.dx, tNow.dy)
+                  ..scale(zNow);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _revealLineId == lineId) _viewer.value = m;
+                });
+              }
+            }
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: InteractiveViewer(
+                    transformationController: _viewer,
+                    constrained: false,
+                    // Always allow pinching back out to the full-city view.
+                    minScale: fit * 0.9,
+                    maxScale: 10,
+                    boundaryMargin: const EdgeInsets.all(80),
+                    child: SizedBox(
+                      width: side,
+                      height: side,
+                      child: GestureDetector(
+                        onTapUp: (d) => _handleTap(d.localPosition, size),
+                        child: CustomPaint(
+                          size: size,
+                          painter: _MapPainter(
+                            game: g,
+                            pops: List.of(_pops),
+                            nowMs: now,
+                            revealLineId: _revealLineId,
+                            revealFraction: revealF,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 5),
+                    color: TransitStyle.ink,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final line in g.city.lines)
+                          if (g.isUnlocked(line.id))
+                            Padding(
+                              padding: const EdgeInsets.only(right: 5),
+                              child: RouteBullet(
+                                  label: line.bullet,
+                                  color: line.color,
+                                  size: 15),
+                            ),
+                        const SizedBox(width: 1),
+                        Text(
+                          '${g.city.name} Transit',
+                          style:
+                              TransitStyle.signage(size: 11, spacing: 1.1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+        },
+      ),
+    );
+  }
+}
+
+class _FarePop {
+  const _FarePop(
+      {required this.stationId,
+      required this.amount,
+      required this.riders,
+      required this.bornMs});
+  final String stationId;
+  final double amount;
+  final int riders;
+  final int bornMs;
+
+  static const int lifeMs = 1100;
+}
+
+class _MapPainter extends CustomPainter {
+  _MapPainter(
+      {required this.game,
+      required this.pops,
+      required this.nowMs,
+      this.revealLineId,
+      this.revealFraction = 1});
+
+  final GameState game;
+  final List<_FarePop> pops;
+  final int nowMs;
+
+  /// Unlock cinema: this line draws only [revealFraction] of its length.
+  final String? revealLineId;
+  final double revealFraction;
+
+  static const _ink = TransitStyle.ink;
+
+  /// Station labels are static per layout scale, but at XL size there are
+  /// hundreds of them — laying them out every frame would chug. Cache the
+  /// laid-out painters across frames.
+  static final Map<String, TextPainter> _labelCache = {};
+  static TextPainter _cached(String key, TextSpan Function() build) =>
+      _labelCache.putIfAbsent(
+          key,
+          () => TextPainter(text: build(), textDirection: TextDirection.ltr)
+            ..layout());
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final world = game.city.size;
+    final s = size.shortestSide / world;
+    Offset m(Offset p) => Offset(
+        p.dx * s + (size.width - world * s) / 2,
+        p.dy * s + (size.height - world * s) / 2);
+
+    // STYLE.md: the landmass is one flat color — no grid, no texture. The
+    // city comes from geography: flat water bodies with map labels, and
+    // asymmetric park blocks.
+    final city = game.city;
+
+    // The landmass: near-white, 45-degree corners softened by a fat
+    // round-join stroke in the same color.
+    const landColor = Color(0xFFFAF9F6);
+    for (final land in city.lands) {
+      final lp = Path()..moveTo(m(land.first).dx, m(land.first).dy);
+      for (final pt in land.skip(1)) {
+        lp.lineTo(m(pt).dx, m(pt).dy);
+      }
+      lp.close();
+      canvas.drawPath(lp, Paint()..color = landColor);
+      canvas.drawPath(
+          lp,
+          Paint()
+            ..color = landColor
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3 * s
+            ..strokeJoin = StrokeJoin.round);
+    }
+    // District names sit UNDER the network, like the real diagram.
+    for (final d in city.districts) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: d.text,
+          style: GoogleFonts.inter(
+            color: const Color(0xFFCDCDCD),
+            fontSize: 9.0 * s,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 3,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final c = m(Offset(d.x, d.y));
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(d.rotDeg * pi / 180);
+      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      canvas.restore();
+    }
+
+    for (final wl in city.waterLabels) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: wl.text,
+          style: GoogleFonts.inter(
+            color: const Color(0xFF6E93AC),
+            fontSize: 4.5 * s,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          ),
+        ),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final c = m(Offset(wl.x, wl.y));
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(wl.rotDeg * pi / 180);
+      tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+      canvas.restore();
+    }
+    final parkPaint = Paint()..color = const Color(0xFFCBE2C6);
+    for (final park in city.parks) {
+      final c = m(Offset(park.cx, park.cy));
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(park.rotDeg * pi / 180);
+      canvas.drawRect(
+          Rect.fromCenter(
+              center: Offset.zero, width: park.w * s, height: park.h * s),
+          parkPaint);
+      canvas.restore();
+    }
+
+    // Lines, segment by segment on their reserved lanes: shared corridors
+    // render side-by-side (the approved look). Locked routes draw first,
+    // dashed gray, with a price plate; unlocked routes solid on top.
+    for (final line in city.lines) {
+      if (game.isUnlocked(line.id)) continue;
+      _drawLineSegments(canvas, m, s, line, locked: true);
+      _drawPlate(canvas, m, s, line);
+    }
+    for (final line in city.lines) {
+      if (!game.isUnlocked(line.id)) continue;
+      // The rush line runs hot: a fatter stroke for the whole window.
+      final rushing = game.rushActive && game.rushLineId == line.id;
+      _drawLineSegments(canvas, m, s, line,
+          locked: false,
+          fraction: line.id == revealLineId ? revealFraction : 1,
+          width: rushing ? 3.2 : 2.2);
+    }
+
+    // How many unlocked lines touch each station (2+ = interchange).
+    final linesAt = <String, int>{};
+    for (final line in city.lines) {
+      if (!game.isUnlocked(line.id)) continue;
+      for (final id in line.stationIds) {
+        linesAt[id] = (linesAt[id] ?? 0) + 1;
+      }
+    }
+
+    for (final st in city.stations) {
+      final c = m(st.pos);
+      final served = game.isServed(st.id);
+      if (!served) {
+        // A faint hollow dot: a stop on a route you haven't bought yet.
+        canvas.drawCircle(
+            c, 0.75 * s, Paint()..color = const Color(0xFFBDBDBD));
+        continue;
+      }
+      // STYLE.md markers: white dot + thin ring, sized to hold the waiting
+      // counts INSIDE it (saves space vs a floating badge) — "up/down", one
+      // number per departing direction, or a single number at a line's end.
+      // A full station turns the ring + numbers red — demand is being
+      // lost. Solid-color circles are trains only, so the two can never be
+      // confused.
+      final interchange = (linesAt[st.id] ?? 0) > 1;
+      final upC = game.waitingUp[st.id]!.floor();
+      final downC = game.waitingDown[st.id]!.floor();
+      final count = upC + downC;
+      final full = game.waitingAt(st.id) >= game.stationCapAt(st.id) - 0.001;
+      final txt = game.upServed(st.id) && game.downServed(st.id)
+          ? '$upC/$downC'
+          : '$count';
+      final r = ((interchange ? 2.4 : 1.9) + (txt.length >= 4 ? 0.5 : 0.0)) *
+          s;
+      if (count == 0 && !interchange) {
+        // Quiet local stop: the real diagram's tiny solid dot.
+        canvas.drawCircle(c, 0.85 * s, Paint()..color = _ink);
+      } else {
+        canvas.drawCircle(c, r, Paint()..color = Colors.white);
+        canvas.drawCircle(
+            c,
+            r,
+            Paint()
+              ..color = full ? const Color(0xFFC62828) : _ink
+              ..style = PaintingStyle.stroke
+              ..strokeWidth =
+                  (full ? 0.85 : (interchange ? 0.7 : 0.55)) * s);
+      }
+      if (interchange && count == 0) {
+        canvas.drawCircle(
+            c,
+            1.1 * s,
+            Paint()
+              ..color = _ink
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.5 * s);
+      }
+      if (count > 0) {
+        // Longer texts ("28/31") step the type down to stay inside the ring.
+        const sizes = [2.1, 2.1, 1.9, 1.7, 1.45, 1.25];
+        final countPainter = TextPainter(
+          text: TextSpan(
+            text: txt,
+            style: GoogleFonts.inter(
+              color: full ? const Color(0xFFC62828) : _ink,
+              fontSize: sizes[txt.length > 5 ? 5 : txt.length] * s,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        countPainter.paint(canvas,
+            c - Offset(countPainter.width / 2, countPainter.height / 2));
+      }
+
+      // Label with a white halo (like real map labels) at its hand-tuned
+      // offset — dense corridors fan their labels out via StationDef data.
+      final fontSize = 2.9 * s;
+      final halo = _cached(
+          'h:${st.id}:$s',
+          () => TextSpan(
+                text: st.name,
+                style: GoogleFonts.inter(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w700,
+                  foreground: Paint()
+                    ..style = PaintingStyle.stroke
+                    ..strokeWidth = 3
+                    ..color = Colors.white,
+                ),
+              ));
+      final label = _cached(
+          'l:${st.id}:$s',
+          () => TextSpan(
+                text: st.name,
+                style: GoogleFonts.inter(
+                  color: _ink,
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w700,
+                ),
+              ));
+      Offset labelPos;
+      if (st.labelSide != 0) {
+        final lx = st.labelSide > 0
+            ? c.dx + 3.4 * s
+            : c.dx - 3.4 * s - label.width;
+        labelPos = Offset(lx, c.dy - label.height / 2);
+      } else {
+        final above = st.y > city.size * 0.94;
+        final top =
+            above ? c.dy - 3.2 * s - label.height : c.dy + 3.2 * s;
+        labelPos = Offset(
+          (c.dx - label.width / 2)
+              .clamp(2.0, size.width - label.width - 2.0),
+          top,
+        );
+      }
+      halo.paint(canvas, labelPos);
+      label.paint(canvas, labelPos);
+
+      // Food-court marker: a clean square "F" chip (no emoji — STYLE.md).
+      if ((game.foodLevel[st.id] ?? 0) > 0) {
+        final fr = Rect.fromCenter(
+            center: c + Offset(-3.6 * s, 3.0 * s),
+            width: 2.6 * s,
+            height: 2.6 * s);
+        canvas.drawRect(fr, Paint()..color = Colors.white);
+        canvas.drawRect(
+            fr,
+            Paint()
+              ..color = _ink
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1);
+        final f = TextPainter(
+          text: TextSpan(
+            text: 'F',
+            style: GoogleFonts.inter(
+              color: _ink,
+              fontSize: 1.7 * s,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        f.paint(canvas,
+            fr.center - Offset(f.width / 2, f.height / 2));
+      }
+    }
+
+    // ── The light cycle ────────────────────────────────────────────────
+    // The approved daylight diagram above is the base coat. As the rush
+    // approaches, dusk multiplies a warm then deep-blue tint over
+    // everything; the city answers with light: glowing route ribbons,
+    // station lamps sized by the works built there, window speckles in
+    // the blocks around served stations. Trains draw ABOVE the tint —
+    // they are lit vehicles moving through the dark.
+    final night = game.nightFactor;
+    if (night > 0.001) {
+      final warm = Color.lerp(Colors.white, const Color(0xFFE8C7A2),
+          (night * 2).clamp(0.0, 1.0))!;
+      final tint = Color.lerp(warm, const Color(0xFF404A63),
+          ((night - 0.35) / 0.65).clamp(0.0, 1.0))!;
+      canvas.drawRect(
+          Offset.zero & size,
+          Paint()
+            ..color = tint
+            ..blendMode = BlendMode.multiply);
+
+      // Route ribbons glow — the rushing line hottest of all.
+      for (final line in city.lines) {
+        if (!game.isUnlocked(line.id)) continue;
+        if (line.id == revealLineId && revealFraction < 1) continue;
+        final rushing = game.rushActive && game.rushLineId == line.id;
+        final glow = Path();
+        final pts = game.paths[line.id]!.points;
+        final lanes = game.segLane[line.id]!;
+        for (var i = 0; i < pts.length - 1; i++) {
+          final seg = pts[i + 1] - pts[i];
+          final len = seg.distance;
+          if (len < 0.001) continue;
+          final off = Offset(-seg.dy, seg.dx) / len * lanes[i];
+          final pa = m(pts[i] + off);
+          final pb = m(pts[i + 1] + off);
+          glow.moveTo(pa.dx, pa.dy);
+          glow.lineTo(pb.dx, pb.dy);
+        }
+        canvas.drawPath(
+            glow,
+            Paint()
+              ..color = line.color
+                  .withOpacity((rushing ? 0.55 : 0.28) * night)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = (rushing ? 8.0 : 5.5) * s
+              ..strokeCap = StrokeCap.round
+              ..maskFilter =
+                  MaskFilter.blur(BlurStyle.normal, 2.2 * s));
+      }
+
+      // Station lamps + city windows around every served stop. Lamp
+      // size grows with the works built there — investment you can see
+      // from orbit. Windows twinkle on a slow, hash-seeded cycle.
+      for (final st in city.stations) {
+        if (!game.isServed(st.id)) continue;
+        final c = m(st.pos);
+        final works = (game.foodLevel[st.id] ?? 0) +
+            (game.gateLevel[st.id] ?? 0) +
+            (game.platformLevel[st.id] ?? 0) +
+            (game.parkingLevel[st.id] ?? 0) +
+            (game.escalatorLevel[st.id] ?? 0) +
+            (game.securityLevel[st.id] ?? 0);
+        final lampR = (2.6 + 0.3 * (works > 15 ? 15 : works)) * s;
+        canvas.drawCircle(
+            c,
+            lampR,
+            Paint()
+              ..shader = ui.Gradient.radial(c, lampR, [
+                const Color(0xFFFFDFA0).withOpacity(0.5 * night),
+                const Color(0x00FFDFA0),
+              ]));
+        var h = st.id.hashCode & 0x7fffffff;
+        for (var i = 0; i < 7; i++) {
+          h = (h * 1103515245 + 12345) & 0x7fffffff;
+          final ang = (h % 360) * pi / 180;
+          h = (h * 1103515245 + 12345) & 0x7fffffff;
+          final dist = (4.0 + (h % 100) * 0.09) * s;
+          final p = c + Offset(cos(ang), sin(ang)) * dist;
+          final twinkle =
+              0.7 + 0.3 * sin(nowMs / 900 + h % 628 / 100);
+          canvas.drawRect(
+              Rect.fromCenter(center: p, width: 0.55 * s, height: 0.55 * s),
+              Paint()
+                ..color = const Color(0xFFFFE9B8)
+                    .withOpacity(0.5 * night * twinkle));
+        }
+      }
+    }
+
+    // Trains, live-tracker style (STYLE.md): a solid circle in the line
+    // color carrying the bold route letter, sliding along the vector path.
+    for (final t in game.trains) {
+      final line = city.lineById(t.lineId);
+      final path = game.paths[t.lineId]!;
+      // During the cinema a train waits for its track to reach it.
+      if (t.lineId == revealLineId &&
+          revealFraction < 1 &&
+          t.distance > path.length * revealFraction) {
+        continue;
+      }
+      final segIdx = path.segmentAt(t.distance);
+      final a = path.points[segIdx];
+      final b = path.points[segIdx + 1];
+      final seg = b - a;
+      final segLen = seg.distance;
+      final lane = game.segLane[t.lineId]![segIdx];
+      final laneOff = segLen < 0.001
+          ? Offset.zero
+          : Offset(-seg.dy, seg.dx) / segLen * lane;
+      final tPos = m(path.posAt(t.distance) + laneOff);
+      final r = 2.6 * s;
+      // At night a train throws a headlight beam down the track and a
+      // soft halo in its line color.
+      final nf = game.nightFactor;
+      if (nf > 0.05 && segLen >= 0.001) {
+        final dirV = seg / segLen * t.direction.toDouble();
+        final tip = tPos + dirV * 8.5 * s;
+        final wing = Offset(-dirV.dy, dirV.dx) * 2.6 * s;
+        canvas.drawPath(
+            Path()
+              ..moveTo(tPos.dx, tPos.dy)
+              ..lineTo(tip.dx + wing.dx, tip.dy + wing.dy)
+              ..lineTo(tip.dx - wing.dx, tip.dy - wing.dy)
+              ..close(),
+            Paint()
+              ..shader = ui.Gradient.linear(tPos, tip, [
+                const Color(0xFFFFF3C4).withOpacity(0.55 * nf),
+                const Color(0x00FFF3C4),
+              ]));
+        final haloR = r * 2.1;
+        canvas.drawCircle(
+            tPos,
+            haloR,
+            Paint()
+              ..shader = ui.Gradient.radial(tPos, haloR, [
+                line.color.withOpacity(0.5 * nf),
+                line.color.withOpacity(0),
+              ]));
+      }
+      canvas.drawCircle(tPos, r, Paint()..color = line.color);
+      canvas.drawCircle(
+          tPos,
+          r,
+          Paint()
+            ..color = Colors.white
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.5 * s);
+      final darkText = line.color.computeLuminance() > 0.5;
+      final letter = TextPainter(
+        text: TextSpan(
+          text: line.bullet,
+          style: GoogleFonts.inter(
+            color: darkText ? _ink : Colors.white,
+            fontSize: r * 1.15,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      letter.paint(
+          canvas, tPos - Offset(letter.width / 2, letter.height / 2));
+    }
+
+    // Boarding feedback (STYLE.md): a clean expanding geometric ring plus a
+    // numeric increment rising linearly. No bounce, no sparkle.
+    for (final p in pops) {
+      final t = (nowMs - p.bornMs) / _FarePop.lifeMs;
+      if (t < 0 || t >= 1) continue;
+      final st = city.stationById(p.stationId);
+      final c = m(st.pos);
+      canvas.drawCircle(
+          c,
+          (2.0 + 6.0 * t) * s,
+          Paint()
+            ..color = _ink.withOpacity((1 - t) * 0.45)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.6 * s);
+      final pos = c + Offset(0, -4.5 * s - 9 * s * t);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${p.riders}× +\$${p.amount.toStringAsFixed(0)}',
+          style: GoogleFonts.inter(
+            // Deep green by day, mint by night — legible on both grounds.
+            color: Color.lerp(const Color(0xFF1B5E20),
+                    const Color(0xFFA5D6A7), game.nightFactor)!
+                .withOpacity(1 - t),
+            fontSize: 3.0 * s,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, pos - Offset(tp.width / 2, 0));
+    }
+  }
+
+  /// Draw a line's segments on their lane offsets — solid in the line color,
+  /// or the locked treatment (light-gray PathMetrics dashes). [fraction]
+  /// < 1 draws only that much of the route: the unlock cinema.
+  void _drawLineSegments(Canvas canvas, Offset Function(Offset) m, double s,
+      LineDef line,
+      {required bool locked, double fraction = 1, double width = 2.2}) {
+    final pts = game.paths[line.id]!.points;
+    final lanes = game.segLane[line.id]!;
+    final budget = game.paths[line.id]!.length * fraction;
+    var drawn = 0.0;
+    final paint = Paint()
+      ..color = locked ? const Color(0xFFD2D2D2) : line.color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (locked ? 1.15 : width) * s
+      ..strokeCap = locked ? StrokeCap.butt : StrokeCap.round;
+    for (var i = 0; i < pts.length - 1; i++) {
+      final a = pts[i];
+      var b = pts[i + 1];
+      final seg = b - a;
+      final len = seg.distance;
+      if (len < 0.001) continue;
+      if (fraction < 1) {
+        if (drawn >= budget) break;
+        if (drawn + len > budget) {
+          b = a + seg * ((budget - drawn) / len);
+        }
+        drawn += len;
+      }
+      final off = Offset(-seg.dy, seg.dx) / len * lanes[i];
+      final pa = m(a + off);
+      final pb = m(b + off);
+      if (!locked) {
+        canvas.drawLine(pa, pb, paint);
+        continue;
+      }
+      final segPath = Path()
+        ..moveTo(pa.dx, pa.dy)
+        ..lineTo(pb.dx, pb.dy);
+      final dash = 3.8 * s, gap = 2.4 * s;
+      for (final metric in segPath.computeMetrics()) {
+        var d = 0.0;
+        while (d < metric.length) {
+          final end = (d + dash) < metric.length ? d + dash : metric.length;
+          canvas.drawPath(metric.extractPath(d, end), paint);
+          d = end + gap;
+        }
+      }
+    }
+    // Terminal route bullets past both ends (unlocked lines only, and
+    // only once the cinema has drawn the whole route).
+    if (locked || fraction < 1) return;
+    for (final end in [0, pts.length - 1]) {
+      final terminal = pts[end];
+      final prev = pts[end == 0 ? 1 : pts.length - 2];
+      final dir = terminal - prev;
+      final len = dir.distance;
+      if (len < 0.001) continue;
+      final pos = m(terminal + dir / len * 4.5);
+      canvas.drawCircle(pos, 1.6 * s, Paint()..color = line.color);
+      final darkTxt = line.color.computeLuminance() > 0.5;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: line.bullet,
+          style: GoogleFonts.inter(
+            color: darkTxt ? _ink : Colors.white,
+            fontSize: 1.8 * s,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
+    }
+  }
+
+  /// The locked line's price plate, hand-placed in open land.
+  void _drawPlate(
+      Canvas canvas, Offset Function(Offset) m, double s, LineDef line) {
+    final mid = m(Offset(line.plateX, line.plateY));
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '${line.bullet} · \$${_fmtMoney(line.unlockCost)}',
+        style: GoogleFonts.inter(
+          color: _ink,
+          fontSize: 2.6 * s,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final plate = Rect.fromCenter(
+        center: mid, width: tp.width + 6 * s, height: tp.height + 2.4 * s);
+    canvas.drawRect(plate, Paint()..color = Colors.white);
+    canvas.drawRect(
+        plate,
+        Paint()
+          ..color = _ink
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1);
+    tp.paint(canvas, plate.topLeft + Offset(3 * s, 1.2 * s));
+  }
+
+  static String _fmtMoney(double v) {
+    final digits = v.round().toString();
+    final out = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
+      out.write(digits[i]);
+    }
+    return out.toString();
+  }
+
+  @override
+  bool shouldRepaint(_MapPainter old) => true;
+}

@@ -1,0 +1,144 @@
+Build 61 (metro2): THE CITY LADDER (M3c). Player asked "do I get to
+the point where it's too easy and I can just buy everything?" --
+answered with a sim, not vibes: a greedy buy-everything bot on the
+real engine unlocks all 24 lines by minute 20 and maxes all 9,600
+upgrade levels by minute 80; milestone x2 stacking (2^16 income per
+line) outruns any price curve (tested x1.22, x1.30, milestone x1.5,
+unlock scaling -- all just delay it). Offered four rebalances via
+AskUserQuestion; player chose LEAVE IT, BUILD ANGEL BAY -- the city
+ladder is the pacing, recorded as a design decision in CLAUDE.md.
+
+Shipped the ladder: dart2json now emits every city (angel_bay.json:
+59 stations, 9 lines, costScale 10, fareScale 8 -- v1-approved
+geometry, New Meridian json unchanged except the two new scale
+fields). Engine: per-city goal tracks (goalTracksFor -- Angel Bay
+gets four bay-flavored tracks whose lifetime targets sit above New
+Meridian's finals so nothing completes free on arrival), priorGoals
+banks commendations from cities already left (they compound, the v1
+law), CITY_LADDER + canMoveOn (all four tracks complete) + moveOn(
+next) carrying cash/totalEarned/totalRiders/avgRate/rushEarnings,
+save v2s5 (cityId + priorGoals; v2s4 loads fine). UI: GOALS panel
+grows the ladder card -- teaser with track count while climbing,
+gold MOVE TO ANGEL BAY card when ready, two-tap arm/confirm (HAND
+OVER THE KEYS?), then save + reload into the new city; HUD wordmark
+is now the live city name; ?showcase=<cityId> demos any city.
+
+One real bug found by the headless flow test: the reload raced the
+unload autosave -- visibilitychange saved the OLD world over the
+just-written Angel Bay save, so the move silently undid itself.
+Fix: swap the module-level game reference to the moved world BEFORE
+reload, so every later save writes the new city. 34 vitest green
+(6 new: geometry bridge, full v1 moveOn law mirror, refusal before
+the ladder is done, Angel Bay serves at 10x costs, save roundtrip
+with the New Meridian bank field-for-field). Screenshots reviewed:
+Angel Bay day/night, moveOn card, armed card, arrival, bay goals.
+
+Build 62 (metro2): THE RETURN, THE JUICE, THE WIRE. Player's day-30
+audit ("no reason to come back, nothing moves or makes a sound,
+nobody in it") -- shipped its three ordered asks. Corrections noted
+first: offline earnings already existed (v1 law) and prestige is
+b61's ladder; what was missing was the MOMENT. (1) THE RETURN CARD:
+full-screen WHILE YOU WERE AWAY on load -- away duration, big green
++$X, riders carried (new engine avgRiders rolling rate, saved and
+paid offline like cash), COLLECT plays a coin cascade and the header
+cash ROLLS up from the pre-credit figure (eased display value in
+console.update). Found+fixed: #return-card{display:flex} beat the
+UA [hidden] rule so the dismissed card ate every tap. (2) JUICE +
+SOUND: every successful buy spawns a "-$X" fly-out from the button,
+clicks a synthesized turnstile+coin (WebAudio, zero assets, unlocks
+on first gesture per iOS law), and the purchased row pulse-flashes
+with pip glow after rebuild; commendations chime; the night rush
+rings a platform bell; mute toggle in the HUD, persisted. (3) THE
+WIRE: one-line news ticker under the header -- reacts to unlocks,
+commendations, commissions won/lost, rush open, service milestones,
+and 98%-capacity platforms ("X crowding draws complaints"), with
+idle filler so it never goes dead; seeded renderer-side PRNG picks
+phrasings, sim stays deterministic. 35 vitest green (new: rider
+rate tracks/saves/pays offline). Headless verified: card shows
+"6h 12m / +$42.6K / 14.2K riders", cash 60K->102.6K roll, flyout
+"-$713" + row pulse, wire rotating real headlines. Deferred as
+recorded design forks (player's call): failure pressure vs pure
+idle (par.3), build identity/tradeoffs (par.4), daily hook.
+
+Build 63 (metro2): HONEST PRICES. Player screenshot: x10 mode with
+$10.5K showed SPEED at "$10.6K x10" LIT -- the full-bundle price,
+lighting up because one level was affordable. "Show me the max
+purchaseable, not the max." Every price-ladder button (line
+upgrades, works, network) now shows the AFFORDABLE bundle: the
+cumulative 1..n prices are embedded at build (data-cums), and the
+4Hz refresh pass re-aims the button live -- price of k levels, xk
+under it (MAX xk in MAX mode), lit only when k >= 1; broke rows
+show the single-level price unlit with x0. Buying always delivered
+the affordable count (buyMany law); now the label matches it
+exactly. Probed at the reported state: $10.5K x10 -> "$8.8K x9"
+lit, buy lands L6->L15, then "$1.8K x0" unlit; MAX with $2.6K ->
+"$1.6K MAX x2" / "$938 MAX x1" / SPEED unlit x0. 35 vitest green.
+
+Build 64 (metro2): THE CURVY CURVE. Player: "almost too fast now,
+in 10x it takes 3 minutes until I can buy anything -- can the curve
+be more curvy and addictive?" -- reversing b61's leave-it call. And
+the load-bearing answer from AskUserQuestion: "the 10x is really
+for my debugging" -- so the SPEED TOGGLE IS A DEV TOOL now (hidden
+unless ?dev; ?speed= still works for probes) and the game balances
+for honest 1x + offline. The validated dials from the b61 sims,
+now shipped: line-upgrade curve x1.14 -> x1.25 per level;
+milestones pay x1.5 (was x2 -- the stacking that beat every price
+curve); line unlocks scale x1.6 per owned line (lineUnlockCost,
+displayed AND charged -- expansion order is now a real choice).
+Plus the anticipation timer: a row you can't afford shows a live
+"in 2:45" countdown (cost gap / earn rate) instead of a dead x0.
+Copy updated (each lightning pays x1.5), fmtMult for 1.5^n
+bonuses. Greedy-bot pace probe on the shipped engine: buys every
+~15s in the opening, spree minutes 20-90 (the honeymoon), then
+walls 7s->51s+ by hour 6 with lines pacing ~1/hour -- 15/24 lines,
+39% of levels at 6h; Angel Bay sits weeks out at casual pace with
+offline earnings doing the heavy lifting. 36 vitest green
+(milestone test repriced, new unlock-scaling law test, whole-city
+stake raised for x1.6^22).
+
+Build 65 (metro2): THE COMPULSION BUILD. Player's engagement audit
+("once it snowballs it's 1000 monotonous clicks") -- shipped every
+point not already live, all deterministic (index hashes + state, no
+sim RNG): (1) STREET TEAM in NETWORK: uncapped filler priced at
+~25s of the live earn rate (+0.5% riders each) -- a shop is never
+dead. (2) VARIABLE COMMISSIONS: payouts x0.6-2.4 hashed from the
+offer index, with x10 GOLDEN CONTRACTS ~1 in 11 -- gold row, gold
+ACCEPT, wire headline; active-contract timer pulses red under 30s.
+(3) STAKES: a platform pinned at capacity sheds demand (up to -60%,
+recovers 2x faster once served) -- the red ring finally costs money.
+(4) RELIEF DISPATCH: the active verb -- a >=50%-full station card
+grows a glowing button that clears the platform for instant fares
+(90s cooldown, green +$ flyout, toast). (5) DAY STREAK: consecutive
+real days pay +2%/day income (cap +20%), shown on the return card
+("DAY 4 STREAK") and as a goals chip. (6) Offline cap 8h -> 4h (the
+comeback window; law test updated). (7) FEEL: commendations now
+STOP THE SCREEN -- 1.4s full-screen splash (kicker/title/benefit)
+replacing the quiet toast; haptics via navigator.vibrate where the
+platform has it (Android; iOS Safari has no web vibration API).
+(8) CLIFFHANGERS: the wire announces the rush 30s early and breaks
+golden-contract news. Fixed in review: reliefPayout double-counted
+the streak (already inside incomePerRiderAt). 37 vitest green (new
+ENGAGEMENT LAWS suite: payout determinism/spread/golden cadence,
+crowd decay + recovery, filler pricing, relief pay/clear/cooldown,
+streak keep/bump/reset + fare landing). Deferred: push
+notifications (needs installed-PWA service worker), monetization
+(none -- by design).
+
+Build 66 (metro2): SMALL TRAINS, HIRED HANDS. Player: "the trains
+are too big" + "add an upgrade that automatically upgrades for me
+-- figure out creatively how to do it." (1) Rolling stock ~35%
+smaller (car 4.6x3.0 -> 3.0x1.5, tighter gaps, proportionate
+outline/roof) -- trains now sit ON the line instead of straddling
+it. (2) THE SUPERINTENDENT: automation as a person, not a toggle.
+Hire one per line from the line sheet (~5 min of income, rate-
+priced); every 5 sim-seconds they buy that line's CHEAPEST upgrade
+-- but only when it costs under 20% of the treasury, so they never
+starve the player's own plans. Deterministic (pure tick cadence,
+no RNG). ON DUTY row with a spinning green gear on the line sheet,
+gear badge on the LINE DESK, superSeq-driven live panel refresh,
+and throttled wire reports ("the superintendent never sleeps").
+Hires save (v2s5 field, validated against unlocked lines on load).
+38 vitest green (new law test: hire cost/gating, cheapest-first
+cadence one per 5s, the 20% reserve holds when broke, save
+roundtrip). Probe: hire $18.6K -> ON DUTY -> access/trainset
+levels tick up unattended while speed/cars (pricier) wait.

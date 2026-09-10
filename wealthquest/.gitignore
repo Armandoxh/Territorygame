@@ -1,0 +1,16 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Generated platform folders (run `flutter create .` to regenerate)
+# Keep these tracked once you commit a real project; ignored here because
+# this scaffold ships lib/ + pubspec only.

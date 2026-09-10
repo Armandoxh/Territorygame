@@ -1,0 +1,13 @@
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+# Platform scaffolding is generated in CI by `flutter create` — except
+# web/, which is hand-authored (icon, manifest, splash) and lives in git;
+# `flutter create` skips files that already exist.
+android/
+ios/
+linux/
+macos/
+windows/
+

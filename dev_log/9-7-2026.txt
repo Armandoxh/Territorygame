@@ -1,0 +1,106 @@
+Metro Magnate build 20 (v0.8.0): THE CITY LADDER -- Angel Bay ships
+(player approved the rig SVG). New city: bay/peninsula/island silhouette,
+9 lines, 59 stations, emitted to cities.dart via angelbay.py --emit
+(generated data, never hand-edit). Engine goes multi-city: GameState
+takes a CityDef; CityDef gains costScale(10)/fareScale(8); per-city goal
+ladders (goalsDoneByCity -- commendations from every city compound);
+finishing a ladder shows OPEN <city> in the goal bar -> moveOn() carries
+cash/lifetime totals/goalMult, network starts fresh at the new stakes,
+one-way. Save v9 (cityId + goalsDoneByCity; v8's goalsDone int
+migrates). Harness now enforces the approved shape rules on EVERY city
+(9 lines, unique colors, escalating ladder, >=6 stops, 45-degree bends,
+corridors <=3) plus ladder-completion/moveOn/AB-smoke/AB-roundtrip
+tests. AB targets sit above NM's finish since rider/earned goals are
+lifetime totals.
+
+Metro Magnate build 21 (v0.8.1): live-fleet train placement (player:
+"spacing feels solely dependent on when I click... place them
+bidirectionally equidistant"). Correct: van der Corput slots only
+described spawn-time positions and ignored where the fleet had MOVED by
+purchase time. _spawnTrain now maps each existing train to its circular
+round-trip phase (0..2L; <L = heading up at distance p, >=L = heading
+back) and spawns the new train at the midpoint of the WIDEST phase gap:
+a 2nd train enters exactly half a round trip from the 1st wherever it
+is (same track, opposite direction); every later purchase drops into
+the biggest hole. Same line speed for all trains means the spacing
+persists. At t=0 the scheme reproduces the old vdc pattern exactly, so
+the existing spawn test still pins it; a new test buys at staggered odd
+moments (13.7s, +23.3s, +8.9s) and asserts the diametric entry and a
+quarter-round-trip minimum pairwise gap.
+
+Build 22: build 21's Sim run flagged the OLD spawn test, not the engine
+-- with 4 equal phase gaps the 5th train's slot is a tie, and a 1-ulp
+float difference picked the L/4-heading-DOWN slot over L/4-heading-up
+(same perfect spacing, mirrored). The legacy test asserted the exact
+vdc-era pattern; rewrote it to pin the BEHAVIOR: exact minimum circular
+phase gap after each back-to-back purchase (L, L/2, L/2, L/4) plus the
+deterministic 2nd-train-opposite entry. Lesson: assert invariants, not
+incidental tiebreaks.
+
+Build 23 (v0.8.2): full-screen map + balance-in-sheets + zoom fix
+(player: can't see balance in line menu; map should fill screen; pinch
+zoom works 50% of the time). Root cause of the flaky zoom: the map
+lived inside a scrolling ListView, so the gesture arena gave vertical
+drags (and often the second finger) to list scrolling. Home screen is
+now a fixed Column -- slim two-row header (cash 26pt, rates right), goal
+strip, Expanded(map), bottom tab strip -- no scrollable ancestor, so
+pinch/pan belongs entirely to the InteractiveViewer. LINES and NETWORK
+open as modal bottom sheets (scrollable, 80% max height); version/
+restart moved into the NETWORK sheet footer. Every sheet header is now
+_SheetSign: title row + live BALANCE line, so affordability is always
+visible while shopping (line sheets, station sheets, panels). Map also
+sizes to the LONG viewport side (fills portrait fully) and minScale is
+computed from the fit scale so pinching back out to the whole city
+always works (was clamped at 0.7 > fit).
+
+Metro Magnate build 24 (v0.9.0): NEW MERIDIAN XL ships (player approved
+the rig SVG: "add like 15 more lines... map much larger... more
+intersections"). 520-unit world, 24 lines, 162 stations, 28
+interchanges: the approved 300-unit core sits verbatim at offset +110 as
+downtown (grandfathered in the rig's checks), 1/M/L extended, 15 new
+lines across five boroughs + a bay-bridge D line. Rig (meridian_xl.py)
+now mechanically asserts every approved rule INCLUDING point-in-polygon
+land containment and min spacing -- it rejected three drafts before the
+approved render. Balance re-verified in metro_sim_xl.py: the 17-stop
+line 1 re-saturated at cap 14 (access dead again), swept cap0 -> base
+capacity 22, fun ceiling 24 ($17.5/s at L0), thresholds retuned
+(trainset/marketing/gates/platform). Goal ladder 12 -> 18 rungs (first
+12 byte-identical so migrated goalsDone keeps meaning; rung 12 renamed
+DOWNTOWN COMPLETE; NEW MERIDIAN COMPLETE now $250M; Angel Bay gate sits
+atop the XL arc). Save v10: line ids survive -> unlocks + per-line
+upgrades + per-line FLEET COUNTS carry (respawned evenly spaced on the
+new geometry); station-keyed maps (food/gates/platform/waiting) drop
+with the old ids. Painter gains a label TextPainter cache (162 stations
+x halo+label per frame would chug). STYLE.md restored (it had been
+clobbered by an old CLAUDE.md copy) with the approval records.
+
+Metro Magnate build 25 (v0.10.0): STATION WORKS bulk planner + 3 new
+station upgrades (player request: bulk per-station upgrades from the
+line sheet, tier-even leveling -- "if 8/9 stations are level 2, none
+goes to 3 until 9/9" -- with a player-set, customizable priority).
+Station catalog unified into a StationUpgradeDef registry and grown to
+6: food, gates, platform + NEW Park & Ride (+6% ridership/lv),
+Escalators (+8 platform cap at that station/lv -- station cap is now
+per-station via stationCapAt), Security Desk (+4% income/lv). Line
+sheets gain a STATION WORKS panel: one bulk row per type, ordered by a
+persisted global priority list (arrow to reorder, NEXT marker on the
+first non-maxed type); buyStationTier raises only min-tier stations, in
+line order, while cash lasts. Station sheet now renders all 6 works
+generically; both sheets scroll. Save v11 (3 maps + stationPriority,
+unknown types filtered, new types appended). Tests: tier rule, partial-
+cash ordering, priority reorder/plan/persistence, new-effect units,
+caps test moved to stationCapAt.
+
+Metro Magnate build 26 (v0.11.0): THE CITY PLAYS MUSIC -- Arc 1 (design
+craft) begins per the agreed build path. Generative WebAudio soundtrack,
+zero assets: every line owns a pitch on an A-minor pentatonic across
+three octaves (any mix of 24 lines harmonizes); boardings pluck the
+line's note with gain scaled by scoop fullness (engine gained
+lastBoardLineId), commendations play a rising arpeggio, line unlocks a
+root+fifth. Pure oscillators via dart:js_util; conditional-import stub
+keeps the VM test suite silent and compiling. First tap anywhere resumes
+the AudioContext (browser gesture gate); mute toggle in the header
+persists via localStorage (device preference, not game state -- no save
+bump). Rate-limited to one pluck per ~80ms so the city stays musical,
+never noisy. Also fixed a latent XL overflow: the header bullet strip
+(24 bullets wide when everything is unlocked) now scrolls horizontally.

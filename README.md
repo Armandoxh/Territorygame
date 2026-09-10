@@ -1,4 +1,18 @@
-# Territory
+# Territory (+ the game portfolio)
+
+This repo hosts several games built with Claude. **The active project is
+[Metro Magnate](./metro2/README.md)** — an idle subway empire mid-pivot
+to a WebGL engine (v2 at
+[/metro2/](https://armandoxh.github.io/Territorygame/metro2/), the
+complete v1 at
+[/metro/](https://armandoxh.github.io/Territorygame/metro/)). Also here:
+WealthQuest (`wealthquest/`), Scratch Empire (`scratch/`), and the swarm
+RTS rebuild (`swarm/`). Per-game state lives in
+[STATUS.md](./STATUS.md).
+
+The rest of this file documents the original Territory game.
+
+---
 
 Real-time territorial expansion game. Single-player vs AI now; multiplayer (Colyseus) next.
 

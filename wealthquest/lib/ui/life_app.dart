@@ -1,0 +1,805 @@
+import 'package:flutter/material.dart';
+import 'widgets/lucide.dart';
+
+import '../data/life.dart';
+import '../state/game_controller.dart';
+import '../util/format.dart';
+import 'widgets/app_notifications.dart';
+import 'widgets/app_scaffold.dart';
+import 'widgets/swipe_back.dart';
+import 'widgets/ui_helpers.dart';
+
+/// "Life" — where your money actually goes. A breakdown of living expenses,
+/// the home/car your income affords (read-only flavor for now), and events you
+/// can attend to pick up a market tip.
+class LifeApp extends StatelessWidget {
+  const LifeApp({super.key, required this.game});
+
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    return SwipeBack(
+      child: DefaultTabController(
+        length: 5,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Life'),
+            actions: [CashBadge(game: game)],
+            bottom: const TabBar(
+              isScrollable: true,
+              tabs: [
+                Tab(text: 'Expenses'),
+                Tab(text: 'Family'),
+                Tab(text: 'Housing'),
+                Tab(text: 'Transport'),
+                Tab(text: 'Events'),
+              ],
+            ),
+          ),
+          body: Column(
+            children: [
+              AppNotificationBar(game: game, appId: 'life'),
+              Expanded(
+                child: ListenableBuilder(
+                  listenable: game,
+                  builder: (context, _) => TabBarView(
+                    // Swipe between tabs. Clamping (no overscroll bounce) stops
+                    // the edge swipe from triggering the browser's back/refresh,
+                    // and the pager wins the gesture so swiping never pops the
+                    // route. Use the app-bar back arrow to leave.
+                    physics: const ClampingScrollPhysics(),
+                    children: [
+                      _ExpensesTab(game: game),
+                      _FamilyTab(game: game),
+                      _HousingTab(game: game),
+                      _TransportTab(game: game),
+                      _EventsTab(game: game),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          floatingActionButton: advanceControls(context, game),
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpensesTab extends StatelessWidget {
+  const _ExpensesTab({required this.game});
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Live breakdown: housing and transport are whatever you've chosen (or the
+    // income default); the rest are still shares of the income-scaled baseline;
+    // kids add childcare. These sum to exactly what's billed each month.
+    final base = game.dailyExpenses;
+    final housing = game.housingCost;
+    final transport = game.transportCost;
+    final childcare = game.childcareCost;
+    final food = base * 0.18;
+    final insurance = base * 0.12;
+    final utilities = base * 0.09;
+    final fun = base * 0.08;
+    final total =
+        housing + transport + food + insurance + utilities + fun + childcare;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Monthly living expenses',
+                    style: theme.textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(money(total),
+                    style: theme.textTheme.headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  'These come out of your cash every month — before anything '
+                  'you invest. Housing and transport are your call (see those '
+                  'tabs); the rest scale with your paycheck.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text('Where it goes', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 4),
+        _ExpenseRowTile(
+            emoji: '🏠', label: game.housing?.name ?? 'Housing',
+            amount: housing, total: total),
+        _ExpenseRowTile(
+            emoji: '🚗', label: game.transport?.name ?? 'Transportation',
+            amount: transport, total: total),
+        _ExpenseRowTile(
+            emoji: '🛒', label: 'Food & groceries', amount: food, total: total),
+        _ExpenseRowTile(
+            emoji: '🩺', label: 'Insurance & health',
+            amount: insurance, total: total),
+        _ExpenseRowTile(
+            emoji: '💡', label: 'Utilities & phone',
+            amount: utilities, total: total),
+        _ExpenseRowTile(
+            emoji: '🎉', label: 'Fun & everything else',
+            amount: fun, total: total),
+        if (childcare > 0)
+          _ExpenseRowTile(
+              emoji: '👨‍👩‍👧', label: 'Childcare',
+              amount: childcare, total: total),
+      ],
+    );
+  }
+}
+
+class _ExpenseRowTile extends StatelessWidget {
+  const _ExpenseRowTile({
+    required this.emoji,
+    required this.label,
+    required this.amount,
+    required this.total,
+  });
+  final String emoji;
+  final String label;
+  final double amount;
+  final double total;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final share = total > 0 ? amount / total : 0.0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('$emoji  $label',
+                    style: theme.textTheme.bodyMedium),
+              ),
+              const SizedBox(width: 8),
+              Text('${money(amount)}  ·  ${(share * 100).round()}%',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: share,
+              minHeight: 6,
+              backgroundColor: theme.colorScheme.surfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HousingTab extends StatelessWidget {
+  const _HousingTab({required this.game});
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentId = game.housingChoiceId;
+    final delta = game.housing == null
+        ? 0.0
+        : game.housingCost - game.autoHousingCost;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      children: [
+        _LifestyleHeader(
+          title: 'Where you live',
+          currentName: game.housing?.name ?? 'Following your income',
+          cost: game.housingCost,
+          delta: delta,
+          note: 'Live below your means and pour the difference into '
+              'investments — or trade up for status that opens doors. A nicer '
+              'home raises your social standing; a cheap one saves cash but '
+              'wins you none.',
+        ),
+        const SizedBox(height: 12),
+        _ChoiceCard(
+          emoji: '📈',
+          name: 'Follow my income',
+          costLabel: '~${money(game.autoHousingCost)}/mo',
+          standingBonus: 0,
+          blurb: 'Let your home scale automatically with your paycheck — '
+              'classic lifestyle creep.',
+          selected: currentId == null,
+          onSelect: () => game.chooseHousing(null),
+        ),
+        for (final h in LifeData.housing)
+          _ChoiceCard(
+            emoji: h.emoji,
+            name: h.name,
+            costLabel: '${money(h.monthlyCost)}/mo',
+            standingBonus: h.standingBonus,
+            blurb: h.blurb,
+            selected: currentId == h.id,
+            onSelect: () => game.chooseHousing(h.id),
+            warn: game.children > h.capacityKids
+                ? 'Cramped for ${game.children} '
+                    '${game.children == 1 ? 'kid' : 'kids'}'
+                : null,
+          ),
+      ],
+    );
+  }
+}
+
+class _TransportTab extends StatelessWidget {
+  const _TransportTab({required this.game});
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentId = game.transportChoiceId;
+    final delta = game.transport == null
+        ? 0.0
+        : game.transportCost - game.autoTransportCost;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      children: [
+        _LifestyleHeader(
+          title: 'What you drive',
+          currentName: game.transport?.name ?? 'Following your income',
+          cost: game.transportCost,
+          delta: delta,
+          note: 'A beater or a transit pass frees up cash to invest; a nice '
+              'ride costs more but turns heads and lifts your standing.',
+        ),
+        const SizedBox(height: 12),
+        _ChoiceCard(
+          emoji: '📈',
+          name: 'Follow my income',
+          costLabel: '~${money(game.autoTransportCost)}/mo',
+          standingBonus: 0,
+          blurb: 'Let what you drive scale automatically with your paycheck.',
+          selected: currentId == null,
+          onSelect: () => game.chooseTransport(null),
+        ),
+        for (final t in LifeData.transport)
+          _ChoiceCard(
+            emoji: t.emoji,
+            name: t.name,
+            costLabel: '${money(t.monthlyCost)}/mo',
+            standingBonus: t.standingBonus,
+            blurb: t.blurb,
+            selected: currentId == t.id,
+            onSelect: () => game.chooseTransport(t.id),
+          ),
+      ],
+    );
+  }
+}
+
+/// Header summarizing the current housing/transport pick: its cost and how that
+/// compares to just letting lifestyle follow your income.
+class _LifestyleHeader extends StatelessWidget {
+  const _LifestyleHeader({
+    required this.title,
+    required this.currentName,
+    required this.cost,
+    required this.delta,
+    required this.note,
+  });
+
+  final String title;
+  final String currentName;
+  final double cost;
+  final double delta;
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final saving = delta < -0.5;
+    final paying = delta > 0.5;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(currentName,
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 8),
+                Text('${money(cost)}/mo',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            if (saving || paying) ...[
+              const SizedBox(height: 4),
+              Text(
+                saving
+                    ? '${money(-delta)}/mo less than following your income — '
+                        'straight into your pocket.'
+                    : '${money(delta)}/mo more than your income would default to.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: saving ? kGain : kLoss),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Text(note,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One selectable lifestyle option (housing tier, car, or "follow income").
+class _ChoiceCard extends StatelessWidget {
+  const _ChoiceCard({
+    required this.emoji,
+    required this.name,
+    required this.costLabel,
+    required this.standingBonus,
+    required this.blurb,
+    required this.selected,
+    required this.onSelect,
+    this.warn,
+  });
+
+  final String emoji;
+  final String name;
+  final String costLabel;
+  final int standingBonus;
+  final String blurb;
+  final bool selected;
+  final VoidCallback onSelect;
+  final String? warn;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: selected ? theme.colorScheme.primary.withOpacity(0.14) : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: selected
+            ? BorderSide(color: theme.colorScheme.primary, width: 1.5)
+            : BorderSide.none,
+      ),
+      child: InkWell(
+        onTap: selected ? null : onSelect,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(emoji, style: const TextStyle(fontSize: 20)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(name,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(costLabel,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(blurb, style: theme.textTheme.bodySmall),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (standingBonus > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _pill(theme, '+$standingBonus standing',
+                          theme.colorScheme.primary),
+                    ),
+                  if (warn != null)
+                    _pill(theme, warn!, kLoss),
+                  const Spacer(),
+                  if (selected)
+                    Row(
+                      children: [
+                        Lucide('circle-check',
+                            size: 18, color: theme.colorScheme.primary),
+                        const SizedBox(width: 4),
+                        Text('Selected',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    )
+                  else
+                    Text('Tap to choose',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pill(ThemeData theme, String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(text,
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: color, fontWeight: FontWeight.w700)),
+      );
+}
+
+class _FamilyTab extends StatelessWidget {
+  const _FamilyTab({required this.game});
+  final GameController game;
+
+  void _toast(BuildContext context, String msg) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _date(BuildContext context) {
+    final before = game.relationship;
+    final err = game.goOnDate();
+    if (err != null) {
+      _toast(context, err);
+    } else if (game.relationship == RelationshipStage.partnered &&
+        before != RelationshipStage.partnered) {
+      _toast(context, "It's official — you're a couple! A second income starts.");
+    } else {
+      _toast(context, 'A lovely date. ${game.datesBeen}/'
+          '${GameController.datesToPartner} until it gets serious.');
+    }
+  }
+
+  String get _stageLabel {
+    switch (game.relationship) {
+      case RelationshipStage.single:
+        return 'Single';
+      case RelationshipStage.dating:
+        return 'Dating';
+      case RelationshipStage.partnered:
+        return 'Partnered';
+      case RelationshipStage.married:
+        return 'Married';
+    }
+  }
+
+  String get _stageEmoji {
+    switch (game.relationship) {
+      case RelationshipStage.single:
+        return '🙂';
+      case RelationshipStage.dating:
+        return '🌹';
+      case RelationshipStage.partnered:
+        return '💑';
+      case RelationshipStage.married:
+        return '💍';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final partnered = game.hasPartner;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      children: [
+        // Relationship status.
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(_stageEmoji, style: const TextStyle(fontSize: 22)),
+                    const SizedBox(width: 8),
+                    Text(_stageLabel,
+                        style: theme.textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (!partnered)
+                  Text(
+                    'Go out and meet someone. A few good dates and you settle '
+                    'down — bringing a second income into the household.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
+                  )
+                else
+                  Text(
+                    'Your partner brings home ${money(game.partnerMonthlyIncome)} '
+                    'a month — it lands in your cash every month automatically.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                if (game.relationship == RelationshipStage.dating) ...[
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: (game.datesBeen / GameController.datesToPartner)
+                          .clamp(0.0, 1.0),
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('${game.datesBeen}/${GameController.datesToPartner} dates',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ],
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (!partnered)
+                      FilledButton.icon(
+                        onPressed: game.cash >= GameController.dateCost
+                            ? () => _date(context)
+                            : null,
+                        icon: Lucide('heart', size: 18),
+                        label: Text(
+                            'Go on a date · ${money(GameController.dateCost)}'),
+                      ),
+                    if (game.relationship == RelationshipStage.partnered)
+                      FilledButton.tonalIcon(
+                        onPressed: game.cash >= GameController.weddingCost
+                            ? () => _toast(context,
+                                game.proposeMarriage() ?? 'You got married! 🎉')
+                            : null,
+                        icon: Lucide('gem', size: 18),
+                        label: Text(
+                            'Get married · ${money(GameController.weddingCost)}'),
+                      ),
+                    if (partnered)
+                      FilledButton.tonalIcon(
+                        onPressed: game.children < GameController.maxChildren &&
+                                game.cash >= GameController.childUpfrontCost
+                            ? () => _toast(context,
+                                game.haveChild() ?? 'Welcome to the family! 👶')
+                            : null,
+                        icon: Lucide('baby', size: 18),
+                        label: Text(
+                            'Have a child · ${money(GameController.childUpfrontCost)}'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Kids.
+        if (game.children > 0) ...[
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Text('👨‍👩‍👧', style: TextStyle(fontSize: 22)),
+              title: Text('${game.children} '
+                  '${game.children == 1 ? 'child' : 'children'}'),
+              subtitle: Text(
+                  '${money(game.childcareCost)} / month in childcare & costs'),
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        // Social standing.
+        _StandingCard(game: game),
+      ],
+    );
+  }
+}
+
+/// Shows your social standing tier and progress to the next, plus what it
+/// unlocks — the "who you know" that opens better event rooms.
+class _StandingCard extends StatelessWidget {
+  const _StandingCard({required this.game});
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const thresholds = [5, 15, 30];
+    final tier = game.standingTier;
+    final atTop = tier >= 3;
+    final next = atTop ? null : thresholds[tier];
+    final prev = tier == 0 ? 0 : thresholds[tier - 1];
+    final progress = atTop
+        ? 1.0
+        : ((game.totalStanding - prev) / (next! - prev)).clamp(0.0, 1.0);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Lucide('users', size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Social standing',
+                      style: theme.textTheme.titleMedium),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(game.standingLabel,
+                      textAlign: TextAlign.right,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(value: progress, minHeight: 8),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              atTop
+                  ? "Inner circle — every room in town is open to you."
+                  : '${game.totalStanding}/$next to the next tier. '
+                      'Go out, marry, grow your family — or just live well '
+                      '(${game.lifestyleStanding} from your home & car).',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EventsTab extends StatelessWidget {
+  const _EventsTab({required this.game});
+  final GameController game;
+
+  void _attend(BuildContext context, LifeEvent e) {
+    final err = game.attendLifeEvent(e);
+    final msg = err ?? 'You picked up a tip — check The Daily Ledger.';
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final used = game.attendedEventThisMonth;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            'Get out and meet people. Each event costs cash and lands one market '
+            'tip in The Daily Ledger. Your social standing (${game.standingLabel}) '
+            'opens better rooms and sharpens every tip. One outing per month.',
+            style: theme.textTheme.bodySmall,
+          ),
+        ),
+        if (used)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text("You've already been out this month.",
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ),
+        ...LifeData.events.map((e) {
+          final locked = game.standingTier < e.minTier;
+          final affordable = game.cash >= e.cost;
+          final enabled = !used && affordable && !locked;
+          // Effective intel quality includes your standing bonus.
+          final eff = locked
+              ? e.reliability
+              : (e.reliability + game.standingTier * 0.03).clamp(0.0, 0.92);
+          return Opacity(
+            opacity: locked ? 0.6 : 1,
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('${e.emoji}  ${e.name}',
+                              style: theme.textTheme.titleSmall),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(money(e.cost),
+                            style: theme.textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(e.blurb, style: theme.textTheme.bodySmall),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Chip(
+                          visualDensity: VisualDensity.compact,
+                          label: Text('~${(eff * 100).round()}% reliable',
+                              style: theme.textTheme.labelSmall),
+                        ),
+                        const Spacer(),
+                        if (locked)
+                          Chip(
+                            visualDensity: VisualDensity.compact,
+                            avatar: Lucide('lock', size: 14),
+                            label: Text(_tierName(e.minTier),
+                                style: theme.textTheme.labelSmall),
+                          )
+                        else
+                          FilledButton.tonal(
+                            onPressed: enabled ? () => _attend(context, e) : null,
+                            child: Text(affordable ? 'Attend' : 'Need cash'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  static String _tierName(int tier) => const [
+        'Newcomer',
+        'Connected',
+        'Well-connected',
+        'Inner circle',
+      ][tier];
+}

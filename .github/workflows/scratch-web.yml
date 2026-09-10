@@ -1,0 +1,53 @@
+name: ScratchEmpire Web
+
+# Builds the Scratch Empire Flutter app for the web and publishes it to the
+# GitHub Pages branch under docs/scratch, so it shows up at
+# https://armandoxh.github.io/Territorygame/scratch/ — alongside v1 (/),
+# v2 (/swarm/), and WealthQuest (/wealthquest/).
+
+on:
+  push:
+    branches: [claude/investment-game-9xxLw]
+    paths:
+      - 'scratch/**'
+      - '.github/workflows/scratch-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scratch-web
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build web
+        working-directory: scratch
+        run: |
+          flutter --version
+          flutter create . --platforms=web
+          flutter pub get
+          flutter build web --release --base-href /Territorygame/scratch/ --pwa-strategy=none
+
+      - name: Deploy to Pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./scratch/build/web
+          publish_branch: claude/territorial-game-mobile-xXdYn
+          destination_dir: docs/scratch
+          keep_files: true
+          commit_message: 'Deploy scratch web build [skip ci]'
+          user_name: 'github-actions[bot]'
+          user_email: '41898282+github-actions[bot]@users.noreply.github.com'

@@ -1,0 +1,207 @@
+Metro Magnate build 27 (v0.11.1): UNLOCK CINEMA -- Arc 1 continues. When
+a line is bought the LINES sheet closes itself, the camera glides to the
+new route (eased 1.4s, zoom fitted to the line's bounding box, clamped
+to the fit scale), and the line draws itself in along its path over
+2.2s -- partial-segment stroke budget in the painter, terminal bullets
+held until the route completes, and the line's new train waits for its
+track to reach it before appearing. Engine gained unlockSeq +
+lastUnlockedLineId (pinned in the second-line test: fires on buy, not
+on a failed buy). Camera writes happen via post-frame callbacks so the
+InteractiveViewer is never mutated mid-build; the player regains the
+camera the moment the glide ends.
+
+Build 28 (v0.11.2): 10x playtest fast-forward (player request: "add a
+10x speed I can possibly sit through a play thru"). Header gains a
+fast-forward toggle next to the mute (amber + '10x' while engaged). The
+ticker multiplies frame dt by the scale but simulates it as sub-ticks
+of <=0.05s, so train physics/dwells/boardings are byte-identical to
+real time, just compressed (~200 exact ticks/sec at 10x -- cheap, tick
+is O(stations+trains)). Not persisted -- a session testing tool, resets
+to 1x on reload. Audio rate limiter naturally keeps 10x musical. The
+planned onboarding build shifts to 29.
+
+Build 29 (v0.12.0): THE FIRST FIVE MINUTES -- Arc 1 completes. (1) App
+identity: hand-authored metro/web/ (flutter create skips existing
+files): station-sign app icon (ink square, white rule, red M bullet;
+regular + maskable + apple-touch + favicon, rendered from SVG via
+headless chromium), branded manifest (standalone, portrait, ink theme),
+and a splash in index.html -- ink screen, white rule, M bullet, "METRO
+MAGNATE / NOW ARRIVING" -- removed on flutter-first-frame. The new
+viewport meta (user-scalable=no) also stops Safari page-zoom from
+fighting the map pinch. (2) Coach marks: five state-driven tips in a
+TIP strip under the goal bar (welcome/2nd train/2nd line/station works/
+goal ladder), each auto-dismissing when its milestone is met and
+manually dismissible; coachStep persists (save v12) and veteran saves
+skip all of them instantly. Arc 1 (craft) done: sound, cinema,
+onboarding, identity. Next: Arc 2 strategy (rush hour build 30).
+
+Build 30 (v0.12.1): build 29's app-identity files never shipped --
+metro/.gitignore ignored web/ (platform-scaffolding-in-CI era), so the
+hand-authored index.html/manifest/icons were silently excluded from the
+commit and CI deployed Flutter's default icons (player: "I don't see
+the icon"). Diagnosed by listing docs/metro/icons on the Pages branch:
+default Flutter logo sizes, no apple-touch-icon. Fix: web/ un-ignored
+(it is hand-authored now; flutter create skips existing files), all 8
+web files committed. Lesson: after adding files in a previously-ignored
+path, verify they LANDED in the commit stat.
+
+Build 31 (v0.12.2): icon artwork fix (player: "the M is cut off
+halfway"). Root cause found by LOOKING at the generated PNGs: headless
+Chrome clamps windows below ~500px, so the 180/192/32 renders captured
+a cropped corner of a larger canvas -- the apple-touch icon showed half
+a circle, no M. Only the 512 renders were clean. Fix: ship the 512s
+everywhere (apple-touch, favicon, 192 slots get 512 content; browsers
+scale), manifest declares just the two clean 512 entries. Lessons:
+VIEW every generated image at every size before shipping; and a failed
+sed mid-chain silently skipped the version bump (heredoc broke the &&
+chain), hence this follow-up stamp commit.
+
+Build 32 (v0.13.0): RUSH HOUR -- Arc 2 (strategy) begins. Deterministic
+3-minute cycle; the last 45s are rush hour on one unlocked line
+(rotating in ladder order), x2.5 demand at every station it serves.
+The sim probe proved the strategic shape: at base capacity a rush pays
+0.98x (queues cap, trains full -- nothing), cars L5 pays 1.37x, cars L5
++ extra train 1.91x. Rush hour is a dividend on pre-built capacity
+headroom, making per-line investment positional for the first time.
+rushClock persists (save v13) so the schedule continues across reloads;
+offline time doesn't advance it (rushes reward presence). UI: a red
+RUSH HOUR strip with line bullet + countdown while active, a quiet
+NEXT RUSH countdown while calm; the rush line draws fatter on the map;
+a low double-strike sound marks rush start. Thresholds re-measured with
+rush active (access 1.04, trainset 1.03, marketing 1.02 -- demand-side
+upgrades idle through saturated windows by design). New tests: schedule
+timing, ladder-order rotation, capacity-pays-the-rush (>1.5x window
+comparison), rushClock round-trip.
+
+Build 33 (v0.14.0): CITY COMMISSIONS -- Arc 2 continues. Opt-in
+contracts in a slim strip: "carry N riders on line L within 2:00 ->
+$reward" with GO/SKIP; while active it shows live progress + countdown.
+Targets rotate on stride 2 (different from rush's stride 1) so
+commissions pull investment toward lines the rush isn't favoring;
+quotas escalate 400 x 1.6^n (capped exponent 12), reward = 2x those
+riders' fares x goalMult so it stays relevant at any ladder height.
+Failure costs nothing but the offer moves on; success pays through
+_windowEarned so avgRate/offline see it. Save v14 persists the full
+contract state (mid-flight contracts survive reloads -- pinned).
+Resolve toast + sound (commendation arpeggio on win, low strike on
+expiry). Tests: deliver-and-get-paid, hopeless-contract expiry,
+stride rotation, mid-flight round-trip.
+
+Build 34 (v0.14.1): build number surfaced in the header (player hasn't
+seen it "since like build 10" -- it lived at the bottom of the old
+scrolling list, then moved into the NETWORK sheet footer in build 23).
+Now a small "b34" sits next to METRO MAGNATE in the sign bar, always
+visible; the full version string stays in the NETWORK sheet footer.
+
+Build 35 (v0.15.0): CONSOLE REDESIGN (player: "you are stacking these
+displays on top of each other... add tabs for rushes and commissions...
+make it look like a AAA app"). The four stacked strips are gone. New
+architecture: slim header / ONE thin GOAL status line (tap -> GOALS
+board) / full-screen map with live-state CHIPS floating in its corner
+(rush now-or-next, active commission progress; tap -> OPS) / four-tab
+console: LINES · OPS · GOALS · NETWORK. OPS is the expanded rush +
+commission center: a rush TIMETABLE (next 4 cycles with lines and
+times -- the deterministic clock makes a printable schedule possible),
+and the commission desk with big ACCEPT/SKIP, live progress bar, and
+completed count. GOALS is the full 18-rung ladder board: done/current/
+ahead with rewards, current progress bar, commendation bank in the
+sign, and the OPEN <city> button when complete. Tabs carry red
+attention dots (offer waiting, city ready). Coach tips float at the
+map's bottom edge. Old _GoalBar/_RushBar/_CommissionBar deleted.
+Engine gained rushLineIdForCycle/secondsUntilRushStart (tested) for
+the timetable. moveOn now closes any open sheets first (they held
+listeners on the disposed world).
+
+Build 36 (v0.16.0): OPS + GOALS REVAMP (player: "the goals are not as
+dynamic as I thought... Be creative with the ops. And goals at a
+certain point are just about getting new lines. Revamp that too").
+Commissions are now five rotating contract TYPES, not five sizes of
+the same haul: HAUL (carry riders on a line), TURNBACK RUN (terminal
+turnarounds -- speed/fleet pays), HUB SERVICE (board riders at the
+line's busiest hub -- station works pay), CLEAN SWEEP (get every
+platform on the line under 25 waiting -- checked live each tick),
+RUSH CONTRACT (earn during rush windows only, 240s limit so a window
+always fits). Uniform reward 2x haul-equivalent x fare x mult. Goals:
+four new GoalKinds (commissions, works, lineUpgrades, rushEarned) so
+the ladder asks for system mastery, not just line count -- NM ladder
+extended 18 -> 22 rungs (rungs 0-11 untouched for saves), Angel Bay
+rungs 2/7 swapped to BAY CONTRACTOR / BAY RUSH BARON. rushEarnings is
+a persisted lifetime counter (save v15) carried through moveOn. Tests:
+per-type contract tests, rotation test, ladder-completion sites now
+require commissions/works/upgrades/rush cash too.
+
+Build 37 (v0.17.0): THE LIGHT CYCLE (player: "I still want AAA
+graphics... prove out #1" -- step 1 of the graphics path: max out the
+current stack before considering a Three.js renderer). The map now
+runs a deterministic day/night cycle off the rush clock, so every
+rush window IS the night rush: dusk falls over the 25s before the
+window (warm tint), the window runs dark (blue-gray multiply tint +
+water lerps to near-black), dawn breaks over the 20s after. A fresh
+game's first day skips the opening dawn so new players see the
+approved daylight look first. At night the city lights up ABOVE the
+tint: route ribbons glow in their line colors (rushing line hottest),
+served stations get warm radial lamps that grow with station works
+(investment visible from orbit), hash-seeded window speckles twinkle
+around served stops, trains throw headlight beams down the track with
+line-color halos, fare pops shift green->mint for legibility.
+Engine: nightFactor getter (pure, derived from rushClock, tested).
+No fragment-shader toolchain risk taken -- gradients + MaskFilter
+blur only, all CanvasKit-safe. STYLE.md records the light-cycle law.
+
+Build 38 (metro2, v2 render proof): THE ENGINE PIVOT (player: "It's
+not bad. Let's save this trunk. V2 needs to be on a better graphics
+engine"). v1 (Flutter) frozen as the stable trunk at b37, still live
+at /metro/. metro2/ is the new stack: TypeScript + Vite + three.js,
+deployed to /metro2/ by metro2-web.yml. Milestone 1 ships the render
+proof: the approved New Meridian XL geometry (bridged from the
+GENERATED cities.dart via tools/dart2json.py -- rigs + approval gate
+still govern geometry) as a real 3D city: extruded boroughs in the
+bay, ~2000 procedural buildings seeded from station demand (on-land +
+off-track placement checks), track ribbons in official line colors on
+shared-corridor lane offsets, station discs + night lamps, trains as
+lit vehicles with headlight beams, sun/shadows, and the v1 light
+cycle (every rush window is the night rush) with bloom. Engine:
+faithful TS port of the sim core (arrivals, directional platforms,
+ping-pong trains, boarding, rush clock, nightFactor, widest-gap
+spawn, buyLine) with 8 vitest tests mirroring v1 laws. THE BIG
+WORKFLOW WIN: this stack builds locally and headless Chromium
+screenshots the real render -- day and night shots were reviewed and
+exposure-tuned BEFORE deploy (v1 was built blind for 37 builds).
+161KB gzipped vs Flutter's multi-MB. Tag push for the trunk was
+blocked (403, token pushes branch only) -- trunk is recorded here and
+in metro/CLAUDE.md instead: v1 final = build 37, commit 81ceac6.
+
+Build 39 (metro2): DE-BOXING PASS (player: "can we get better
+graphics, looks too boxy") + README. metro2/README.md now tells the
+whole story (v1 frozen trunk, v2 pivot, milestone road); root README
+gained a portfolio index. Renderer: buildings are no longer single
+boxes -- three massing archetypes (simple block / tower with setback /
+podium tower) with rooftop mechanicals on 8+ heights, antennas on
+towers, grid jitter, and RoundedBoxGeometry soft edges everywhere.
+Track ribbons sit on a shared dark ballast bed so routes read as
+built rail. Trees: canopies fill every park and street trees scatter
+where the blocks left room (on-land + off-track + off-building
+checks) -- the organic counterweight to a city of extrusions. Trains
+became rolling stock: rounded body, dark glass window band, rounded
+roof. Both day and night screenshots reviewed locally before deploy,
+one green-tuning iteration on the trees.
+
+Build 40 (metro2): M2 -- THE GAME, WIRED (player: "can we wire the 3D
+UI, add some variance; etc"). Default mode is now the real loop: start
+with line 1, earn fares, open lines and buy trains from the LINE DESK
+(v1 dashboard idiom as a DOM overlay), tap a station for its card
+(waiting up/down, demand, serving bullets), locked routes render as
+pale ghosts until bought, unlocks glide the camera to the new line
+with a toast, fleets grow visually the frame after purchase. Engine:
+buyTrain + the x2.5 cost law, avgRate window, save format v2s1
+(localStorage, autosave 5s + visibilitychange) with v1's offline law
+(50% rate, 8h cap) and a while-you-were-away toast; 10 vitest tests
+incl. save roundtrip + offline cap. Variance: muted facade palette
+(8 tones incl. brick + slate), downtown height falloff so the skyline
+has a shape, landmark towers at busy interchanges. ?showcase keeps
+the b38 orbit demo. THE HEADLESS PLAY TEST CAUGHT A REAL BUG before
+any player: the desk rebuilt its DOM at 4Hz so buttons were
+perpetually detached (taps would misfire) -- panels now rebuild only
+on structural change and mutate in place otherwise. Playwright
+clicked OPEN on South Crosstown and the loop verified in one frame:
+balance down, row flipped to +TRAIN, toast up, camera glided.
