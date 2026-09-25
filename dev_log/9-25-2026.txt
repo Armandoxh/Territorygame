@@ -1,0 +1,7 @@
+New game: rts/ — a separate classic medieval base-builder RTS (user
+chose separate game / base-builder / medieval / mobile-first /
+economy-only first milestone). Built milestone 1: map gen, peasants
+gathering wood + gold, House + Lumber Mill construction, peasant
+training, touch pan / zoom / tap HUD. Builds to docs/rts/. Gotcha: top-level
+await in main.ts deadlocked the prod bundle (blank page), so startup is
+wrapped in async boot(). See rts/changelog.md.

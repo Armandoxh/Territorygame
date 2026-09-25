@@ -24,6 +24,10 @@ to the next. Ask LOTS of clarifying questions before assuming.
 Full v2-specific rules in `swarm/CLAUDE.md` (auto-loaded when
 working inside `swarm/`).
 
+**Separate game: `rts/`** (started 2026-09-25) is a classic medieval
+base-builder RTS, unrelated to v2. Its own docs are `rts/plan.md` and
+`rts/changelog.md`. It ships at https://armandoxh.github.io/Territorygame/rts/.
+
 v1 (the existing pixel-territory game in `shared/` + `client/`)
 is preserved as reference. It still ships at
 https://armandoxh.github.io/Territorygame/. v2 ships at
