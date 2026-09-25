@@ -14,8 +14,19 @@ export type Mode =
 export type HudAction =
   | 'idle' | 'all' | 'clear' | 'train' | 'confirm' | `build:${BuildingKind}`;
 
+/** Small inline icons so the HUD doesn't depend on emoji fonts. */
+const ICON: Record<string, string> = {
+  wood: '<svg viewBox="0 0 20 20"><rect x="2" y="6" width="16" height="8" rx="4" fill="#8a5a2e"/><ellipse cx="16" cy="10" rx="2.6" ry="4" fill="#d9ad6f"/><ellipse cx="16" cy="10" rx="1.2" ry="2" fill="#a97b45"/></svg>',
+  gold: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" fill="#c79a1e"/><circle cx="10" cy="10" r="5.6" fill="#f4cc4a"/><path d="M7 8.5a3.4 3.4 0 0 1 3-2.4" stroke="#fff3c4" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>',
+  pop: '<svg viewBox="0 0 20 20"><circle cx="10" cy="6" r="3.4" fill="#f1c7a0"/><path d="M4 18c0-4 2.6-7 6-7s6 3 6 7z" fill="#5b8fe6"/></svg>',
+  house: '<svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7z" fill="#b2452f"/><rect x="5" y="11" width="14" height="9" fill="#eadbc0"/><rect x="10.5" y="14" width="3" height="6" fill="#4a2e18"/></svg>',
+  mill: '<svg viewBox="0 0 24 24"><path d="M3 11 12 5l9 6z" fill="#5d7a55"/><rect x="5" y="11" width="14" height="9" fill="#a77a4c"/><circle cx="8" cy="18" r="2.4" fill="#6b4526"/><circle cx="12.5" cy="18" r="2.4" fill="#6b4526"/></svg>',
+  peasant: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="6" ry="2" fill="#e3c56b"/><circle cx="12" cy="8" r="3.4" fill="#f1c7a0"/><rect x="7.5" y="11.5" width="9" height="9" rx="3" fill="#2f6fd6"/></svg>',
+};
+const icon = (k: string) => `<i class="ic">${ICON[k] ?? ''}</i>`;
+
 const costText = (c: Cost) =>
-  Object.entries(c).map(([k, v]) => `${v} ${k}`).join(' · ') || 'free';
+  Object.entries(c).map(([k, v]) => `${icon(k)}${v}`).join(' ') || 'free';
 
 export class Hud {
   private top = document.getElementById('top')!;
@@ -34,9 +45,9 @@ export class Hud {
 
   update(game: Game, mode: Mode): void {
     const top =
-      `<span class="res wood">${Math.floor(game.stock.wood)}<small>wood</small></span>` +
-      `<span class="res gold">${Math.floor(game.stock.gold)}<small>gold</small></span>` +
-      `<span class="res pop">${game.popUsed}/${game.popCap}<small>pop</small></span>`;
+      `<span class="res">${icon('wood')}${Math.floor(game.stock.wood)}</span>` +
+      `<span class="res">${icon('gold')}${Math.floor(game.stock.gold)}</span>` +
+      `<span class="res ${game.popUsed >= game.popCap ? 'full' : ''}">${icon('pop')}${game.popUsed}/${game.popCap}</span>`;
     if (top !== this.lastTop) { this.top.innerHTML = top; this.lastTop = top; }
 
     const panel = this.panelHtml(game, mode);
@@ -68,7 +79,7 @@ export class Hud {
           const d = BUILDINGS[k];
           const ok = game.canAfford(d.cost);
           return `<button class="card ${ok ? '' : 'poor'}" data-act="build:${k}">
-            <b>${d.name}</b><small>${costText(d.cost)}</small></button>`;
+            ${icon(k)}<span><b>${d.name}</b><small>${costText(d.cost)}</small></span></button>`;
         }).join('');
         return `<div class="head"><span>${n} peasant${n === 1 ? '' : 's'}</span>${close}</div>
           <div class="hint">Tap tree / mine = gather · site = build · ground = move</div>
@@ -86,7 +97,7 @@ export class Hud {
         if (b.kind === 'hall') {
           const left = b.queue > 0 ? ` · next in ${Math.ceil(PEASANT_TRAIN_SECONDS - b.trainTimer)}s` : '';
           body += `<div class="row"><button class="card ${game.canAfford(PEASANT_COST) ? '' : 'poor'}" data-act="train">
-            <b>Train peasant</b><small>${costText(PEASANT_COST)}</small></button>
+            ${icon('peasant')}<span><b>Train peasant</b><small>${costText(PEASANT_COST)}</small></span></button>
             <div class="queue">queue ${b.queue}${left}</div></div>`;
         }
         return `<div class="head"><span>${d.name}</span>${close}</div>${body}`;

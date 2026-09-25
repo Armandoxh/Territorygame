@@ -114,15 +114,6 @@ export class Game {
   canPlace(kind: BuildingKind, tx: number, ty: number): boolean {
     return this.map.areaFree(tx, ty, BUILDINGS[kind].size);
   }
-  unitAt(wx: number, wy: number, radius: number): Unit | null {
-    let best: Unit | null = null;
-    let bestD = radius;
-    for (const u of this.units) {
-      const d = Math.hypot(u.x - wx, u.y - wy);
-      if (d < bestD) { bestD = d; best = u; }
-    }
-    return best;
-  }
   idleUnits(): Unit[] {
     return this.units.filter((u) => u.job === null);
   }
@@ -333,9 +324,11 @@ export class Game {
 
   private spawnPeasantNear(b: Building): void {
     // First free tile in the ring around the building, walking outward.
+    // Scan from the far corner back so new peasants appear on the front
+    // (camera-facing) side of the building rather than hidden behind it.
     for (let r = 1; r < 6; r++)
-      for (let y = b.ty - r; y < b.ty + b.size + r; y++)
-        for (let x = b.tx - r; x < b.tx + b.size + r; x++) {
+      for (let y = b.ty + b.size + r - 1; y >= b.ty - r; y--)
+        for (let x = b.tx + b.size + r - 1; x >= b.tx - r; x--) {
           if (!this.map.passable(x, y)) continue;
           if (this.units.some((u) => tileOf(u.x) === x && tileOf(u.y) === y)) continue;
           this.units.push({ id: this.nextId++, x: tileCenter(x), y: tileCenter(y), path: [], job: null, carry: null, work: 0 });

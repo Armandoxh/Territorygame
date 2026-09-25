@@ -1,9 +1,10 @@
 import { Application } from 'pixi.js';
 import { Camera } from './camera';
-import { BUILDINGS, TILE } from './config';
-import { Game, tileCenter, tileOf, type Unit } from './game';
+import { BUILDINGS } from './config';
+import { Game, type Unit } from './game';
 import { Hud, type HudAction, type Mode } from './hud';
 import { attachInput } from './input';
+import { ISO_H, ISO_W, isoOfTile, tileOfIso } from './iso';
 import { Renderer } from './render';
 
 const seed = Number(new URLSearchParams(location.search).get('seed')) || Math.floor(Math.random() * 1e9);
@@ -16,7 +17,7 @@ async function boot(): Promise<void> {
   await app.init({
     resizeTo: window,
     preference: 'webgl',
-    background: 0x1b2a14,
+    background: 0x2b4a6e,
     antialias: true,
     resolution: Math.min(window.devicePixelRatio || 1, 2),
     autoDensity: true,
@@ -26,11 +27,13 @@ async function boot(): Promise<void> {
   const renderer = new Renderer(game);
   app.stage.addChild(renderer.world);
 
-  const cam = new Camera(game.map.w * TILE, game.map.h * TILE);
-  // ~11 tiles across on a 360px phone; more on wider screens.
-  cam.zoom = Math.max(0.8, Math.min(1.4, window.innerWidth / (11 * TILE)));
+  const { w: mw, h: mh } = game.map;
+  const cam = new Camera({ minX: -mh * (ISO_W / 2), maxX: mw * (ISO_W / 2), minY: 0, maxY: (mw + mh) * (ISO_H / 2) });
+  // ~7 tile-widths across on a 360px phone; more on wider screens.
+  cam.zoom = Math.max(0.6, Math.min(1.3, window.innerWidth / (7 * ISO_W)));
   const hall = game.buildings.get(game.hallId)!;
-  cam.centerOn(tileCenter(hall.tx + 1), tileCenter(hall.ty + 1), window.innerWidth, window.innerHeight);
+  const hallIso = isoOfTile(hall.tx + hall.size / 2, hall.ty + hall.size / 2);
+  cam.centerOn(hallIso.x, hallIso.y, window.innerWidth, window.innerHeight);
 
   let mode: Mode = { type: 'none' };
   let marker: { x: number; y: number; t: number } | null = null;
@@ -38,34 +41,47 @@ async function boot(): Promise<void> {
   const selectedUnits = (): Unit[] =>
     mode.type === 'units' ? game.units.filter((u) => (mode as { ids: Set<number> }).ids.has(u.id)) : [];
 
+  /** Ground tile under a screen point. */
+  const tileAt = (sx: number, sy: number) => {
+    const iso = cam.toWorld(sx, sy);
+    const t = tileOfIso(iso.x, iso.y);
+    return { tx: Math.floor(t.x), ty: Math.floor(t.y), iso };
+  };
+
   function onTap(sx: number, sy: number): void {
-    const w = cam.toWorld(sx, sy);
-    const tx = tileOf(w.x);
-    const ty = tileOf(w.y);
-    if (!game.map.inBounds(tx, ty)) return;
+    const { tx: gx, ty: gy, iso } = tileAt(sx, sy);
 
     if (mode.type === 'place') {
       const half = Math.floor(BUILDINGS[mode.kind].size / 2);
-      mode = { ...mode, tx: tx - half, ty: ty - half };
+      mode = { ...mode, tx: gx - half, ty: gy - half };
       return;
     }
 
-    const unit = game.unitAt(w.x, w.y, Math.max(14, 20 / cam.zoom));
+    const unit = renderer.pickUnit(iso.x, iso.y, Math.max(12, 18 / cam.zoom));
     if (unit) {
       mode = { type: 'units', ids: new Set([unit.id]) };
       return;
     }
 
+    // Tall things (buildings, mines, tree canopies) cover tiles behind them,
+    // so resolve what was visibly tapped before falling back to the ground tile.
+    const structure = renderer.pickStructure(iso.x, iso.y);
+    const tree = structure ? null : renderer.pickTree(iso.x, iso.y);
+    const tx = structure ? structure.tx : tree ? tree.x : gx;
+    const ty = structure ? structure.ty : tree ? tree.y : gy;
+    if (!game.map.inBounds(tx, ty)) return;
+
     if (mode.type === 'units') {
       const units = selectedUnits();
       if (units.length > 0) {
         game.orderAt(units, tx, ty);
-        marker = { x: w.x, y: w.y, t: game.time };
+        const m = structure || tree ? isoOfTile(tx + 0.5, ty + 0.5) : iso;
+        marker = { x: m.x, y: m.y, t: game.time };
         return;
       }
     }
 
-    const b = game.buildings.get(game.map.occupantAt(tx, ty));
+    const b = structure && game.buildings.get(structure.id);
     mode = b ? { type: 'building', id: b.id } : { type: 'none' };
   }
 
@@ -89,9 +105,9 @@ async function boot(): Promise<void> {
         return;
       }
       // Ghost starts at screen centre; user taps to move it.
-      const c = cam.toWorld(window.innerWidth / 2, window.innerHeight / 2);
+      const c = tileAt(window.innerWidth / 2, window.innerHeight / 2);
       const half = Math.floor(BUILDINGS[kind].size / 2);
-      mode = { type: 'place', kind, tx: tileOf(c.x) - half, ty: tileOf(c.y) - half, builders: mode.ids };
+      mode = { type: 'place', kind, tx: c.tx - half, ty: c.ty - half, builders: mode.ids };
     }
   }
 

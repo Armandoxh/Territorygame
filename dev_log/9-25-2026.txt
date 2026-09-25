@@ -5,3 +5,8 @@ gathering wood + gold, House + Lumber Mill construction, peasant
 training, touch pan / zoom / tap HUD. Builds to docs/rts/. Gotcha: top-level
 await in main.ts deadlocked the prod bundle (blank page), so startup is
 wrapped in async boot(). See rts/changelog.md.
+
+rts/ graphics pass: isometric renderer (sim unchanged, projection only in
+render + picking), code-drawn stand-in art, medieval HUD. User asked for
+isometric + free asset pack; kenney.nl blocked by network policy, so Kenney
+sprites are pending the user allowing that domain.

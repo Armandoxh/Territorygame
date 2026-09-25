@@ -13,6 +13,13 @@ Decided with the user 2026-09-25:
 - **Location:** standalone `rts/` folder, own `package.json`, builds to
   `../docs/rts/`. Stack: Vite + TypeScript + Pixi 8, nothing else.
 
+## Look (decided 2026-09-25)
+
+**Isometric / 2.5D**, art from a **free CC0 pack** (Kenney preferred).
+The sim stays on a square grid; only rendering is isometric. Until the
+pack can be downloaded (kenney.nl is blocked by the environment's
+network policy), objects are drawn in code as stand-ins.
+
 ## Milestone 1 — economy only (current)
 
 No combat, no enemies. Prove that gathering and building feel good on a phone.
